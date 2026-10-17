@@ -1,94 +1,116 @@
 ---
+import { env } from 'cloudflare:workers'
+import { listAssets, listConnections } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
+import AssetGrid from '../components/AssetGrid.astro'
+import Uploader from '../components/Uploader.svelte'
 
 const principal = Astro.locals.principal!
-const firstName = (principal.name || principal.email).split(' ')[0]
+const params = Astro.url.searchParams
+const q = params.get('q') ?? ''
+const tag = params.get('tag') ?? ''
+const sort = params.get('sort') === 'added' ? 'added' : 'captured'
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1)
+const PAGE = 120
 
-const roadmap = [
-  { phase: 'Phase 2', title: 'Uploads and the catalog', body: 'Upload, EXIF, duplicate detection, full-text search, tags and albums.' },
-  { phase: 'Phase 3', title: 'The library', body: 'Justified grid, a loupe that zooms from the thumbnail, facets and culling.' },
-  { phase: 'Phase 5', title: 'Your NAS, indexed in place', body: 'A small agent catalogues the archive where it lives. No original moves.' },
-  { phase: 'Phase 6', title: 'Storage lifecycle', body: 'Originals flow from hot to warm to deep archive, and come back on request.' },
-]
+const canRead = principal.permissions.has('assets:read')
+const canUpload = principal.permissions.has('assets:upload')
+const { assets, total } = canRead
+  ? await listAssets(env.DB, { q: q || undefined, tag: tag || undefined, sort, limit: PAGE, offset: (page - 1) * PAGE })
+  : { assets: [], total: 0 }
+const connections = canUpload
+  ? (await listConnections(env.DB)).map((c) => ({ id: c.id, name: c.name, storageClasses: c.storageClasses, defaultClass: c.defaultClass, isDefault: c.isDefault }))
+  : []
+const filtered = Boolean(q || tag)
+const link = (changes: Record<string, string | null>) => {
+  const next = new URLSearchParams(params)
+  for (const [k, v] of Object.entries(changes)) v === null ? next.delete(k) : next.set(k, v)
+  const s = next.toString()
+  return s ? `/?${s}` : '/'
+}
+const subtitle = filtered
+  ? `${total} ${total === 1 ? 'match' : 'matches'}${q ? ` for “${q}”` : ''}${tag ? ` tagged ${tag}` : ''}`
+  : `${total} ${total === 1 ? 'item' : 'items'}`
 ---
-<AppLayout title={`Welcome, ${firstName}`} subtitle="Your archive is set up. The library arrives next.">
-  <section class="hero card">
-    <div class="glow" aria-hidden="true"></div>
-    <div class="hero-body">
-      <span class="badge badge-accent">Phase 1 · accounts</span>
-      <h2>Nothing in the archive yet</h2>
-      <p class="muted">
-        Accounts, roles, two-factor sign-in and API keys are ready. Create an API key for the NAS agent now, or invite the
-        people who'll work in the archive.
-      </p>
-      <div class="row">
-        <a class="btn btn-primary" href="/account">Create an API key</a>
-        {principal.permissions.has('users:manage') && <a class="btn" href="/admin/users">Add people</a>}
+<AppLayout title="Library" subtitle={subtitle}>
+  {total === 0 && !filtered ? (
+    <div class="empty stack">
+      <div class="card hero">
+        <h2>Your archive starts here</h2>
+        <p class="muted">
+          Drop in a few photos. Each one is read for camera, lens, date and place, given a thumbnail and a preview, and made
+          searchable. Originals go wherever you choose, from hot R2 to S3 Glacier Deep Archive.
+        </p>
       </div>
+      {canUpload && <Uploader client:load connections={connections} open />}
     </div>
-  </section>
-
-  <h3 class="section-title">Coming next</h3>
-  <div class="roadmap">
-    {roadmap.map((item) => (
-      <article class="card step">
-        <span class="badge">{item.phase}</span>
-        <h4>{item.title}</h4>
-        <p class="muted">{item.body}</p>
-      </article>
-    ))}
-  </div>
+  ) : (
+    <div class="stack">
+      <div class="toolbar row">
+        <nav class="sort" aria-label="Sort">
+          <a href={link({ sort: null, page: null })} class:list={{ on: sort === 'captured' }}>By date taken</a>
+          <a href={link({ sort: 'added', page: null })} class:list={{ on: sort === 'added' }}>Recently added</a>
+        </nav>
+        {filtered && <a class="btn btn-sm" href="/">Clear search</a>}
+        <span class="spacer"></span>
+        {canUpload && <Uploader client:idle connections={connections} />}
+      </div>
+      {assets.length > 0 ? <AssetGrid assets={assets} /> : <p class="muted">Nothing matches. Try fewer words.</p>}
+      {total > PAGE && (
+        <div class="row pager">
+          {page > 1 && <a class="btn" href={link({ page: String(page - 1) })}>Newer</a>}
+          <span class="muted">Page {page} of {Math.ceil(total / PAGE)}</span>
+          {page * PAGE < total && <a class="btn" href={link({ page: String(page + 1) })}>Older</a>}
+        </div>
+      )}
+    </div>
+  )}
 </AppLayout>
 
 <style>
-  .hero {
-    position: relative;
-    overflow: hidden;
-    padding: 36px;
-  }
-  .glow {
-    position: absolute;
-    inset: auto -10% -60% 40%;
-    height: 140%;
-    background: radial-gradient(closest-side, var(--accent-glow), transparent);
-    filter: blur(30px);
-  }
-  .hero-body {
-    position: relative;
-    display: grid;
-    gap: 14px;
-    max-width: 560px;
-  }
   .hero h2 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
   .hero p {
-    margin: 0;
+    max-width: 640px;
+    margin: 10px 0 0;
   }
-  .section-title {
-    margin: 36px 0 14px;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-faint);
+  .toolbar {
+    justify-content: space-between;
+    align-items: flex-start;
   }
-  .roadmap {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 16px;
+  .toolbar :global(.uploader) {
+    flex-basis: 100%;
+    order: 10;
   }
-  .step {
-    display: grid;
-    gap: 8px;
-    align-content: start;
-    padding: 20px;
+  .spacer {
+    flex: 1;
   }
-  .step h4 {
-    margin: 4px 0 0;
-    font-size: 1rem;
+  .sort {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
   }
-  .step p {
-    margin: 0;
-    font-size: 0.9rem;
+  .sort a {
+    padding: 5px 12px;
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 550;
+  }
+  .sort a:hover {
+    text-decoration: none;
+    color: var(--text);
+  }
+  .sort a.on {
+    background: var(--surface-strong);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .pager {
+    justify-content: center;
   }
 </style>

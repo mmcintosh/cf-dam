@@ -1,0 +1,65 @@
+---
+/** Where an original lives, at a glance: hot, warm, cold or deep archive. */
+interface Props {
+  storageClass: string
+  state?: string
+  compact?: boolean
+}
+const { storageClass, state, compact = false } = Astro.props
+const TIERS: Record<string, { label: string; tone: string }> = {
+  STANDARD: { label: 'Hot', tone: 'hot' },
+  INTELLIGENT_TIERING: { label: 'Auto-tiered', tone: 'warm' },
+  STANDARD_IA: { label: 'Warm', tone: 'warm' },
+  ONEZONE_IA: { label: 'Warm · 1 zone', tone: 'warm' },
+  GLACIER_IR: { label: 'Cold · instant', tone: 'cold' },
+  GLACIER: { label: 'Cold', tone: 'cold' },
+  DEEP_ARCHIVE: { label: 'Deep archive', tone: 'deep' },
+}
+const tier = TIERS[storageClass] ?? { label: storageClass, tone: 'warm' }
+const restoring = state === 'restoring'
+const restored = state === 'restored'
+---
+<span class:list={['tier', `tier-${tier.tone}`, { compact }]} title={`${storageClass}${state ? ` · ${state}` : ''}`}>
+  <span class="dot" aria-hidden="true"></span>
+  {!compact && tier.label}
+  {restoring && !compact && ' · restoring'}
+  {restored && !compact && ' · restored'}
+</span>
+
+<style>
+  .tier {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 99px;
+    color: #fff;
+    background: rgb(0 0 0 / 0.55);
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+  }
+  .compact {
+    padding: 4px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .tier-hot .dot {
+    background: #fb923c;
+    box-shadow: 0 0 8px #fb923c;
+  }
+  .tier-warm .dot {
+    background: #facc15;
+  }
+  .tier-cold .dot {
+    background: #38bdf8;
+  }
+  .tier-deep .dot {
+    background: #818cf8;
+    box-shadow: 0 0 8px #818cf8;
+  }
+</style>

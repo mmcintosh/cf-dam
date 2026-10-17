@@ -1,0 +1,143 @@
+---
+/**
+ * Justified rows in pure CSS, uncropped. Each tile's flex-basis is (row height × aspect ratio) and its
+ * flex-grow is proportional to its aspect ratio, so the spare width in a row is shared in the same
+ * proportions: every tile in a row scales by the same factor and the row stays level. A padding
+ * spacer keeps each tile at its photo's own aspect ratio. No layout script.
+ */
+import type { AssetJson } from '@cf-dam/api'
+import TierBadge from './TierBadge.astro'
+
+interface Props {
+  assets: AssetJson[]
+}
+const { assets } = Astro.props
+const ratio = (a: AssetJson) => (a.width && a.height ? Math.min(Math.max(a.width / a.height, 0.4), 3) : 1.5)
+const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?? 'FILE'
+---
+<div class="justified">
+  {assets.map((asset) => (
+    <a
+      class="tile"
+      href={`/assets/${asset.id}`}
+      style={`--ar:${ratio(asset).toFixed(4)}`}
+      title={asset.title ?? asset.filename}
+    >
+      <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
+      {asset.renditions.includes('thumb') ? (
+        <img
+          src={`/api/assets/${asset.id}/renditions/thumb`}
+          alt={asset.alt ?? asset.title ?? asset.filename}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <span class="placeholder">
+          <strong>{ext(asset.filename)}</strong>
+          <span>{asset.status === 'processing' ? 'Processing…' : 'No preview'}</span>
+        </span>
+      )}
+      <span class="overlay">
+        <span class="name">{asset.title ?? asset.filename}</span>
+        {asset.rating ? <span class="stars">{'★'.repeat(asset.rating)}</span> : null}
+      </span>
+      {asset.storage && (
+        <span class="badge-slot">
+          <TierBadge storageClass={asset.storage.storageClass} state={asset.storage.state} compact={asset.storage.storageClass === 'STANDARD'} />
+        </span>
+      )}
+    </a>
+  ))}
+</div>
+
+<style>
+  .justified {
+    --row: 220px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .justified::after {
+    content: '';
+    flex-grow: 1000000;
+  }
+  .tile {
+    position: relative;
+    flex-grow: calc(var(--ar) * 100);
+    flex-basis: calc(var(--row) * var(--ar));
+    overflow: hidden;
+    border-radius: 6px;
+    background: var(--surface-strong);
+    color: #fff;
+  }
+  .spacer {
+    display: block;
+  }
+  .tile img,
+  .placeholder {
+    position: absolute;
+    inset: 0;
+  }
+  .tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 400ms var(--ease), filter 300ms var(--ease);
+  }
+  .tile:hover img {
+    transform: scale(1.04);
+  }
+  .placeholder {
+    display: grid;
+    place-content: center;
+    gap: 4px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+  .placeholder strong {
+    font-size: 1.2rem;
+    letter-spacing: 0.06em;
+    color: var(--text);
+  }
+  .overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 28px 10px 8px;
+    font-size: 0.8rem;
+    background: linear-gradient(transparent, rgb(0 0 0 / 0.65));
+    opacity: 0;
+    transition: opacity 200ms var(--ease);
+  }
+  .tile:hover .overlay,
+  .tile:focus-visible .overlay {
+    opacity: 1;
+  }
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stars {
+    color: #fbbf24;
+    flex: none;
+  }
+  .badge-slot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+  .tile:hover .badge-slot :global(.compact) {
+    padding: 3px 9px;
+  }
+  @media (max-width: 640px) {
+    .justified {
+      --row: 130px;
+      gap: 3px;
+    }
+  }
+</style>

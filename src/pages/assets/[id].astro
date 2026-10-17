@@ -1,0 +1,170 @@
+---
+import { env } from 'cloudflare:workers'
+import { ARCHIVE_CLASSES, assetJson, getAsset, getLocations, getTags, listConnections } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+import AssetEditor from '../../components/AssetEditor.svelte'
+import StoragePanel from '../../components/StoragePanel.svelte'
+import TierBadge from '../../components/TierBadge.astro'
+
+const principal = Astro.locals.principal!
+if (!principal.permissions.has('assets:read')) return new Response('Forbidden', { status: 403 })
+const id = Astro.params.id!
+const row = await getAsset(env.DB, id)
+if (!row) return new Response('Not found', { status: 404 })
+
+const [locations, tags, renditionRows, connections] = await Promise.all([
+  getLocations(env.DB, id),
+  getTags(env.DB, id),
+  env.DB.prepare('SELECT name FROM renditions WHERE asset_id = ?').bind(id).all<{ name: string }>(),
+  listConnections(env.DB),
+])
+const asset = assetJson(row, renditionRows.results.map((r) => r.name))
+const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
+const connection = primary && connections.find((c) => c.id === primary.connection_id)
+const location = primary && connection
+  ? {
+      connectionId: primary.connection_id,
+      connectionName: connection.name,
+      storageClass: primary.storage_class,
+      state: primary.state,
+      archived: ARCHIVE_CLASSES.has(primary.storage_class),
+      restoreExpiresAt: primary.restore_expires_at,
+      offeredClasses: connection.provider === 's3' ? connection.storageClasses : [],
+    }
+  : null
+
+const hasPreview = asset.renditions.includes('preview')
+const hasThumb = asset.renditions.includes('thumb')
+const fmtSize = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(2)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+const shutter = (t: number | null) => (t === null ? null : t >= 1 ? `${t}s` : `1/${Math.round(1 / t)}`)
+const taken = asset.capturedAt
+  ? new Date(`${asset.capturedAt}${asset.capturedOffset ?? 'Z'}`).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short', timeZone: asset.capturedOffset ? undefined : 'UTC' })
+  : null
+const exposure = [
+  asset.exposure.focalLength && `${asset.exposure.focalLength} mm`,
+  asset.exposure.aperture && `ƒ/${asset.exposure.aperture}`,
+  shutter(asset.exposure.exposureTime),
+  asset.exposure.iso && `ISO ${asset.exposure.iso}`,
+].filter(Boolean)
+const facts: [string, string][] = [
+  ['File', asset.filename],
+  ['Size', `${fmtSize(asset.size)}${asset.width ? ` · ${asset.width} × ${asset.height}` : ''}`],
+  ...(taken ? [['Taken', taken] as [string, string]] : []),
+  ...(asset.camera.model ? [['Camera', [asset.camera.make && !asset.camera.model.startsWith(asset.camera.make) ? asset.camera.make : '', asset.camera.model].filter(Boolean).join(' ')] as [string, string]] : []),
+  ...(asset.camera.lens ? [['Lens', asset.camera.lens] as [string, string]] : []),
+  ...(exposure.length ? [['Exposure', exposure.join('  ·  ')] as [string, string]] : []),
+  ...(asset.gps ? [['Location', `${asset.gps.lat.toFixed(4)}, ${asset.gps.lng.toFixed(4)}`] as [string, string]] : []),
+]
+---
+<AppLayout title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>
+  <div class="layout">
+    <section class="stage">
+      {hasPreview || hasThumb ? (
+        <img
+          class="hero"
+          src={`/api/assets/${id}/renditions/${hasPreview ? 'preview' : 'thumb'}`}
+          alt={asset.alt ?? asset.title ?? asset.filename}
+          style={hasThumb ? `background-image: url(/api/assets/${id}/renditions/thumb)` : undefined}
+        />
+      ) : (
+        <div class="no-preview">
+          <strong>{asset.filename.split('.').pop()?.toUpperCase()}</strong>
+          <span class="muted">{asset.status === 'processing' ? 'Still processing. Refresh in a moment.' : 'No preview for this file.'}</span>
+        </div>
+      )}
+      {primary && <span class="badge-slot"><TierBadge storageClass={primary.storage_class} state={primary.state} /></span>}
+    </section>
+
+    <aside class="side stack">
+      <section class="card">
+        <AssetEditor
+          client:load
+          assetId={id}
+          title={asset.title}
+          caption={asset.caption}
+          alt={asset.alt}
+          rating={asset.rating}
+          tags={tags.map((t) => t.name)}
+          canEdit={principal.permissions.has('assets:edit')}
+        />
+      </section>
+      <section class="card">
+        <h2>Details</h2>
+        <dl class="facts">
+          {facts.map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
+        </dl>
+      </section>
+      <section class="card">
+        <h2>Original</h2>
+        <StoragePanel client:visible assetId={id} location={location} canManage={principal.permissions.has('lifecycle:manage')} />
+      </section>
+    </aside>
+  </div>
+</AppLayout>
+
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 24px;
+    align-items: start;
+  }
+  .stage {
+    position: sticky;
+    top: 20px;
+    display: grid;
+    place-items: center;
+    min-height: 60vh;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    background: radial-gradient(circle at 50% 40%, var(--surface-strong), var(--bg));
+    border: 1px solid var(--border);
+  }
+  .hero {
+    max-width: 100%;
+    max-height: 78vh;
+    border-radius: 6px;
+    box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+    background-size: cover;
+  }
+  .no-preview {
+    display: grid;
+    gap: 8px;
+    text-align: center;
+  }
+  .no-preview strong {
+    font-size: 2rem;
+    letter-spacing: 0.08em;
+  }
+  .badge-slot {
+    position: absolute;
+    top: 22px;
+    right: 22px;
+  }
+  .side h2 {
+    margin-bottom: 12px;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    margin: 0;
+    font-size: 0.88rem;
+  }
+  .facts dt {
+    color: var(--text-muted);
+  }
+  .facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 980px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .stage {
+      position: static;
+      min-height: 0;
+    }
+  }
+</style>

@@ -120,11 +120,13 @@ export interface AssetJson {
   status: string
   error: string | null
   renditions: string[]
+  /** Where the original lives (the primary location), when known. */
+  storage: { connectionId: string; storageClass: string; state: string } | null
   createdAt: string
   updatedAt: string
 }
 
-export function assetJson(row: AssetRow, renditions: string[]): AssetJson {
+export function assetJson(row: AssetRow, renditions: string[], location: LocationRow | null = null): AssetJson {
   return {
     id: row.id,
     filename: row.filename,
@@ -145,6 +147,7 @@ export function assetJson(row: AssetRow, renditions: string[]): AssetJson {
     status: row.status,
     error: row.error,
     renditions,
+    storage: location ? { connectionId: location.connection_id, storageClass: location.storage_class, state: location.state } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -213,9 +216,18 @@ export async function listAssets(db: D1Database, filters: ListFilters): Promise<
     db.prepare(`SELECT COUNT(*) AS n FROM assets a WHERE ${clause}`).bind(...params),
   ])
   const assets = (rows!.results ?? []) as AssetRow[]
-  const renditions = await renditionNames(db, assets.map((a) => a.id))
+  const ids = assets.map((a) => a.id)
+  const renditions = await renditionNames(db, ids)
+  const locations = new Map<string, LocationRow[]>()
+  if (ids.length > 0) {
+    const { results } = await db
+      .prepare(`SELECT * FROM asset_locations WHERE asset_id IN (${ids.map(() => '?').join(',')})`)
+      .bind(...ids)
+      .all<LocationRow>()
+    for (const row of results) locations.set(row.asset_id, [...(locations.get(row.asset_id) ?? []), row])
+  }
   return {
-    assets: assets.map((row) => assetJson(row, renditions.get(row.id) ?? [])),
+    assets: assets.map((row) => assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? []))),
     total: ((count!.results?.[0] as { n: number } | undefined)?.n) ?? 0,
   }
 }

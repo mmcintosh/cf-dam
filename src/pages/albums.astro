@@ -1,0 +1,65 @@
+---
+import { env } from 'cloudflare:workers'
+import AppLayout from '../layouts/AppLayout.astro'
+import NewAlbum from '../components/NewAlbum.svelte'
+
+const principal = Astro.locals.principal!
+const { results: albums } = await env.DB.prepare(
+  `SELECT al.id, al.name, al.description,
+     COALESCE(al.cover_asset_id, (SELECT ai.asset_id FROM album_items ai WHERE ai.album_id = al.id ORDER BY ai.position LIMIT 1)) AS cover,
+     (SELECT COUNT(*) FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = al.id) AS items
+   FROM albums al ORDER BY al.updated_at DESC`,
+).all<{ id: string; name: string; description: string; cover: string | null; items: number }>()
+---
+<AppLayout title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
+  {principal.permissions.has('assets:edit') && <div class="new"><NewAlbum client:idle /></div>}
+  <div class="albums">
+    {albums.map((album) => (
+      <a class="album" href={`/albums/${album.id}`}>
+        <span class="cover">
+          {album.cover ? <img src={`/api/assets/${album.cover}/renditions/thumb`} alt="" loading="lazy" /> : <span class="muted">Empty</span>}
+        </span>
+        <strong>{album.name}</strong>
+        <span class="muted">{album.items} {album.items === 1 ? 'item' : 'items'}</span>
+      </a>
+    ))}
+  </div>
+</AppLayout>
+
+<style>
+  .new {
+    margin-bottom: 20px;
+  }
+  .albums {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  .album {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+  }
+  .album:hover {
+    text-decoration: none;
+  }
+  .cover {
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    box-shadow: 6px 6px 0 -1px var(--surface-strong), 6px 6px 0 0 var(--border);
+    transition: transform 200ms var(--ease);
+  }
+  .album:hover .cover {
+    transform: translateY(-3px);
+  }
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+</style>

@@ -3,13 +3,21 @@
  *
  *  - No users yet → everything goes to /setup.
  *  - Signed out → /login, remembering where they were headed.
- *  - /admin/* needs `users:manage`.
+ *  - Some pages need a permission (PAGE_PERMISSIONS).
  */
 import { defineMiddleware } from 'astro:middleware'
 import { env } from 'cloudflare:workers'
 import { resolvePrincipal, setupNeeded } from '@cf-dam/api'
 
 const SIGNED_OUT_PAGES = new Set(['/login'])
+
+/** Pages that need more than being signed in. First matching prefix wins. */
+const PAGE_PERMISSIONS: [string, string][] = [
+  ['/admin', 'users:manage'],
+  ['/settings/storage', 'sources:manage'],
+  ['/albums', 'assets:read'],
+  ['/assets', 'assets:read'],
+]
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname, search } = context.url
@@ -28,7 +36,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)
   }
   if (SIGNED_OUT_PAGES.has(pathname)) return context.redirect('/')
-  if (pathname.startsWith('/admin') && !principal.permissions.has('users:manage')) {
+  const needed = PAGE_PERMISSIONS.find(([prefix]) => pathname.startsWith(prefix))?.[1]
+  if (needed && !principal.permissions.has(needed)) {
     return new Response('Forbidden', { status: 403 })
   }
   return next()
