@@ -71,7 +71,7 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
       const head = await provider.get(location.key, { offset: 0, length: Math.min(METADATA_HEAD_BYTES, Math.max(asset.size, 1)) })
       const headBytes = head ? await readAll(head.body) : null
       if (headBytes) {
-        const meta = await extractMetadata(headBytes)
+        const meta = await extractMetadata(headBytes, asset.mime_type)
         if (meta) await saveMetadata(db, assetId, meta)
       }
 
@@ -93,7 +93,10 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
     }
 
     // Look-alike fingerprint, from the thumbnail (works for archived originals with client previews too).
-    const hash = await hashFromThumbnail(env, assetId).catch(() => null)
+    const hash = await hashFromThumbnail(env, assetId).catch((error) => {
+      console.warn('[process] could not hash', assetId, error)
+      return null
+    })
     if (hash) await recordHash(db, assetId, hash)
 
     // Presets marked "apply to new uploads" fill whatever the file left empty; then city and

@@ -76,9 +76,14 @@ function keywords(raw: Raw): string[] {
   const paths = list(raw.hierarchicalSubject ?? raw.HierarchicalSubject)
   const levels = new Set(paths.flatMap((p) => p.split('|').map((l) => l.trim().toLowerCase())))
   const flat = new Set<string>()
-  for (const field of ['Keywords', 'subject', 'Subject']) {
-    for (const text of list(raw[field])) for (const part of text.split(/[;,]/)) if (part.trim() && !levels.has(part.trim().toLowerCase())) flat.add(part.trim())
+  const add = (keyword: string) => {
+    const k = keyword.trim()
+    if (k && !levels.has(k.toLowerCase())) flat.add(k)
   }
+  // IPTC and XMP keywords are separate values already; a comma belongs to the keyword ("Smith, John").
+  for (const field of ['Keywords', 'subject', 'Subject']) for (const text of list(raw[field])) add(text)
+  // Windows' XPKeywords is one string with ';' between keywords.
+  for (const text of list(raw.XPKeywords)) for (const part of text.split(';')) add(part)
   return [...new Set([...paths, ...flat])].slice(0, 200)
 }
 
@@ -92,7 +97,11 @@ function jsonSafe(raw: Raw): Raw {
   return out
 }
 
-export async function extractMetadata(head: Uint8Array | ArrayBuffer): Promise<NormalizedMetadata | null> {
+/**
+ * `mimeType` matters for RAW files: their first image (IFD0) is often a small thumbnail, so its
+ * ImageWidth/ImageHeight (e.g. 160×120 in NEF and DNG) are not the photo's size.
+ */
+export async function extractMetadata(head: Uint8Array | ArrayBuffer, mimeType = ''): Promise<NormalizedMetadata | null> {
   let raw: Raw | undefined
   try {
     raw = (await exifr.parse(head, {
@@ -113,9 +122,10 @@ export async function extractMetadata(head: Uint8Array | ArrayBuffer): Promise<N
   if (!raw) return null
 
   const offset = str(raw.OffsetTimeOriginal) ?? str(raw.OffsetTime)
+  const isRaw = mimeType.startsWith('image/x-') || mimeType === 'image/dng'
   return {
-    width: num(raw.ExifImageWidth) ?? num(raw.ImageWidth) ?? num(raw.PixelXDimension),
-    height: num(raw.ExifImageHeight) ?? num(raw.ImageHeight) ?? num(raw.PixelYDimension),
+    width: num(raw.ExifImageWidth) ?? num(raw.PixelXDimension) ?? (isRaw ? null : num(raw.ImageWidth)),
+    height: num(raw.ExifImageHeight) ?? num(raw.PixelYDimension) ?? (isRaw ? null : num(raw.ImageHeight)),
     orientation: num(raw.Orientation),
     capturedAt: exifDate(raw.DateTimeOriginal) ?? exifDate(raw.CreateDate) ?? exifDate(raw.DateTimeDigitized),
     capturedOffset: offset && /^[+-]\d{2}:\d{2}$/.test(offset) ? offset : null,

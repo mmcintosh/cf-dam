@@ -94,12 +94,22 @@ export async function runSweep(env: DamBindings): Promise<SweepResult> {
   // Backfill look-alike fingerprints for assets that have a thumbnail but no hash yet.
   const { results: unhashed } = await env.DB.prepare(
     `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
-     WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' LIMIT 50`,
-  ).all<{ id: string }>()
+     WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' AND (a.phash_tried_at IS NULL OR a.phash_tried_at < ?)
+     ORDER BY a.phash_tried_at IS NOT NULL, a.phash_tried_at LIMIT 50`,
+  )
+    // A thumbnail that couldn't be hashed is tried again a day later, not every minute.
+    .bind(new Date(Date.now() - 86_400_000).toISOString())
+    .all<{ id: string }>()
   for (const { id } of unhashed) {
     if (Date.now() - started > PROCESS_BUDGET_MS) break
-    const hash = await hashFromThumbnail(env, id).catch(() => null)
-    if (!hash) continue
+    const hash = await hashFromThumbnail(env, id).catch((error) => {
+      console.warn('[sweep] could not hash', id, error)
+      return null
+    })
+    if (!hash) {
+      await env.DB.prepare('UPDATE assets SET phash_tried_at = ? WHERE id = ?').bind(nowIso(), id).run()
+      continue
+    }
     await recordHash(env.DB, id, hash)
     result.hashed++
   }
