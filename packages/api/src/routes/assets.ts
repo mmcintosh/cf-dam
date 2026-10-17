@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
+import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
@@ -67,6 +68,11 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
         const label = body.label
         if (label !== null && !isLabel(label)) throw new BadRequest(`label is one of ${LABELS.join(', ')}, or null.`)
         bulk = { action, label }
+        break
+      }
+      case 'preset': {
+        if (typeof body.presetId !== 'string') throw new BadRequest('presetId is required.')
+        bulk = { action, presetId: body.presetId, overwrite: body.overwrite === true }
         break
       }
       case 'title':
@@ -169,6 +175,7 @@ assetRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
       alt: text('alt', 1000),
       rating: rating as number | null | undefined,
       tags: stringArray(body, 'tags'),
+      iptc: iptcPatch(body.iptc),
     })
     return c.json({ ok: true })
   } catch (error) {
@@ -326,6 +333,16 @@ assetRoutes.post('/:id/refresh', requirePermission('assets:read'), async (c) => 
     return storageFailure(c, error)
   }
 })
+
+function iptcPatch(value: unknown): IptcValues | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new BadRequest('iptc must be an object.')
+  try {
+    return parseIptcPatch(value as Record<string, unknown>)
+  } catch (error) {
+    throw new BadRequest(error instanceof Error ? error.message : 'Invalid iptc.')
+  }
+}
 
 const ACCEPT_FIELDS: readonly AcceptField[] = ['alt', 'caption', 'tags']
 

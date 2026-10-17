@@ -29,6 +29,7 @@
     description: string | null
     quality: string | null
     people: number | null
+    text: string | null
     error: string | null
   }
   type TagRow = { name: string; path: string; source: string }
@@ -319,6 +320,12 @@
           {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['tags'])}>Keep all</button>{/if}
         </div>
       {/if}
+      {#if ai.text}
+        <div class="suggestion">
+          <span class="muted small">Text in the picture (searchable)</span>
+          <p class="ocr">{ai.text}</p>
+        </div>
+      {/if}
       {#if ai.description}
         <details>
           <summary class="muted small">What the model saw</summary>
@@ -449,6 +456,11 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
+  }
+  .ocr {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    white-space: pre-wrap;
   }
   .tag-ai {
     background: transparent;

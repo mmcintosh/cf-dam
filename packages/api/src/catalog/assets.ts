@@ -1,6 +1,7 @@
 /** Asset records, their locations, tags and the list query. */
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
 import { displayPath, keywordFilterSql, resolveKeyword } from './keywords'
 import { indexAsset, toFtsQuery } from './search'
 
@@ -45,6 +46,26 @@ export interface AssetRow {
   ai_people: number | null
   ai_neurons: number | null
   ai_error: string | null
+  ai_text: string | null
+  headline: string | null
+  creator: string | null
+  creator_title: string | null
+  credit: string | null
+  source: string | null
+  copyright: string | null
+  usage_terms: string | null
+  copyright_url: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  contact_url: string | null
+  job_id: string | null
+  instructions: string | null
+  sublocation: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  country_code: string | null
+  location_source: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -165,8 +186,14 @@ export interface AssetJson {
     description: string | null
     quality: string | null
     people: number | null
+    /** Text visible in the picture (signs, documents), read by the vision model. */
+    text: string | null
     error: string | null
   }
+  /** IPTC Core: credit, rights, contact, place, job. */
+  iptc: Record<IptcKey, string | null>
+  /** Where city/state/country came from: file, user or gps. */
+  locationSource: string | null
   createdAt: string
   updatedAt: string
 }
@@ -204,8 +231,11 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
       description: row.ai_description ?? null,
       quality: row.ai_quality ?? null,
       people: row.ai_people ?? null,
+      text: row.ai_text ?? null,
       error: row.ai_error ?? null,
     },
+    iptc: iptcJson(row as unknown as Record<string, unknown>),
+    locationSource: row.location_source ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -239,6 +269,9 @@ export interface ListFilters {
   rating?: number
   flag?: 'pick' | 'reject' | 'none'
   label?: Label | 'none'
+  country?: string
+  city?: string
+  creator?: string
   orientation?: Orientation
   type?: FileKind
   tier?: Tier
@@ -326,6 +359,12 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
     where.push(filters.flag === 'none' ? 'a.flag IS NULL' : 'a.flag = ?')
     if (filters.flag !== 'none') params.push(filters.flag)
   }
+  for (const key of ['country', 'city', 'creator'] as const) {
+    if (use(key)) {
+      where.push(`a.${key} = ?`)
+      params.push(filters[key])
+    }
+  }
   if (use('label')) {
     where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
     if (filters.label !== 'none') params.push(filters.label)
@@ -388,6 +427,7 @@ export async function updateAsset(
     label?: Label | null
     filename?: string
     tags?: string[]
+    iptc?: IptcValues
   },
 ): Promise<void> {
   const sets: string[] = []
@@ -402,6 +442,8 @@ export async function updateAsset(
   if (sets.length > 0) {
     await db.prepare(`UPDATE assets SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...params, nowIso(), id).run()
   }
+  const iptc = patch.iptc ? iptcUpdate(db, id, patch.iptc, { locationSource: 'user' }) : null
+  if (iptc) await iptc.run()
   if (patch.tags !== undefined) await setTags(db, id, patch.tags)
   await indexAsset(db, id)
 }
@@ -435,6 +477,9 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     rating: rating && rating >= 1 && rating <= 5 ? rating : undefined,
     flag: query.flag === 'pick' || query.flag === 'reject' || query.flag === 'none' ? query.flag : undefined,
     label: isLabel(query.label) || query.label === 'none' ? (query.label as Label | 'none') : undefined,
+    country: text(query.country),
+    city: text(query.city),
+    creator: text(query.creator),
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,

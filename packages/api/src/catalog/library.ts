@@ -5,6 +5,7 @@
 import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
 import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAsset, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
+import { getPreset, iptcXmp, presetStatements } from './iptc'
 import { AT_OR_BELOW, displayPath, matchKeywords } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAsset } from './search'
@@ -31,6 +32,9 @@ export interface Facets {
   rating: FacetValue[]
   flag: FacetValue[]
   label: FacetValue[]
+  country: FacetValue[]
+  city: FacetValue[]
+  creator: FacetValue[]
   orientation: FacetValue[]
   type: FacetValue[]
   tier: FacetValue[]
@@ -61,11 +65,14 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
     grouped('CAST(a.rating AS TEXT)', 'rating', 6),
     grouped("COALESCE(a.flag, 'none')", 'flag', 3),
     grouped('a.label', 'label', 5),
+    grouped('a.country', 'country', 40),
+    grouped('a.city', 'city', 40),
+    grouped('a.creator', 'creator', 20),
     grouped(`(${ORIENTATION_SQL})`, 'orientation', 3),
     grouped(`(${KIND_SQL})`, 'type', 4),
     grouped(TIER_SQL, 'tier', 4),
   ])
-  const [year, camera, lens, tag, rating, flag, label, orientation, type, tier] = results.map((r) => r.results ?? [])
+  const [year, camera, lens, tag, rating, flag, label, country, city, creator, orientation, type, tier] = results.map((r) => r.results ?? [])
   return {
     year: (year ?? []).sort((a, b) => (a.value === 'undated' ? 1 : b.value === 'undated' ? -1 : b.value.localeCompare(a.value))),
     camera: camera ?? [],
@@ -74,6 +81,9 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
     rating: (rating ?? []).sort((a, b) => b.value.localeCompare(a.value)),
     flag: flag ?? [],
     label: (label ?? []).sort((a, b) => LABELS.indexOf(a.value as Label) - LABELS.indexOf(b.value as Label)),
+    country: country ?? [],
+    city: city ?? [],
+    creator: creator ?? [],
     orientation: orientation ?? [],
     type: type ?? [],
     tier: tier ?? [],
@@ -108,6 +118,7 @@ export type BulkAction =
   | { action: 'rating'; rating: number | null }
   | { action: 'flag'; flag: 'pick' | 'reject' | null }
   | { action: 'label'; label: Label | null }
+  | { action: 'preset'; presetId: string; overwrite: boolean }
   | { action: 'title'; title: string | null }
   | { action: 'caption'; caption: string | null }
   | { action: 'album-add'; albumId: string }
@@ -122,6 +133,7 @@ export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
   rating: 'assets:edit',
   flag: 'assets:edit',
   label: 'assets:edit',
+  preset: 'assets:edit',
   title: 'assets:edit',
   caption: 'assets:edit',
   'album-add': 'assets:edit',
@@ -167,6 +179,13 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
     case 'label':
       await each('UPDATE assets SET label = ?, updated_at = ? WHERE id = ?', (id) => [bulk.label, now, id])
       break
+    case 'preset': {
+      const preset = await getPreset(db, bulk.presetId)
+      if (!preset) return 0
+      const statements = presetStatements(db, preset, live, bulk.overwrite)
+      for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50))
+      break
+    }
     case 'title':
       await each('UPDATE assets SET title = ?, updated_at = ? WHERE id = ?', (id) => [bulk.title, now, id])
       break
@@ -194,7 +213,7 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
       return live.length
   }
   // Titles, captions and tags are searchable; keep the index in step.
-  if (['tag-add', 'tag-remove', 'title', 'caption'].includes(bulk.action)) {
+  if (['tag-add', 'tag-remove', 'title', 'caption', 'preset'].includes(bulk.action)) {
     for (const id of live) await indexAsset(db, id)
   }
   return live.length
@@ -237,6 +256,7 @@ export async function saveLabelNames(db: D1Database, patch: Partial<LabelNames>)
 }
 
 export function xmpSidecar(asset: AssetRow, keywords: { subjects: string[]; hierarchical: string[] }, labelNames: LabelNames = DEFAULT_LABEL_NAMES): string {
+  const iptc = iptcXmp(asset as unknown as Record<string, unknown>)
   const alt = (value: string) => `<rdf:Alt><rdf:li xml:lang="x-default">${escapeXml(value)}</rdf:li></rdf:Alt>`
   const lines = [
     '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>',
@@ -248,11 +268,14 @@ export function xmpSidecar(asset: AssetRow, keywords: { subjects: string[]; hier
     '    xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"',
     '    xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/"',
     '    xmlns:lr="http://ns.adobe.com/lightroom/1.0/"',
+    '    xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/"',
     `    xmp:MetadataDate="${nowIso()}"`,
     asset.rating !== null ? `    xmp:Rating="${asset.flag === 'reject' ? -1 : asset.rating}"` : asset.flag === 'reject' ? '    xmp:Rating="-1"' : '',
     isLabel(asset.label) ? `    xmp:Label="${escapeXml(labelNames[asset.label])}"` : '',
     xmpDate(asset.captured_at, asset.captured_offset) ? `    photoshop:DateCreated="${xmpDate(asset.captured_at, asset.captured_offset)}"` : '',
+    ...iptc.attributes,
     '  >',
+    ...iptc.elements,
     asset.title ? `   <dc:title>${alt(asset.title)}</dc:title>` : '',
     asset.caption ? `   <dc:description>${alt(asset.caption)}</dc:description>` : '',
     asset.alt ? `   <Iptc4xmpCore:AltTextAccessibility>${alt(asset.alt)}</Iptc4xmpCore:AltTextAccessibility>` : '',

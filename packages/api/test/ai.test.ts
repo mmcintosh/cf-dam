@@ -13,6 +13,7 @@ const REPLY = {
   description: 'A red and white lighthouse on dark rocks, waves breaking, heavy grey clouds, low warm light.',
   people: 0,
   quality: 'Good',
+  text: 'BRYGGEN FISKETORGET',
 }
 
 interface Call {
@@ -51,7 +52,7 @@ const asset = async (admin: string, id: string) =>
     alt: string | null
     caption: string | null
     tags: { name: string; source: string }[]
-    ai: { status: string | null; alt: string | null; caption: string | null; description: string | null; quality: string | null; error: string | null }
+    ai: { status: string | null; alt: string | null; caption: string | null; description: string | null; quality: string | null; text: string | null; error: string | null }
   }
 
 describe('model replies', () => {
@@ -96,6 +97,9 @@ describe('AI review', () => {
     // Describe-it search reaches the model's description.
     const found = (await (await h.fetch('/api/assets?q=waves%20breaking', { cookie: admin })).json()) as { total: number }
     expect(found.total).toBe(1)
+    // Text in the picture is searchable too (OCR in the same call).
+    expect(after.ai.text).toBe('BRYGGEN FISKETORGET')
+    expect(((await (await h.fetch('/api/assets?q=fisketorget', { cookie: admin })).json()) as { total: number }).total).toBe(1)
 
     const stats = (await (await h.fetch('/api/ai', { cookie: admin })).json()) as { available: boolean; stats: { analysed: number; averageNeurons: number; usdPerPhoto: number } }
     expect(stats.available).toBe(true)

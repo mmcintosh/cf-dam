@@ -38,10 +38,12 @@
     canRunAi: boolean
     /** What each colour label is called in this archive. */
     labelNames: Record<Label, string>
+    /** Metadata presets that can be stamped on a selection. */
+    presets: { id: string; name: string }[]
   }
   type Label = 'red' | 'yellow' | 'green' | 'blue' | 'purple'
   const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
-  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi, labelNames }: Props = $props()
+  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
@@ -172,6 +174,13 @@
   async function addToAlbum(albumId: string) {
     if (!albumId) return
     if (await bulk({ action: 'album-add', albumId })) say(`Added ${targets().length} to ${albums.find((a) => a.id === albumId)?.name ?? 'the album'}`)
+  }
+
+  async function applyPreset(value: string) {
+    const [id, mode] = value.split(':')
+    const preset = presets.find((p) => p.id === id)
+    if (!preset) return
+    if (await bulk({ action: 'preset', presetId: id, overwrite: mode === 'overwrite' })) say(`${preset.name} applied to ${targets().length}${mode === 'overwrite' ? ' (overwriting)' : ''}`)
   }
 
   async function aiAction(choice: string) {
@@ -376,6 +385,15 @@
         {#each Object.entries(labelNames) as [value, name] (value)}<option {value}>{name}</option>{/each}
         <option value="clear">No label</option>
       </select>
+      {#if presets.length > 0}
+        <select aria-label="Apply a preset" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>
+          <option value="">Preset…</option>
+          {#each presets as p (p.id)}
+            <option value={`${p.id}:fill`}>{p.name}: fill empty fields</option>
+            <option value={`${p.id}:overwrite`}>{p.name}: overwrite</option>
+          {/each}
+        </select>
+      {/if}
       {#if albums.length > 0}
         <select aria-label="Add to album" onchange={(e) => (addToAlbum(e.currentTarget.value), (e.currentTarget.value = ''))}>
           <option value="">Add to album…</option>

@@ -5,6 +5,7 @@
  * so it works on a range read of a multi-gigabyte original in S3.
  */
 import exifr from 'exifr'
+import { iptcFromRaw, type IptcValues } from './iptc'
 
 /** Bytes to read from the start of a file. Enough for EXIF/XMP in JPEG, TIFF and common RAW formats. */
 export const METADATA_HEAD_BYTES = 512 * 1024
@@ -29,9 +30,12 @@ export interface NormalizedMetadata {
   rating: number | null
   title: string | null
   caption: string | null
+  /** Flat keywords and Lightroom keyword paths ('Places|Norway|Bergen'). */
   keywords: string[]
-  copyright: string | null
-  creator: string | null
+  /** IPTC Core: creator, rights, contact, place, job. */
+  iptc: IptcValues
+  /** xmp:Label as written (a colour name, or a custom name from Lightroom's label set). */
+  label: string | null
   /** Everything parsed, for the record. Binary values are dropped. */
   raw: Record<string, unknown>
 }
@@ -62,16 +66,20 @@ export function gpsDecimal(dms: unknown, ref: unknown): number | null {
   return Math.round((['S', 'W'].includes(String(ref)) ? -value : value) * 1e7) / 1e7
 }
 
+const list = (value: unknown): string[] => (Array.isArray(value) ? value : [value]).map(str).filter((t): t is string => t !== null)
+
+/**
+ * Keywords from IPTC and XMP. Lightroom's hierarchical keywords ('Places|Norway|Bergen') are kept
+ * as paths for the keyword tree; flat keywords already covered by a path (Bergen, Norway) are dropped.
+ */
 function keywords(raw: Raw): string[] {
-  const found = new Set<string>()
-  for (const field of ['Keywords', 'subject', 'Subject', 'HierarchicalSubject']) {
-    const value = raw[field]
-    for (const item of Array.isArray(value) ? value : [value]) {
-      const text = str(item)
-      if (text) for (const part of text.split(field === 'HierarchicalSubject' ? '|' : /[;,]/)) if (part.trim()) found.add(part.trim())
-    }
+  const paths = list(raw.hierarchicalSubject ?? raw.HierarchicalSubject)
+  const levels = new Set(paths.flatMap((p) => p.split('|').map((l) => l.trim().toLowerCase())))
+  const flat = new Set<string>()
+  for (const field of ['Keywords', 'subject', 'Subject']) {
+    for (const text of list(raw[field])) for (const part of text.split(/[;,]/)) if (part.trim() && !levels.has(part.trim().toLowerCase())) flat.add(part.trim())
   }
-  return [...found].slice(0, 200)
+  return [...new Set([...paths, ...flat])].slice(0, 200)
 }
 
 function jsonSafe(raw: Raw): Raw {
@@ -124,8 +132,8 @@ export async function extractMetadata(head: Uint8Array | ArrayBuffer): Promise<N
     title: str(raw.ObjectName) ?? str(raw.title) ?? str(raw.Headline),
     caption: str(raw.ImageDescription) ?? str(raw.Caption) ?? str(raw.description),
     keywords: keywords(raw),
-    copyright: str(raw.Copyright) ?? str(raw.rights) ?? str(raw.CopyrightNotice),
-    creator: str(raw.Artist) ?? str(raw.creator) ?? str(raw['By-line']),
+    iptc: iptcFromRaw(raw),
+    label: str(raw.Label),
     raw: jsonSafe(raw),
   }
 }

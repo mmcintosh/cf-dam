@@ -99,9 +99,9 @@ export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'
     await db
       .prepare(
         `UPDATE assets SET ai_status = 'done', ai_model = ?, ai_analyzed_at = ?, ai_alt = ?, ai_caption = ?, ai_description = ?,
-           ai_quality = ?, ai_people = ?, ai_neurons = ?, ai_error = NULL WHERE id = ?`,
+           ai_quality = ?, ai_people = ?, ai_text = ?, ai_neurons = ?, ai_error = NULL WHERE id = ?`,
       )
-      .bind(settings.model, nowIso(), result.alt || null, result.caption || null, result.description || null, result.quality, result.people, result.usage?.neurons ?? null, assetId)
+      .bind(settings.model, nowIso(), result.alt || null, result.caption || null, result.description || null, result.quality, result.people, result.text || null, result.usage?.neurons ?? null, assetId)
       .run()
     // Replace the previous run's AI tags; people's own tags are untouched.
     await db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai'").bind(assetId).run()

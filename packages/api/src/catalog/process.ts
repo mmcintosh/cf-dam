@@ -8,7 +8,9 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
-import { addTags, getAsset, getLocations, primaryLocation } from './assets'
+import { addTags, getAsset, getLocations, isLabel, primaryLocation } from './assets'
+import { applyUploadPresets, iptcUpdate } from './iptc'
+import { getLabelNames } from './library'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
 import { aiAvailable, getAiSettings } from './ai'
@@ -39,9 +41,18 @@ async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMet
       meta.width, meta.height, meta.orientation, meta.capturedAt, meta.capturedOffset,
       meta.cameraMake, meta.cameraModel, meta.lens, meta.focalLength, meta.aperture,
       meta.exposureTime, meta.iso, meta.gpsLat, meta.gpsLng, meta.rating, meta.title, meta.caption,
-      JSON.stringify({ ...meta.raw, copyright: meta.copyright, creator: meta.creator }), nowIso(), assetId,
+      JSON.stringify(meta.raw), nowIso(), assetId,
     )
     .run()
+  const iptc = iptcUpdate(db, assetId, meta.iptc, { fillOnly: true, locationSource: 'file' })
+  if (iptc) await iptc.run()
+  // xmp:Label holds the label's name; match it against this archive's names, then the colours themselves.
+  if (meta.label) {
+    const names = await getLabelNames(db)
+    const wanted = meta.label.toLowerCase()
+    const label = (Object.entries(names).find(([, name]) => name.toLowerCase() === wanted)?.[0] ?? wanted)
+    if (isLabel(label)) await db.prepare('UPDATE assets SET label = COALESCE(label, ?) WHERE id = ?').bind(label, assetId).run()
+  }
   if (meta.keywords.length > 0) await addTags(db, assetId, meta.keywords, 'import')
 }
 
@@ -83,6 +94,9 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
     // Look-alike fingerprint, from the thumbnail (works for archived originals with client previews too).
     const hash = await hashFromThumbnail(env, assetId).catch(() => null)
     if (hash) await recordHash(db, assetId, hash)
+
+    // Presets marked "apply to new uploads" fill whatever the file left empty.
+    await applyUploadPresets(db, assetId)
 
     // Queue AI review; the sweep runs it in the background (a model call takes seconds).
     const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))

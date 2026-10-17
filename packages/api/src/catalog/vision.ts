@@ -41,6 +41,8 @@ export interface VisionResult {
   description: string
   people: number
   quality: Quality | null
+  /** Text visible in the picture (signs, shirts, documents), as written. Empty when there is none. */
+  text: string
   /** Tokens (and neurons, Workers AI's billing unit) when the model reports them. */
   usage: { prompt: number; completion: number; neurons: number | null } | null
 }
@@ -62,8 +64,9 @@ const SCHEMA = {
     description: { type: 'string', description: 'What is in the picture, for search: subjects, setting, colours, light, mood' },
     people: { type: 'integer', description: 'Number of people visible' },
     quality: { type: 'string', enum: [...QUALITY], description: 'Technical quality: focus, exposure, noise' },
+    text: { type: 'string', description: 'Any readable text in the picture, exactly as written; empty if none' },
   },
-  required: ['tags', 'alt', 'caption', 'description', 'people', 'quality'],
+  required: ['tags', 'alt', 'caption', 'description', 'people', 'quality', 'text'],
 } as const
 
 export function buildPrompt(context: VisionContext): string {
@@ -77,7 +80,7 @@ export function buildPrompt(context: VisionContext): string {
     'You catalogue photos for a professional photo archive. Describe only what is visible; do not guess names of people or places unless they are unmistakable or given below.',
     ...hints,
     'Reply with JSON only, no prose, in exactly this shape:',
-    '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor"}',
+    '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "any readable text in the picture exactly as written (signs, shirts, documents), or empty"}',
   ].join('\n')
 }
 
@@ -105,6 +108,8 @@ export function normalizeResult(raw: unknown): Omit<VisionResult, 'usage'> {
     description: clean(obj.description, 1500),
     people: Number.isFinite(people) && people >= 0 ? Math.min(Math.round(people), 999) : 0,
     quality: (QUALITY as readonly string[]).includes(quality) ? (quality as Quality) : null,
+    // Models sometimes say "none" rather than leaving it empty.
+    text: /^(none|n\/a|no text|)$/i.test(clean(obj.text, 2000)) ? '' : clean(obj.text, 2000),
   }
 }
 

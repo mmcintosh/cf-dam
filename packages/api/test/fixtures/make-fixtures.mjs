@@ -23,3 +23,15 @@ await base
 
 await base.clone().png().toFile(new URL('./gradient.png', import.meta.url).pathname)
 console.log('fixtures written')
+
+// iptc.jpg is camera.jpg plus IPTC/XMP fields, written with ExifTool (not sharp):
+//   cp camera.jpg iptc.jpg && exiftool -overwrite_original \
+//     -IPTC:By-line="Mark Photographer" -IPTC:By-lineTitle="Owner" -IPTC:Credit="Mark Photo AS" \
+//     -IPTC:Source="Studio archive" -IPTC:CopyrightNotice="© 2024 Mark Photo AS" -IPTC:Headline="Storm over Bergen" \
+//     -IPTC:City="Bergen" -IPTC:Sub-location="Bryggen" -IPTC:Province-State="Vestland" \
+//     -IPTC:Country-PrimaryLocationName="Norway" -IPTC:Country-PrimaryLocationCode="NOR" \
+//     -IPTC:OriginalTransmissionReference="JOB-2041" -IPTC:SpecialInstructions="No crop" \
+//     -XMP-xmpRights:UsageTerms="Editorial use only" -XMP-xmpRights:WebStatement="https://example.com/licence" \
+//     -XMP-iptcCore:CreatorWorkEmail="mark@example.com" -XMP-iptcCore:CreatorWorkTelephone="+47 555 0100" \
+//     -XMP-iptcCore:CreatorWorkURL="https://example.com" -XMP-iptcCore:CountryCode="NO" \
+//     -XMP-lr:HierarchicalSubject="Places|Norway|Bergen" -XMP-dc:Subject="Bergen" -XMP-xmp:Label="Red" iptc.jpg

@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { facets as loadFacets, getAiSettings, getLabelNames, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
+import { facets as loadFacets, getAiSettings, getLabelNames, listPresets, listSavedSearches, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -23,7 +23,7 @@ const [{ assets, total }, facets, months] = canRead
 const connections = canUpload
   ? (await listConnections(env.DB)).map((c) => ({ id: c.id, name: c.name, storageClasses: c.storageClasses, defaultClass: c.defaultClass, isDefault: c.isDefault }))
   : []
-const labelNames = await getLabelNames(env.DB)
+const [labelNames, savedSearches, presets] = await Promise.all([getLabelNames(env.DB), listSavedSearches(env.DB), listPresets(env.DB)])
 const canRunAi = principal.permissions.has('ai:run') && Boolean(env.AI) && (await getAiSettings(env.DB)).enabled
 const filtered = [...params.keys()].some((k) => k !== 'sort')
 const sort = filters.sort
@@ -49,7 +49,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
     </div>
   ) : (
     <div class="library">
-      {facets && <Facets facets={facets} params={params} labelNames={labelNames} />}
+      {facets && <Facets facets={facets} params={params} labelNames={labelNames} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} />}
       <section class="main">
         <Timeline months={months} params={params} />
         <div class="toolbar row">
@@ -73,6 +73,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
             canDelete={principal.permissions.has('assets:delete')}
             canRunAi={canRunAi}
             labelNames={labelNames}
+            presets={presets.map((p) => ({ id: p.id, name: p.name }))}
           />
         ) : (
           <p class="muted">Nothing matches. Remove a filter or try fewer words.</p>

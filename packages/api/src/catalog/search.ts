@@ -1,4 +1,5 @@
 /** Full-text index over assets (FTS5), kept in step by the application. */
+import { iptcSearchText } from './iptc'
 import { searchTerms } from './keywords'
 
 /** Assets missing from the index (after a rebuild, or a failed write), for the sweep to repair. */
@@ -20,12 +21,14 @@ interface IndexRow {
   tags: string | null
   ai_description: string | null
   ai_caption: string | null
+  ai_text: string | null
 }
 
 export async function indexAsset(db: D1Database, assetId: string): Promise<void> {
   const row = await db
     .prepare(
-      `SELECT a.filename, a.title, a.caption, a.camera_make, a.camera_model, a.lens, a.ai_description, a.ai_caption,
+      `SELECT a.filename, a.title, a.caption, a.camera_make, a.camera_model, a.lens, a.ai_description, a.ai_caption, a.ai_text,
+              a.headline, a.creator, a.credit, a.source, a.job_id, a.sublocation, a.city, a.state, a.country,
               NULL AS tags
        FROM assets a WHERE a.id = ? AND a.deleted_at IS NULL`,
     )
@@ -33,6 +36,7 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
     .first<IndexRow>()
   const statements = [db.prepare('DELETE FROM assets_fts WHERE asset_id = ?').bind(assetId)]
   if (row) {
+    const place = iptcSearchText(row as unknown as Record<string, unknown>)
     // Filenames index better with their separators as spaces: "IMG_2041-final" → "IMG 2041 final".
     const filename = `${row.filename} ${row.filename.replace(/[._\-]+/g, ' ')}`
     statements.push(
@@ -41,14 +45,14 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
         .bind(
           assetId,
           filename,
-          row.title ?? '',
+          [row.title, place.extra].filter(Boolean).join(' '),
           row.caption ?? '',
           // Keywords with their ancestors and synonyms: a photo tagged Bergen is found by "norway".
           await searchTerms(db, assetId),
           [row.camera_make, row.camera_model, row.lens].filter(Boolean).join(' '),
-          '',
-          // What the AI saw, so "red boat at dusk" finds photos nobody has keyworded.
-          [row.ai_caption, row.ai_description].filter(Boolean).join(' '),
+          place.place,
+          // What the AI saw (and any text in the picture), so "red boat at dusk" finds photos nobody has keyworded.
+          [row.ai_caption, row.ai_description, row.ai_text].filter(Boolean).join(' '),
         ),
     )
   }

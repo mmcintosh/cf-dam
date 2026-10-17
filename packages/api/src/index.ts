@@ -8,6 +8,7 @@ import type { DamEnv } from './env'
 import { aiRoutes } from './routes/ai'
 import { albumRoutes } from './routes/albums'
 import { labelRoutes, tagRoutes } from './routes/keywords'
+import { presetRoutes, savedSearchRoutes } from './routes/metadata'
 import { assetRoutes } from './routes/assets'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
@@ -69,6 +70,8 @@ export function createDamApi() {
   api.route('/albums', albumRoutes)
   api.route('/tags', tagRoutes)
   api.route('/labels', labelRoutes)
+  api.route('/presets', presetRoutes)
+  api.route('/saved-searches', savedSearchRoutes)
   api.route('/duplicates', duplicateRoutes)
   api.route('/ai', aiRoutes)
 
@@ -86,6 +89,8 @@ export function createDamApi() {
 export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
 export { facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValue, type KeywordFacet, type LabelNames } from './catalog/library'
 export { keywordTree, type KeywordNode } from './catalog/keywords'
+export { IPTC_FIELDS, listPresets, type IptcField, type IptcKey, type Preset } from './catalog/iptc'
+export { listSavedSearches, normalizeQuery, type SavedSearch } from './routes/metadata'
 export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'

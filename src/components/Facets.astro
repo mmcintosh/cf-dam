@@ -1,14 +1,19 @@
 ---
 /** The filter sidebar: every facet with counts, as plain links, so each view has its own URL. */
-import type { Facets, FacetValue, LabelNames } from '@cf-dam/api'
+import { normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch } from '@cf-dam/api'
 import KeywordTree from './KeywordTree.astro'
+import SaveSearch from './SaveSearch.svelte'
 
 interface Props {
   facets: Facets
   params: URLSearchParams
   labelNames: LabelNames
+  savedSearches: SavedSearch[]
+  canSave: boolean
 }
-const { facets, params, labelNames } = Astro.props
+const { facets, params, labelNames, savedSearches, canSave } = Astro.props
+const current = normalizeQuery(params.toString())
+const alreadySaved = savedSearches.some((s) => s.query === current)
 
 const link = (changes: Record<string, string | null>) => {
   const next = new URLSearchParams(params)
@@ -42,7 +47,7 @@ const ratingCounts = (() => {
 })()
 
 const active: { key: string; text: string }[] = []
-for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
   const value = params.get(key)
   if (!value) continue
   const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)
@@ -57,6 +62,9 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
   { key: 'camera', title: 'Camera', values: facets.camera, open: false },
   { key: 'lens', title: 'Lens', values: facets.lens, open: false },
   { key: 'label', title: 'Label', values: facets.label, open: true },
+  { key: 'country', title: 'Country', values: facets.country, open: false },
+  { key: 'city', title: 'City', values: facets.city, open: false },
+  { key: 'creator', title: 'Creator', values: facets.creator, open: false },
 ]
 const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
 ---
@@ -67,7 +75,19 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
         <a class="chip" href={link({ [chip.key]: null })} title="Remove this filter">{chip.text} <span aria-hidden="true">✕</span></a>
       ))}
       {active.length > 1 && <a class="clear" href="/">Clear all</a>}
+      {canSave && current && current !== 'sort=added' && !alreadySaved && <SaveSearch client:idle query={current} />}
     </div>
+  )}
+
+  {savedSearches.length > 0 && (
+    <details open>
+      <summary>Saved searches</summary>
+      <ul class="values">
+        {savedSearches.map((s) => (
+          <li><a href={`/?${s.query}`} class:list={{ on: s.query === current }}><span>{s.name}</span><span class="count">{s.count}</span></a></li>
+        ))}
+      </ul>
+    </details>
   )}
 
   <details open>
