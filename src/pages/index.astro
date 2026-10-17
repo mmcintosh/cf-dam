@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { facets as loadFacets, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
+import { facets as loadFacets, getAiSettings, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -23,6 +23,7 @@ const [{ assets, total }, facets, months] = canRead
 const connections = canUpload
   ? (await listConnections(env.DB)).map((c) => ({ id: c.id, name: c.name, storageClasses: c.storageClasses, defaultClass: c.defaultClass, isDefault: c.isDefault }))
   : []
+const canRunAi = principal.permissions.has('ai:run') && Boolean(env.AI) && (await getAiSettings(env.DB)).enabled
 const filtered = [...params.keys()].some((k) => k !== 'sort')
 const sort = filters.sort
 const sortLink = (value: 'captured' | 'added') => {
@@ -69,6 +70,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
             pageSize={PAGE}
             canEdit={principal.permissions.has('assets:edit')}
             canDelete={principal.permissions.has('assets:delete')}
+            canRunAi={canRunAi}
           />
         ) : (
           <p class="muted">Nothing matches. Remove a filter or try fewer words.</p>

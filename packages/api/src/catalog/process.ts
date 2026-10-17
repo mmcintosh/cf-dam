@@ -11,6 +11,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { addTags, getAsset, getLocations, primaryLocation } from './assets'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
+import { aiAvailable, getAiSettings } from './ai'
 import { hashFromThumbnail, recordHash } from './phash'
 import { indexAsset } from './search'
 import exifr from 'exifr'
@@ -82,6 +83,12 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
     // Look-alike fingerprint, from the thumbnail (works for archived originals with client previews too).
     const hash = await hashFromThumbnail(env, assetId).catch(() => null)
     if (hash) await recordHash(db, assetId, hash)
+
+    // Queue AI review; the sweep runs it in the background (a model call takes seconds).
+    const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))
+    if (previewable && (await aiAvailable(env)) && (await getAiSettings(db)).auto) {
+      await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE id = ? AND ai_status IS NULL").bind(assetId).run()
+    }
 
     await indexAsset(db, assetId)
     await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), assetId).run()

@@ -5,6 +5,7 @@
 import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
 import { addTags, buildWhere, KIND_SQL, ORIENTATION_SQL, softDeleteAsset, TIER_SQL, type AssetRow, type ListFilters } from './assets'
+import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAsset } from './search'
 
 export interface FacetValue {
@@ -95,6 +96,8 @@ export type BulkAction =
   | { action: 'caption'; caption: string | null }
   | { action: 'album-add'; albumId: string }
   | { action: 'delete' }
+  | { action: 'ai-queue' }
+  | { action: 'ai-accept'; fields: AcceptField[]; overwrite: boolean }
 
 /** The permission each bulk action needs. */
 export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
@@ -106,6 +109,8 @@ export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
   caption: 'assets:edit',
   'album-add': 'assets:edit',
   delete: 'assets:delete',
+  'ai-queue': 'ai:run',
+  'ai-accept': 'assets:edit',
 }
 
 export const MAX_BULK = 500
@@ -164,6 +169,11 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
     }
     case 'delete':
       for (const id of live) await softDeleteAsset(db, id)
+      return live.length
+    case 'ai-queue':
+      return queueForAi(db, live)
+    case 'ai-accept':
+      await acceptSuggestions(db, live, bulk.fields, bulk.overwrite)
       return live.length
   }
   // Titles, captions and tags are searchable; keep the index in step.

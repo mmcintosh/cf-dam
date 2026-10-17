@@ -5,6 +5,7 @@ import { createAuth } from './auth/auth'
 import { authenticate } from './auth/principal'
 import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
 import type { DamEnv } from './env'
+import { aiRoutes } from './routes/ai'
 import { albumRoutes, tagRoutes } from './routes/albums'
 import { assetRoutes } from './routes/assets'
 import { connectionRoutes } from './routes/connections'
@@ -67,6 +68,7 @@ export function createDamApi() {
   api.route('/albums', albumRoutes)
   api.route('/tags', tagRoutes)
   api.route('/duplicates', duplicateRoutes)
+  api.route('/ai', aiRoutes)
 
   api.onError((error, c) => {
     // Middleware such as csrf() rejects by throwing; keep its status instead of turning it into a 500.
@@ -82,5 +84,7 @@ export function createDamApi() {
 export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
 export { facets, geoPoints, timeline, type Facets, type FacetValue } from './catalog/library'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
+export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
+export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
 export { listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

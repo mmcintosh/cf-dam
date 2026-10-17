@@ -9,7 +9,11 @@
   "d1_databases": [{ "binding": "DB", "database_name": "cf-dam" }],
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "cf-dam-media" }],
   "kv_namespaces": [{ "binding": "CACHE_KV" }],
-  // The sweep: process imported files, finish Glacier restores.
+  // Thumbnails, previews and look-alike fingerprints.
+  "images": { "binding": "IMAGES" },
+  // AI review: tags, alt text, captions, descriptions for search (Workers AI, billed per use).
+  "ai": { "binding": "AI", "remote": true },
+  // The sweep: process imported files, run queued AI review, finish Glacier restores.
   "triggers": { "crons": ["* * * * *"] },
   // Secrets, set with `wrangler secret put` (the Deploy button prompts for them from .dev.vars.example):
   //   BETTER_AUTH_SECRET  signs sessions; 32+ random characters

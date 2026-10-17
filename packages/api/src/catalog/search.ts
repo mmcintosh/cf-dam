@@ -1,5 +1,14 @@
 /** Full-text index over assets (FTS5), kept in step by the application. */
 
+/** Assets missing from the index (after a rebuild, or a failed write), for the sweep to repair. */
+export async function unindexed(db: D1Database, limit: number): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT id FROM assets WHERE deleted_at IS NULL AND status != 'uploading' AND id NOT IN (SELECT asset_id FROM assets_fts) LIMIT ?`)
+    .bind(limit)
+    .all<{ id: string }>()
+  return results.map((r) => r.id)
+}
+
 interface IndexRow {
   filename: string
   title: string | null
@@ -8,12 +17,14 @@ interface IndexRow {
   camera_model: string | null
   lens: string | null
   tags: string | null
+  ai_description: string | null
+  ai_caption: string | null
 }
 
 export async function indexAsset(db: D1Database, assetId: string): Promise<void> {
   const row = await db
     .prepare(
-      `SELECT a.filename, a.title, a.caption, a.camera_make, a.camera_model, a.lens,
+      `SELECT a.filename, a.title, a.caption, a.camera_make, a.camera_model, a.lens, a.ai_description, a.ai_caption,
               (SELECT group_concat(t.name, ' ') FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = a.id) AS tags
        FROM assets a WHERE a.id = ? AND a.deleted_at IS NULL`,
     )
@@ -25,7 +36,7 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
     const filename = `${row.filename} ${row.filename.replace(/[._\-]+/g, ' ')}`
     statements.push(
       db
-        .prepare('INSERT INTO assets_fts (asset_id, filename, title, caption, tags, camera, place) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .prepare('INSERT INTO assets_fts (asset_id, filename, title, caption, tags, camera, place, ai) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
         .bind(
           assetId,
           filename,
@@ -34,6 +45,8 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
           row.tags ?? '',
           [row.camera_make, row.camera_model, row.lens].filter(Boolean).join(' '),
           '',
+          // What the AI saw, so "red boat at dusk" finds photos nobody has keyworded.
+          [row.ai_caption, row.ai_description].filter(Boolean).join(' '),
         ),
     )
   }

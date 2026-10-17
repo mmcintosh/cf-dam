@@ -2,22 +2,28 @@
  * The scheduled sweep (cron, every minute): background work that can't happen inside a request.
  *
  *  1. Process queued assets (imports): metadata and previews, a few per run, inside a time budget.
- *  2. Fingerprint photos that have no look-alike hash yet (older uploads).
- *  3. Check archived originals with a restore in progress, and mark them restored when ready.
+ *  2. Repair the search index, and run queued AI review (in parallel, within a budget).
+ *  3. Fingerprint photos that have no look-alike hash yet (older uploads).
+ *  4. Check archived originals with a restore in progress, and mark them restored when ready.
  */
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
+import { aiAvailable, analyzeAsset } from './ai'
 import { hashFromThumbnail, recordHash } from './phash'
 import { processAsset } from './process'
-import { indexAsset } from './search'
+import { indexAsset, unindexed } from './search'
 
 const PROCESS_BUDGET_MS = 20_000
 const MAX_PER_RUN = 25
+const AI_BUDGET_MS = 40_000
+const AI_CONCURRENCY = 4
 const RESTORE_CHECKS_PER_RUN = 50
 
 export interface SweepResult {
+  indexed: number
+  analysed: number
   hashed: number
   processed: number
   restoresChecked: number
@@ -25,7 +31,7 @@ export interface SweepResult {
 }
 
 export async function runSweep(env: DamBindings): Promise<SweepResult> {
-  const result: SweepResult = { hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
+  const result: SweepResult = { indexed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
   const started = Date.now()
 
   const { results: queued } = await env.DB.prepare(
@@ -42,6 +48,36 @@ export async function runSweep(env: DamBindings): Promise<SweepResult> {
     if (claimed.meta.changes === 0) continue
     await processAsset(env, id)
     result.processed++
+  }
+
+  // Repair the search index (after a rebuild, or a write that failed).
+  for (const id of await unindexed(env.DB, 200)) {
+    if (Date.now() - started > PROCESS_BUDGET_MS) break
+    await indexAsset(env.DB, id)
+    result.indexed++
+  }
+
+  // AI review, a few at a time in parallel: each call waits seconds on the model, not on CPU.
+  if (await aiAvailable(env)) {
+    const deadline = started + AI_BUDGET_MS
+    while (Date.now() < deadline) {
+      const { results: batch } = await env.DB.prepare("SELECT id FROM assets WHERE ai_status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT ?")
+        .bind(AI_CONCURRENCY)
+        .all<{ id: string }>()
+      if (batch.length === 0) break
+      // Claim the batch so an overlapping run doesn't analyse the same photos.
+      const claimed: string[] = []
+      for (const { id } of batch) {
+        const r = await env.DB.prepare("UPDATE assets SET ai_status = 'running', ai_started_at = ? WHERE id = ? AND ai_status = 'queued'").bind(nowIso(), id).run()
+        if (r.meta.changes > 0) claimed.push(id)
+      }
+      const outcomes = await Promise.all(claimed.map((id) => analyzeAsset(env, id)))
+      result.analysed += outcomes.filter((o) => o === 'done').length
+    }
+    // A run that died mid-analysis leaves 'running' behind; give those another go.
+    await env.DB.prepare("UPDATE assets SET ai_status = 'queued' WHERE ai_status = 'running' AND ai_started_at < ?")
+      .bind(new Date(Date.now() - 10 * 60_000).toISOString())
+      .run()
   }
 
   // Backfill look-alike fingerprints for assets that have a thumbnail but no hash yet.

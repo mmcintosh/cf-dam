@@ -15,6 +15,7 @@ const SIGNED_OUT_PAGES = new Set(['/login'])
 const PAGE_PERMISSIONS: [string, string][] = [
   ['/admin', 'users:manage'],
   ['/settings/storage', 'sources:manage'],
+  ['/settings/ai', 'ai:run'],
   ['/albums', 'assets:read'],
   ['/assets', 'assets:read'],
   ['/map', 'assets:read'],

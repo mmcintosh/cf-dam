@@ -33,6 +33,16 @@ export interface AssetRow {
   metadata: string | null
   status: string
   error: string | null
+  ai_status: string | null
+  ai_model: string | null
+  ai_analyzed_at: string | null
+  ai_alt: string | null
+  ai_caption: string | null
+  ai_description: string | null
+  ai_quality: string | null
+  ai_people: number | null
+  ai_neurons: number | null
+  ai_error: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -95,9 +105,22 @@ export async function addTags(db: D1Database, assetId: string, names: string[], 
   await db.batch(statements)
 }
 
-/** Replace an asset's tags with exactly `names`. */
+/**
+ * Replace an asset's own tags with exactly `names`. AI suggestions are kept apart (they are accepted
+ * or removed on their own), except that naming one here makes it the person's own.
+ */
 export async function setTags(db: D1Database, assetId: string, names: string[]): Promise<void> {
-  await db.prepare('DELETE FROM asset_tags WHERE asset_id = ?').bind(assetId).run()
+  const lower = names.map((n) => n.trim().toLowerCase())
+  await db.batch([
+    db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai'").bind(assetId),
+    ...(lower.length > 0
+      ? [
+          db
+            .prepare(`DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (SELECT id FROM tags WHERE lower(name) IN (${lower.map(() => '?').join(',')}))`)
+            .bind(assetId, ...lower),
+        ]
+      : []),
+  ])
   await addTags(db, assetId, names, 'user')
 }
 
@@ -124,6 +147,18 @@ export interface AssetJson {
   renditions: string[]
   /** Where the original lives (the primary location), when known. */
   storage: { connectionId: string; storageClass: string; state: string } | null
+  /** AI review: suggestions kept apart from what people wrote. */
+  ai: {
+    status: string | null
+    model: string | null
+    analyzedAt: string | null
+    alt: string | null
+    caption: string | null
+    description: string | null
+    quality: string | null
+    people: number | null
+    error: string | null
+  }
   createdAt: string
   updatedAt: string
 }
@@ -151,6 +186,17 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
     error: row.error,
     renditions,
     storage: location ? { connectionId: location.connection_id, storageClass: location.storage_class, state: location.state } : null,
+    ai: {
+      status: row.ai_status ?? null,
+      model: row.ai_model ?? null,
+      analyzedAt: row.ai_analyzed_at ?? null,
+      alt: row.ai_alt ?? null,
+      caption: row.ai_caption ?? null,
+      description: row.ai_description ?? null,
+      quality: row.ai_quality ?? null,
+      people: row.ai_people ?? null,
+      error: row.ai_error ?? null,
+    },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

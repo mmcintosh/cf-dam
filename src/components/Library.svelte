@@ -33,8 +33,10 @@
     pageSize: number
     canEdit: boolean
     canDelete: boolean
+    /** Can queue photos for AI review (and AI is available here). */
+    canRunAi: boolean
   }
-  let { initial, initialTotal, query, pageSize, canEdit, canDelete }: Props = $props()
+  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
@@ -118,7 +120,7 @@
   }
 
   async function bulk(body: Record<string, unknown>, ids = targets()): Promise<boolean> {
-    if (!canEdit && body.action !== 'delete') return false
+    if (!canEdit && body.action !== 'delete' && body.action !== 'ai-queue') return false
     if (ids.length === 0) return false
     try {
       await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids, ...body }) })
@@ -156,6 +158,16 @@
   async function addToAlbum(albumId: string) {
     if (!albumId) return
     if (await bulk({ action: 'album-add', albumId })) say(`Added ${targets().length} to ${albums.find((a) => a.id === albumId)?.name ?? 'the album'}`)
+  }
+
+  async function aiAction(choice: string) {
+    const count = targets().length
+    if (choice === 'queue') {
+      if (await bulk({ action: 'ai-queue' })) say(`Queued ${count} for AI review`)
+    } else if (choice === 'alt' || choice === 'caption' || choice === 'tags') {
+      const done = { alt: 'AI alt text used where empty', caption: 'AI captions used where empty', tags: 'AI tags kept' }[choice]
+      if (await bulk({ action: 'ai-accept', fields: [choice] })) say(`${done} on ${count}`)
+    }
   }
 
   async function remove() {
@@ -348,6 +360,17 @@
           {#each albums as album (album.id)}<option value={album.id}>{album.name}</option>{/each}
         </select>
       {/if}
+    {/if}
+    {#if canRunAi || canEdit}
+      <select aria-label="AI actions" onchange={(e) => (aiAction(e.currentTarget.value), (e.currentTarget.value = ''))}>
+        <option value="">AI…</option>
+        {#if canRunAi}<option value="queue">Analyse again</option>{/if}
+        {#if canEdit}
+          <option value="alt">Use AI alt text where empty</option>
+          <option value="caption">Use AI captions where empty</option>
+          <option value="tags">Keep AI tags</option>
+        {/if}
+      </select>
     {/if}
     {#if selected.size >= 2 && selected.size <= 4}<button class="btn btn-sm" onclick={openCompare}>Compare</button>{/if}
     {#if canDelete}<button class="btn btn-sm btn-danger" onclick={remove}>Delete</button>{/if}

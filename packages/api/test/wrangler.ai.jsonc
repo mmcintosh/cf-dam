@@ -1,0 +1,7 @@
+// Remote Workers AI for test/ai.live.test.ts (opt-in: AI_LIVE=1). Runs on the logged-in account.
+{
+  "name": "cf-dam-ai-test",
+  "compatibility_date": "2026-10-12",
+  "ai": { "binding": "AI", "remote": true },
+  "images": { "binding": "IMAGES" }
+}

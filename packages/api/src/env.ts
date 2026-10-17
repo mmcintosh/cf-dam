@@ -16,6 +16,8 @@ export interface DamBindings {
   STORAGE_ENCRYPTION_KEY?: string
   /** Cloudflare Images, for thumbnails and previews. Without it, only embedded thumbnails are used. */
   IMAGES?: ImagesBinding
+  /** Workers AI, for tags, alt text and captions. Without it, AI review is off. */
+  AI?: Ai
 }
 
 export interface DamVariables {

@@ -3,6 +3,7 @@ import { requirePermission } from '../auth/principal'
 import { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
 import { applyBulk, BULK_PERMISSION, facets, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
+import { acceptSuggestions, analyzeAsset, removeAiTag, type AcceptField } from '../catalog/ai'
 import { processAsset } from '../catalog/process'
 import { isRenditionName, renditionKey } from '../catalog/renditions'
 import type { DamEnv } from '../env'
@@ -77,7 +78,11 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
         break
       }
       case 'delete':
+      case 'ai-queue':
         bulk = { action }
+        break
+      case 'ai-accept':
+        bulk = { action, fields: acceptFields(body.fields), overwrite: body.overwrite === true }
         break
       default:
         throw new BadRequest('Unknown action.')
@@ -310,6 +315,47 @@ assetRoutes.post('/:id/refresh', requirePermission('assets:read'), async (c) => 
   } catch (error) {
     return storageFailure(c, error)
   }
+})
+
+const ACCEPT_FIELDS: readonly AcceptField[] = ['alt', 'caption', 'tags']
+
+function acceptFields(value: unknown): AcceptField[] {
+  if (value === undefined) return [...ACCEPT_FIELDS]
+  if (!Array.isArray(value) || value.length === 0 || !value.every((f) => ACCEPT_FIELDS.includes(f))) {
+    throw new BadRequest('fields is a list of alt, caption and tags.')
+  }
+  return [...new Set(value as AcceptField[])]
+}
+
+/** Analyse one photo now (a few seconds) instead of waiting for the sweep. */
+assetRoutes.post('/:id/ai/analyze', requirePermission('ai:run'), async (c) => {
+  const id = c.req.param('id')
+  if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: 'This deployment has no Workers AI binding.' }, 409)
+  const outcome = await analyzeAsset(c.env, id)
+  const row = (await getAsset(c.env.DB, id))!
+  return c.json({ outcome, ai: assetJson(row, []).ai, tags: await getTags(c.env.DB, id) }, outcome === 'failed' ? 502 : 200)
+})
+
+/** Accept the AI's alt text, caption and/or tags. Alt and caption fill empty fields unless overwrite is set. */
+assetRoutes.post('/:id/ai/accept', requirePermission('assets:edit'), async (c) => {
+  const id = c.req.param('id')
+  if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  try {
+    const body = await readJsonObject(c)
+    await acceptSuggestions(c.env.DB, [id], acceptFields(body.fields), body.overwrite === true)
+    const row = (await getAsset(c.env.DB, id))!
+    return c.json({ alt: row.alt, caption: row.caption, tags: await getTags(c.env.DB, id) })
+  } catch (error) {
+    return storageFailure(c, error)
+  }
+})
+
+assetRoutes.delete('/:id/ai/tags/:tag', requirePermission('assets:edit'), async (c) => {
+  const id = c.req.param('id')
+  if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
+  await removeAiTag(c.env.DB, id, decodeURIComponent(c.req.param('tag')))
+  return c.json({ tags: await getTags(c.env.DB, id) })
 })
 
 /** Run processing again (metadata, renditions, index), e.g. after a restore. */

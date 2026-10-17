@@ -1,0 +1,20 @@
+---
+import { env } from 'cloudflare:workers'
+import { aiStats, getAiSettings, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+import AiSettings from '../../components/AiSettings.svelte'
+
+const principal = Astro.locals.principal!
+const [settings, stats] = await Promise.all([getAiSettings(env.DB), aiStats(env.DB)])
+---
+<AppLayout title="AI review" subtitle="Tags, alt text, captions and a searchable description for every photo, from Workers AI.">
+  <AiSettings
+    client:load
+    available={Boolean(env.AI)}
+    initialSettings={settings}
+    initialStats={stats}
+    models={[...VISION_MODELS]}
+    usdPer1000Neurons={USD_PER_1000_NEURONS}
+    canManage={principal.permissions.has('settings:manage')}
+  />
+</AppLayout>
