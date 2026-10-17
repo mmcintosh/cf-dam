@@ -31,7 +31,7 @@ async function store(
   bytes: ArrayBuffer,
   mimeType: string,
   dims: { width: number | null; height: number | null },
-  source: 'worker' | 'client' | 'embedded',
+  source: 'worker' | 'client' | 'embedded' | 'agent',
 ): Promise<void> {
   await renditionStore(env).put(renditionKey(assetId, name), bytes, { contentType: mimeType })
   await env.DB.prepare(
@@ -110,6 +110,49 @@ export async function storeClientRendition(env: DamBindings, assetId: string, na
   } catch {
     throw new RenditionRejected(`The ${name} is not an image that can be decoded.`)
   }
+}
+
+/** Width and height from a WebP header (lossy VP8, lossless VP8L or extended VP8X), or null if it isn't one. */
+export function webpSize(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 30) return null
+  const tag = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4))
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WEBP') return null
+  const u24 = (at: number) => bytes[at]! | (bytes[at + 1]! << 8) | (bytes[at + 2]! << 16)
+  switch (tag(12)) {
+    case 'VP8X':
+      return { width: u24(24) + 1, height: u24(27) + 1 }
+    case 'VP8 ':
+      // Keyframe start code, then 14-bit width and height.
+      if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return null
+      return { width: (bytes[26]! | (bytes[27]! << 8)) & 0x3fff, height: (bytes[28]! | (bytes[29]! << 8)) & 0x3fff }
+    case 'VP8L': {
+      if (bytes[20] !== 0x2f) return null
+      const bits = bytes[21]! | (bytes[22]! << 8) | (bytes[23]! << 16) | (bytes[24]! << 24)
+      return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * A rendition made by a paired NAS agent. It is stored as sent (no Images transform, so a big first
+ * import costs nothing extra), after checking it really is a WebP of the right size: it is served to
+ * browsers from our own origin, so it must be what it claims.
+ */
+export async function storeAgentRendition(env: DamBindings, assetId: string, name: RenditionName, bytes: ArrayBuffer): Promise<{ width: number; height: number }> {
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_CLIENT_RENDITION_BYTES) {
+    throw new RenditionRejected(`A ${name} must be between 1 byte and ${MAX_CLIENT_RENDITION_BYTES / 1024 / 1024} MB.`)
+  }
+  const size = webpSize(new Uint8Array(bytes))
+  if (!size) throw new RenditionRejected(`The ${name} must be a WebP image.`)
+  // A little slack over the long edge for rounding; never bigger than asked for.
+  const longEdge = RENDITIONS[name].longEdge
+  if (Math.max(size.width, size.height) > longEdge + 8 || Math.min(size.width, size.height) < 1) {
+    throw new RenditionRejected(`A ${name} is at most ${longEdge} px on its long edge.`)
+  }
+  await store(env, assetId, name, bytes, 'image/webp', size, 'agent')
+  return size
 }
 
 export async function hasRendition(db: D1Database, assetId: string, name: RenditionName): Promise<boolean> {

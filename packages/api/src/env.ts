@@ -24,6 +24,8 @@ export interface DamBindings {
 
 export interface DamVariables {
   principal?: Principal
+  /** On agent routes: the calling agent's source. */
+  source?: import('./catalog/agents').SourceRow
 }
 
 export type DamEnv = { Bindings: DamBindings; Variables: DamVariables }

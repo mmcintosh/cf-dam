@@ -74,6 +74,8 @@ const EXTENSION_TYPES: Record<string, string> = {
   heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', svg: 'image/svg+xml',
   cr2: 'image/x-canon-cr2', cr3: 'image/x-canon-cr3', nef: 'image/x-nikon-nef', arw: 'image/x-sony-arw',
   dng: 'image/x-adobe-dng', raf: 'image/x-fuji-raf', orf: 'image/x-olympus-orf', rw2: 'image/x-panasonic-rw2',
+  pef: 'image/x-pentax-pef', nrw: 'image/x-nikon-nrw', srw: 'image/x-samsung-srw', '3fr': 'image/x-hasselblad-3fr',
+  iiq: 'image/x-phaseone-iiq', rwl: 'image/x-leica-rwl', x3f: 'image/x-sigma-x3f',
   mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/x-m4v', pdf: 'application/pdf', xmp: 'application/rdf+xml',
 }
 

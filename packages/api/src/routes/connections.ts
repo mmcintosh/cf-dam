@@ -125,7 +125,7 @@ connectionRoutes.get('/:id/aws-setup', requirePermission('sources:manage'), asyn
 /** Write, read back and delete a probe object: proves credentials, bucket and write access. */
 connectionRoutes.post('/:id/test', requirePermission('sources:manage'), async (c) => {
   const connection = await getConnection(c.env.DB, c.req.param('id'))
-  if (!connection) return c.json({ error: 'not_found' }, 404)
+  if (!connection || connection.provider === 'nas') return c.json({ error: 'not_found' }, 404)
   try {
     await providerFor(c.env, connection).test()
     return c.json({ ok: true })
@@ -140,7 +140,7 @@ connectionRoutes.post('/:id/test', requirePermission('sources:manage'), async (c
  */
 connectionRoutes.post('/:id/import', requirePermission('sources:manage'), async (c) => {
   const connection = await getConnection(c.env.DB, c.req.param('id'))
-  if (!connection) return c.json({ error: 'not_found' }, 404)
+  if (!connection || connection.provider === 'nas') return c.json({ error: 'not_found' }, 404)
   try {
     const body = await readJsonObject(c)
     const result = await importPage(c.env, connection, {
@@ -165,7 +165,7 @@ connectionRoutes.post('/:id/import', requirePermission('sources:manage'), async 
 
 connectionRoutes.post('/:id/default', requirePermission('sources:manage'), async (c) => {
   const connection = await getConnection(c.env.DB, c.req.param('id'))
-  if (!connection) return c.json({ error: 'not_found' }, 404)
+  if (!connection || connection.provider === 'nas') return c.json({ error: 'not_found' }, 404)
   await setDefaultConnection(c.env.DB, connection.id)
   return c.json({ ok: true })
 })

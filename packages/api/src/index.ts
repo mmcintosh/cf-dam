@@ -5,6 +5,7 @@ import { createAuth } from './auth/auth'
 import { authenticate } from './auth/principal'
 import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
 import type { DamEnv } from './env'
+import { agentRoutes } from './routes/agent'
 import { aiRoutes } from './routes/ai'
 import { albumRoutes } from './routes/albums'
 import { labelRoutes, tagRoutes } from './routes/keywords'
@@ -14,6 +15,7 @@ import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
+import { sourceRoutes } from './routes/sources'
 import { uploadRoutes } from './routes/uploads'
 import { roleRoutes, userRoutes } from './routes/users'
 
@@ -74,6 +76,8 @@ export function createDamApi() {
   api.route('/saved-searches', savedSearchRoutes)
   api.route('/duplicates', duplicateRoutes)
   api.route('/ai', aiRoutes)
+  api.route('/agent', agentRoutes)
+  api.route('/sources', sourceRoutes)
 
   api.onError((error, c) => {
     // Middleware such as csrf() rejects by throwing; keep its status instead of turning it into a 500.
@@ -95,5 +99,5 @@ export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
-export { listConnections, type Connection } from './storage/connections'
+export { getConnection, listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

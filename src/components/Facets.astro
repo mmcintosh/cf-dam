@@ -28,7 +28,7 @@ const LABELS: Record<string, Record<string, string>> = {
   flag: { pick: 'Picks', reject: 'Rejects', none: 'Unflagged' },
   type: { photo: 'Photos', raw: 'RAW', video: 'Video', other: 'Other files' },
   orientation: { landscape: 'Landscape', portrait: 'Portrait', square: 'Square' },
-  tier: { hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
+  tier: { nas: 'On NAS', hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
   year: { undated: 'Undated' },
   label: { ...labelNames, none: 'No label' },
 }
@@ -222,6 +222,9 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
     height: 8px;
     border-radius: 50%;
     margin-right: 8px;
+  }
+  .dot-nas {
+    background: #a3e635;
   }
   .dot-hot {
     background: #fb923c;

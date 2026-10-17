@@ -5,7 +5,7 @@
  * so it works on a range read of a multi-gigabyte original in S3.
  */
 import exifr from 'exifr'
-import { iptcFromRaw, type IptcValues } from './iptc'
+import { clean, iptcFromRaw, type IptcValues } from './iptc'
 
 /** Bytes to read from the start of a file. Enough for EXIF/XMP in JPEG, TIFF and common RAW formats. */
 export const METADATA_HEAD_BYTES = 512 * 1024
@@ -162,3 +162,47 @@ export const RENDERABLE_TYPES: ReadonlySet<string> = new Set([
 
 /** Types served inline when previewed. Everything else (SVG, HTML, PDF…) is always an attachment. */
 export const SAFE_INLINE_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'])
+
+/**
+ * Metadata a NAS agent read with ExifTool and sent in this module's shape. It comes over the network,
+ * so every field is checked: wrong types are dropped, text is capped, numbers must be plausible.
+ */
+export function normalizeAgentMetadata(input: unknown): NormalizedMetadata | null {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return null
+  const m = input as Record<string, unknown>
+  const text = (v: unknown, max = 500) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
+  const number = (v: unknown, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null)
+  const whole = (v: unknown, max: number) => {
+    const n = number(v, 0, max)
+    return n !== null && Number.isInteger(n) ? n : null
+  }
+  const capturedAt = typeof m.capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(m.capturedAt) ? m.capturedAt : null
+  const offset = typeof m.capturedOffset === 'string' && /^[+-]\d{2}:\d{2}$/.test(m.capturedOffset) ? m.capturedOffset : null
+  const keywordList = Array.isArray(m.keywords) ? m.keywords.filter((k): k is string => typeof k === 'string' && k.trim() !== '').map((k) => k.trim().slice(0, 200)).slice(0, 200) : []
+  const lat = number(m.gpsLat, -90, 90)
+  const lng = number(m.gpsLng, -180, 180)
+  return {
+    width: whole(m.width, 200_000),
+    height: whole(m.height, 200_000),
+    orientation: whole(m.orientation, 8),
+    capturedAt,
+    capturedOffset: offset,
+    cameraMake: text(m.cameraMake, 100),
+    cameraModel: text(m.cameraModel, 100),
+    lens: text(m.lens, 200),
+    focalLength: number(m.focalLength, 0, 10_000),
+    aperture: number(m.aperture, 0, 1_000),
+    exposureTime: number(m.exposureTime, 0, 100_000),
+    iso: whole(m.iso, 10_000_000),
+    // Both or neither: half a coordinate is no place at all.
+    gpsLat: lat !== null && lng !== null ? lat : null,
+    gpsLng: lat !== null && lng !== null ? lng : null,
+    rating: whole(m.rating, 5),
+    title: text(m.title, 300),
+    caption: text(m.caption, 5000),
+    keywords: keywordList,
+    iptc: typeof m.iptc === 'object' && m.iptc !== null ? clean(m.iptc as Record<string, unknown>) : {},
+    label: text(m.label, 40),
+    raw: { source: 'agent' },
+  }
+}

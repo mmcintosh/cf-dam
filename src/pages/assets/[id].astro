@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { ARCHIVE_CLASSES, assetJson, getAiSettings, getAsset, getLabelNames, getLocations, getTags, IPTC_FIELDS, listConnections, listPresets } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import IptcEditor from '../../components/IptcEditor.svelte'
@@ -13,17 +13,16 @@ const id = Astro.params.id!
 const row = await getAsset(env.DB, id)
 if (!row) return new Response('Not found', { status: 404 })
 
-const [locations, tags, renditionRows, connections, aiSettings] = await Promise.all([
+const [locations, tags, renditionRows, aiSettings] = await Promise.all([
   getLocations(env.DB, id),
   getTags(env.DB, id),
   env.DB.prepare('SELECT name FROM renditions WHERE asset_id = ?').bind(id).all<{ name: string }>(),
-  listConnections(env.DB),
   getAiSettings(env.DB),
 ])
 const [labelNames, presets] = await Promise.all([getLabelNames(env.DB), listPresets(env.DB)])
 const asset = assetJson(row, renditionRows.results.map((r) => r.name))
 const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
-const connection = primary && connections.find((c) => c.id === primary.connection_id)
+const connection = primary ? await getConnection(env.DB, primary.connection_id) : null
 const location = primary && connection
   ? {
       connectionId: primary.connection_id,
@@ -33,6 +32,8 @@ const location = primary && connection
       archived: ARCHIVE_CLASSES.has(primary.storage_class),
       restoreExpiresAt: primary.restore_expires_at,
       offeredClasses: connection.provider === 's3' ? connection.storageClasses : [],
+      // NAS originals: show where the file is; the Worker can't serve it.
+      nasPath: connection.provider === 'nas' ? primary.key : null,
     }
   : null
 

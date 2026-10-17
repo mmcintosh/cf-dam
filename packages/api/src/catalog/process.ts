@@ -23,7 +23,7 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
-async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata): Promise<void> {
+export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata): Promise<void> {
   // COALESCE keeps anything a person (or the uploading client) already set.
   await db
     .prepare(
@@ -57,6 +57,40 @@ async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMet
   if (meta.keywords.length > 0) await addTags(db, assetId, meta.keywords, 'import')
 }
 
+/**
+ * The steps every new asset ends with, however its metadata and previews arrived (upload, import or
+ * a NAS agent): look-alike hash, presets, places from GPS, AI queue, search index, ready.
+ * `hash` is a look-alike hash already computed (by an agent, with the same reducer); otherwise it is
+ * computed from the stored thumbnail. `queueAi` is false for an agent's first import of a folder,
+ * which could be thousands of photos: those wait for someone to start them on the AI review page.
+ */
+export async function finishAsset(env: DamBindings, assetId: string, opts: { hash?: string | null; queueAi: boolean }): Promise<void> {
+  const db = env.DB
+  const hash =
+    opts.hash ??
+    (await hashFromThumbnail(env, assetId).catch((error) => {
+      console.warn('[process] could not hash', assetId, error)
+      return null
+    }))
+  if (hash) await recordHash(db, assetId, hash)
+
+  // Presets marked "apply to new uploads" fill whatever the file left empty; then city and
+  // country from GPS where still empty.
+  await applyUploadPresets(db, assetId)
+  await fillPlacesFromGps(env, [assetId])
+
+  // Queue AI review; the sweep runs it in the background (a model call takes seconds).
+  if (opts.queueAi) {
+    const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))
+    if (previewable && (await aiAvailable(env)) && (await getAiSettings(db)).auto) {
+      await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE id = ? AND ai_status IS NULL").bind(assetId).run()
+    }
+  }
+
+  await indexAsset(db, assetId)
+  await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), assetId).run()
+}
+
 export async function processAsset(env: DamBindings, assetId: string): Promise<void> {
   const db = env.DB
   try {
@@ -64,7 +98,8 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
     if (!asset) return
     const location = primaryLocation(await getLocations(db, assetId))
     const connection = location && (await getConnection(db, location.connection_id))
-    const readable = location && connection && !ARCHIVE_CLASSES.has(location.storage_class)
+    // Archived originals need a restore first; NAS originals are read by their agent, never here.
+    const readable = location && connection && connection.provider !== 'nas' && !ARCHIVE_CLASSES.has(location.storage_class)
 
     if (readable) {
       const provider = providerFor(env, connection)
@@ -92,26 +127,7 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
       }
     }
 
-    // Look-alike fingerprint, from the thumbnail (works for archived originals with client previews too).
-    const hash = await hashFromThumbnail(env, assetId).catch((error) => {
-      console.warn('[process] could not hash', assetId, error)
-      return null
-    })
-    if (hash) await recordHash(db, assetId, hash)
-
-    // Presets marked "apply to new uploads" fill whatever the file left empty; then city and
-    // country from GPS where still empty.
-    await applyUploadPresets(db, assetId)
-    await fillPlacesFromGps(env, [assetId])
-
-    // Queue AI review; the sweep runs it in the background (a model call takes seconds).
-    const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))
-    if (previewable && (await aiAvailable(env)) && (await getAiSettings(db)).auto) {
-      await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE id = ? AND ai_status IS NULL").bind(assetId).run()
-    }
-
-    await indexAsset(db, assetId)
-    await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), assetId).run()
+    await finishAsset(env, assetId, { queueAi: true })
   } catch (error) {
     console.error('[process] asset failed', assetId, error)
     await db

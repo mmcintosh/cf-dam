@@ -9,6 +9,8 @@
     archived: boolean
     restoreExpiresAt: string | null
     offeredClasses: string[]
+    /** Set when the original is on a NAS, indexed in place by an agent. */
+    nasPath: string | null
   }
   interface Props {
     assetId: string
@@ -32,6 +34,7 @@
     GLACIER_IR: 'Glacier Instant Retrieval',
     GLACIER: 'Glacier Flexible Retrieval',
     DEEP_ARCHIVE: 'Glacier Deep Archive',
+    NAS: 'On the NAS (indexed in place)',
   }
   const TIER_NOTES: Record<string, string> = {
     Expedited: 'minutes (Flexible only; extra cost)',
@@ -78,7 +81,19 @@
     })
 </script>
 
-{#if location}
+{#if location?.nasPath}
+  <div class="stack">
+    <dl class="facts">
+      <dt>On</dt>
+      <dd>{location.connectionName}</dd>
+      <dt>Path</dt>
+      <dd class="path">{location.nasPath}</dd>
+      <dt>State</dt>
+      <dd>{location.state === 'missing' ? 'Missing: not found in the last scan (moved or deleted on the NAS)' : 'Present'}</dd>
+    </dl>
+    <p class="muted small">The original stays on the NAS. cf-dam has its metadata and previews; lifecycle rules (Phase 6) will move originals to cloud storage.</p>
+  </div>
+{:else if location}
   <div class="stack">
     <dl class="facts">
       <dt>Stored in</dt>
@@ -172,6 +187,14 @@
   }
   .note {
     margin: 0;
+    font-size: 0.8rem;
+  }
+  .path {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+  .small {
     font-size: 0.8rem;
   }
 </style>

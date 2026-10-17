@@ -67,7 +67,7 @@
   const ratio = (a: Asset) => (a.width && a.height ? Math.min(Math.max(a.width / a.height, 0.4), 3) : 1.5)
   const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?? 'FILE'
   const shutter = (t: number | null) => (t === null ? '' : t >= 1 ? `${t}s` : `1/${Math.round(1 / t)}`)
-  const TIER: Record<string, string> = { STANDARD: 'hot', STANDARD_IA: 'warm', ONEZONE_IA: 'warm', INTELLIGENT_TIERING: 'warm', GLACIER_IR: 'cold', GLACIER: 'cold', DEEP_ARCHIVE: 'deep' }
+  const TIER: Record<string, string> = { NAS: 'nas', STANDARD: 'hot', STANDARD_IA: 'warm', ONEZONE_IA: 'warm', INTELLIGENT_TIERING: 'warm', GLACIER_IR: 'cold', GLACIER: 'cold', DEEP_ARCHIVE: 'deep' }
 
   function say(message: string) {
     toast = message
@@ -637,6 +637,9 @@
     height: 9px;
     border-radius: 50%;
     box-shadow: 0 0 0 2px rgb(0 0 0 / 0.4);
+  }
+  .tier-nas {
+    background: #a3e635;
   }
   .tier-warm {
     background: #facc15;

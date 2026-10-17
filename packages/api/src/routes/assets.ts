@@ -20,7 +20,10 @@ import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, 
 export const assetRoutes = new Hono<DamEnv>()
 
 function storageFailure(c: Context<DamEnv>, error: unknown) {
-  if (error instanceof StorageError) return c.json({ error: 'storage_error', code: error.code, message: error.message }, error.status === 404 ? 404 : 502)
+  if (error instanceof StorageError) {
+    // 404 and 409 (e.g. the original is on a NAS) are answers about the request; anything else is the store failing.
+    return c.json({ error: 'storage_error', code: error.code, message: error.message }, error.status === 404 || error.status === 409 ? error.status : 502)
+  }
   if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
   throw error
 }

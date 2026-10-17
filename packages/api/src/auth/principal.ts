@@ -20,6 +20,8 @@ export interface Principal {
   permissions: Set<string>
   via: 'session' | 'api_key'
   apiKeyId?: string
+  /** Set when the key belongs to a paired NAS agent: it may then only act as that agent. */
+  sourceId?: string
 }
 
 interface ActiveUserRow {
@@ -63,9 +65,14 @@ export async function resolvePrincipal(
     if (!record) return null
     const user = await activeUser(env.DB, record.userId)
     if (!user) return null
+    waitUntil?.(touchApiKey(env.DB, record.id))
+    // A NAS agent's key: it can do exactly one thing, sync as its own source, whatever its approver may do.
+    const source = await env.DB.prepare('SELECT id FROM sources WHERE api_key_id = ? AND revoked_at IS NULL').bind(record.id).first<{ id: string }>()
+    if (source) {
+      return { userId: user.id, email: user.email, name: user.name, roles: [], permissions: new Set(['agent:sync']), via: 'api_key', apiKeyId: record.id, sourceId: source.id }
+    }
     const grants = await loadGrants(env.DB, user.id)
     const scopes = new Set(record.scopes)
-    waitUntil?.(touchApiKey(env.DB, record.id))
     return {
       userId: user.id,
       email: user.email,

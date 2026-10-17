@@ -17,7 +17,8 @@ export type AuthMode = 'binding' | 'access-key' | 'oidc-role' | 'agent'
 export interface Connection {
   id: string
   name: string
-  provider: 'r2-binding' | 's3'
+  /** 'nas': files a paired agent indexed in place. The Worker can never read them. */
+  provider: 'r2-binding' | 's3' | 'nas'
   endpoint: string | null
   region: string | null
   bucket: string | null
@@ -67,7 +68,7 @@ function toConnection(row: ConnectionRow): Connection {
   return {
     id: row.id,
     name: row.name,
-    provider: row.provider === 's3' ? 's3' : 'r2-binding',
+    provider: row.provider === 's3' || row.provider === 'nas' ? row.provider : 'r2-binding',
     endpoint: row.endpoint,
     region: row.region,
     bucket: row.bucket,
@@ -89,9 +90,10 @@ async function getRow(db: D1Database, id: string): Promise<ConnectionRow | null>
   return db.prepare('SELECT * FROM storage_connections WHERE id = ?').bind(id).first<ConnectionRow>()
 }
 
+/** Storage people can upload to and manage: R2 and S3. NAS agents' connections are listed with their agents. */
 export async function listConnections(db: D1Database): Promise<Connection[]> {
   const { results } = await db
-    .prepare('SELECT * FROM storage_connections ORDER BY is_default DESC, created_at')
+    .prepare("SELECT * FROM storage_connections WHERE provider != 'nas' ORDER BY is_default DESC, created_at")
     .all<ConnectionRow>()
   return results.map(toConnection)
 }
@@ -239,7 +241,8 @@ export async function setDefaultConnection(db: D1Database, id: string): Promise<
 export async function deleteConnection(db: D1Database, id: string): Promise<'deleted' | 'in-use' | 'built-in' | 'not-found'> {
   if (id === BUILT_IN_CONNECTION) return 'built-in'
   const row = await getRow(db, id)
-  if (!row) return 'not-found'
+  // An agent's connection goes with the agent (sources), not from the storage page.
+  if (!row || row.provider === 'nas') return 'not-found'
   const used = await db.prepare('SELECT 1 AS used FROM asset_locations WHERE connection_id = ? LIMIT 1').bind(id).first()
   if (used) return 'in-use'
   if (row.is_default === 1) await setDefaultConnection(db, BUILT_IN_CONNECTION)
@@ -254,6 +257,9 @@ export function connectionKey(connection: Connection, key: string): string {
 
 /** A provider for a connection. Credentials are unsealed lazily, on the first request that needs them. */
 export function providerFor(env: DamBindings, connection: Connection, fetchImpl?: typeof fetch): StorageProvider {
+  if (connection.provider === 'nas') {
+    throw new StorageError(`The original is on ${connection.name}; only its agent can read it.`, 'OnNas', 409)
+  }
   if (connection.provider === 'r2-binding') {
     if (!env.MEDIA_BUCKET) throw new StorageError('The MEDIA_BUCKET binding is missing.', 'NoBinding')
     return new R2Provider(env.MEDIA_BUCKET)

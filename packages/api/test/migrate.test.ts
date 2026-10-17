@@ -28,13 +28,15 @@ describe('migrate', () => {
     expect(roles.results.map((r) => r.name)).toEqual(['admin', 'editor', 'viewer'])
   })
 
-  it('seeds the admin role with every permission', async () => {
+  it('seeds the admin role with every permission except agent:sync, which no role holds', async () => {
     h = await createHarness()
     const row = await h.env.DB.prepare(
-      `SELECT (SELECT COUNT(*) FROM permissions) AS total,
-              (SELECT COUNT(*) FROM role_permissions WHERE role_id = 'role-admin') AS admin`,
-    ).first<{ total: number; admin: number }>()
+      `SELECT (SELECT COUNT(*) FROM permissions WHERE id != 'agent:sync') AS total,
+              (SELECT COUNT(*) FROM role_permissions WHERE role_id = 'role-admin') AS admin,
+              (SELECT COUNT(*) FROM role_permissions WHERE permission_id = 'agent:sync') AS agent`,
+    ).first<{ total: number; admin: number; agent: number }>()
     expect(row?.admin).toBe(row?.total)
+    expect(row?.agent).toBe(0)
   })
 
   it('rebuilds tags as a tree without losing anyone\'s tags (0008)', async () => {

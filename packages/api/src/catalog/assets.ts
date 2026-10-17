@@ -288,7 +288,8 @@ export const LABELS = ['red', 'yellow', 'green', 'blue', 'purple'] as const
 export type Label = (typeof LABELS)[number]
 export const isLabel = (value: unknown): value is Label => typeof value === 'string' && (LABELS as readonly string[]).includes(value)
 export type FileKind = 'photo' | 'raw' | 'video' | 'other'
-export type Tier = 'hot' | 'warm' | 'cold' | 'deep'
+/** Where the original lives: on a NAS (indexed in place), or a cloud tier from hot to deep archive. */
+export type Tier = 'nas' | 'hot' | 'warm' | 'cold' | 'deep'
 
 /** SQL for the facets that are computed rather than stored. Each is an expression over `a`. */
 export const ORIENTATION_SQL = `CASE WHEN a.width IS NULL OR a.height IS NULL THEN NULL
@@ -296,12 +297,13 @@ export const ORIENTATION_SQL = `CASE WHEN a.width IS NULL OR a.height IS NULL TH
 export const KIND_SQL = `CASE WHEN a.mime_type LIKE 'video/%' THEN 'video' WHEN a.mime_type LIKE 'image/x-%' THEN 'raw'
   WHEN a.mime_type LIKE 'image/%' AND a.mime_type != 'image/svg+xml' THEN 'photo' ELSE 'other' END`
 export const TIER_CLASSES: Record<Tier, string[]> = {
+  nas: ['NAS'],
   hot: ['STANDARD'],
   warm: ['STANDARD_IA', 'ONEZONE_IA', 'INTELLIGENT_TIERING'],
   cold: ['GLACIER_IR', 'GLACIER'],
   deep: ['DEEP_ARCHIVE'],
 }
-export const TIER_SQL = `(SELECT CASE l.storage_class WHEN 'STANDARD' THEN 'hot' WHEN 'DEEP_ARCHIVE' THEN 'deep'
+export const TIER_SQL = `(SELECT CASE l.storage_class WHEN 'NAS' THEN 'nas' WHEN 'STANDARD' THEN 'hot' WHEN 'DEEP_ARCHIVE' THEN 'deep'
   WHEN 'GLACIER' THEN 'cold' WHEN 'GLACIER_IR' THEN 'cold' ELSE 'warm' END
   FROM asset_locations l WHERE l.asset_id = a.id AND l.state NOT IN ('pending', 'gone')
   ORDER BY l.connection_id = 'r2' DESC LIMIT 1)`
@@ -460,7 +462,7 @@ export async function softDeleteAsset(db: D1Database, id: string): Promise<void>
 
 const ORIENTATIONS = new Set(['landscape', 'portrait', 'square'])
 const KINDS = new Set(['photo', 'raw', 'video', 'other'])
-const TIERS = new Set(['hot', 'warm', 'cold', 'deep'])
+const TIERS = new Set(['nas', 'hot', 'warm', 'cold', 'deep'])
 
 /** Filters from URL query parameters (the API and the library pages share this). Unknown values are dropped. */
 export function parseListFilters(query: Record<string, string | undefined>): ListFilters {
