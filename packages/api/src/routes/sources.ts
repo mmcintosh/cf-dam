@@ -61,6 +61,7 @@ async function sourceJson(db: D1Database, s: SourceRow) {
     revoked: s.revoked_at !== null,
     status: parse<Record<string, unknown>>(s.status, {}),
     folders: parse<string[]>(s.folders, []),
+    volumes: parse<{ id: string; label: string | null; path: string; removable: boolean }[]>(s.volumes, []),
     roots: roots.map(rootJson),
     photos: { total: counts?.total ?? 0, missing: counts?.missing ?? 0, processing: counts?.processing ?? 0 },
     createdAt: s.created_at,

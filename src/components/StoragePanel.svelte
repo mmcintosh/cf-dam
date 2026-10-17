@@ -11,6 +11,8 @@
     offeredClasses: string[]
     /** Set when the original is on a NAS, indexed in place by an agent. */
     nasPath: string | null
+    /** The agent folder it is in: a drive's name, and whether it is offline. */
+    nasFolder?: { sourceName: string; root: { volume: { label: string | null } | null; offlineSince: string | null } } | null
   }
   interface Props {
     assetId: string
@@ -88,8 +90,21 @@
       <dd>{location.connectionName}</dd>
       <dt>Path</dt>
       <dd class="path">{location.nasPath}</dd>
+      {#if location.nasFolder?.root.volume}
+        <dt>Drive</dt>
+        <dd>{location.nasFolder.root.volume.label ?? 'Unnamed drive'}</dd>
+      {/if}
       <dt>State</dt>
-      <dd>{location.state === 'missing' ? 'Missing: not found in the last scan (moved or deleted on the NAS)' : 'Present'}</dd>
+      <dd>
+        {#if location.state === 'missing'}
+          Missing: not found in the last scan (moved or deleted)
+        {:else if location.nasFolder?.root.offlineSince}
+          Offline since {new Date(location.nasFolder.root.offlineSince).toLocaleDateString()}. To reach the original, connect
+          {location.nasFolder.root.volume ? `“${location.nasFolder.root.volume.label ?? 'the drive'}”` : 'the folder'} to {location.nasFolder.sourceName}.
+        {:else}
+          Present
+        {/if}
+      </dd>
     </dl>
     <p class="muted small">The original stays on the NAS. cf-dam has its metadata and previews; lifecycle rules (Phase 6) will move originals to cloud storage.</p>
   </div>

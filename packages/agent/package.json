@@ -8,7 +8,8 @@
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/agent.mjs --external:sharp --external:exiftool-vendored --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "start": "node dist/agent.mjs",
     "test": "vitest run",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "build:desktop": "npm run build && node desktop/package.mjs"
   },
   "dependencies": {
     "exiftool-vendored": "^39.0.1",

@@ -11,6 +11,8 @@
     enabled: boolean
     firstScanDone: boolean
     lastScanAt: string | null
+    volume: { id: string; label: string | null; path: string | null } | null
+    offlineSince: string | null
   }
   interface Source {
     id: string
@@ -23,6 +25,7 @@
     revoked: boolean
     status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null }
     folders: string[]
+    volumes: { id: string; label: string | null; path: string; removable: boolean }[]
     roots: Root[]
     photos: { total: number; missing: number; processing: number }
   }
@@ -225,6 +228,8 @@
             <div class="root row">
               <input type="checkbox" checked={r.enabled} onchange={(e) => updateRoot(s, r, { enabled: e.currentTarget.checked })} aria-label={`Index ${r.path}`} />
               <code>{r.path}</code>
+              {#if r.volume}<span class="pill">Drive: {r.volume.label ?? 'unnamed'}</span>{/if}
+              {#if r.offlineSince}<span class="pill offline" title="Unplugged or unmounted. Its photos stay here; connect it to update them.">Offline since {ago(r.offlineSince)}</span>{/if}
               <span class="muted small">{r.lastScanAt ? `scanned ${ago(r.lastScanAt)}` : 'first scan pending'}</span>
               <span class="spacer"></span>
               <input
@@ -242,7 +247,10 @@
             {#if offered(s).length > 0}
               <select bind:value={newFolder[s.id]} aria-label="Folder to index">
                 <option value="">Choose a folder…</option>
-                {#each offered(s) as f (f)}<option value={f}>{f}</option>{/each}
+                {#each offered(s) as f (f)}
+                  {@const drive = s.volumes.find((v) => v.path === f)}
+                  <option value={f}>{drive ? `${drive.label ?? 'Drive'} (${f})${drive.removable ? ' · removable' : ''}` : f}</option>
+                {/each}
               </select>
             {:else}
               <input type="text" bind:value={newFolder[s.id]} placeholder="/photos/photo" aria-label="Folder to index" />
@@ -370,6 +378,17 @@
   }
   .root code {
     font-size: 0.85rem;
+  }
+  .pill {
+    font-size: 0.72rem;
+    padding: 1px 8px;
+    border-radius: 99px;
+    background: var(--surface-strong);
+    color: var(--text-muted);
+  }
+  .pill.offline {
+    background: color-mix(in srgb, var(--warning) 22%, transparent);
+    color: var(--text);
   }
   .globs {
     width: 240px;

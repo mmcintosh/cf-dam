@@ -138,6 +138,7 @@ export interface SourceRow {
   last_seen_at: string | null
   status: string
   folders: string
+  volumes: string
   paused: number
   rescan: number
   revoked_at: string | null
@@ -154,6 +155,17 @@ export interface RootRow {
   enabled: number
   first_scan_done_at: string | null
   last_scan_at: string | null
+  volume_id: string | null
+  volume_label: string | null
+  volume_path: string | null
+  offline_since: string | null
+}
+
+export interface Volume {
+  id: string
+  label: string | null
+  path: string
+  removable: boolean
 }
 
 const json = <T>(value: string, fallback: T): T => {
@@ -173,6 +185,8 @@ export const rootJson = (r: RootRow) => ({
   enabled: r.enabled === 1,
   firstScanDone: r.first_scan_done_at !== null,
   lastScanAt: r.last_scan_at,
+  volume: r.volume_id ? { id: r.volume_id, label: r.volume_label, path: r.volume_path } : null,
+  offlineSince: r.offline_since,
 })
 
 export async function getSource(db: D1Database, id: string): Promise<SourceRow | null> {
@@ -184,14 +198,31 @@ export async function listRoots(db: D1Database, sourceId: string): Promise<RootR
   return results
 }
 
-/** Agent-side absolute paths: '/photos/photo'. No '..', no control characters, forward slashes. */
+/**
+ * Agent-side absolute paths, with forward slashes: '/photos/photo' (Linux, macOS), 'E:/Archive'
+ * (a Windows drive) or '//nas/photo' (a Windows network share). No '..', no control characters.
+ */
 export function cleanAgentPath(path: unknown): string {
   if (typeof path !== 'string' || path.length === 0 || path.length > 1024) throw new AgentError('A path is 1–1024 characters.')
   if (/[\u0000-\u001f]/.test(path) || path.includes('\\')) throw new AgentError('Paths use forward slashes and no control characters.')
-  const parts = path.split('/').filter(Boolean)
+  const drive = /^([A-Za-z]):(?:\/|$)/.exec(path)
+  const unc = !drive && path.startsWith('//')
+  const parts = (drive ? path.slice(2) : path).split('/').filter(Boolean)
   if (parts.some((p) => p === '..' || p === '.')) throw new AgentError('Paths may not contain . or .. segments.')
+  if (drive) return `${drive[1]!.toUpperCase()}:/${parts.join('/')}`
+  if (unc) {
+    if (parts.length < 2) throw new AgentError('A network path needs a server and a share: //server/share.')
+    return `//${parts.join('/')}`
+  }
   return `/${parts.join('/')}`
 }
+
+/** A folder path as a key prefix: '/photos/photo/' ('E:/' is one already). */
+export const prefixOf = (base: string) => (base.endsWith('/') ? base : `${base}/`)
+/** The location key of a file in a folder. */
+export const keyOf = (base: string, rel: string) => `${prefixOf(base)}${rel}`
+/** Whether `path` is `base` or inside it. */
+export const within = (path: string, base: string) => path === base || path.startsWith(prefixOf(base))
 
 /** A file's path inside a root: 'sub/dir/IMG_1.CR3'. Relative, never escaping the root. */
 export function cleanRelativePath(path: unknown): string {
@@ -214,10 +245,17 @@ export async function addRoot(db: D1Database, sourceId: string, input: Record<st
   if (existing) throw new AgentError('That folder is already indexed.', 409)
   // Nested folders would index the same files twice under two keys.
   const roots = await listRoots(db, sourceId)
-  if (roots.some((r) => path.startsWith(`${r.path}/`) || r.path.startsWith(`${path}/`))) throw new AgentError('That folder is inside, or contains, a folder already indexed.', 409)
+  if (roots.some((r) => (within(path, r.path) || within(r.path, path)) && path !== r.path)) throw new AgentError('That folder is inside, or contains, a folder already indexed.', 409)
+  // On a volume the agent reported (a USB drive, a mounted share)? Remember which, to find it again.
+  const source = await getSource(db, sourceId)
+  const volumes = json<Volume[]>(source?.volumes ?? '[]', [])
+  const volume = volumes.filter((v) => within(path, v.path)).sort((a, b) => b.path.length - a.path.length)[0]
   await db
-    .prepare('INSERT INTO source_roots (id, source_id, path, label, include_globs, exclude_globs, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, sourceId, path, shortText(input.label, 100), JSON.stringify(globs(input.include)), JSON.stringify(globs(input.exclude)), nowIso())
+    .prepare(
+      `INSERT INTO source_roots (id, source_id, path, label, include_globs, exclude_globs, volume_id, volume_label, volume_path, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, sourceId, path, shortText(input.label, 100) ?? volume?.label ?? null, JSON.stringify(globs(input.include)), JSON.stringify(globs(input.exclude)), volume?.id ?? null, volume?.label ?? null, volume?.path ?? null, nowIso())
     .run()
   return (await db.prepare('SELECT * FROM source_roots WHERE id = ?').bind(id).first<RootRow>())!
 }
@@ -253,7 +291,7 @@ export async function removeRoot(db: D1Database, source: SourceRow, rootId: stri
   await db.batch([
     db
       .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND substr(key, 1, ?) = ?`)
-      .bind(nowIso(), source.connection_id, root.path.length + 1, `${root.path}/`),
+      .bind(nowIso(), source.connection_id, prefixOf(root.path).length, prefixOf(root.path)),
     db.prepare('DELETE FROM source_roots WHERE id = ?').bind(rootId),
   ])
   return true
@@ -281,11 +319,28 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
   return { paused: source.paused === 1, rescan: source.rescan === 1 }
 }
 
-export async function reportFolders(db: D1Database, source: SourceRow, folders: unknown): Promise<number> {
+export async function reportFolders(db: D1Database, source: SourceRow, folders: unknown, volumes: unknown = []): Promise<number> {
   if (!Array.isArray(folders) || folders.length > 500) throw new AgentError('folders is a list of up to 500 paths.')
+  if (!Array.isArray(volumes) || volumes.length > 100) throw new AgentError('volumes is a list of up to 100 volumes.')
   const clean = [...new Set(folders.map(cleanAgentPath))].sort()
-  await db.prepare('UPDATE sources SET folders = ? WHERE id = ?').bind(JSON.stringify(clean), source.id).run()
+  const vols: Volume[] = volumes.map((v) => {
+    const o = (typeof v === 'object' && v !== null ? v : {}) as Record<string, unknown>
+    const id = shortText(o.id, 200)
+    if (!id) throw new AgentError('Each volume needs an id.')
+    return { id, label: shortText(o.label, 100), path: cleanAgentPath(o.path), removable: o.removable === true }
+  })
+  await db.prepare('UPDATE sources SET folders = ?, volumes = ? WHERE id = ?').bind(JSON.stringify(clean), JSON.stringify(vols), source.id).run()
   return clean.length
+}
+
+/** The agent couldn't reach a folder (drive unplugged, share unmounted), or reached it again. */
+export async function setRootOnline(db: D1Database, source: SourceRow, rootId: string, online: unknown): Promise<{ offlineSince: string | null }> {
+  if (typeof online !== 'boolean') throw new AgentError('online is true or false.')
+  const root = await db.prepare('SELECT * FROM source_roots WHERE id = ? AND source_id = ?').bind(rootId, source.id).first<RootRow>()
+  if (!root) throw new AgentError('Unknown root.', 404)
+  const since = online ? null : (root.offline_since ?? nowIso())
+  await db.prepare('UPDATE source_roots SET offline_since = ? WHERE id = ?').bind(since, root.id).run()
+  return { offlineSince: since }
 }
 
 export async function agentConfig(db: D1Database, source: SourceRow) {
@@ -352,7 +407,7 @@ async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string,
   const root = typeof item.root === 'string' ? roots.get(item.root) : undefined
   if (!root || root.enabled !== 1) throw new AgentError('Unknown or disabled root.')
   const rel = cleanRelativePath(item.path)
-  const key = `${root.path}/${rel}`
+  const key = keyOf(root.path, rel)
   const size = item.size
   if (!Number.isSafeInteger(size) || (size as number) < 0) throw new AgentError('size is a whole number of bytes.')
   const quickHash = typeof item.quickHash === 'string' && HEX64.test(item.quickHash) ? item.quickHash : null
@@ -385,7 +440,7 @@ async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string,
   }
 
   // 2. Moved or renamed: the agent says where it was, or the same file went missing from this agent.
-  const previous = item.previousPath !== undefined ? await at(`${root.path}/${cleanRelativePath(item.previousPath)}`) : null
+  const previous = item.previousPath !== undefined ? await at(keyOf(root.path, cleanRelativePath(item.previousPath))) : null
   const moved =
     previous && previous.quick_hash === quickHash
       ? previous
@@ -443,7 +498,7 @@ export async function completeAssets(env: DamBindings, source: SourceRow, items:
       out.push({ id, status: 'rejected', error: 'Not one of this agent’s files.' })
       continue
     }
-    const root = roots.find((r) => location.key.startsWith(`${r.path}/`))
+    const root = roots.find((r) => location.key.startsWith(prefixOf(r.path)))
     const hash = typeof item.phash === 'string' && HEX16.test(item.phash) ? item.phash : null
     await finishAsset(env, id, { hash, queueAi: Boolean(root?.first_scan_done_at) })
     out.push({ id, status: 'ready' })
@@ -461,7 +516,7 @@ export async function completeScan(db: D1Database, source: SourceRow, input: Rec
   if (!root) throw new AgentError('Unknown root.', 404)
   const missing = input.missing ?? []
   if (!Array.isArray(missing) || missing.length > 5000) throw new AgentError('missing is a list of up to 5,000 paths; send more in further calls.')
-  const keys = missing.map((p) => `${root.path}/${cleanRelativePath(p)}`)
+  const keys = missing.map((p) => keyOf(root.path, cleanRelativePath(p)))
   const now = nowIso()
   let marked = 0
   for (let i = 0; i < keys.length; i += 90) {
@@ -476,4 +531,12 @@ export async function completeScan(db: D1Database, source: SourceRow, input: Rec
     await db.prepare('UPDATE source_roots SET last_scan_at = ?, first_scan_done_at = COALESCE(first_scan_done_at, ?) WHERE id = ?').bind(now, now, root.id).run()
   }
   return { missing: marked }
+}
+
+/** The agent folder a NAS location belongs to, for showing where it is and whether it is offline. */
+export async function folderOf(db: D1Database, connectionId: string, key: string): Promise<{ sourceName: string; root: ReturnType<typeof rootJson> } | null> {
+  const source = await db.prepare('SELECT id, name FROM sources WHERE connection_id = ?').bind(connectionId).first<{ id: string; name: string }>()
+  if (!source) return null
+  const root = (await listRoots(db, source.id)).filter((r) => within(key, r.path)).sort((a, b) => b.path.length - a.path.length)[0]
+  return root ? { sourceName: source.name, root: rootJson(root) } : null
 }

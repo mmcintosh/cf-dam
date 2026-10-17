@@ -2,6 +2,7 @@
  * One scan of one folder: walk it, work out what changed, send new and changed photos in batches
  * (metadata first; previews only for what cf-dam asks for), then report what's gone.
  */
+import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ApiError, type Api } from './api.ts'
 import type { Extractor } from './extract.ts'
@@ -11,9 +12,12 @@ import type { FileRow, State } from './state.ts'
 
 export interface Root {
   id: string
+  /** As cf-dam stores it (the path when the folder was added). */
   path: string
   include: string[]
   exclude: string[]
+  volume: { id: string; label: string | null; path: string | null } | null
+  offlineSince: string | null
 }
 
 export interface Progress {
@@ -72,14 +76,27 @@ async function inParallel<T, R>(items: T[], limit: number, fn: (item: T) => Prom
   return out
 }
 
-export async function scanRoot(ctx: Ctx, root: Root): Promise<void> {
+/**
+ * One folder. `here` is where it is right now (a drive may have come back at a new mount point); file
+ * paths sent to cf-dam are relative, so they don't change when the drive does.
+ */
+export async function scanRoot(ctx: Ctx, root: Root, here: string = root.path): Promise<void> {
   const { api, state, progress } = ctx
-  const abs = (rel: string) => join(root.path, rel)
+  const abs = (rel: string) => join(here, rel)
   progress.root = root.path
   progress.startedAt = new Date().toISOString()
 
-  const found = await walk(root.path, [...ctx.defaultExcludes, ...root.exclude], root.include)
+  // Unplugged drive, unmounted share: offline, not empty. Never report its photos missing for that.
+  const reachable = await stat(here).then((s) => s.isDirectory()).catch(() => false)
+  const found = reachable ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include) : new Map<string, Found>()
   const known = state.files(root.id)
+  // A folder that suddenly shows nothing at all, when we knew files there, is a mount gone wrong.
+  if (!reachable || (found.size === 0 && known.size > 0)) {
+    if (!root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: false })
+    progress.root = null
+    return
+  }
+  if (root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: true })
   const { work, gone } = plan(found, known)
   progress.found = found.size
   progress.queued = work.length

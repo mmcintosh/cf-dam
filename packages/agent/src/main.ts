@@ -10,6 +10,8 @@ import { Extractor } from './extract.ts'
 import { newProgress, scanRoot, type Root } from './pipeline.ts'
 import { State } from './state.ts'
 import { serveStatus, type StatusView } from './status.ts'
+import { listVolumes, locate, toAgentPath, type Volume } from './volumes.ts'
+import { homedir } from 'node:os'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const log = (...args: unknown[]) => console.log(new Date().toISOString(), ...args)
@@ -34,6 +36,8 @@ export class Agent {
   constructor(
     readonly config: AgentConfig,
     api?: Api,
+    /** Where drives come from: the OS normally; tests stand in their own. */
+    private readonly volumeLister: () => Promise<Volume[]> = listVolumes,
   ) {
     this.state = new State(config.dataDir)
     this.api = api ?? new Api(config.url)
@@ -95,8 +99,14 @@ export class Agent {
     if (res.body.rescan) this.rescan = true
   }
 
-  /** The folders cf-dam can offer: everything mounted under the photos folder, two levels down. */
+  private volumes: Volume[] = []
+
+  /**
+   * The folders cf-dam can offer. In Docker: everything mounted under the photos folder, two levels
+   * down. On a Mac or PC: each drive and mounted share (and its folders), and the Pictures folder.
+   */
   async reportFolders(): Promise<void> {
+    this.volumes = await this.volumeLister().catch(() => [])
     const folders: string[] = []
     const list = (dir: string, depth: number) => {
       let names: string[] = []
@@ -117,12 +127,23 @@ export class Agent {
         if (depth < 2) list(path, depth + 1)
       }
     }
-    list(this.config.photosDir, 1)
-    await this.api.call('POST', '/api/agent/folders', { folders: folders.slice(0, 500) })
+    if (this.config.photosDir) list(this.config.photosDir, 1)
+    else {
+      for (const v of this.volumes) {
+        folders.push(v.path)
+        list(v.path, 2)
+      }
+      folders.push(join(homedir(), 'Pictures'))
+    }
+    await this.api.call('POST', '/api/agent/folders', {
+      folders: [...new Set(folders.map(toAgentPath))].slice(0, 500),
+      volumes: this.volumes,
+    })
   }
 
   /** One pass over every enabled folder. */
   async scanAll(): Promise<void> {
+    this.volumes = await this.volumeLister().catch(() => this.volumes)
     const { body: config } = await this.api.call<Config>('GET', '/api/agent/config')
     this.scanIntervalMs = Math.max(1, config.scanIntervalMinutes) * 60_000
     this.state.keepRoots(config.roots.map((r) => r.id))
@@ -146,6 +167,7 @@ export class Agent {
           shouldStop: () => this.stopping || this.paused,
         },
         root,
+        locate(root, this.volumes),
       )
       const p = this.view.progress
       log(`Done ${root.path}: ${p.found} found, ${p.sent} sent, ${p.failed} failed, ${p.missing} missing`)
@@ -165,9 +187,13 @@ export class Agent {
         let lastFolders = Date.now()
         while (!this.stopping) {
           await this.heartbeat()
-          if (Date.now() - lastFolders > 3_600_000) {
+          // A drive plugged in or out (or a share mounted): tell cf-dam, and scan at once.
+          const volumes = await this.volumeLister().catch(() => this.volumes)
+          const changed = volumes.map((v) => `${v.id}@${v.path}`).sort().join('|') !== this.volumes.map((v) => `${v.id}@${v.path}`).sort().join('|')
+          if (changed || Date.now() - lastFolders > 3_600_000) {
             await this.reportFolders()
             lastFolders = Date.now()
+            if (changed) this.rescan = true
           }
           if (this.paused) {
             this.view.phase = 'paused'

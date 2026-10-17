@@ -1,0 +1,52 @@
+# cf-dam agent on a Mac or PC
+
+The same agent as the NAS one, run on your own computer: for folders on its disks, on network shares
+it mounts, and on **external drives that are only plugged in now and then**. A drive's photos stay in
+cf-dam while it's unplugged (marked offline), and are picked up again when it comes back, under any
+drive letter or mount point.
+
+It only reads your photos. It never changes, moves or deletes them.
+
+## You need
+
+- **Node.js 24** from https://nodejs.org (the LTS installer).
+- About 1 GB of free memory while it indexes.
+- The address of your cf-dam, e.g. `https://dam.example.com`.
+
+## macOS
+
+```sh
+./install-macos.sh https://dam.example.com "Studio iMac"
+```
+
+This installs the agent in `~/Library/Application Support/cf-dam-agent/app` and starts it at login
+(a LaunchAgent, `com.cf-dam.agent`). Its log is `~/Library/Logs/cf-dam-agent.log`; the first lines show
+the pairing code to type into cf-dam → NAS agents. The status page is http://localhost:8790.
+
+macOS asks before an app reads external drives, network volumes or your Pictures folder. Allow it, or
+add `node` under System Settings → Privacy & Security → Files and Folders (or Full Disk Access).
+
+To remove it: `launchctl bootout gui/$(id -u)/com.cf-dam.agent`, then delete the LaunchAgent plist
+and the `cf-dam-agent` folder.
+
+## Windows
+
+In PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Url https://dam.example.com -Name "Studio PC"
+```
+
+This installs the agent in `%APPDATA%\cf-dam-agent\app` and runs it at sign-in as you (a scheduled task,
+`cf-dam agent`), so it sees your mapped drives and network shares with your credentials. Folders on a
+network share are best added by their `\\server\share` path, which works whatever drive letter is mapped.
+The log is `%APPDATA%\cf-dam-agent\agent.log`; the status page is http://localhost:8790.
+
+To remove it: `Unregister-ScheduledTask -TaskName "cf-dam agent"`, then delete the `cf-dam-agent` folder.
+
+## Anywhere else (Linux, or running it by hand)
+
+```sh
+npm install --omit=dev
+CF_DAM_URL=https://dam.example.com AGENT_NAME="My laptop" node agent.mjs
+```

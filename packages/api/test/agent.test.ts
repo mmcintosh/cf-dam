@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanAgentPath, keyOf } from '../src/catalog/agents'
 import { decodePng, hashPixels } from '../src/catalog/phash'
 import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
 
@@ -248,5 +249,33 @@ describe('folders and files', () => {
     expect(a.renditions.sort()).toEqual(['preview', 'sheet', 'thumb'])
     expect((await h.fetch(`/api/assets/${id}/renditions/sheet`, { cookie: admin })).headers.get('content-type')).toBe('image/webp')
     expect(((await (await h.fetch('/api/assets?type=video', { cookie: admin })).json()) as { total: number }).total).toBe(1)
+  })
+
+  it('understands Windows drives and network shares, and folders that go offline', async () => {
+    expect(cleanAgentPath('e:/Photos/2014')).toBe('E:/Photos/2014')
+    expect(cleanAgentPath('E:/')).toBe('E:/')
+    expect(cleanAgentPath('//nas/photo/2019')).toBe('//nas/photo/2019')
+    expect(() => cleanAgentPath('//nas')).toThrow()
+    expect(() => cleanAgentPath('E:/../x')).toThrow()
+    expect(keyOf('E:/', 'a.jpg')).toBe('E:/a.jpg')
+    expect(keyOf('/photos/photo', 'a.jpg')).toBe('/photos/photo/a.jpg')
+
+    const { key, sourceId } = await pair()
+    await agentFetch(key, '/api/agent/folders', json({ folders: ['E:/', 'E:/Archive'], volumes: [{ id: 'volume:X', label: 'Archive 2014-B', path: 'E:/', removable: true }] }))
+    const res = await h.fetch(`/api/sources/${sourceId}/roots`, { ...json({ path: 'E:/' }), cookie: admin })
+    const { root } = (await res.json()) as { root: { id: string; label: string; volume: { id: string; path: string } } }
+    expect(root).toMatchObject({ label: 'Archive 2014-B', volume: { id: 'volume:X', path: 'E:/' } })
+    const sent = await send(key, [{ root: root.id, path: '2014/a.jpg', size: 1, quickHash: hex('w') }])
+    expect(sent.body.results[0]!.result).toBe('created')
+    const id = sent.body.results[0]!.assetId
+    const where = (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
+    expect(where.locations[0]!.state).toBe('present')
+
+    expect(await (await agentFetch(key, `/api/agent/roots/${root.id}/status`, json({ online: false }))).json()).toMatchObject({ offlineSince: expect.any(String) })
+    const list = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; volumes: unknown[] }[] }
+    expect(list.sources[0]!.roots[0]!.offlineSince).not.toBeNull()
+    expect(list.sources[0]!.volumes).toHaveLength(1)
+    await agentFetch(key, `/api/agent/roots/${root.id}/status`, json({ online: true }))
+    expect(((await (await h.fetch('/api/sources', { cookie: admin })).json()) as typeof list).sources[0]!.roots[0]!.offlineSince).toBeNull()
   })
 })

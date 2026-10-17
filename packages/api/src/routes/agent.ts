@@ -16,6 +16,7 @@ import {
   ownsAsset,
   pollPairing,
   reportFolders,
+  setRootOnline,
   startPairing,
 } from '../catalog/agents'
 import { isRenditionName, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
@@ -74,6 +75,7 @@ const notPaused: MiddlewareHandler<DamEnv> = async (c, next) => {
 agentRoutes.use('/config', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/heartbeat', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/folders', requirePermission('agent:sync'), asAgent)
+agentRoutes.use('/roots/*', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/assets/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/scans/*', requirePermission('agent:sync'), asAgent, notPaused)
 
@@ -90,7 +92,16 @@ agentRoutes.post('/heartbeat', async (c) => {
 agentRoutes.post('/folders', async (c) => {
   try {
     const body = await readJsonObject(c)
-    return c.json({ folders: await reportFolders(c.env.DB, c.get('source')!, body.folders) })
+    return c.json({ folders: await reportFolders(c.env.DB, c.get('source')!, body.folders, body.volumes ?? []) })
+  } catch (error) {
+    return failure(c, error)
+  }
+})
+
+agentRoutes.post('/roots/:id/status', async (c) => {
+  try {
+    const body = await readJsonObject(c)
+    return c.json(await setRootOnline(c.env.DB, c.get('source')!, c.req.param('id'), body.online))
   } catch (error) {
     return failure(c, error)
   }

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, json, setUpAdmin, type Harness } from '../../api/test/harness.ts'
 import { Api } from '../src/api.ts'
 import { Agent } from '../src/main.ts'
+import type { Volume } from '../src/volumes.ts'
 
 const placesGz = readFileSync(new URL('../../../public/places/cities1000.tsv.gz', import.meta.url))
 const ASSETS = { fetch: async () => new Response(placesGz) } as unknown as Fetcher
@@ -27,6 +28,7 @@ beforeEach(async () => {
   photos = mkdtempSync(join(tmpdir(), 'nas-photos-'))
   data = mkdtempSync(join(tmpdir(), 'nas-data-'))
   calls.length = 0
+  volumes = []
 })
 afterEach(async () => {
   await h.dispose()
@@ -34,12 +36,14 @@ afterEach(async () => {
   rmSync(data, { recursive: true, force: true })
 })
 
+let volumes: Volume[] = []
+
 function newAgent(): Agent {
   const fetchImpl = (url: string, init?: RequestInit) => {
     calls.push(`${init?.method ?? 'GET'} ${url.slice(BASE.length)}`)
     return h.fetch(url.slice(BASE.length), init as RequestInit & { cookie?: string })
   }
-  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1))
+  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
 }
 
 async function photo(rel: string, seed: number) {
@@ -122,5 +126,43 @@ describe('the agent, end to end', () => {
     const deleted = all.assets.find((a) => a.filename === 'IMG_1002.jpg')!
     const gone = (await (await h.fetch(`/api/assets/${deleted.id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
     expect(gone.locations[0]!.state).toBe('missing')
+  })
+
+  it('treats an unplugged drive as offline, and finds it again at a new mount point', async () => {
+    // A USB drive, seen by the agent as a volume mounted at <photos>/Drive.
+    const mount = join(photos, 'Drive')
+    for (let i = 0; i < 3; i++) await photo(`Drive/2014/IMG_${3000 + i}.jpg`, i + 50)
+    volumes = [{ id: 'uuid:ARCHIVE-2014-B', label: 'Archive 2014-B', path: mount, removable: true }]
+    const agent = newAgent()
+    const pairing = agent.pair()
+    while (!agent.status().pairingCode) await new Promise((r) => setTimeout(r, 20))
+    const { source } = (await (await h.fetch('/api/sources/pair', { ...json({ code: agent.status().pairingCode }), cookie: admin })).json()) as { source: { id: string } }
+    await pairing
+    await agent.reportFolders()
+    const added = (await (await h.fetch(`/api/sources/${source.id}/roots`, { ...json({ path: mount }), cookie: admin })).json()) as { root: { id: string; volume: { label: string } | null; label: string } }
+    expect(added.root).toMatchObject({ label: 'Archive 2014-B', volume: { label: 'Archive 2014-B' } })
+    await agent.scanAll()
+    expect((await list()).total).toBe(3)
+
+    // Unplugged: the folder is unreachable. Offline, and nothing goes missing.
+    const elsewhere = join(photos, 'Drive 1')
+    renameSync(mount, elsewhere)
+    volumes = []
+    await agent.scanAll()
+    const sources = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; photos: { missing: number } }[] }
+    expect(sources.sources[0]!.roots[0]!.offlineSince).not.toBeNull()
+    expect(sources.sources[0]!.photos.missing).toBe(0)
+    const one = (await list()).assets[0]!
+    const page = (await (await h.fetch(`/api/assets/${one.id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
+    expect(page.locations[0]!.state).toBe('present')
+
+    // Plugged back in, mounted as "Drive 1" this time: found by its id, nothing re-sent, online again.
+    volumes = [{ id: 'uuid:ARCHIVE-2014-B', label: 'Archive 2014-B', path: elsewhere, removable: true }]
+    calls.length = 0
+    await agent.scanAll()
+    expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
+    const after = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; photos: { total: number; missing: number } }[] }
+    expect(after.sources[0]!.roots[0]!.offlineSince).toBeNull()
+    expect(after.sources[0]!.photos).toMatchObject({ total: 3, missing: 0 })
   })
 })

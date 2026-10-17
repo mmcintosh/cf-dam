@@ -95,6 +95,7 @@ export { facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValu
 export { keywordTree, type KeywordNode } from './catalog/keywords'
 export { IPTC_FIELDS, listPresets, type IptcField, type IptcKey, type Preset } from './catalog/iptc'
 export { listSavedSearches, normalizeQuery, type SavedSearch } from './routes/metadata'
+export { folderOf } from './catalog/agents'
 export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
