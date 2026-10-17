@@ -77,6 +77,7 @@ export function createDamApi() {
 }
 
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
-export { assetJson, getAsset, getLocations, getTags, listAssets, type AssetJson, type ListFilters } from './catalog/assets'
+export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
+export { facets, geoPoints, timeline, type Facets, type FacetValue } from './catalog/library'
 export { listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

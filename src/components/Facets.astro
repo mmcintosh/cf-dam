@@ -1,0 +1,207 @@
+---
+/** The filter sidebar: every facet with counts, as plain links, so each view has its own URL. */
+import type { Facets, FacetValue } from '@cf-dam/api'
+
+interface Props {
+  facets: Facets
+  params: URLSearchParams
+}
+const { facets, params } = Astro.props
+
+const link = (changes: Record<string, string | null>) => {
+  const next = new URLSearchParams(params)
+  next.delete('offset')
+  for (const [k, v] of Object.entries(changes)) (v === null ? next.delete(k) : next.set(k, v))
+  if (changes.year !== undefined) next.delete('month')
+  const s = next.toString()
+  return s ? `/?${s}` : '/'
+}
+
+const LABELS: Record<string, Record<string, string>> = {
+  flag: { pick: 'Picks', reject: 'Rejects', none: 'Unflagged' },
+  type: { photo: 'Photos', raw: 'RAW', video: 'Video', other: 'Other files' },
+  orientation: { landscape: 'Landscape', portrait: 'Portrait', square: 'Square' },
+  tier: { hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
+  year: { undated: 'Undated' },
+}
+const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
+
+// Ratings filter "at least N stars", so show cumulative counts.
+const ratingCounts = (() => {
+  const exact = new Map(facets.rating.map((r) => [Number(r.value), r.count]))
+  let running = 0
+  const out: { stars: number; count: number }[] = []
+  for (let stars = 5; stars >= 1; stars--) {
+    running += exact.get(stars) ?? 0
+    if (running > 0) out.push({ stars, count: running })
+  }
+  return out
+})()
+
+const active: { key: string; text: string }[] = []
+for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+  const value = params.get(key)
+  if (!value) continue
+  const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)
+  active.push({ key, text: prefix ? `${prefix}: ${shown}` : shown })
+}
+
+const sections: { key: string; title: string; values: FacetValue[]; open: boolean }[] = [
+  { key: 'type', title: 'Type', values: facets.type, open: true },
+  { key: 'flag', title: 'Flag', values: facets.flag, open: true },
+  { key: 'tier', title: 'Storage', values: facets.tier, open: true },
+  { key: 'orientation', title: 'Orientation', values: facets.orientation, open: false },
+  { key: 'camera', title: 'Camera', values: facets.camera, open: false },
+  { key: 'lens', title: 'Lens', values: facets.lens, open: false },
+  { key: 'tag', title: 'Tags', values: facets.tag, open: true },
+]
+---
+<aside class="facets" aria-label="Filters">
+  {active.length > 0 && (
+    <div class="active">
+      {active.map((chip) => (
+        <a class="chip" href={link({ [chip.key]: null })} title="Remove this filter">{chip.text} <span aria-hidden="true">✕</span></a>
+      ))}
+      {active.length > 1 && <a class="clear" href="/">Clear all</a>}
+    </div>
+  )}
+
+  <details open>
+    <summary>Year</summary>
+    <ul class="values">
+      {facets.year.map((y) => (
+        <li><a href={link({ year: params.get('year') === y.value ? null : y.value })} class:list={{ on: params.get('year') === y.value }}><span>{label('year', y.value)}</span><span class="count">{y.count}</span></a></li>
+      ))}
+    </ul>
+  </details>
+
+  {ratingCounts.length > 0 && (
+    <details open>
+      <summary>Rating</summary>
+      <ul class="values">
+        {ratingCounts.map((r) => (
+          <li><a href={link({ rating: params.get('rating') === String(r.stars) ? null : String(r.stars) })} class:list={{ on: params.get('rating') === String(r.stars) }}><span class="stars">{'★'.repeat(r.stars)}{r.stars < 5 ? ' & up' : ''}</span><span class="count">{r.count}</span></a></li>
+        ))}
+      </ul>
+    </details>
+  )}
+
+  {sections.filter((s) => s.values.length > 0).map((section) => (
+    <details open={section.open || params.has(section.key)}>
+      <summary>{section.title}</summary>
+      <ul class="values">
+        {section.values.slice(0, 12).map((v) => (
+          <li>
+            <a href={link({ [section.key]: params.get(section.key) === v.value ? null : v.value })} class:list={{ on: params.get(section.key) === v.value }}>
+              <span>{section.key === 'tier' && <i class={`dot dot-${v.value}`}></i>}{label(section.key, v.value)}</span>
+              <span class="count">{v.count}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  ))}
+</aside>
+
+<style>
+  .facets {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    font-size: 0.86rem;
+  }
+  .active {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    font-size: 0.8rem;
+  }
+  .chip:hover {
+    text-decoration: none;
+    background: color-mix(in srgb, var(--accent) 26%, transparent);
+  }
+  .clear {
+    font-size: 0.8rem;
+    align-self: center;
+  }
+  details {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .values {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+  }
+  .values a {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--text-muted);
+  }
+  .values a span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .values a:hover {
+    text-decoration: none;
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .values a.on {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .count {
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .stars {
+    color: #fbbf24;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .dot-hot {
+    background: #fb923c;
+  }
+  .dot-warm {
+    background: #facc15;
+  }
+  .dot-cold {
+    background: #38bdf8;
+  }
+  .dot-deep {
+    background: #818cf8;
+  }
+</style>

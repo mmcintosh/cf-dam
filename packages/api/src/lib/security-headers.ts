@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from 'hono'
 /**
  * Security headers for every response, API and pages alike.
  *
+ * Images may also come from OpenStreetMap's tile server, for the map page.
  * Scripts allow 'unsafe-inline' for now because Astro's island hydration uses inline scripts;
  * tightening that to hashes (Astro's CSP support) is tracked for the library UI. Everything else
  * is strict: no framing, no plugins, no foreign origins.
@@ -19,7 +20,7 @@ export const securityHeaders = (): MiddlewareHandler => async (c, next) => {
   set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
   set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   )
   if (new URL(c.req.url).protocol === 'https:') {
     set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')

@@ -1,0 +1,96 @@
+---
+/** Photos per month across the whole archive (for the current filters), as a clickable histogram. */
+interface Props {
+  months: { month: string; count: number }[]
+  params: URLSearchParams
+}
+const { months, params } = Astro.props
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// Fill gaps so empty months take up space and the axis reads as time.
+const filled: { month: string; count: number }[] = []
+if (months.length > 0) {
+  const counts = new Map(months.map((m) => [m.month, m.count]))
+  let [y, m] = months[0]!.month.split('-').map(Number) as [number, number]
+  const [endY, endM] = months.at(-1)!.month.split('-').map(Number) as [number, number]
+  while (y < endY || (y === endY && m <= endM)) {
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    filled.push({ month: key, count: counts.get(key) ?? 0 })
+    if (++m > 12) {
+      m = 1
+      y++
+    }
+  }
+}
+const max = Math.max(1, ...filled.map((m) => m.count))
+const selectedMonth = params.get('month')
+const selectedYear = params.get('year')
+const link = (month: string) => {
+  const next = new URLSearchParams(params)
+  next.delete('offset')
+  next.delete('year')
+  if (selectedMonth === month) next.delete('month')
+  else next.set('month', month)
+  const s = next.toString()
+  return s ? `/?${s}` : '/'
+}
+---
+{filled.length > 1 && (
+  <nav class="timeline" aria-label="Timeline">
+    <div class="bars">
+      {filled.map((m) => {
+        const [year, month] = m.month.split('-')
+        const on = selectedMonth === m.month || (!selectedMonth && selectedYear === year)
+        return (
+          <a
+            href={m.count ? link(m.month) : undefined}
+            class:list={['bar', { on, empty: !m.count, jan: month === '01' }]}
+            style={`--h:${Math.max(m.count ? 8 : 2, Math.round((m.count / max) * 100))}%`}
+            title={`${MONTHS[Number(month) - 1]} ${year}: ${m.count}`}
+            data-year={month === '01' || m === filled[0] ? year : undefined}
+          ></a>
+        )
+      })}
+    </div>
+  </nav>
+)}
+
+<style>
+  .timeline {
+    margin-bottom: 14px;
+  }
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 54px;
+    padding-bottom: 16px;
+  }
+  .bar {
+    position: relative;
+    flex: 1;
+    min-width: 2px;
+    height: var(--h);
+    border-radius: 2px 2px 0 0;
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+    transition: background 120ms var(--ease);
+  }
+  .bar:hover {
+    background: var(--accent);
+  }
+  .bar.on {
+    background: var(--accent-2);
+  }
+  .bar.empty {
+    background: var(--border);
+  }
+  .bar[data-year]::after {
+    content: attr(data-year);
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+</style>

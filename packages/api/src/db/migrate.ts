@@ -4,8 +4,9 @@
  * A Deploy-to-Cloudflare install never runs `wrangler d1 migrations apply`, so the Worker brings
  * its own schema up to date: the first request in each isolate applies whatever is pending. Each
  * migration runs as one D1 `batch`, which D1 executes as a transaction, and is then recorded in
- * `_migrations`. Statements are written idempotently (IF NOT EXISTS, INSERT OR IGNORE), so two
- * isolates racing on a fresh database converge instead of failing.
+ * `_migrations`. Statements are idempotent where SQLite allows (IF NOT EXISTS, INSERT OR IGNORE);
+ * for the rest (ALTER TABLE ADD COLUMN), a migration that fails because another isolate already
+ * applied it counts as applied. Either way, isolates racing on a fresh database converge.
  */
 
 export interface Migration {
@@ -62,7 +63,15 @@ export async function migrate(db: D1Database, migrations: Migration[] = MIGRATIO
         .prepare('INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)')
         .bind(migration.name, new Date().toISOString()),
     )
-    await db.batch(statements)
+    try {
+      await db.batch(statements)
+    } catch (error) {
+      // Statements like ALTER TABLE ADD COLUMN aren't idempotent: if another isolate applied this
+      // migration first, ours fails as a whole (the batch is a transaction). That's success.
+      const now = await db.prepare('SELECT 1 AS done FROM _migrations WHERE name = ?').bind(migration.name).first()
+      if (!now) throw error
+      continue
+    }
     ran.push(migration.name)
   }
   return ran

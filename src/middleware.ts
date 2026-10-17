@@ -17,6 +17,8 @@ const PAGE_PERMISSIONS: [string, string][] = [
   ['/settings/storage', 'sources:manage'],
   ['/albums', 'assets:read'],
   ['/assets', 'assets:read'],
+  ['/map', 'assets:read'],
+  ['/duplicates', 'assets:read'],
 ]
 
 export const onRequest = defineMiddleware(async (context, next) => {

@@ -1,0 +1,10 @@
+---
+import AppLayout from '../layouts/AppLayout.astro'
+import PhotoMap from '../components/PhotoMap.svelte'
+
+const params = new URL(Astro.url).searchParams
+params.delete('offset')
+---
+<AppLayout title="Map" subtitle="Where your photos were taken. Filters from the library carry over.">
+  <PhotoMap client:only="svelte" query={params.toString()} />
+</AppLayout>

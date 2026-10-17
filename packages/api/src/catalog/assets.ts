@@ -29,6 +29,7 @@ export interface AssetRow {
   gps_lat: number | null
   gps_lng: number | null
   rating: number | null
+  flag: string | null
   metadata: string | null
   status: string
   error: string | null
@@ -117,6 +118,7 @@ export interface AssetJson {
   exposure: { focalLength: number | null; aperture: number | null; exposureTime: number | null; iso: number | null }
   gps: { lat: number; lng: number } | null
   rating: number | null
+  flag: 'pick' | 'reject' | null
   status: string
   error: string | null
   renditions: string[]
@@ -144,6 +146,7 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
     exposure: { focalLength: row.focal_length, aperture: row.aperture, exposureTime: row.exposure_time, iso: row.iso },
     gps: row.gps_lat !== null && row.gps_lng !== null ? { lat: row.gps_lat, lng: row.gps_lng } : null,
     rating: row.rating,
+    flag: row.flag === 'pick' || row.flag === 'reject' ? row.flag : null,
     status: row.status,
     error: row.error,
     renditions,
@@ -169,47 +172,123 @@ export interface ListFilters {
   q?: string
   tag?: string
   camera?: string
+  lens?: string
   albumId?: string
   from?: string
   to?: string
+  /** "2024" */
+  year?: string
+  /** "2024-06" */
+  month?: string
+  /** Minimum stars, 1–5. */
+  rating?: number
+  flag?: 'pick' | 'reject' | 'none'
+  orientation?: Orientation
+  type?: FileKind
+  tier?: Tier
   sort?: 'captured' | 'added'
   limit?: number
   offset?: number
 }
 
-export async function listAssets(db: D1Database, filters: ListFilters): Promise<{ assets: AssetJson[]; total: number }> {
+export type Orientation = 'landscape' | 'portrait' | 'square'
+export type FileKind = 'photo' | 'raw' | 'video' | 'other'
+export type Tier = 'hot' | 'warm' | 'cold' | 'deep'
+
+/** SQL for the facets that are computed rather than stored. Each is an expression over `a`. */
+export const ORIENTATION_SQL = `CASE WHEN a.width IS NULL OR a.height IS NULL THEN NULL
+  WHEN a.width > a.height * 1.05 THEN 'landscape' WHEN a.height > a.width * 1.05 THEN 'portrait' ELSE 'square' END`
+export const KIND_SQL = `CASE WHEN a.mime_type LIKE 'video/%' THEN 'video' WHEN a.mime_type LIKE 'image/x-%' THEN 'raw'
+  WHEN a.mime_type LIKE 'image/%' AND a.mime_type != 'image/svg+xml' THEN 'photo' ELSE 'other' END`
+export const TIER_CLASSES: Record<Tier, string[]> = {
+  hot: ['STANDARD'],
+  warm: ['STANDARD_IA', 'ONEZONE_IA', 'INTELLIGENT_TIERING'],
+  cold: ['GLACIER_IR', 'GLACIER'],
+  deep: ['DEEP_ARCHIVE'],
+}
+export const TIER_SQL = `(SELECT CASE l.storage_class WHEN 'STANDARD' THEN 'hot' WHEN 'DEEP_ARCHIVE' THEN 'deep'
+  WHEN 'GLACIER' THEN 'cold' WHEN 'GLACIER_IR' THEN 'cold' ELSE 'warm' END
+  FROM asset_locations l WHERE l.asset_id = a.id AND l.state NOT IN ('pending', 'gone')
+  ORDER BY l.connection_id = 'r2' DESC LIMIT 1)`
+
+/**
+ * WHERE clause and parameters for a set of filters. Shared by the list, the facet counts, the
+ * timeline and the map, so they always describe the same set of assets.
+ * `omit` leaves one filter out: a facet's own counts ignore that facet's current choice.
+ */
+export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { clause: string; params: unknown[] } {
   const where: string[] = ["a.deleted_at IS NULL", "a.status != 'uploading'"]
   const params: unknown[] = []
-  const fts = filters.q ? toFtsQuery(filters.q) : null
+  const use = (key: keyof ListFilters) => key !== omit && filters[key] !== undefined && filters[key] !== ''
+  const fts = use('q') ? toFtsQuery(filters.q!) : null
   if (fts) {
     where.push('a.id IN (SELECT asset_id FROM assets_fts WHERE assets_fts MATCH ?)')
     params.push(fts)
   }
-  if (filters.tag) {
+  if (use('tag')) {
     where.push('a.id IN (SELECT at.asset_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE t.name = ?)')
     params.push(filters.tag)
   }
-  if (filters.camera) {
+  if (use('camera')) {
     where.push('a.camera_model = ?')
     params.push(filters.camera)
   }
-  if (filters.albumId) {
+  if (use('lens')) {
+    where.push('a.lens = ?')
+    params.push(filters.lens)
+  }
+  if (use('albumId')) {
     where.push('a.id IN (SELECT asset_id FROM album_items WHERE album_id = ?)')
     params.push(filters.albumId)
   }
-  if (filters.from) {
+  if (use('from')) {
     where.push('a.captured_at >= ?')
     params.push(filters.from)
   }
-  if (filters.to) {
+  if (use('to')) {
     where.push('a.captured_at <= ?')
     params.push(filters.to)
   }
+  if (use('year')) {
+    where.push(filters.year === 'undated' ? 'a.captured_at IS NULL' : 'substr(a.captured_at, 1, 4) = ?')
+    if (filters.year !== 'undated') params.push(filters.year)
+  }
+  if (use('month')) {
+    where.push('substr(a.captured_at, 1, 7) = ?')
+    params.push(filters.month)
+  }
+  if (use('rating')) {
+    where.push('a.rating >= ?')
+    params.push(filters.rating)
+  }
+  if (use('flag')) {
+    where.push(filters.flag === 'none' ? 'a.flag IS NULL' : 'a.flag = ?')
+    if (filters.flag !== 'none') params.push(filters.flag)
+  }
+  if (use('orientation')) {
+    where.push(`(${ORIENTATION_SQL}) = ?`)
+    params.push(filters.orientation)
+  }
+  if (use('type')) {
+    where.push(`(${KIND_SQL}) = ?`)
+    params.push(filters.type)
+  }
+  if (use('tier')) {
+    const classes = TIER_CLASSES[filters.tier!] ?? []
+    where.push(
+      `a.id IN (SELECT asset_id FROM asset_locations WHERE state NOT IN ('pending', 'gone') AND storage_class IN (${classes.map(() => '?').join(',')}))`,
+    )
+    params.push(...classes)
+  }
+  return { clause: where.join(' AND '), params }
+}
+
+export async function listAssets(db: D1Database, filters: ListFilters): Promise<{ assets: AssetJson[]; total: number }> {
+  const { clause, params } = buildWhere(filters)
   const order =
     filters.sort === 'added' ? 'a.created_at DESC, a.id DESC' : 'COALESCE(a.captured_at, a.created_at) DESC, a.id DESC'
   const limit = Math.min(Math.max(filters.limit ?? 60, 1), 200)
   const offset = Math.max(filters.offset ?? 0, 0)
-  const clause = where.join(' AND ')
 
   const [rows, count] = await db.batch([
     db.prepare(`SELECT a.* FROM assets a WHERE ${clause} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...params, limit, offset),
@@ -235,11 +314,20 @@ export async function listAssets(db: D1Database, filters: ListFilters): Promise<
 export async function updateAsset(
   db: D1Database,
   id: string,
-  patch: { title?: string | null; caption?: string | null; alt?: string | null; rating?: number | null; tags?: string[] },
+  patch: {
+    title?: string | null
+    caption?: string | null
+    alt?: string | null
+    rating?: number | null
+    flag?: 'pick' | 'reject' | null
+    filename?: string
+    tags?: string[]
+  },
 ): Promise<void> {
   const sets: string[] = []
   const params: unknown[] = []
-  for (const [field, column] of [['title', 'title'], ['caption', 'caption'], ['alt', 'alt'], ['rating', 'rating']] as const) {
+  const fields = [['title', 'title'], ['caption', 'caption'], ['alt', 'alt'], ['rating', 'rating'], ['flag', 'flag'], ['filename', 'filename']] as const
+  for (const [field, column] of fields) {
     if (patch[field] !== undefined) {
       sets.push(`${column} = ?`)
       params.push(patch[field])
@@ -257,4 +345,34 @@ export async function softDeleteAsset(db: D1Database, id: string): Promise<void>
     db.prepare('UPDATE assets SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(nowIso(), nowIso(), id),
     db.prepare('DELETE FROM assets_fts WHERE asset_id = ?').bind(id),
   ])
+}
+
+const ORIENTATIONS = new Set(['landscape', 'portrait', 'square'])
+const KINDS = new Set(['photo', 'raw', 'video', 'other'])
+const TIERS = new Set(['hot', 'warm', 'cold', 'deep'])
+
+/** Filters from URL query parameters (the API and the library pages share this). Unknown values are dropped. */
+export function parseListFilters(query: Record<string, string | undefined>): ListFilters {
+  const text = (v: string | undefined, max = 200) => (v && v.length <= max ? v : undefined)
+  const int = (v: string | undefined) => (v && /^\d+$/.test(v) ? Number(v) : undefined)
+  const rating = int(query.rating)
+  return {
+    q: text(query.q),
+    tag: text(query.tag),
+    camera: text(query.camera),
+    lens: text(query.lens),
+    albumId: text(query.album, 64),
+    from: text(query.from, 30),
+    to: text(query.to, 30),
+    year: query.year && (/^\d{4}$/.test(query.year) || query.year === 'undated') ? query.year : undefined,
+    month: query.month && /^\d{4}-\d{2}$/.test(query.month) ? query.month : undefined,
+    rating: rating && rating >= 1 && rating <= 5 ? rating : undefined,
+    flag: query.flag === 'pick' || query.flag === 'reject' || query.flag === 'none' ? query.flag : undefined,
+    orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
+    type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
+    tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,
+    sort: query.sort === 'added' ? 'added' : 'captured',
+    limit: int(query.limit),
+    offset: int(query.offset),
+  }
 }

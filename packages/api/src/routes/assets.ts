@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { assetJson, getAsset, getLocations, getTags, listAssets, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
+import { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
+import { applyBulk, BULK_PERMISSION, facets, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
 import { processAsset } from '../catalog/process'
 import { isRenditionName, renditionKey } from '../catalog/renditions'
@@ -19,17 +20,76 @@ function storageFailure(c: Context<DamEnv>, error: unknown) {
   throw error
 }
 
-const int = (value: string | undefined) => (value && /^\d+$/.test(value) ? Number(value) : undefined)
+assetRoutes.get('/', requirePermission('assets:read'), async (c) => c.json(await listAssets(c.env.DB, parseListFilters(c.req.query()))))
 
-assetRoutes.get('/', requirePermission('assets:read'), async (c) => {
-  const q = c.req.query()
-  const sort = q.sort === 'added' ? 'added' : 'captured'
-  return c.json(
-    await listAssets(c.env.DB, {
-      q: q.q, tag: q.tag, camera: q.camera, albumId: q.album, from: q.from, to: q.to, sort,
-      limit: int(q.limit), offset: int(q.offset),
-    }),
-  )
+assetRoutes.get('/facets', requirePermission('assets:read'), async (c) => c.json(await facets(c.env.DB, parseListFilters(c.req.query()))))
+
+assetRoutes.get('/timeline', requirePermission('assets:read'), async (c) =>
+  c.json({ months: await timeline(c.env.DB, parseListFilters(c.req.query())) }),
+)
+
+assetRoutes.get('/geo', requirePermission('assets:read'), async (c) =>
+  c.json({ points: await geoPoints(c.env.DB, parseListFilters(c.req.query())) }),
+)
+
+/** One action on up to 500 assets. The permission depends on the action. */
+assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
+  const principal = c.get('principal')!
+  try {
+    const body = await readJsonObject(c)
+    const ids = stringArray(body, 'ids') ?? []
+    if (ids.length === 0 || ids.length > MAX_BULK) throw new BadRequest(`Choose between 1 and ${MAX_BULK} assets.`)
+    const action = body.action
+    let bulk: BulkAction
+    switch (action) {
+      case 'tag-add':
+      case 'tag-remove': {
+        const tags = stringArray(body, 'tags') ?? []
+        if (tags.length === 0) throw new BadRequest('tags is required.')
+        bulk = { action, tags }
+        break
+      }
+      case 'rating': {
+        const rating = body.rating
+        if (rating !== null && !(Number.isInteger(rating) && (rating as number) >= 0 && (rating as number) <= 5)) throw new BadRequest('rating is 0 to 5, or null.')
+        bulk = { action, rating: rating as number | null }
+        break
+      }
+      case 'flag': {
+        const flag = body.flag
+        if (flag !== null && flag !== 'pick' && flag !== 'reject') throw new BadRequest('flag is pick, reject or null.')
+        bulk = { action, flag }
+        break
+      }
+      case 'title':
+      case 'caption': {
+        const value = body[action]
+        if (value !== null && (typeof value !== 'string' || value.length > 5000)) throw new BadRequest(`${action} must be text.`)
+        bulk = action === 'title' ? { action, title: value as string | null } : { action, caption: value as string | null }
+        break
+      }
+      case 'album-add': {
+        const albumId = body.albumId
+        if (typeof albumId !== 'string' || !(await c.env.DB.prepare('SELECT 1 FROM albums WHERE id = ?').bind(albumId).first())) {
+          throw new BadRequest('albumId must be an existing album.')
+        }
+        bulk = { action, albumId }
+        break
+      }
+      case 'delete':
+        bulk = { action }
+        break
+      default:
+        throw new BadRequest('Unknown action.')
+    }
+    const needed = BULK_PERMISSION[bulk.action]
+    if (!principal.permissions.has(needed)) return c.json({ error: 'forbidden', permission: needed }, 403)
+    const changed = await applyBulk(c.env.DB, ids, bulk)
+    await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed } })
+    return c.json({ changed })
+  } catch (error) {
+    return storageFailure(c, error)
+  }
 })
 
 assetRoutes.get('/:id', requirePermission('assets:read'), async (c) => {
@@ -80,7 +140,15 @@ assetRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
     if (rating !== undefined && rating !== null && !(Number.isInteger(rating) && (rating as number) >= 0 && (rating as number) <= 5)) {
       throw new BadRequest('rating is 0 to 5.')
     }
+    const flag = body.flag
+    if (flag !== undefined && flag !== null && flag !== 'pick' && flag !== 'reject') throw new BadRequest('flag is pick, reject or null.')
+    const filename = body.filename
+    if (filename !== undefined && (typeof filename !== 'string' || !/^[^\\/\u0000-\u001f]{1,200}$/.test(filename.trim()))) {
+      throw new BadRequest('filename must be 1–200 characters with no slashes.')
+    }
     await updateAsset(c.env.DB, id, {
+      flag: flag as 'pick' | 'reject' | null | undefined,
+      filename: typeof filename === 'string' ? filename.trim() : undefined,
       title: text('title', 300),
       caption: text('caption', 5000),
       alt: text('alt', 1000),
@@ -99,6 +167,21 @@ assetRoutes.delete('/:id', requirePermission('assets:delete'), async (c) => {
   await softDeleteAsset(c.env.DB, id)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'asset.deleted', targetType: 'asset', targetId: id })
   return c.body(null, 204)
+})
+
+/** An XMP sidecar named to pair with the original, so Lightroom and friends pick up the metadata. */
+assetRoutes.get('/:id/xmp', requirePermission('assets:read'), async (c) => {
+  const id = c.req.param('id')
+  const row = await getAsset(c.env.DB, id)
+  if (!row) return c.json({ error: 'not_found' }, 404)
+  const tags = (await getTags(c.env.DB, id)).map((t) => t.name)
+  return new Response(xmpSidecar(row, tags), {
+    headers: {
+      'Content-Type': 'application/rdf+xml; charset=utf-8',
+      'Content-Disposition': attachmentDisposition(sidecarName(row.filename)),
+      'Cache-Control': 'private, no-store',
+    },
+  })
 })
 
 /** Thumbnails and previews: our own WebP, so always safe to show inline. */
