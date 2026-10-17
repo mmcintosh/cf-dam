@@ -1,0 +1,19 @@
+{
+  "name": "cf-dam",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @cf-dam/app",
+    "build": "npm run build -w @cf-dam/app",
+    "preview": "npm run preview -w @cf-dam/app",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

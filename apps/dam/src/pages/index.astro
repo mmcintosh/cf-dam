@@ -1,0 +1,23 @@
+---
+import { env } from 'cloudflare:workers'
+import { createDamApi } from '@cf-dam/api'
+
+// Call the API in-process: a Worker fetching its own hostname is a self-subrequest.
+const res = await createDamApi().request('/health', {}, env)
+const health = await res.json()
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cf-dam</title>
+  </head>
+  <body>
+    <main>
+      <h1>cf-dam</h1>
+      <p>Open-source digital asset manager on Cloudflare. Early scaffold.</p>
+      <pre>{JSON.stringify(health, null, 2)}</pre>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cf-dam",
+  // Our Hono app is the Worker entry: it owns env and ctx, serves /api, then hands other paths to Astro.
+  "main": "./src/fetch.ts",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  // No ids: Wrangler provisions these on first deploy, which is what keeps the install one-click.
+  "d1_databases": [{ "binding": "DB", "database_name": "cf-dam" }],
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "cf-dam-media" }]
+}
