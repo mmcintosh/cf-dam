@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cf-dam",
   // Our Hono app is the Worker entry: it owns env and ctx, serves /api, then hands other paths to Astro.
   "main": "./src/fetch.ts",

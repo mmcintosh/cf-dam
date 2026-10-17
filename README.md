@@ -1,5 +1,8 @@
 # cf-dam
 
+[![CI](https://github.com/mmcintosh/cf-dam/actions/workflows/ci.yml/badge.svg)](https://github.com/mmcintosh/cf-dam/actions/workflows/ci.yml)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/mmcintosh/cf-dam)
+
 An open-source digital asset manager that runs entirely on Cloudflare.
 
 cf-dam is built for photographers and studios whose archives have outgrown their NAS. It indexes,
@@ -28,14 +31,14 @@ and online.
 One Cloudflare Worker serves everything:
 
 ```
-Request ─▶ Hono app (apps/dam/src/fetch.ts)
-            ├─ /api/*   JSON API (packages/api)         D1 · R2 · KV · Workers AI · Queues
-            └─ /*       Astro pages (apps/dam/src/pages)
+Request ─▶ Hono app (src/fetch.ts, the Worker entry)
+            ├─ /api/*   JSON API (packages/api)          D1 · R2 · KV · Workers AI · Queues
+            └─ /*       Astro pages with Svelte 5 islands (src/pages)
 ```
 
 | Path | What it is |
 | --- | --- |
-| `apps/dam` | The deployable Worker: Astro front end plus the Hono entry that mounts the API |
+| `src/` | The deployable Worker: the Hono entry and the Astro front end |
 | `packages/api` | The DAM's JSON API (Hono) |
 
 ## Development
@@ -51,4 +54,5 @@ npm run check      # type checks
 
 ## License
 
-To be decided (MIT or Apache-2.0).
+[Apache-2.0](LICENSE). cf-dam includes code derived from the Infowall CMS and SonicJS; see
+[NOTICE](NOTICE).

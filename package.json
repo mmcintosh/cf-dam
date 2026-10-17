@@ -1,17 +1,32 @@
 {
   "name": "cf-dam",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @cf-dam/app",
-    "build": "npm run build -w @cf-dam/app",
-    "preview": "npm run preview -w @cf-dam/app",
-    "check": "npm run check --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy",
+    "check": "astro check && npm run check -w @cf-dam/api",
+    "test": "npm test -w @cf-dam/api",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.4.0",
+    "@astrojs/svelte": "^9.1.0",
+    "@cf-dam/api": "*",
+    "astro": "^7.4.0",
+    "hono": "^4.13.13",
+    "svelte": "^5.57.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.151.1"
   },
   "engines": {
     "node": ">=22"
