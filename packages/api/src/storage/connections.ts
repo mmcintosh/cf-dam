@@ -6,6 +6,7 @@ import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { R2Provider } from './r2'
 import { S3Provider } from './s3'
+import { roleCredentials } from './oidc'
 import { deriveKey, open, seal, storageSecret } from './secret-box'
 import { isStorageClass, S3_STORAGE_CLASSES, StorageError, type StorageClass, type StorageProvider } from './types'
 
@@ -179,6 +180,52 @@ export async function createS3Connection(env: DamBindings, input: S3ConnectionIn
   return (await getConnection(env.DB, id))!
 }
 
+export interface RoleConnectionInput {
+  name: string
+  region: string
+  bucket: string
+  prefix?: string
+  roleArn: string
+  /** The public origin AWS trusts as the token issuer, e.g. https://dam.example.com. */
+  issuer: string
+  storageClasses?: StorageClass[]
+  defaultClass?: StorageClass
+}
+
+const ROLE_ARN = /^arn:aws(-[a-z]+)*:iam::(\d{12}):role\/[\w+=,.@\/-]{1,512}$/
+
+/** A keyless AWS connection: no stored secret, temporary credentials from STS per use. */
+export async function createRoleConnection(env: DamBindings, input: RoleConnectionInput, userId: string): Promise<Connection> {
+  const match = ROLE_ARN.exec(input.roleArn)
+  if (!match) throw new StorageError('roleArn must look like arn:aws:iam::123456789012:role/name.', 'InvalidRoleArn')
+  const issuer = new URL(input.issuer)
+  if (issuer.protocol !== 'https:') throw new StorageError('AWS only trusts https issuers. Use the deployment’s public https address.', 'InvalidIssuer')
+  const classes = input.storageClasses?.length ? input.storageClasses : [...S3_STORAGE_CLASSES]
+  const defaultClass = input.defaultClass ?? 'STANDARD'
+  if (!classes.includes(defaultClass)) throw new StorageError('The default class must be one the connection offers.', 'InvalidStorageClass')
+
+  const id = randomId()
+  const now = nowIso()
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO storage_connections
+         (id, name, provider, endpoint, region, bucket, prefix, force_path_style, auth_mode, role_arn,
+          storage_classes, default_class, is_default, created_by, created_at, updated_at)
+       VALUES (?, ?, 's3', ?, ?, ?, ?, 0, 'oidc-role', ?, ?, ?, 0, ?, ?, ?)`,
+    ).bind(
+      id, input.name, `https://s3.${input.region}.amazonaws.com`, input.region, input.bucket,
+      (input.prefix ?? '').replace(/^\/+/, ''), input.roleArn, JSON.stringify(classes), defaultClass, userId, now, now,
+    ),
+    env.DB.prepare('INSERT INTO connection_oidc (connection_id, issuer, account_id) VALUES (?, ?, ?)').bind(id, issuer.origin, match[2]),
+  ])
+  return (await getConnection(env.DB, id))!
+}
+
+export async function connectionIssuer(db: D1Database, id: string): Promise<{ issuer: string; accountId: string } | null> {
+  const row = await db.prepare('SELECT issuer, account_id FROM connection_oidc WHERE connection_id = ?').bind(id).first<{ issuer: string; account_id: string }>()
+  return row ? { issuer: row.issuer, accountId: row.account_id } : null
+}
+
 export async function setDefaultConnection(db: D1Database, id: string): Promise<void> {
   await db.batch([
     db.prepare('UPDATE storage_connections SET is_default = 0 WHERE is_default = 1'),
@@ -208,6 +255,27 @@ export function providerFor(env: DamBindings, connection: Connection, fetchImpl?
   if (connection.provider === 'r2-binding') {
     if (!env.MEDIA_BUCKET) throw new StorageError('The MEDIA_BUCKET binding is missing.', 'NoBinding')
     return new R2Provider(env.MEDIA_BUCKET)
+  }
+  if (connection.authMode === 'oidc-role') {
+    return new S3Provider({
+      endpoint: connection.endpoint!,
+      region: connection.region ?? 'us-east-1',
+      bucket: connection.bucket!,
+      storageClasses: connection.storageClasses,
+      fetch: fetchImpl,
+      credentials: async () => {
+        const oidc = await connectionIssuer(env.DB, connection.id)
+        if (!oidc || !connection.roleArn) throw new StorageError('This keyless connection is missing its role or issuer.', 'NoCredentials')
+        return roleCredentials({
+          env,
+          connectionId: connection.id,
+          issuer: oidc.issuer,
+          roleArn: connection.roleArn,
+          region: connection.region ?? undefined,
+          fetch: fetchImpl,
+        })
+      },
+    })
   }
   if (connection.authMode !== 'access-key') {
     throw new StorageError(`Connections using ${connection.authMode} are not supported yet.`, 'UnsupportedAuth')

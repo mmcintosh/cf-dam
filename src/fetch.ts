@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cf } from '@astrojs/cloudflare/hono'
 import { actions, i18n, middleware, notFound, pages, sessions } from 'astro/hono'
-import { createDamApi, ensureMigrated, runSweep, securityHeaders, type DamBindings } from '@cf-dam/api'
+import { createDamApi, ensureMigrated, runSweep, securityHeaders, wellKnownRoutes, type DamBindings } from '@cf-dam/api'
 
 // The Worker entry (wrangler `main`). One Worker serves both halves: the JSON API under /api,
 // with real env and executionCtx, then Astro for every other path.
@@ -16,6 +16,8 @@ app.use('*', async (c, next) => {
   await next()
 })
 
+// OIDC issuer metadata for keyless AWS access (public keys only).
+app.route('/.well-known', wellKnownRoutes)
 app.route('/api', createDamApi())
 app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404))
 

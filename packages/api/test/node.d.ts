@@ -4,3 +4,7 @@ declare module 'node:fs' {
 }
 
 declare const process: { env: Record<string, string | undefined> }
+
+declare module 'node:fs' {
+  export function writeFileSync(path: string, data: string, options?: { mode?: number }): void
+}

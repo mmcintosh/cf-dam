@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getPlatformProxy } from 'wrangler'
-import { createDamApi, type DamBindings } from '../src/index'
+import { createDamApi, wellKnownRoutes, type DamBindings } from '../src/index'
 import { migrate } from '../src/db/migrate'
 import { resetSetupCacheForTests } from '../src/routes/setup'
 
@@ -33,7 +33,7 @@ export async function createHarness(overrides: Partial<DamBindings> = {}): Promi
   await migrate(env.DB)
   resetSetupCacheForTests()
 
-  const app = new Hono().route('/api', createDamApi())
+  const app = new Hono().route('/.well-known', wellKnownRoutes).route('/api', createDamApi())
   const pending: Promise<unknown>[] = []
   const executionCtx = {
     waitUntil: (p: Promise<unknown>) => void pending.push(p),

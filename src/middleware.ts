@@ -22,6 +22,8 @@ const PAGE_PERMISSIONS: [string, string][] = [
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname, search } = context.url
   context.locals.principal = null
+  // Served by the Hono routes in src/fetch.ts; never gated behind sign-in.
+  if (pathname.startsWith('/.well-known/')) return next()
 
   if (await setupNeeded(env.DB)) {
     return pathname === '/setup' ? next() : context.redirect('/setup')

@@ -14,6 +14,15 @@
     defaultClass: string
     isDefault: boolean
     accessKeyId: string | null
+    authMode: 'binding' | 'access-key' | 'oidc-role' | 'agent'
+    roleArn: string | null
+  }
+  interface AwsSetup {
+    identityProvider: { url: string; audience: string; arn: string }
+    subject: string
+    roleArn: string
+    trustPolicy: unknown
+    permissionsPolicy: unknown
   }
   interface Props {
     origin: string
@@ -34,6 +43,23 @@
   let adding = $state(false)
   let preset = $state<PresetKey>('aws')
   let form = $state({ name: '', endpoint: PRESETS.aws.endpoint('us-east-1'), region: 'us-east-1', bucket: '', prefix: '', forcePathStyle: false, accessKeyId: '', secretAccessKey: '', storageClasses: [...ALL_CLASSES], defaultClass: 'STANDARD' })
+  // Keyless needs an https issuer AWS can reach, so it's the default only when this site is on https.
+  const keylessPossible = origin.startsWith('https://')
+  let authMode = $state<'access-key' | 'oidc-role'>(keylessPossible ? 'oidc-role' : 'access-key')
+  let roleArn = $state('')
+  let setups = $state<Record<string, AwsSetup>>({})
+  let copied = $state('')
+
+  async function loadSetup(id: string) {
+    setups[id] = await api<AwsSetup>(`/api/connections/${id}/aws-setup`)
+  }
+
+  async function copy(label: string, value: unknown) {
+    await navigator.clipboard.writeText(typeof value === 'string' ? value : JSON.stringify(value, null, 2))
+    copied = label
+    setTimeout(() => copied === label && (copied = ''), 1500)
+  }
+
   let testResults = $state<Record<string, { ok: boolean; message?: string } | 'running'>>({})
   let error = $state('')
   let busy = $state(false)
@@ -45,6 +71,7 @@
 
   function applyPreset(key: PresetKey) {
     preset = key
+    authMode = key === 'aws' && keylessPossible ? 'oidc-role' : 'access-key'
     const p = PRESETS[key]
     form.region = p.region
     form.endpoint = p.endpoint(p.region)
@@ -62,11 +89,16 @@
     error = ''
     busy = true
     try {
-      const { connection } = await api<{ connection: Connection }>('/api/connections', { method: 'POST', body: JSON.stringify(form) })
+      const payload =
+        authMode === 'oidc-role'
+          ? { authMode, name: form.name, region: form.region, bucket: form.bucket, prefix: form.prefix, roleArn, storageClasses: form.storageClasses }
+          : form
+      const { connection } = await api<{ connection: Connection }>('/api/connections', { method: 'POST', body: JSON.stringify(payload) })
       adding = false
       form.secretAccessKey = ''
       await load()
-      await test(connection.id)
+      if (authMode === 'oidc-role') await loadSetup(connection.id)
+      else await test(connection.id)
     } catch (e) {
       error = e instanceof Error ? e.message : 'Could not add the connection.'
     } finally {
@@ -142,6 +174,7 @@
           <h3>{c.name} {#if c.isDefault}<span class="badge badge-accent">Default</span>{/if}</h3>
           <p class="muted">
             {#if c.provider === 'r2-binding'}This deployment's own R2 bucket, through the Worker binding. Thumbnails and previews always live here.
+            {:else if c.authMode === 'oidc-role'}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.region} · <span class="badge badge-ok">Keyless</span> role <code>{c.roleArn}</code>
             {:else}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.endpoint} · {c.region} · key <code>{c.accessKeyId}</code>{/if}
           </p>
         </div>
@@ -158,6 +191,33 @@
         <div class="alert" class:alert-success={result.ok} class:alert-error={!result.ok}>
           {result.ok ? 'Connected: wrote, read back and deleted a test object.' : result.message}
         </div>
+      {/if}
+      {#if c.authMode === 'oidc-role'}
+        {@const setup = setups[c.id]}
+        <details class="import" ontoggle={(e) => e.currentTarget.open && !setup && loadSetup(c.id)}>
+          <summary>AWS setup for this keyless connection</summary>
+          {#if setup}
+            <ol class="steps">
+              <li>
+                In IAM → Identity providers, add an <strong>OpenID Connect</strong> provider with URL
+                <code>{setup.identityProvider.url}</code> and audience <code>{setup.identityProvider.audience}</code>.
+              </li>
+              <li>
+                Create the role <code>{setup.roleArn}</code> with this trust policy:
+                <button class="btn btn-sm" onclick={() => copy(`trust-${c.id}`, setup.trustPolicy)}>{copied === `trust-${c.id}` ? 'Copied' : 'Copy'}</button>
+                <pre class="mono">{JSON.stringify(setup.trustPolicy, null, 2)}</pre>
+              </li>
+              <li>
+                Give it this permissions policy (this bucket only):
+                <button class="btn btn-sm" onclick={() => copy(`perm-${c.id}`, setup.permissionsPolicy)}>{copied === `perm-${c.id}` ? 'Copied' : 'Copy'}</button>
+                <pre class="mono">{JSON.stringify(setup.permissionsPolicy, null, 2)}</pre>
+              </li>
+              <li>Press <strong>Test</strong> above. No AWS secret is stored: each use signs a five-minute token that AWS swaps for one-hour keys.</li>
+            </ol>
+          {:else}
+            <p class="muted">Loading…</p>
+          {/if}
+        </details>
       {/if}
       {#if c.provider === 's3'}
         {@const state = importState(c.id)}
@@ -189,14 +249,27 @@
           <button type="button" role="radio" aria-checked={preset === key} class:on={preset === key} onclick={() => applyPreset(key as PresetKey)}>{p.label}</button>
         {/each}
       </div>
+      {#if preset === 'aws'}
+        <div class="presets" role="radiogroup" aria-label="How cf-dam reaches AWS">
+          <button type="button" role="radio" aria-checked={authMode === 'oidc-role'} class:on={authMode === 'oidc-role'} onclick={() => (authMode = 'oidc-role')}>Keyless: an IAM role (recommended)</button>
+          <button type="button" role="radio" aria-checked={authMode === 'access-key'} class:on={authMode === 'access-key'} onclick={() => (authMode = 'access-key')}>Access keys</button>
+        </div>
+        {#if authMode === 'oidc-role'}
+          <p class="muted">cf-dam signs its own short-lived tokens and AWS swaps them for temporary keys, so no AWS secret is ever stored. Needs this site on https. After saving, cf-dam shows the exact trust and permissions policies to create.</p>
+        {/if}
+      {/if}
       <div class="grid">
         <div class="field"><label for="c-name">Name</label><input id="c-name" type="text" placeholder="Studio archive" required bind:value={form.name} /></div>
         <div class="field"><label for="c-bucket">Bucket</label><input id="c-bucket" type="text" required bind:value={form.bucket} /></div>
         <div class="field"><label for="c-region">Region</label><input id="c-region" type="text" required bind:value={form.region} oninput={regionChanged} /></div>
         <div class="field"><label for="c-prefix">Folder in the bucket (optional)</label><input id="c-prefix" type="text" placeholder="cf-dam" bind:value={form.prefix} /></div>
-        <div class="field wide"><label for="c-endpoint">Endpoint</label><input id="c-endpoint" type="text" required bind:value={form.endpoint} /></div>
-        <div class="field"><label for="c-key">Access key ID</label><input id="c-key" type="text" autocomplete="off" required bind:value={form.accessKeyId} /></div>
-        <div class="field"><label for="c-secret">Secret access key</label><input id="c-secret" type="password" autocomplete="off" required bind:value={form.secretAccessKey} /></div>
+        {#if authMode === 'oidc-role'}
+          <div class="field wide"><label for="c-role">Role ARN</label><input id="c-role" type="text" placeholder="arn:aws:iam::123456789012:role/cf-dam" required bind:value={roleArn} /></div>
+        {:else}
+          <div class="field wide"><label for="c-endpoint">Endpoint</label><input id="c-endpoint" type="text" required bind:value={form.endpoint} /></div>
+          <div class="field"><label for="c-key">Access key ID</label><input id="c-key" type="text" autocomplete="off" required bind:value={form.accessKeyId} /></div>
+          <div class="field"><label for="c-secret">Secret access key</label><input id="c-secret" type="password" autocomplete="off" required bind:value={form.secretAccessKey} /></div>
+        {/if}
       </div>
       <label class="check"><input type="checkbox" bind:checked={form.forcePathStyle} /> Path-style URLs (most non-AWS services)</label>
       <fieldset class="classes-pick">
@@ -301,6 +374,16 @@
   }
   .import {
     margin-top: 14px;
+  }
+  .steps {
+    display: grid;
+    gap: 12px;
+    padding-left: 20px;
+    font-size: 0.88rem;
+  }
+  .steps pre {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
   }
   .import p {
     margin: 8px 0;

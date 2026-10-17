@@ -5,7 +5,10 @@ import { importPage } from '../catalog/importer'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, optionalString, readJsonObject, requiredString, stringArray } from '../lib/http'
+import { connectionSubject, STS_AUDIENCE, trustPolicy } from '../storage/oidc'
 import {
+  connectionIssuer,
+  createRoleConnection,
   createS3Connection,
   deleteConnection,
   getConnection,
@@ -30,6 +33,31 @@ connectionRoutes.get('/', requirePermission('assets:upload'), async (c) => {
 connectionRoutes.post('/', requirePermission('sources:manage'), async (c) => {
   try {
     const body = await readJsonObject(c)
+    if (body.authMode === 'oidc-role') {
+      const classes = stringArray(body, 'storageClasses')
+      if (classes && !classes.every(isStorageClass)) throw new BadRequest('storageClasses contains an unknown class.')
+      const connection = await createRoleConnection(
+        c.env,
+        {
+          name: requiredString(body, 'name', 100),
+          region: requiredString(body, 'region', 50),
+          bucket: requiredString(body, 'bucket', 63),
+          prefix: optionalString(body, 'prefix', 200),
+          roleArn: requiredString(body, 'roleArn', 600),
+          issuer: c.env.BETTER_AUTH_URL ?? new URL(c.req.url).origin,
+          storageClasses: classes as StorageClass[] | undefined,
+        },
+        c.get('principal')!.userId,
+      )
+      await logActivity(c.env.DB, {
+        userId: c.get('principal')!.userId,
+        action: 'storage.connection_created',
+        targetType: 'storage_connection',
+        targetId: connection.id,
+        details: { name: connection.name, bucket: connection.bucket, authMode: 'oidc-role', roleArn: connection.roleArn },
+      })
+      return c.json({ connection, setup: await awsSetup(c.env.DB, connection.id) }, 201)
+    }
     const classes = stringArray(body, 'storageClasses')
     if (classes && !classes.every(isStorageClass)) throw new BadRequest('storageClasses contains an unknown class.')
     const defaultClass = optionalString(body, 'defaultClass', 32)
@@ -61,6 +89,37 @@ connectionRoutes.post('/', requirePermission('sources:manage'), async (c) => {
   } catch (error) {
     return failure(c, error)
   }
+})
+
+/** What to create in the AWS account for a keyless connection. */
+async function awsSetup(db: D1Database, id: string) {
+  const connection = await getConnection(db, id)
+  const oidc = await connectionIssuer(db, id)
+  if (!connection || !oidc) return null
+  const host = new URL(oidc.issuer).host
+  const prefix = connection.prefix ? `${connection.prefix.replace(/\/+$/, '')}/` : ''
+  return {
+    identityProvider: { url: oidc.issuer, audience: STS_AUDIENCE, arn: `arn:aws:iam::${oidc.accountId}:oidc-provider/${host}` },
+    subject: connectionSubject(id),
+    roleArn: connection.roleArn,
+    trustPolicy: trustPolicy({ accountId: oidc.accountId, issuer: oidc.issuer, connectionId: id }),
+    permissionsPolicy: {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Action: ['s3:PutObject', 's3:GetObject', 's3:DeleteObject', 's3:RestoreObject', 's3:AbortMultipartUpload', 's3:ListMultipartUploadParts'],
+          Resource: `arn:aws:s3:::${connection.bucket}/${prefix}*`,
+        },
+        { Effect: 'Allow', Action: ['s3:ListBucket'], Resource: `arn:aws:s3:::${connection.bucket}` },
+      ],
+    },
+  }
+}
+
+connectionRoutes.get('/:id/aws-setup', requirePermission('sources:manage'), async (c) => {
+  const setup = await awsSetup(c.env.DB, c.req.param('id'))
+  return setup ? c.json(setup) : c.json({ error: 'not_found' }, 404)
 })
 
 /** Write, read back and delete a probe object: proves credentials, bucket and write access. */
