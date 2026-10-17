@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { areaGrey, decodePng, hashPixels } from '../src/catalog/phash'
 
 /** A 37×23 test card: a gradient, a few hard edges, odd sizes so averaging cells split pixels. */
-async function card(): Promise<Buffer> {
+async function card(): Promise<Uint8Array> {
   const w = 37
   const h = 23
   const raw = Buffer.alloc(w * h * 3)
@@ -18,7 +18,7 @@ async function card(): Promise<Buffer> {
   return sharp(raw, { raw: { width: w, height: h, channels: 3 } }).png().toBuffer()
 }
 
-async function reference(png: Buffer) {
+async function reference(png: Uint8Array) {
   const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true })
   return { width: info.width, height: info.height, channels: info.channels, pixels: new Uint8Array(data) }
 }
@@ -26,7 +26,7 @@ async function reference(png: Buffer) {
 describe('decodePng', () => {
   it('decodes truecolour, grey and palette PNGs (including 1-, 2- and 4-bit palettes) like a reference decoder', async () => {
     const base = await card()
-    const variants: [string, Buffer][] = [
+    const variants: [string, Uint8Array][] = [
       ['rgb', base],
       ['grey', await sharp(base).greyscale().png().toBuffer()],
       ['palette 256', await sharp(base).png({ palette: true, colours: 256 }).toBuffer()],
