@@ -6,7 +6,7 @@ import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { R2Provider } from './r2'
 import { S3Provider } from './s3'
-import { roleCredentials } from './oidc'
+import { activeSigningKey, roleCredentials } from './oidc'
 import { deriveKey, open, seal, storageSecret } from './secret-box'
 import { isStorageClass, S3_STORAGE_CLASSES, StorageError, type StorageClass, type StorageProvider } from './types'
 
@@ -218,6 +218,8 @@ export async function createRoleConnection(env: DamBindings, input: RoleConnecti
     ),
     env.DB.prepare('INSERT INTO connection_oidc (connection_id, issuer, account_id) VALUES (?, ?, ?)').bind(id, issuer.origin, match[2]),
   ])
+  // Publish the signing key now, so the JWKS already holds it while the AWS side is being set up.
+  await activeSigningKey(env)
   return (await getConnection(env.DB, id))!
 }
 

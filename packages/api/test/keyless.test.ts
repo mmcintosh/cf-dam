@@ -71,6 +71,7 @@ describe('keyless connections', () => {
     const userId = (await h.env.DB.prepare('SELECT id FROM users').first<{ id: string }>())!.id
     const connection = await createRoleConnection(h.env, { name: 'Archive', region: 'us-east-1', bucket: 'photo-archive', prefix: 'cf-dam', roleArn: ROLE, issuer: ISSUER }, userId)
     expect(connection).toMatchObject({ authMode: 'oidc-role', hasSecret: false, roleArn: ROLE })
+    expect(await publishedKeys(h.env.DB)).toHaveLength(1)
     const setup = (await (await h.fetch(`/api/connections/${connection.id}/aws-setup`, { cookie: admin })).json()) as Record<string, unknown>
     expect(setup).toMatchObject({
       identityProvider: { url: ISSUER, audience: 'sts.amazonaws.com', arn: 'arn:aws:iam::123456789012:oidc-provider/dam.example.test' },
