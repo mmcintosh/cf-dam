@@ -16,7 +16,7 @@ export interface Harness {
 
 export async function createHarness(overrides: Partial<DamBindings> = {}): Promise<Harness> {
   // In-memory D1 and KV, fresh for every harness.
-  const proxy = await getPlatformProxy<{ DB: D1Database; CACHE_KV: KVNamespace }>({
+  const proxy = await getPlatformProxy<{ DB: D1Database; CACHE_KV: KVNamespace; MEDIA_BUCKET: R2Bucket; IMAGES: ImagesBinding }>({
     configPath: decodeURIComponent(new URL('./wrangler.test.jsonc', import.meta.url).pathname),
     persist: false,
     envFiles: [],
@@ -25,6 +25,8 @@ export async function createHarness(overrides: Partial<DamBindings> = {}): Promi
   const env: DamBindings = {
     DB: proxy.env.DB,
     CACHE_KV: proxy.env.CACHE_KV,
+    MEDIA_BUCKET: proxy.env.MEDIA_BUCKET,
+    IMAGES: proxy.env.IMAGES,
     BETTER_AUTH_SECRET: 'test-secret-that-is-long-enough-0123456789', // gitleaks:allow (test-only value)
     ...overrides,
   }
@@ -47,6 +49,7 @@ export async function createHarness(overrides: Partial<DamBindings> = {}): Promi
       if (cookie) headers.set('Cookie', cookie)
       if (ip) headers.set('cf-connecting-ip', ip)
       if (rest.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+      if (rest.body instanceof Uint8Array || rest.body instanceof ArrayBuffer) headers.set('Content-Length', String(rest.body.byteLength))
       if (!headers.has('Origin') && rest.method && rest.method !== 'GET') headers.set('Origin', ORIGIN)
       const response = await app.request(`${ORIGIN}${path}`, { ...rest, headers }, env, executionCtx)
       await Promise.all(pending.splice(0))

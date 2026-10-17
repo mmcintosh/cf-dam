@@ -4,5 +4,7 @@
   "compatibility_date": "2026-10-12",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{ "binding": "DB", "database_name": "test", "database_id": "test" }],
-  "kv_namespaces": [{ "binding": "CACHE_KV", "id": "test" }]
+  "kv_namespaces": [{ "binding": "CACHE_KV", "id": "test" }],
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "test-media" }],
+  "images": { "binding": "IMAGES" }
 }

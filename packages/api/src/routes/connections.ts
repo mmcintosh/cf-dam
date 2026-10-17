@@ -1,0 +1,90 @@
+/** Storage connections. Reading the list needs assets:upload (to pick a destination); changes need sources:manage. */
+import { Hono, type Context } from 'hono'
+import { requirePermission } from '../auth/principal'
+import type { DamEnv } from '../env'
+import { logActivity } from '../lib/activity'
+import { BadRequest, optionalString, readJsonObject, requiredString, stringArray } from '../lib/http'
+import {
+  createS3Connection,
+  deleteConnection,
+  getConnection,
+  listConnections,
+  providerFor,
+  setDefaultConnection,
+} from '../storage/connections'
+import { isStorageClass, StorageError, type StorageClass } from '../storage/types'
+
+export const connectionRoutes = new Hono<DamEnv>()
+
+function failure(c: Context<DamEnv>, error: unknown) {
+  if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+  if (error instanceof StorageError) return c.json({ error: 'storage_error', code: error.code, message: error.message }, 400)
+  throw error
+}
+
+connectionRoutes.get('/', requirePermission('assets:upload'), async (c) => {
+  return c.json({ connections: await listConnections(c.env.DB) })
+})
+
+connectionRoutes.post('/', requirePermission('sources:manage'), async (c) => {
+  try {
+    const body = await readJsonObject(c)
+    const classes = stringArray(body, 'storageClasses')
+    if (classes && !classes.every(isStorageClass)) throw new BadRequest('storageClasses contains an unknown class.')
+    const defaultClass = optionalString(body, 'defaultClass', 32)
+    if (defaultClass !== undefined && !isStorageClass(defaultClass)) throw new BadRequest('defaultClass is not a storage class.')
+    const connection = await createS3Connection(
+      c.env,
+      {
+        name: requiredString(body, 'name', 100),
+        endpoint: requiredString(body, 'endpoint', 300),
+        region: requiredString(body, 'region', 50),
+        bucket: requiredString(body, 'bucket', 63),
+        prefix: optionalString(body, 'prefix', 200),
+        forcePathStyle: body.forcePathStyle === true,
+        accessKeyId: requiredString(body, 'accessKeyId', 128),
+        secretAccessKey: requiredString(body, 'secretAccessKey', 256),
+        storageClasses: classes as StorageClass[] | undefined,
+        defaultClass: defaultClass as StorageClass | undefined,
+      },
+      c.get('principal')!.userId,
+    )
+    await logActivity(c.env.DB, {
+      userId: c.get('principal')!.userId,
+      action: 'storage.connection_created',
+      targetType: 'storage_connection',
+      targetId: connection.id,
+      details: { name: connection.name, endpoint: connection.endpoint, bucket: connection.bucket },
+    })
+    return c.json({ connection }, 201)
+  } catch (error) {
+    return failure(c, error)
+  }
+})
+
+/** Write, read back and delete a probe object: proves credentials, bucket and write access. */
+connectionRoutes.post('/:id/test', requirePermission('sources:manage'), async (c) => {
+  const connection = await getConnection(c.env.DB, c.req.param('id'))
+  if (!connection) return c.json({ error: 'not_found' }, 404)
+  try {
+    await providerFor(c.env, connection).test()
+    return c.json({ ok: true })
+  } catch (error) {
+    return c.json({ ok: false, message: error instanceof Error ? error.message : 'The test failed.' })
+  }
+})
+
+connectionRoutes.post('/:id/default', requirePermission('sources:manage'), async (c) => {
+  const connection = await getConnection(c.env.DB, c.req.param('id'))
+  if (!connection) return c.json({ error: 'not_found' }, 404)
+  await setDefaultConnection(c.env.DB, connection.id)
+  return c.json({ ok: true })
+})
+
+connectionRoutes.delete('/:id', requirePermission('sources:manage'), async (c) => {
+  const result = await deleteConnection(c.env.DB, c.req.param('id'))
+  if (result === 'not-found') return c.json({ error: 'not_found' }, 404)
+  if (result === 'built-in') return c.json({ error: 'built_in', message: 'The built-in R2 connection cannot be removed.' }, 409)
+  if (result === 'in-use') return c.json({ error: 'in_use', message: 'Originals are stored here. Move them before removing it.' }, 409)
+  return c.body(null, 204)
+})

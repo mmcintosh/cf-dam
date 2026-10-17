@@ -96,15 +96,23 @@ export class R2Provider implements StorageProvider {
 
   async uploadPart(key: string, uploadId: string, partNumber: number, body: ReadableStream | ArrayBuffer, size: number) {
     const upload = this.bucket.resumeMultipartUpload(key, uploadId)
-    // R2 needs a known length for a streamed part.
-    const value = body instanceof ArrayBuffer ? body : (body.pipeThrough(new FixedLengthStream(size)) as ReadableStream)
+    // R2 needs a known length for a streamed part. FixedLengthStream is a Workers global; elsewhere
+    // (tests under Node) the part is buffered, which proxied part sizes keep bounded.
+    const value =
+      body instanceof ArrayBuffer
+        ? body
+        : typeof FixedLengthStream === 'function'
+          ? (body.pipeThrough(new FixedLengthStream(size)) as ReadableStream)
+          : await new Response(body).arrayBuffer()
     const part = await upload.uploadPart(partNumber, value)
     return { etag: part.etag }
   }
 
   async completeMultipart(key: string, uploadId: string, parts: CompletedPart[]) {
     const upload = this.bucket.resumeMultipartUpload(key, uploadId)
-    const object = await upload.complete([...parts].sort((a, b) => a.partNumber - b.partNumber))
+    // Clients echo ETags as storage returns them in headers, quoted; the binding wants them bare.
+    const bare = parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag.replace(/^"|"$/g, '') }))
+    const object = await upload.complete(bare.sort((a, b) => a.partNumber - b.partNumber))
     return { etag: object.etag }
   }
 

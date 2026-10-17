@@ -5,8 +5,12 @@ import { createAuth } from './auth/auth'
 import { authenticate } from './auth/principal'
 import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
 import type { DamEnv } from './env'
+import { albumRoutes, tagRoutes } from './routes/albums'
+import { assetRoutes } from './routes/assets'
+import { connectionRoutes } from './routes/connections'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
+import { uploadRoutes } from './routes/uploads'
 import { roleRoutes, userRoutes } from './routes/users'
 
 export type { DamBindings, DamEnv } from './env'
@@ -54,6 +58,11 @@ export function createDamApi() {
   api.route('/me', meRoutes)
   api.route('/users', userRoutes)
   api.route('/roles', roleRoutes)
+  api.route('/connections', connectionRoutes)
+  api.route('/uploads', uploadRoutes)
+  api.route('/assets', assetRoutes)
+  api.route('/albums', albumRoutes)
+  api.route('/tags', tagRoutes)
 
   api.onError((error, c) => {
     // Middleware such as csrf() rejects by throwing; keep its status instead of turning it into a 500.

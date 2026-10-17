@@ -6,5 +6,8 @@ export default defineConfig({
     // so a single test can take seconds when several files run at once.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Off: the on-disk module cache doesn't notice a new file matching an import.meta.glob, so a
+    // newly added migration would be silently missing from every test run.
+    fsModuleCache: false,
   },
 })
