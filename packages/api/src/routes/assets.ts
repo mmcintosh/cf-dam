@@ -19,6 +19,8 @@ import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, 
 
 export const assetRoutes = new Hono<DamEnv>()
 
+const PLAYABLE_VIDEO: ReadonlySet<string> = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'])
+
 function storageFailure(c: Context<DamEnv>, error: unknown) {
   if (error instanceof StorageError) {
     // 404 and 409 (e.g. the original is on a NAS) are answers about the request; anything else is the store failing.
@@ -257,12 +259,23 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
       const signed = await provider.presignGet(location.key, { expiresSeconds: 300, downloadName: asset.filename })
       return c.redirect(signed.url, 302)
     }
-    const object = await provider.get(location.key)
+    // Byte ranges let a <video> seek without downloading the whole file first.
+    const range = /^bytes=(\d+)-(\d*)$/.exec(c.req.header('Range') ?? '')
+    const start = range ? Number(range[1]) : null
+    const end = range?.[2] ? Number(range[2]) : null
+    if (start !== null && (start >= asset.size || (end !== null && end < start))) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${asset.size}` } })
+    }
+    const object = await provider.get(location.key, start === null ? undefined : { offset: start, length: (end === null ? asset.size - 1 : Math.min(end, asset.size - 1)) - start + 1 })
     if (!object) return c.json({ error: 'not_found' }, 404)
     return new Response(object.body, {
+      status: start === null ? 200 : 206,
       headers: {
-        'Content-Type': SAFE_INLINE_TYPES.has(asset.mime_type) ? asset.mime_type : 'application/octet-stream',
+        // Video can't run script, so it gets its real type (for <video>); other unsafe types stay opaque.
+        'Content-Type': SAFE_INLINE_TYPES.has(asset.mime_type) || PLAYABLE_VIDEO.has(asset.mime_type) ? asset.mime_type : 'application/octet-stream',
         'Content-Length': String(object.size),
+        'Accept-Ranges': 'bytes',
+        ...(start !== null ? { 'Content-Range': `bytes ${start}-${start + object.size - 1}/${asset.size}` } : {}),
         'Content-Disposition': attachmentDisposition(asset.filename),
         'Cache-Control': 'private, no-store',
       },

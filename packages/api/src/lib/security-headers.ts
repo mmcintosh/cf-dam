@@ -18,9 +18,12 @@ export const securityHeaders = (): MiddlewareHandler => async (c, next) => {
   set('X-Frame-Options', 'DENY')
   set('Referrer-Policy', 'strict-origin-when-cross-origin')
   set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
+  // connect-src and media-src allow https: because originals live in S3-compatible buckets at whatever
+  // endpoint a connection names: the browser PUTs upload parts to presigned bucket URLs, and plays
+  // videos from presigned GETs. blob: lets the uploader read a local video to make its poster.
   set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   )
   if (new URL(c.req.url).protocol === 'https:') {
     set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')

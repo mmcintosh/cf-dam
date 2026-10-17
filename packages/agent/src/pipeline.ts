@@ -5,8 +5,8 @@
 import { join } from 'node:path'
 import { ApiError, type Api } from './api.ts'
 import type { Extractor } from './extract.ts'
-import { render, type Rendered } from './render.ts'
-import { plan, quickHash, walk, type Found } from './scan.ts'
+import { render, renderSheet, type Rendered } from './render.ts'
+import { isVideo, plan, quickHash, walk, type Found } from './scan.ts'
 import type { FileRow, State } from './state.ts'
 
 export interface Root {
@@ -130,7 +130,10 @@ async function sendBatch(ctx: Ctx, root: Root, batch: Item[]): Promise<void> {
     try {
       const x = await extractor.extract(abs(item.file.path))
       const rendered = x.source ? await render(x.source, x.orientation) : null
-      return { item, meta: x.meta, rendered, error: rendered ? null : 'No preview could be made from this file.' }
+      if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
+      // A video without ffmpeg is still worth indexing (date, length, place); it just has no preview.
+      const ok = rendered !== null || isVideo(item.file.path)
+      return { item, meta: x.meta, rendered, error: ok ? null : 'No preview could be made from this file.' }
     } catch (error) {
       return { item, meta: undefined, rendered: null, error: error instanceof Error ? error.message : String(error) }
     }
@@ -169,18 +172,20 @@ async function sendBatch(ctx: Ctx, root: Root, batch: Item[]): Promise<void> {
       if (r.needs && r.needs.length > 0) {
         // A move whose previews went missing: render it now after all.
         let rendered = p.rendered
-        if (!rendered) {
+        if (!rendered && p.item.previousPath) {
           const x = await extractor.extract(abs(file.path))
           rendered = x.source ? await render(x.source, x.orientation) : null
+          if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
         }
-        if (!rendered) throw new Error('No preview could be made from this file.')
-        for (const name of r.needs) {
-          await api.call('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, {
-            raw: new Uint8Array(name === 'thumb' ? rendered.thumb : rendered.preview),
-            contentType: 'image/webp',
-          })
+        if (!rendered && !isVideo(file.path)) throw new ApiError('No preview could be made from this file.', 0)
+        if (rendered) {
+          const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = r.needs.map((name) => [name, name === 'thumb' ? rendered!.thumb : rendered!.preview])
+          if (rendered.sheet) uploads.push(['sheet', rendered.sheet])
+          for (const [name, bytes] of uploads) {
+            await api.call('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, { raw: new Uint8Array(bytes), contentType: 'image/webp' })
+          }
         }
-        complete.push({ id: r.assetId, phash: rendered.phash })
+        complete.push({ id: r.assetId, phash: rendered?.phash })
       } else if (r.result !== 'unchanged') {
         complete.push({ id: r.assetId, phash: p.rendered?.phash })
       }

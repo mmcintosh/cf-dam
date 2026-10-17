@@ -54,13 +54,66 @@ async function sha256Hex(file: File): Promise<string> {
 }
 
 /** A WebP no larger than `longEdge` on its longest side, made in the browser. */
-async function makeRendition(file: File, longEdge: number, quality: number): Promise<Blob> {
+async function makeRendition(file: Blob, longEdge: number, quality: number): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
   const scale = Math.min(1, longEdge / Math.max(bitmap.width, bitmap.height))
   const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale))
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
   return canvas.convertToBlob({ type: 'image/webp', quality })
+}
+
+interface VideoFrames {
+  poster: Blob
+  sheet: Blob | null
+  duration: number
+  width: number
+  height: number
+}
+
+/**
+ * The Worker can't decode video, so the browser makes the poster (a frame 10% in) and a 2×2 contact
+ * sheet, and reads the length and size. Null when this browser can't play the codec (HEVC in some).
+ */
+async function videoFrames(file: File): Promise<VideoFrames | null> {
+  const url = URL.createObjectURL(file)
+  const video = document.createElement('video')
+  video.muted = true
+  video.preload = 'auto'
+  video.src = url
+  const once = (event: string) =>
+    new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), 15_000)
+      video.addEventListener(event, () => (clearTimeout(timer), resolve()), { once: true })
+      video.addEventListener('error', () => (clearTimeout(timer), reject(new Error('unplayable'))), { once: true })
+    })
+  try {
+    await once('loadeddata')
+    const { duration, videoWidth: width, videoHeight: height } = video
+    if (!width || !height || !Number.isFinite(duration)) return null
+    const grab = async (at: number, w: number, h: number) => {
+      video.currentTime = at
+      await once('seeked')
+      const canvas = new OffscreenCanvas(w, h)
+      // Cover the cell: crop to its shape, centred.
+      const scale = Math.max(w / width, h / height)
+      canvas.getContext('2d')!.drawImage(video, (w - width * scale) / 2, (h - height * scale) / 2, width * scale, height * scale)
+      return canvas
+    }
+    const posterScale = Math.min(1, 2048 / Math.max(width, height))
+    const poster = await (await grab(duration * 0.1, Math.round(width * posterScale), Math.round(height * posterScale))).convertToBlob({ type: 'image/webp', quality: 0.82 })
+    const sheetCanvas = new OffscreenCanvas(960, 540)
+    const ctx = sheetCanvas.getContext('2d')!
+    for (const [i, f] of [0.2, 0.4, 0.6, 0.8].entries()) ctx.drawImage(await grab(duration * f, 480, 270), (i % 2) * 480, Math.floor(i / 2) * 270)
+    const sheet = await sheetCanvas.convertToBlob({ type: 'image/webp', quality: 0.78 })
+    return { poster, sheet, duration, width, height }
+  } catch {
+    return null
+  } finally {
+    video.removeAttribute('src')
+    video.load()
+    URL.revokeObjectURL(url)
+  }
 }
 
 /** PUT one part with upload progress (fetch can't report it), returning the storage ETag. */
@@ -123,6 +176,14 @@ export async function uploadFile(
 
   try {
     onProgress({ phase: 'preparing', sent: 0, total: file.size })
+    const video = file.type.startsWith('video/') ? await videoFrames(file) : null
+    if (video) {
+      const thumb = await makeRendition(video.poster, 480, 0.78).catch(() => null)
+      const renditions: [string, Blob | null][] = [['preview', video.poster], ['thumb', thumb], ['sheet', video.sheet]]
+      for (const [name, blob] of renditions) {
+        if (blob) await fetch(`/api/uploads/${created.uploadId}/renditions/${name}`, { method: 'PUT', body: blob, signal })
+      }
+    }
     const workerCannotRead = ARCHIVE_CLASSES.has(created.storageClass) || file.size > WORKER_TRANSFORM_LIMIT
     if (workerCannotRead && BROWSER_DECODABLE.has(file.type)) {
       for (const [name, edge, quality] of [['preview', 2048, 0.82], ['thumb', 480, 0.78]] as const) {
@@ -173,6 +234,7 @@ export async function uploadFile(
     const done = await json<{ assetId: string }>(
       await post(`/api/uploads/${created.uploadId}/complete`, {
         parts: numbers.map((partNumber) => ({ partNumber, etag: etags.get(partNumber)! })),
+        video: video ? { duration: video.duration, width: video.width, height: video.height } : undefined,
       }),
     )
     return { kind: 'uploaded', assetId: done.assetId }

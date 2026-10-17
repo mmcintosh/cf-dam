@@ -69,7 +69,7 @@ uploadRoutes.put('/:id/renditions/:name', async (c) => {
   try {
     const upload = await getUpload(c.env.DB, c.get('principal')!, c.req.param('id'))
     const name = c.req.param('name')
-    if (!isRenditionName(name)) throw new BadRequest('Renditions are "thumb" or "preview".')
+    if (!isRenditionName(name)) throw new BadRequest('Renditions are "thumb", "preview" or "sheet".')
     const length = Number(c.req.header('Content-Length'))
     if (!Number.isInteger(length) || length <= 0 || length > MAX_CLIENT_RENDITION_BYTES) throw new BadRequest('That rendition is too large.')
     await storeClientRendition(c.env, upload.asset_id, name, await c.req.arrayBuffer())
@@ -92,6 +92,14 @@ uploadRoutes.post('/:id/complete', async (c) => {
       return { partNumber: part.partNumber as number, etag: part.etag }
     })
     const assetId = await completeUpload(c.env, upload, completed)
+    // The browser can read a video's length and size, which the Worker can't (it has no video decoder).
+    const video = body.video as { duration?: unknown; width?: unknown; height?: unknown } | undefined
+    if (video && typeof video === 'object') {
+      const n = (v: unknown, max: number) => (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= max ? v : null)
+      await c.env.DB.prepare('UPDATE assets SET duration = COALESCE(duration, ?), width = COALESCE(width, ?), height = COALESCE(height, ?) WHERE id = ?')
+        .bind(n(video.duration, 1_000_000), n(video.width, 100_000), n(video.height, 100_000), assetId)
+        .run()
+    }
     c.executionCtx.waitUntil(processAsset(c.env, assetId))
     await logActivity(c.env.DB, {
       userId: principal.userId,

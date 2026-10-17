@@ -229,4 +229,24 @@ describe('folders and files', () => {
     expect((await h.fetch(`/api/sources/${sourceId}`, { method: 'DELETE', cookie: admin })).status).toBe(204)
     expect((await agentFetch(key, '/api/agent/config')).status).toBe(401)
   })
+
+  it('indexes videos: length, codec and frame rate, a poster, and a contact sheet', async () => {
+    const { key, sourceId } = await pair()
+    const root = await addRoot(sourceId)
+    const { body } = await send(key, [
+      { root, path: 'clips/boat.mov', size: 5_000_000, quickHash: hex('v'), metadata: { width: 3840, height: 2160, orientation: 6, video: { duration: 31.5, codec: 'hevc', frameRate: 29.97 } } },
+    ])
+    const id = body.results[0]!.assetId
+    await upload(key, id)
+    const sheet = new Uint8Array(await sharp({ create: { width: 960, height: 540, channels: 3, background: '#123' } }).webp().toBuffer())
+    expect((await agentFetch(key, `/api/agent/assets/${id}/renditions/sheet`, { method: 'PUT', body: sheet })).status).toBe(200)
+    const tooBig = new Uint8Array(await sharp({ create: { width: 1200, height: 675, channels: 3, background: '#123' } }).webp().toBuffer())
+    expect((await agentFetch(key, `/api/agent/assets/${id}/renditions/sheet`, { method: 'PUT', body: tooBig })).status).toBe(400)
+    await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id }] }))
+    const a = (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as { mimeType: string; width: number; height: number; renditions: string[]; video: unknown }
+    expect(a).toMatchObject({ mimeType: 'video/quicktime', width: 2160, height: 3840, video: { duration: 31.5, codec: 'hevc', frameRate: 29.97 } })
+    expect(a.renditions.sort()).toEqual(['preview', 'sheet', 'thumb'])
+    expect((await h.fetch(`/api/assets/${id}/renditions/sheet`, { cookie: admin })).headers.get('content-type')).toBe('image/webp')
+    expect(((await (await h.fetch('/api/assets?type=video', { cookie: admin })).json()) as { total: number }).total).toBe(1)
+  })
 })

@@ -10,6 +10,8 @@ import { renditionStore } from '../storage/connections'
 export const RENDITIONS = {
   thumb: { longEdge: 480, quality: 78 },
   preview: { longEdge: 2048, quality: 82 },
+  /** Videos only: four frames in a 2×2 grid (each up to 480 wide), shown while hovering in the library. */
+  sheet: { longEdge: 960, quality: 78 },
 } as const
 export type RenditionName = keyof typeof RENDITIONS
 

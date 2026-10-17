@@ -194,6 +194,26 @@ describe('albums', () => {
   })
 })
 
+describe('video uploads', () => {
+  it('keeps the length and size the browser reads from a video, and its browser-made poster', async () => {
+    const bytes = new Uint8Array(readFileSync(new URL('../../agent/test/fixtures/clip.mp4', import.meta.url)))
+    const created = (await (await h.fetch('/api/uploads', { ...json({ filename: 'clip.mp4', size: bytes.byteLength, contentType: 'video/mp4' }), cookie: admin })).json()) as { uploadId: string; assetId: string }
+    const poster = new Uint8Array(await (await import('sharp')).default({ create: { width: 480, height: 270, channels: 3, background: '#468' } }).webp().toBuffer())
+    expect((await h.fetch(`/api/uploads/${created.uploadId}/renditions/preview`, { method: 'PUT', body: poster, headers: { 'Content-Type': 'image/webp' }, cookie: admin })).status).toBeLessThan(300)
+    const put = await h.fetch(`/api/uploads/${created.uploadId}/parts/1`, { method: 'PUT', body: bytes, headers: { 'Content-Type': 'application/octet-stream' }, cookie: admin })
+    await h.fetch(`/api/uploads/${created.uploadId}/complete`, { ...json({ parts: [{ partNumber: 1, etag: put.headers.get('ETag') }], video: { duration: 6, width: 480, height: 270 } }), cookie: admin })
+    const a = (await (await h.fetch(`/api/assets/${created.assetId}`, { cookie: admin })).json()) as { width: number; status: string; renditions: string[]; video: { duration: number } }
+    expect(a).toMatchObject({ width: 480, status: 'ready', video: { duration: 6 } })
+    expect(a.renditions).toContain('preview')
+    // Seekable: byte ranges, with the real type for the <video> element.
+    const part = await h.fetch(`/api/assets/${created.assetId}/original`, { headers: { Range: 'bytes=100-199' }, cookie: admin })
+    expect([part.status, part.headers.get('content-range'), part.headers.get('content-type'), (await part.arrayBuffer()).byteLength]).toEqual([206, `bytes 100-199/${bytes.byteLength}`, 'video/mp4', 100])
+    const tail = await h.fetch(`/api/assets/${created.assetId}/original`, { headers: { Range: `bytes=${bytes.byteLength - 10}-` }, cookie: admin })
+    expect((await tail.arrayBuffer()).byteLength).toBe(10)
+    expect((await h.fetch(`/api/assets/${created.assetId}/original`, { headers: { Range: `bytes=${bytes.byteLength}-` }, cookie: admin })).status).toBe(416)
+  })
+})
+
 const s3Endpoint = process.env.S3_TEST_ENDPOINT
 const s3Credentials = { accessKeyId: process.env.S3_TEST_ACCESS_KEY ?? '', secretAccessKey: process.env.S3_TEST_SECRET_KEY ?? '' }
 
@@ -250,4 +270,5 @@ describe.skipIf(!s3Endpoint)('an S3 connection (against a real S3-compatible ser
     const deep = await h.fetch('/api/uploads', { ...json({ filename: 'x.jpg', size: 10, connectionId, storageClass: 'DEEP_ARCHIVE' }), cookie: admin })
     expect(deep.status).toBe(400)
   })
+
 })

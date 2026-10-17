@@ -8,10 +8,19 @@
  * so ExifTool extracts the preview to a temp file instead.
  */
 import { ExifTool, type Tags } from 'exiftool-vendored'
+import { execFile, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
+import { promisify } from 'node:util'
+import sharp from 'sharp'
+import { isVideo } from './scan.ts'
+
+const run = promisify(execFile)
+/** Optional helpers, found once: LibRaw for RAWs with tiny previews, ffmpeg for video frames. */
+const has = (cmd: string) => spawnSync(cmd, ['-version'], { stdio: 'ignore' }).error === undefined
+export const TOOLS = { dcrawEmu: has('dcraw_emu'), ffmpeg: has('ffmpeg') }
 
 export interface AgentMetadata {
   width: number | null
@@ -35,6 +44,7 @@ export interface AgentMetadata {
   keywords: string[]
   iptc: Record<string, string | null>
   label: string | null
+  video: { duration: number | null; codec: string | null; frameRate: number | null } | null
 }
 
 type T = Record<string, unknown>
@@ -116,6 +126,44 @@ export function mapTags(t: T): AgentMetadata {
       countryCode: str(t.CountryCode) ?? str(t['Country-PrimaryLocationCode']),
     },
     label: str(t.Label),
+    video: null,
+  }
+}
+
+/** '0:01:23', '83.4 s', 83.4 → seconds. */
+export function seconds(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v !== 'string') return null
+  const hms = /^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/.exec(v.trim())
+  if (hms) return Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3])
+  const n = Number.parseFloat(v)
+  return Number.isFinite(n) ? n : null
+}
+
+const CODECS: Record<string, string> = { avc1: 'h264', hvc1: 'hevc', hev1: 'hevc', ap4h: 'prores', apch: 'prores', apcn: 'prores', apcs: 'prores', apco: 'prores', av01: 'av1', vp09: 'vp9' }
+
+/**
+ * Video metadata. QuickTime's CreationDate (phones) carries the local time and offset; CreateDate is
+ * meant to be UTC but many cameras write local time, so it's taken as a wall clock with no offset.
+ */
+export function mapVideo(t: T): AgentMetadata {
+  const meta = mapTags(t)
+  const creation = typeof rawValue(t.CreationDate) === 'string' ? (rawValue(t.CreationDate) as string) : null
+  const offset = creation && /([+-]\d{2}:\d{2})$/.exec(creation)?.[1]
+  const compressor = str(t.CompressorID)?.toLowerCase() ?? null
+  return {
+    ...meta,
+    capturedAt: exifDate(creation) ?? meta.capturedAt,
+    capturedOffset: offset ?? meta.capturedOffset,
+    width: num(t.ImageWidth) ?? meta.width,
+    height: num(t.ImageHeight) ?? meta.height,
+    // ffmpeg turns frames upright itself; the size is the stored one, rotated by the Rotation tag.
+    orientation: [90, 270].includes(num(t.Rotation) ?? 0) ? 6 : 1,
+    video: {
+      duration: seconds(t.Duration) ?? seconds(t.MediaDuration),
+      codec: (compressor && CODECS[compressor]) ?? str(t.VideoCodec) ?? compressor,
+      frameRate: num(t.VideoFrameRate),
+    },
   }
 }
 
@@ -126,11 +174,16 @@ const EMBEDDED = ['JpgFromRaw', 'PreviewImage', 'OtherImage', 'ThumbnailImage']
 
 export interface Extracted {
   meta: AgentMetadata
-  /** Encoded image (JPEG or the file itself) to render previews from, or null if there is none. */
+  /** Encoded image (JPEG, TIFF or the file itself) to render previews from, or null if there is none. */
   source: Buffer | null
-  /** The RAW's own orientation, for embedded previews that carry none. */
+  /** The orientation to apply if `source` carries none (a RAW's, for its embedded preview); null when already upright. */
   orientation: number | null
+  /** Videos: four frames for the contact sheet (when ffmpeg is installed). */
+  frames?: Buffer[]
 }
+
+/** Below this long edge an embedded preview is too small to be the photo's preview; LibRaw decodes the RAW instead. */
+const MIN_PREVIEW_EDGE = 1024
 
 export class Extractor {
   readonly exiftool: ExifTool
@@ -142,9 +195,37 @@ export class Extractor {
 
   async extract(path: string): Promise<Extracted> {
     const tags = (await this.exiftool.read(path)) as Tags & T
+    if (isVideo(path)) return this.video(path, tags)
     const meta = mapTags(tags)
     if (DIRECT.has(extname(path).toLowerCase())) return { meta, source: readFileSync(path), orientation: meta.orientation }
-    return { meta, source: await this.embedded(path, tags), orientation: meta.orientation }
+    const embedded = await this.embedded(path, tags)
+    if (TOOLS.dcrawEmu) {
+      const size = embedded ? await sharp(embedded).metadata().catch(() => null) : null
+      if (!size || Math.max(size.width ?? 0, size.height ?? 0) < MIN_PREVIEW_EDGE) {
+        // Half-size decode (~0.5 s): white-balanced, already turned upright by LibRaw.
+        const decoded = await run('dcraw_emu', ['-h', '-w', '-T', '-Z', '-', path], { encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 }).catch(() => null)
+        if (decoded && decoded.stdout.length > 0) return { meta, source: decoded.stdout, orientation: null }
+      }
+    }
+    return { meta, source: embedded, orientation: meta.orientation }
+  }
+
+  /** A poster frame at 10% in, and four frames for the sheet, when ffmpeg is here; metadata either way. */
+  private async video(path: string, tags: T): Promise<Extracted> {
+    const meta = mapVideo(tags)
+    if (!TOOLS.ffmpeg) return { meta, source: null, orientation: null }
+    const duration = meta.video?.duration ?? 0
+    const frameAt = async (at: number, width: number): Promise<Buffer | null> => {
+      const out = await run(
+        'ffmpeg',
+        ['-v', 'error', '-ss', at.toFixed(2), '-i', path, '-frames:v', '1', '-vf', `scale='min(${width},iw)':-2`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '3', '-'],
+        { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 },
+      ).catch(() => null)
+      return out && out.stdout.length > 0 ? out.stdout : null
+    }
+    const poster = await frameAt(duration * 0.1, 2048)
+    const frames = duration > 0 ? (await Promise.all([0.2, 0.4, 0.6, 0.8].map((f) => frameAt(duration * f, 480)))).filter((f): f is Buffer => f !== null) : []
+    return { meta, source: poster, orientation: null, frames: frames.length === 4 ? frames : undefined }
   }
 
   private async embedded(path: string, tags: T): Promise<Buffer | null> {

@@ -1,8 +1,8 @@
 import sharp from 'sharp'
 import { afterAll, describe, expect, it } from 'vitest'
 import { decodePng, hashPixels } from '../../api/src/catalog/phash.ts'
-import { Extractor } from '../src/extract.ts'
-import { render } from '../src/render.ts'
+import { Extractor, seconds, TOOLS } from '../src/extract.ts'
+import { render, renderSheet } from '../src/render.ts'
 
 const fixture = (name: string) => new URL(`../../api/test/fixtures/${name}`, import.meta.url).pathname
 const extractor = new Extractor()
@@ -49,5 +49,35 @@ describe('rendering', () => {
     // The Worker's path: the thumb as PNG (Images does this), decoded by our own PNG reader, same reducer.
     const worker = hashPixels(await decodePng(new Uint8Array(await sharp(r.thumb).png().toBuffer())))
     expect(r.phash).toBe(worker)
+  })
+})
+
+/**
+ * Video fixtures, made with the agent's video image:
+ *   ffmpeg -f lavfi -i testsrc2=duration=6:size=480x270:rate=25 -c:v libx264 -pix_fmt yuv420p -crf 38 \
+ *     -metadata creation_time=2023-07-14T16:20:00Z clip.mp4
+ *   ffmpeg -f lavfi -i testsrc=duration=4:size=480x270:rate=30 -c:v libx264 -pix_fmt yuv420p -crf 34 \
+ *     -metadata com.apple.quicktime.creationdate=2023-08-02T09:15:30+0200 -movflags use_metadata_tags phone.mov
+ *   exiftool -Rotation=90 phone.mov
+ */
+const clip = (name: string) => new URL(`./fixtures/${name}`, import.meta.url).pathname
+
+describe('videos', () => {
+  it('reads length, codec, frame rate, a phone’s local time and offset, and rotation', async () => {
+    const phone = (await extractor.extract(clip('phone.mov'))).meta
+    expect(phone).toMatchObject({ capturedAt: '2023-08-02T09:15:30', capturedOffset: '+02:00', width: 480, height: 270, orientation: 6 })
+    expect(phone.video).toEqual({ duration: 4, codec: 'h264', frameRate: 30 })
+    const mp4 = (await extractor.extract(clip('clip.mp4'))).meta
+    expect(mp4).toMatchObject({ capturedAt: '2023-07-14T16:20:00', capturedOffset: null, orientation: 1 })
+    expect(mp4.video).toMatchObject({ duration: 6, codec: 'h264', frameRate: 25 })
+    expect([seconds('0:01:23'), seconds('83.4 s'), seconds(12)]).toEqual([83, 83.4, 12])
+  })
+
+  it.skipIf(!TOOLS.ffmpeg)('makes an upright poster and a 2×2 contact sheet when ffmpeg is installed', async () => {
+    const x = await extractor.extract(clip('phone.mov'))
+    const poster = await render(x.source!, x.orientation)
+    expect(poster.height).toBeGreaterThan(poster.width) // turned upright
+    const sheet = await sharp(await renderSheet(x.frames!)).metadata()
+    expect([sheet.format, sheet.width, sheet.height]).toEqual(['webp', 960, 540])
   })
 })

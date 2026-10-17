@@ -19,6 +19,17 @@ export interface Rendered {
   phash: string
   width: number
   height: number
+  /** Videos: four frames in a 2×2 grid. */
+  sheet?: Buffer
+}
+
+/** Four video frames in a 2×2 grid, each 480 px wide: the library flips through them on hover. */
+export async function renderSheet(frames: Buffer[]): Promise<Buffer> {
+  const tiles = await Promise.all(frames.map((f) => sharp(f).resize(480, 270, { fit: 'cover' }).toBuffer()))
+  return sharp({ create: { width: 960, height: 540, channels: 3, background: '#000' } })
+    .composite(tiles.map((input, i) => ({ input, left: (i % 2) * 480, top: Math.floor(i / 2) * 270 })))
+    .webp({ quality: 78, effort: 2 })
+    .toBuffer()
 }
 
 /** `fallbackOrientation`: the RAW's own Orientation, for an embedded preview that has none. */

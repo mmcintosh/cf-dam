@@ -1,5 +1,6 @@
 # The cf-dam NAS agent. Build from the repository root:
 #   docker build -f packages/agent/Dockerfile -t cf-dam-agent .
+#   docker build -f packages/agent/Dockerfile --build-arg VIDEO=1 -t cf-dam-agent:video .
 FROM node:24-slim AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
@@ -14,8 +15,12 @@ RUN npx esbuild packages/agent/src/main.ts --bundle --platform=node --format=esm
       "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
 
 FROM node:24-slim
-# ExifTool is Perl; tini reaps ExifTool's child processes and passes signals on.
-RUN apt-get update && apt-get install -y --no-install-recommends perl tini && rm -rf /var/lib/apt/lists/*
+# ExifTool is Perl; tini reaps ExifTool's child processes and passes signals on; LibRaw (1 MB) decodes
+# RAWs whose embedded preview is too small. VIDEO=1 adds ffmpeg for video posters and contact sheets:
+# about 465 MB more, so it is a separate image (…:1-video); without it, videos are indexed with no preview.
+ARG VIDEO=0
+RUN apt-get update && apt-get install -y --no-install-recommends perl tini libraw-bin $([ "$VIDEO" = 1 ] && echo ffmpeg) \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY packages/agent/docker/package.json ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force

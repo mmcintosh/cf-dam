@@ -49,6 +49,12 @@ export async function saveMetadata(db: D1Database, assetId: string, meta: Normal
       JSON.stringify(meta.raw), nowIso(), assetId,
     )
     .run()
+  if (meta.video) {
+    await db
+      .prepare('UPDATE assets SET duration = COALESCE(duration, ?), video_codec = COALESCE(video_codec, ?), frame_rate = COALESCE(frame_rate, ?) WHERE id = ?')
+      .bind(meta.video.duration, meta.video.codec, meta.video.frameRate, assetId)
+      .run()
+  }
   const iptc = iptcUpdate(db, assetId, meta.iptc, { fillOnly: true, locationSource: 'file' })
   if (iptc) await iptc.run()
   // xmp:Label holds the label's name; match it against this archive's names, then the colours themselves.

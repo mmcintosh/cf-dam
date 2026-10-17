@@ -170,6 +170,7 @@ sourceRoutes.get('/compose', (c) => {
 # Add one line under volumes for each shared folder to index, always ending in :ro (read-only).
 services:
   cf-dam-agent:
+    # For video previews too, use cf-dam-agent:1-video (about 465 MB larger).
     image: ghcr.io/mmcintosh/cf-dam-agent:1
     restart: unless-stopped
     environment:

@@ -25,6 +25,7 @@
     camera: { make: string | null; model: string | null; lens: string | null }
     exposure: { focalLength: number | null; aperture: number | null; exposureTime: number | null; iso: number | null }
     storage: { storageClass: string; state: string } | null
+    video: { duration: number | null } | null
   }
   interface Props {
     initial: Asset[]
@@ -68,6 +69,23 @@
   const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?? 'FILE'
   const shutter = (t: number | null) => (t === null ? '' : t >= 1 ? `${t}s` : `1/${Math.round(1 / t)}`)
   const TIER: Record<string, string> = { NAS: 'nas', STANDARD: 'hot', STANDARD_IA: 'warm', ONEZONE_IA: 'warm', INTELLIGENT_TIERING: 'warm', GLACIER_IR: 'cold', GLACIER: 'cold', DEEP_ARCHIVE: 'deep' }
+
+  const clock = (s: number) => {
+    const t = Math.round(s)
+    const h = Math.floor(t / 3600)
+    const mm = String(Math.floor((t % 3600) / 60)).padStart(h ? 2 : 1, '0')
+    return `${h ? `${h}:` : ''}${mm}:${String(t % 60).padStart(2, '0')}`
+  }
+  // Hovering a video flicks through its contact sheet (four frames in a 2×2 grid).
+  let scrubbing = $state<string | null>(null)
+  let scrubFrame = $state(0)
+  let scrubTimer: ReturnType<typeof setInterval> | undefined
+  function scrub(id: string | null) {
+    clearInterval(scrubTimer)
+    scrubbing = id
+    scrubFrame = 0
+    if (id) scrubTimer = setInterval(() => (scrubFrame = (scrubFrame + 1) % 4), 650)
+  }
 
   function say(message: string) {
     toast = message
@@ -336,6 +354,8 @@
       title={asset.title ?? asset.filename}
       onclick={(e) => onTileClick(e, index)}
       onfocus={() => (focus = index)}
+      onmouseenter={() => asset.renditions.includes('sheet') && scrub(asset.id)}
+      onmouseleave={() => scrubbing === asset.id && scrub(null)}
     >
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {#if asset.renditions.includes('thumb')}
@@ -353,6 +373,10 @@
           e.shiftKey ? selectRange(index) : toggle(index)
         }}>✓</button
       >
+      {#if scrubbing === asset.id}
+        <span class="scrub" style={`background-image:url(/api/assets/${asset.id}/renditions/sheet);background-position:${scrubFrame % 2 ? '100%' : '0%'} ${scrubFrame > 1 ? '100%' : '0%'}`}></span>
+      {/if}
+      {#if asset.video}<span class="duration">▶ {asset.video.duration ? clock(asset.video.duration) : ''}</span>{/if}
       {#if asset.flag === 'pick'}<span class="flag pick" title="Pick">⚑</span>{/if}
       {#if asset.label}<span class={`label-strip label-${asset.label}`} title={labelNames[asset.label]}></span>{/if}
       {#if asset.storage && asset.storage.storageClass !== 'STANDARD'}<span class={`tier tier-${TIER[asset.storage.storageClass] ?? 'warm'}`} title={asset.storage.storageClass}></span>{/if}
@@ -587,6 +611,25 @@
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+  }
+  .scrub {
+    position: absolute;
+    inset: 0;
+    background-size: 200% 200%;
+    background-repeat: no-repeat;
+  }
+  /* Bottom right, left of the storage dot: the bottom left carries the name on hover. */
+  .duration {
+    position: absolute;
+    right: 26px;
+    bottom: 6px;
+    padding: 1px 7px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    background: rgb(0 0 0 / 0.6);
   }
   .label-strip {
     position: absolute;

@@ -37,3 +37,21 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+      # The same agent with ffmpeg, for video posters and contact sheets: tags 1-video, 0.1.0-video.
+      - id: video
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/cf-dam-agent
+          flavor: suffix=-video
+          tags: |
+            type=match,pattern=agent-v(\d+\.\d+\.\d+),group=1
+            type=match,pattern=agent-v(\d+)\.\d+\.\d+,group=1
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/agent/Dockerfile
+          build-args: VIDEO=1
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.video.outputs.tags }}
+          labels: ${{ steps.video.outputs.labels }}

@@ -66,6 +66,9 @@ export interface AssetRow {
   country: string | null
   country_code: string | null
   location_source: string | null
+  duration: number | null
+  video_codec: string | null
+  frame_rate: number | null
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -194,6 +197,8 @@ export interface AssetJson {
   iptc: Record<IptcKey, string | null>
   /** Where city/state/country came from: file, user or gps. */
   locationSource: string | null
+  /** Videos: length in seconds, codec, frames per second. Null for photos. */
+  video: { duration: number | null; codec: string | null; frameRate: number | null } | null
   createdAt: string
   updatedAt: string
 }
@@ -236,6 +241,7 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
     },
     iptc: iptcJson(row as unknown as Record<string, unknown>),
     locationSource: row.location_source ?? null,
+    video: row.mime_type.startsWith('video/') ? { duration: row.duration ?? null, codec: row.video_codec ?? null, frameRate: row.frame_rate ?? null } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

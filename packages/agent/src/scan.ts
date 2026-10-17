@@ -9,6 +9,8 @@ export const PHOTO_EXTENSIONS = new Set([
   '.cr2', '.cr3', '.crw', '.nef', '.nrw', '.arw', '.srf', '.sr2', '.dng', '.raf', '.orf', '.rw2', '.pef',
   '.srw', '.3fr', '.iiq', '.rwl', '.x3f', '.erf', '.kdc', '.mos', '.mrw',
 ])
+export const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.mts', '.m2ts', '.avi', '.mkv', '.3gp', '.webm'])
+export const isVideo = (path: string) => VIDEO_EXTENSIONS.has(extname(path).toLowerCase())
 
 /** A glob ('*.lrdata', '@eaDir', 'Exports/**') as a RegExp over a name or a relative path. */
 export function globToRegExp(glob: string): RegExp {
@@ -67,7 +69,7 @@ export async function walk(root: string, exclude: string[], include: string[] = 
       const rel = relative(root, abs).split(sep).join('/')
       if (entry.isDirectory()) {
         if (!match.skipDir(rel)) await visit(abs)
-      } else if (entry.isFile() && PHOTO_EXTENSIONS.has(extname(entry.name).toLowerCase()) && match.keepFile(rel)) {
+      } else if (entry.isFile() && (PHOTO_EXTENSIONS.has(extname(entry.name).toLowerCase()) || isVideo(entry.name)) && match.keepFile(rel)) {
         try {
           const s = await stat(abs)
           found.set(rel, { path: rel, size: s.size, mtimeMs: Math.floor(s.mtimeMs) })

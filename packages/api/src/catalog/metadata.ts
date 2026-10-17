@@ -36,6 +36,8 @@ export interface NormalizedMetadata {
   iptc: IptcValues
   /** xmp:Label as written (a colour name, or a custom name from Lightroom's label set). */
   label: string | null
+  /** Videos: length in seconds, codec ('h264', 'hevc'…) and frames per second. */
+  video?: { duration: number | null; codec: string | null; frameRate: number | null } | null
   /** Everything parsed, for the record. Binary values are dropped. */
   raw: Record<string, unknown>
 }
@@ -203,6 +205,14 @@ export function normalizeAgentMetadata(input: unknown): NormalizedMetadata | nul
     keywords: keywordList,
     iptc: typeof m.iptc === 'object' && m.iptc !== null ? clean(m.iptc as Record<string, unknown>) : {},
     label: text(m.label, 40),
+    video:
+      typeof m.video === 'object' && m.video !== null
+        ? {
+            duration: number((m.video as Record<string, unknown>).duration, 0, 1_000_000),
+            codec: text((m.video as Record<string, unknown>).codec, 40),
+            frameRate: number((m.video as Record<string, unknown>).frameRate, 0, 10_000),
+          }
+        : null,
     raw: { source: 'agent' },
   }
 }

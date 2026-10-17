@@ -50,9 +50,20 @@ const exposure = [
   shutter(asset.exposure.exposureTime),
   asset.exposure.iso && `ISO ${asset.exposure.iso}`,
 ].filter(Boolean)
+const clock = (sec: number) => {
+  const t = Math.round(sec)
+  const h = Math.floor(t / 3600)
+  return `${h ? `${h}:` : ''}${String(Math.floor((t % 3600) / 60)).padStart(h ? 2 : 1, '0')}:${String(t % 60).padStart(2, '0')}`
+}
+const videoFacts = asset.video
+  ? [asset.video.duration && clock(asset.video.duration), asset.video.codec?.toUpperCase(), asset.video.frameRate && `${Math.round(asset.video.frameRate * 100) / 100} fps`].filter(Boolean).join(' · ')
+  : null
+// The browser plays the original straight from storage when the Worker can serve it (not on a NAS, not archived).
+const playable = asset.video && location && !location.nasPath && !location.archived && ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'].includes(asset.mimeType)
 const facts: [string, string][] = [
   ['File', asset.filename],
   ['Size', `${fmtSize(asset.size)}${asset.width ? ` · ${asset.width} × ${asset.height}` : ''}`],
+  ...(videoFacts ? [['Video', videoFacts] as [string, string]] : []),
   ...(taken ? [['Taken', taken] as [string, string]] : []),
   ...(asset.camera.model ? [['Camera', [asset.camera.make && !asset.camera.model.startsWith(asset.camera.make) ? asset.camera.make : '', asset.camera.model].filter(Boolean).join(' ')] as [string, string]] : []),
   ...(asset.camera.lens ? [['Lens', asset.camera.lens] as [string, string]] : []),
@@ -63,7 +74,9 @@ const facts: [string, string][] = [
 <AppLayout title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>
   <div class="layout">
     <section class="stage">
-      {hasPreview || hasThumb ? (
+      {playable ? (
+        <video class="hero" controls preload="metadata" poster={hasPreview ? `/api/assets/${id}/renditions/preview` : undefined} src={`/api/assets/${id}/original`}></video>
+      ) : hasPreview || hasThumb ? (
         <img
           class="hero"
           src={`/api/assets/${id}/renditions/${hasPreview ? 'preview' : 'thumb'}`}
