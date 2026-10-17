@@ -1,4 +1,5 @@
 /** Full-text index over assets (FTS5), kept in step by the application. */
+import { searchTerms } from './keywords'
 
 /** Assets missing from the index (after a rebuild, or a failed write), for the sweep to repair. */
 export async function unindexed(db: D1Database, limit: number): Promise<string[]> {
@@ -25,7 +26,7 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
   const row = await db
     .prepare(
       `SELECT a.filename, a.title, a.caption, a.camera_make, a.camera_model, a.lens, a.ai_description, a.ai_caption,
-              (SELECT group_concat(t.name, ' ') FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = a.id) AS tags
+              NULL AS tags
        FROM assets a WHERE a.id = ? AND a.deleted_at IS NULL`,
     )
     .bind(assetId)
@@ -42,7 +43,8 @@ export async function indexAsset(db: D1Database, assetId: string): Promise<void>
           filename,
           row.title ?? '',
           row.caption ?? '',
-          row.tags ?? '',
+          // Keywords with their ancestors and synonyms: a photo tagged Bergen is found by "norway".
+          await searchTerms(db, assetId),
           [row.camera_make, row.camera_model, row.lens].filter(Boolean).join(' '),
           '',
           // What the AI saw, so "red boat at dusk" finds photos nobody has keyworded.

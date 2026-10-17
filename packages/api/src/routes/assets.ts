@@ -1,7 +1,8 @@
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
-import { applyBulk, BULK_PERMISSION, facets, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
+import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
+import { exportKeywords } from '../catalog/keywords'
+import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
 import { acceptSuggestions, analyzeAsset, removeAiTag, type AcceptField } from '../catalog/ai'
 import { processAsset } from '../catalog/process'
@@ -60,6 +61,12 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
         const flag = body.flag
         if (flag !== null && flag !== 'pick' && flag !== 'reject') throw new BadRequest('flag is pick, reject or null.')
         bulk = { action, flag }
+        break
+      }
+      case 'label': {
+        const label = body.label
+        if (label !== null && !isLabel(label)) throw new BadRequest(`label is one of ${LABELS.join(', ')}, or null.`)
+        bulk = { action, label }
         break
       }
       case 'title':
@@ -147,12 +154,15 @@ assetRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
     }
     const flag = body.flag
     if (flag !== undefined && flag !== null && flag !== 'pick' && flag !== 'reject') throw new BadRequest('flag is pick, reject or null.')
+    const label = body.label
+    if (label !== undefined && label !== null && !isLabel(label)) throw new BadRequest(`label is one of ${LABELS.join(', ')}, or null.`)
     const filename = body.filename
     if (filename !== undefined && (typeof filename !== 'string' || !/^[^\\/\u0000-\u001f]{1,200}$/.test(filename.trim()))) {
       throw new BadRequest('filename must be 1–200 characters with no slashes.')
     }
     await updateAsset(c.env.DB, id, {
       flag: flag as 'pick' | 'reject' | null | undefined,
+      label: label as Label | null | undefined,
       filename: typeof filename === 'string' ? filename.trim() : undefined,
       title: text('title', 300),
       caption: text('caption', 5000),
@@ -179,8 +189,8 @@ assetRoutes.get('/:id/xmp', requirePermission('assets:read'), async (c) => {
   const id = c.req.param('id')
   const row = await getAsset(c.env.DB, id)
   if (!row) return c.json({ error: 'not_found' }, 404)
-  const tags = (await getTags(c.env.DB, id)).map((t) => t.name)
-  return new Response(xmpSidecar(row, tags), {
+  const [keywords, labelNames] = await Promise.all([exportKeywords(c.env.DB, id), getLabelNames(c.env.DB)])
+  return new Response(xmpSidecar(row, keywords, labelNames), {
     headers: {
       'Content-Type': 'application/rdf+xml; charset=utf-8',
       'Content-Disposition': attachmentDisposition(sidecarName(row.filename)),

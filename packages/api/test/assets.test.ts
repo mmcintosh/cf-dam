@@ -111,8 +111,8 @@ describe('uploading into the built-in R2 bucket', () => {
     expect(await search('fjord')).toEqual([id])
     const byTag = (await (await h.fetch('/api/assets?tag=Norway', { cookie: admin })).json()) as { total: number }
     expect(byTag.total).toBe(1)
-    const tags = (await (await h.fetch('/api/tags', { cookie: admin })).json()) as { tags: { name: string; count: number }[] }
-    expect(tags.tags.map((t) => t.name).sort()).toEqual(['Norway', 'fjord'])
+    const tags = (await (await h.fetch('/api/tags', { cookie: admin })).json()) as { keywords: { name: string; total: number }[] }
+    expect(tags.keywords.map((t) => t.name).sort()).toEqual(['Norway', 'fjord'])
   })
 
   it('reports a duplicate by content hash instead of storing it twice', async () => {

@@ -8,7 +8,10 @@
     caption: string | null
     alt: string | null
     rating: number | null
+    /** Keyword paths ('Places › Norway › Bergen'). */
     tags: string[]
+    label: Label | null
+    labelNames: Record<Label, string>
     canEdit: boolean
     ai: AiSuggestions
     aiTags: string[]
@@ -28,7 +31,8 @@
     people: number | null
     error: string | null
   }
-  type TagRow = { name: string; source: string }
+  type TagRow = { name: string; path: string; source: string }
+  type Label = 'red' | 'yellow' | 'green' | 'blue' | 'purple'
   let props: Props = $props()
 
   let title = $state(props.title ?? '')
@@ -37,14 +41,47 @@
   let rating = $state(props.rating ?? 0)
   let tags = $state<string[]>([...props.tags])
   let tagInput = $state('')
+  let label = $state<Label | null>(props.label)
+  let suggestions = $state<{ id: string; path: string; total: number }[]>([])
+  let suggestionIndex = $state(-1)
+  let suggestTimer: ReturnType<typeof setTimeout> | undefined
+  const leaf = (path: string) => path.split(' › ').at(-1) ?? path
+
+  function suggest() {
+    clearTimeout(suggestTimer)
+    const q = tagInput.trim()
+    if (q.length < 1) {
+      suggestions = []
+      return
+    }
+    suggestTimer = setTimeout(async () => {
+      const found = await api<{ keywords: { id: string; path: string; total: number }[] }>(`/api/tags?q=${encodeURIComponent(q)}`).catch(() => ({ keywords: [] }))
+      suggestions = found.keywords.filter((k) => !tags.includes(k.path)).slice(0, 8)
+      suggestionIndex = -1
+    }, 120)
+  }
+
+  function pickTag(path: string) {
+    if (path && !tags.some((t) => t.toLowerCase() === path.toLowerCase())) {
+      tags = [...tags, path]
+      void save({ tags })
+    }
+    tagInput = ''
+    suggestions = []
+  }
+
+  function setLabel(value: Label) {
+    label = label === value ? null : value
+    void save({ label })
+  }
   let ai = $state<AiSuggestions>({ ...props.ai })
   let aiTags = $state<string[]>([...props.aiTags])
   let analysing = $state(false)
   let aiMessage = $state('')
 
   function applyTags(rows: TagRow[]) {
-    tags = rows.filter((t) => t.source !== 'ai').map((t) => t.name)
-    aiTags = rows.filter((t) => t.source === 'ai').map((t) => t.name)
+    tags = rows.filter((t) => t.source !== 'ai').map((t) => t.path)
+    aiTags = rows.filter((t) => t.source === 'ai').map((t) => t.path)
   }
 
   async function analyse() {
@@ -100,14 +137,24 @@
   }
 
   function addTag(event: KeyboardEvent) {
+    if (event.key === 'ArrowDown' && suggestions.length) {
+      event.preventDefault()
+      suggestionIndex = (suggestionIndex + 1) % suggestions.length
+      return
+    }
+    if (event.key === 'ArrowUp' && suggestions.length) {
+      event.preventDefault()
+      suggestionIndex = (suggestionIndex - 1 + suggestions.length) % suggestions.length
+      return
+    }
+    if (event.key === 'Escape') {
+      suggestions = []
+      return
+    }
     if (event.key !== 'Enter' && event.key !== ',') return
     event.preventDefault()
-    const tag = tagInput.trim()
-    if (tag && !tags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
-      tags = [...tags, tag]
-      void save({ tags })
-    }
-    tagInput = ''
+    // A highlighted suggestion wins; otherwise what was typed (a name, or a path like Places > Norway).
+    pickTag(suggestionIndex >= 0 ? suggestions[suggestionIndex]!.path : tagInput.trim())
   }
 
   function removeTag(tag: string) {
@@ -148,6 +195,21 @@
         onclick={() => rate(star)}>★</button
       >
     {/each}
+    <span class="labels" role="radiogroup" aria-label="Colour label">
+      {#each Object.entries(props.labelNames) as [value, name] (value)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={label === value}
+          aria-label={name}
+          title={name}
+          class={`swatch label-${value}`}
+          class:on={label === value}
+          disabled={!props.canEdit}
+          onclick={() => setLabel(value as Label)}
+        ></button>
+      {/each}
+    </span>
     <span class="save-state muted">{status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : ''}</span>
   </div>
 
@@ -167,13 +229,37 @@
     <span class="label">Tags</span>
     <div class="tags">
       {#each tags as tag (tag)}
-        <span class="tag">
-          <a href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
+        <span class="tag" title={tag}>
+          <a href={`/?tag=${encodeURIComponent(tag)}`}>{leaf(tag)}{#if tag.includes(' › ')}<small> · {tag.split(' › ').slice(0, -1).join(' › ')}</small>{/if}</a>
           {#if props.canEdit}<button type="button" aria-label={`Remove ${tag}`} onclick={() => removeTag(tag)}>×</button>{/if}
         </span>
       {/each}
       {#if props.canEdit}
-        <input class="tag-input" type="text" placeholder="Add a tag…" bind:value={tagInput} onkeydown={addTag} aria-label="Add a tag" />
+        <span class="tag-entry">
+          <input
+            class="tag-input"
+            type="text"
+            placeholder="Add a keyword… (Places > Norway)"
+            bind:value={tagInput}
+            onkeydown={addTag}
+            oninput={suggest}
+            onblur={() => setTimeout(() => (suggestions = []), 150)}
+            aria-label="Add a keyword"
+            aria-autocomplete="list"
+          />
+          {#if suggestions.length > 0}
+            <ul class="suggest" role="listbox">
+              {#each suggestions as s, i (s.id)}
+                <li role="option" aria-selected={i === suggestionIndex}>
+                  <button type="button" class:on={i === suggestionIndex} onmousedown={(e) => (e.preventDefault(), pickTag(s.path))}>
+                    <strong>{leaf(s.path)}</strong>{#if s.path.includes(' › ')}<span class="muted"> · {s.path.split(' › ').slice(0, -1).join(' › ')}</span>{/if}
+                    <span class="n">{s.total}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </span>
       {/if}
     </div>
   </div>
@@ -221,8 +307,8 @@
           <span class="muted small">Tags (searchable now; keep or drop)</span>
           <div class="tags">
             {#each aiTags as tag (tag)}
-              <span class="tag tag-ai">
-                <a href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
+              <span class="tag tag-ai" title={tag}>
+                <a href={`/?tag=${encodeURIComponent(tag)}`}>{leaf(tag)}</a>
                 {#if props.canEdit}
                   <button type="button" aria-label={`Keep ${tag}`} title="Keep" onclick={() => keepTag(tag)}>✓</button>
                   <button type="button" aria-label={`Drop ${tag}`} title="Drop" onclick={() => dropTag(tag)}>×</button>
@@ -367,6 +453,91 @@
   .tag-ai {
     background: transparent;
     border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  }
+  .tag small {
+    color: var(--text-faint);
+    font-size: 0.72rem;
+  }
+  .tag-entry {
+    position: relative;
+    flex: 1 1 160px;
+    display: flex;
+  }
+  .suggest {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-strong);
+    box-shadow: var(--shadow);
+  }
+  .suggest button {
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    align-items: baseline;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.84rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .suggest button:hover,
+  .suggest button.on {
+    background: var(--surface-hover);
+  }
+  .suggest .n {
+    margin-left: auto;
+    color: var(--text-faint);
+    font-size: 0.75rem;
+  }
+  .labels {
+    display: inline-flex;
+    gap: 5px;
+    margin-left: 12px;
+  }
+  .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
+  }
+  .swatch:hover:not(:disabled) {
+    opacity: 0.85;
+    transform: scale(1.1);
+  }
+  .swatch.on {
+    opacity: 1;
+    border-color: var(--text);
+  }
+  .label-red {
+    background: var(--label-red);
+  }
+  .label-yellow {
+    background: var(--label-yellow);
+  }
+  .label-green {
+    background: var(--label-green);
+  }
+  .label-blue {
+    background: var(--label-blue);
+  }
+  .label-purple {
+    background: var(--label-purple);
   }
   .tag-input {
     flex: 1 1 120px;

@@ -6,7 +6,8 @@ import { authenticate } from './auth/principal'
 import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
 import type { DamEnv } from './env'
 import { aiRoutes } from './routes/ai'
-import { albumRoutes, tagRoutes } from './routes/albums'
+import { albumRoutes } from './routes/albums'
+import { labelRoutes, tagRoutes } from './routes/keywords'
 import { assetRoutes } from './routes/assets'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
@@ -67,6 +68,7 @@ export function createDamApi() {
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
   api.route('/tags', tagRoutes)
+  api.route('/labels', labelRoutes)
   api.route('/duplicates', duplicateRoutes)
   api.route('/ai', aiRoutes)
 
@@ -82,7 +84,9 @@ export function createDamApi() {
 
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
 export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
-export { facets, geoPoints, timeline, type Facets, type FacetValue } from './catalog/library'
+export { facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValue, type KeywordFacet, type LabelNames } from './catalog/library'
+export { keywordTree, type KeywordNode } from './catalog/keywords'
+export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'

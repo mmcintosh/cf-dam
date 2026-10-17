@@ -1,6 +1,7 @@
 /** Asset records, their locations, tags and the list query. */
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { displayPath, keywordFilterSql, resolveKeyword } from './keywords'
 import { indexAsset, toFtsQuery } from './search'
 
 export interface AssetRow {
@@ -30,6 +31,7 @@ export interface AssetRow {
   gps_lng: number | null
   rating: number | null
   flag: string | null
+  label: string | null
   metadata: string | null
   status: string
   error: string | null
@@ -75,34 +77,41 @@ export function primaryLocation(locations: LocationRow[]): LocationRow | null {
   return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
 }
 
-export async function getTags(db: D1Database, assetId: string): Promise<{ name: string; source: string }[]> {
+export interface AssetTag {
+  id: string
+  name: string
+  /** Display path ('Places › Norway › Bergen'); the name alone for a top-level keyword. */
+  path: string
+  source: string
+}
+
+export async function getTags(db: D1Database, assetId: string): Promise<AssetTag[]> {
   const { results } = await db
-    .prepare('SELECT t.name, at.source FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = ? ORDER BY t.name')
+    .prepare('SELECT t.id, t.name, t.full_path, at.source FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = ? ORDER BY t.path')
     .bind(assetId)
-    .all<{ name: string; source: string }>()
-  return results
+    .all<{ id: string; name: string; full_path: string; source: string }>()
+  return results.map((r) => ({ id: r.id, name: r.name, path: displayPath(r.full_path), source: r.source }))
 }
 
-export function normalizeTag(name: string): string | null {
-  const tag = name.normalize('NFKC').replace(/\s+/g, ' ').trim()
-  return tag.length > 0 && tag.length <= 80 ? tag : null
-}
-
-/** Add tags (creating them as needed). `source` records where a tag came from: user, import, ai. */
-export async function addTags(db: D1Database, assetId: string, names: string[], source: 'user' | 'import' | 'ai'): Promise<void> {
-  const tags = [...new Set(names.map(normalizeTag).filter((t): t is string => t !== null))]
-  if (tags.length === 0) return
-  const now = nowIso()
-  const statements: D1PreparedStatement[] = []
-  for (const tag of tags) {
-    statements.push(db.prepare('INSERT OR IGNORE INTO tags (id, name, created_at) VALUES (?, ?, ?)').bind(randomId(), tag, now))
-    statements.push(
-      db
-        .prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, id, ?, ? FROM tags WHERE name = ?')
-        .bind(assetId, source, now, tag),
-    )
+/** Resolve names or paths to keyword ids, creating keywords as needed (see resolveKeyword). */
+async function resolveAll(db: D1Database, names: string[]): Promise<string[]> {
+  const ids: string[] = []
+  for (const name of [...new Set(names)].slice(0, 200)) {
+    const id = await resolveKeyword(db, name)
+    if (id && !ids.includes(id)) ids.push(id)
   }
-  await db.batch(statements)
+  return ids
+}
+
+/**
+ * Add keywords by name or path (`Places > Norway > Oslo`), creating them as needed. `source` records
+ * where a tag came from: user, import, ai, lightroom.
+ */
+export async function addTags(db: D1Database, assetId: string, names: string[], source: 'user' | 'import' | 'ai' | 'lightroom'): Promise<void> {
+  const ids = await resolveAll(db, names)
+  if (ids.length === 0) return
+  const now = nowIso()
+  await db.batch(ids.map((id) => db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) VALUES (?, ?, ?, ?)').bind(assetId, id, source, now)))
 }
 
 /**
@@ -110,18 +119,16 @@ export async function addTags(db: D1Database, assetId: string, names: string[], 
  * or removed on their own), except that naming one here makes it the person's own.
  */
 export async function setTags(db: D1Database, assetId: string, names: string[]): Promise<void> {
-  const lower = names.map((n) => n.trim().toLowerCase())
+  const ids = await resolveAll(db, names)
+  const now = nowIso()
   await db.batch([
     db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai'").bind(assetId),
-    ...(lower.length > 0
-      ? [
-          db
-            .prepare(`DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (SELECT id FROM tags WHERE lower(name) IN (${lower.map(() => '?').join(',')}))`)
-            .bind(assetId, ...lower),
-        ]
-      : []),
+    ...ids.map((id) =>
+      db
+        .prepare("INSERT INTO asset_tags (asset_id, tag_id, source, created_at) VALUES (?, ?, 'user', ?) ON CONFLICT (asset_id, tag_id) DO UPDATE SET source = 'user'")
+        .bind(assetId, id, now),
+    ),
   ])
-  await addTags(db, assetId, names, 'user')
 }
 
 export interface AssetJson {
@@ -142,6 +149,7 @@ export interface AssetJson {
   gps: { lat: number; lng: number } | null
   rating: number | null
   flag: 'pick' | 'reject' | null
+  label: Label | null
   status: string
   error: string | null
   renditions: string[]
@@ -182,6 +190,7 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
     gps: row.gps_lat !== null && row.gps_lng !== null ? { lat: row.gps_lat, lng: row.gps_lng } : null,
     rating: row.rating,
     flag: row.flag === 'pick' || row.flag === 'reject' ? row.flag : null,
+    label: isLabel(row.label) ? row.label : null,
     status: row.status,
     error: row.error,
     renditions,
@@ -229,6 +238,7 @@ export interface ListFilters {
   /** Minimum stars, 1–5. */
   rating?: number
   flag?: 'pick' | 'reject' | 'none'
+  label?: Label | 'none'
   orientation?: Orientation
   type?: FileKind
   tier?: Tier
@@ -238,6 +248,10 @@ export interface ListFilters {
 }
 
 export type Orientation = 'landscape' | 'portrait' | 'square'
+/** Colour labels, as in Lightroom. Their display names are a setting (labels.names). */
+export const LABELS = ['red', 'yellow', 'green', 'blue', 'purple'] as const
+export type Label = (typeof LABELS)[number]
+export const isLabel = (value: unknown): value is Label => typeof value === 'string' && (LABELS as readonly string[]).includes(value)
 export type FileKind = 'photo' | 'raw' | 'video' | 'other'
 export type Tier = 'hot' | 'warm' | 'cold' | 'deep'
 
@@ -272,8 +286,9 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
     params.push(fts)
   }
   if (use('tag')) {
-    where.push('a.id IN (SELECT at.asset_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE t.name = ?)')
-    params.push(filters.tag)
+    const { sql, params: tagParams } = keywordFilterSql(filters.tag!)
+    where.push(sql)
+    params.push(...tagParams)
   }
   if (use('camera')) {
     where.push('a.camera_model = ?')
@@ -310,6 +325,10 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   if (use('flag')) {
     where.push(filters.flag === 'none' ? 'a.flag IS NULL' : 'a.flag = ?')
     if (filters.flag !== 'none') params.push(filters.flag)
+  }
+  if (use('label')) {
+    where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
+    if (filters.label !== 'none') params.push(filters.label)
   }
   if (use('orientation')) {
     where.push(`(${ORIENTATION_SQL}) = ?`)
@@ -366,13 +385,14 @@ export async function updateAsset(
     alt?: string | null
     rating?: number | null
     flag?: 'pick' | 'reject' | null
+    label?: Label | null
     filename?: string
     tags?: string[]
   },
 ): Promise<void> {
   const sets: string[] = []
   const params: unknown[] = []
-  const fields = [['title', 'title'], ['caption', 'caption'], ['alt', 'alt'], ['rating', 'rating'], ['flag', 'flag'], ['filename', 'filename']] as const
+  const fields = [['title', 'title'], ['caption', 'caption'], ['alt', 'alt'], ['rating', 'rating'], ['flag', 'flag'], ['label', 'label'], ['filename', 'filename']] as const
   for (const [field, column] of fields) {
     if (patch[field] !== undefined) {
       sets.push(`${column} = ?`)
@@ -414,6 +434,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     month: query.month && /^\d{4}-\d{2}$/.test(query.month) ? query.month : undefined,
     rating: rating && rating >= 1 && rating <= 5 ? rating : undefined,
     flag: query.flag === 'pick' || query.flag === 'reject' || query.flag === 'none' ? query.flag : undefined,
+    label: isLabel(query.label) || query.label === 'none' ? (query.label as Label | 'none') : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,

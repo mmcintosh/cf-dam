@@ -87,9 +87,9 @@ describe('AI review', () => {
     expect(after.alt).toBe('My own alt text')
     expect(after.tags).toEqual(
       expect.arrayContaining([
-        { name: 'norway', source: 'user' },
-        { name: 'lighthouse', source: 'ai' },
-        { name: 'storm', source: 'ai' },
+        expect.objectContaining({ name: 'norway', source: 'user' }),
+        expect.objectContaining({ name: 'lighthouse', source: 'ai' }),
+        expect.objectContaining({ name: 'storm', source: 'ai' }),
       ]),
     )
 

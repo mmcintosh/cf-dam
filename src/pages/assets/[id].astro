@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { ARCHIVE_CLASSES, assetJson, getAiSettings, getAsset, getLocations, getTags, listConnections } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, getAiSettings, getAsset, getLabelNames, getLocations, getTags, listConnections } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import StoragePanel from '../../components/StoragePanel.svelte'
@@ -19,6 +19,7 @@ const [locations, tags, renditionRows, connections, aiSettings] = await Promise.
   listConnections(env.DB),
   getAiSettings(env.DB),
 ])
+const labelNames = await getLabelNames(env.DB)
 const asset = assetJson(row, renditionRows.results.map((r) => r.name))
 const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
 const connection = primary && connections.find((c) => c.id === primary.connection_id)
@@ -85,8 +86,10 @@ const facts: [string, string][] = [
           caption={asset.caption}
           alt={asset.alt}
           rating={asset.rating}
-          tags={tags.filter((t) => t.source !== 'ai').map((t) => t.name)}
-          aiTags={tags.filter((t) => t.source === 'ai').map((t) => t.name)}
+          tags={tags.filter((t) => t.source !== 'ai').map((t) => t.path)}
+          aiTags={tags.filter((t) => t.source === 'ai').map((t) => t.path)}
+          label={asset.label}
+          labelNames={labelNames}
           ai={asset.ai}
           aiAvailable={Boolean(env.AI) && aiSettings.enabled}
           canRunAi={principal.permissions.has('ai:run')}

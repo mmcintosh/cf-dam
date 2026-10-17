@@ -18,6 +18,7 @@
     height: number | null
     rating: number | null
     flag: 'pick' | 'reject' | null
+    label: Label | null
     status: string
     renditions: string[]
     capturedAt: string | null
@@ -35,8 +36,12 @@
     canDelete: boolean
     /** Can queue photos for AI review (and AI is available here). */
     canRunAi: boolean
+    /** What each colour label is called in this archive. */
+    labelNames: Record<Label, string>
   }
-  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi }: Props = $props()
+  type Label = 'red' | 'yellow' | 'green' | 'blue' | 'purple'
+  const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
+  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi, labelNames }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
@@ -145,6 +150,15 @@
     if (loupe !== null && flag) next(1)
   }
 
+  /** Set a label on the targets; pressing the label a photo already has clears it (as in Lightroom). */
+  async function setLabel(value: Label | null) {
+    const ids = targets()
+    const first = assets.find((a) => a.id === ids[0])
+    const label = value && first?.label === value && ids.length === 1 ? null : value
+    assets = assets.map((a) => (ids.includes(a.id) ? { ...a, label } : a))
+    if (await bulk({ action: 'label', label }, ids)) say(label ? `${labelNames[label]} on ${ids.length}` : `Label cleared on ${ids.length}`)
+  }
+
   async function addTags() {
     const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean)
     if (tags.length === 0) return
@@ -208,8 +222,8 @@
   async function loadDetail(id: string) {
     detail = null
     try {
-      const full = await api<{ tags: { name: string }[] }>(`/api/assets/${id}`)
-      if (current?.id === id) detail = { id, tags: full.tags.map((t) => t.name) }
+      const full = await api<{ tags: { name: string; path: string }[] }>(`/api/assets/${id}`)
+      if (current?.id === id) detail = { id, tags: full.tags.map((t) => t.path) }
     } catch {
       detail = null
     }
@@ -252,6 +266,7 @@
       else if (key === 'z') zoom = !zoom
       else if (key === 'i') showInfo = !showInfo
       else if (/^[0-5]$/.test(key) && canEdit) rate(Number(key))
+      else if (LABEL_KEYS[key] && canEdit) setLabel(LABEL_KEYS[key]!)
       else if (key === 'p' && canEdit) setFlag('pick')
       else if (key === 'x' && canEdit) setFlag('reject')
       else if (key === 'u' && canEdit) setFlag(null)
@@ -270,6 +285,7 @@
     else if (key === 'escape') clearSelection()
     else if (key === 'a' && event.shiftKey) selectAll()
     else if (/^[0-5]$/.test(key) && canEdit) rate(Number(key))
+    else if (LABEL_KEYS[key] && canEdit) setLabel(LABEL_KEYS[key]!)
     else if (key === 'p' && canEdit) setFlag('pick')
     else if (key === 'x' && canEdit) setFlag('reject')
     else if (key === 'u' && canEdit) setFlag(null)
@@ -329,6 +345,7 @@
         }}>✓</button
       >
       {#if asset.flag === 'pick'}<span class="flag pick" title="Pick">⚑</span>{/if}
+      {#if asset.label}<span class={`label-strip label-${asset.label}`} title={labelNames[asset.label]}></span>{/if}
       {#if asset.storage && asset.storage.storageClass !== 'STANDARD'}<span class={`tier tier-${TIER[asset.storage.storageClass] ?? 'warm'}`} title={asset.storage.storageClass}></span>{/if}
       <span class="overlay">
         <span class="name">{asset.title ?? asset.filename}</span>
@@ -354,6 +371,11 @@
         <input type="text" placeholder="Add tags, comma separated" bind:value={tagInput} aria-label="Tags to add" />
         <button class="btn btn-sm" type="submit">Tag</button>
       </form>
+      <select aria-label="Label" onchange={(e) => { const v = e.currentTarget.value; if (v) setLabel(v === 'clear' ? null : (v as Label)); e.currentTarget.value = '' }}>
+        <option value="">Label…</option>
+        {#each Object.entries(labelNames) as [value, name] (value)}<option {value}>{name}</option>{/each}
+        <option value="clear">No label</option>
+      </select>
       {#if albums.length > 0}
         <select aria-label="Add to album" onchange={(e) => (addToAlbum(e.currentTarget.value), (e.currentTarget.value = ''))}>
           <option value="">Add to album…</option>
@@ -399,6 +421,7 @@
       <button class="nav next" aria-label="Next (→)" onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total}>›</button>
       <button class="close" aria-label="Close (Esc)" onclick={closeLoupe}>✕</button>
       {#if current.flag}<span class={`loupe-flag ${current.flag}`}>{current.flag === 'pick' ? '⚑ Pick' : '✕ Reject'}</span>{/if}
+      {#if current.label}<span class={`loupe-label label-${current.label}`}>{labelNames[current.label]}</span>{/if}
     </div>
     {#if showInfo}
       <aside class="info">
@@ -417,7 +440,7 @@
           {#if current.width}<dt>Size</dt><dd>{current.width} × {current.height}</dd>{/if}
         </dl>
         {#if detail && detail.id === current.id}
-          <div class="tags">{#each detail.tags as tag (tag)}<a class="tag" href={`/?tag=${encodeURIComponent(tag)}`}>{tag}</a>{/each}</div>
+          <div class="tags">{#each detail.tags as tag (tag)}<a class="tag" href={`/?tag=${encodeURIComponent(tag)}`} title={tag}>{tag.split(' › ').at(-1)}</a>{/each}</div>
         {/if}
         {#if canEdit}
           <form class="row" onsubmit={(e) => (e.preventDefault(), addTags())}>
@@ -425,7 +448,7 @@
           </form>
         {/if}
         <a class="btn btn-sm" href={`/assets/${current.id}`}>Open details</a>
-        <p class="keys muted">← → move · 1–5 rate · P pick · X reject · U clear · Z zoom · I info · Esc close</p>
+        <p class="keys muted">← → move · 1–5 rate · 6–9 label · P pick · X reject · U clear · Z zoom · I info · Esc close</p>
       </aside>
     {/if}
   </div>
@@ -546,6 +569,40 @@
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+  }
+  .label-strip {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+  }
+  .loupe-label {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 12px;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+  }
+  .label-red {
+    background: var(--label-red);
+  }
+  .label-yellow {
+    background: var(--label-yellow);
+    color: #222;
+  }
+  .label-green {
+    background: var(--label-green);
+  }
+  .label-blue {
+    background: var(--label-blue);
+  }
+  .label-purple {
+    background: var(--label-purple);
   }
   .flag.pick {
     position: absolute;

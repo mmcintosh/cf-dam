@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { getPlatformProxy } from 'wrangler'
 import { createDamApi, wellKnownRoutes, type DamBindings } from '../src/index'
-import { migrate } from '../src/db/migrate'
+import { migrate, type Migration } from '../src/db/migrate'
 import { resetSetupCacheForTests } from '../src/routes/setup'
 
 export const ORIGIN = 'http://localhost'
@@ -14,7 +14,7 @@ export interface Harness {
   dispose(): Promise<void>
 }
 
-export async function createHarness(overrides: Partial<DamBindings> = {}): Promise<Harness> {
+export async function createHarness(overrides: Partial<DamBindings> = {}, options: { migrations?: Migration[] } = {}): Promise<Harness> {
   // In-memory D1 and KV, fresh for every harness.
   const proxy = await getPlatformProxy<{ DB: D1Database; CACHE_KV: KVNamespace; MEDIA_BUCKET: R2Bucket; IMAGES: ImagesBinding }>({
     configPath: decodeURIComponent(new URL('./wrangler.test.jsonc', import.meta.url).pathname),
@@ -30,7 +30,7 @@ export async function createHarness(overrides: Partial<DamBindings> = {}): Promi
     BETTER_AUTH_SECRET: 'test-secret-that-is-long-enough-0123456789', // gitleaks:allow (test-only value)
     ...overrides,
   }
-  await migrate(env.DB)
+  await migrate(env.DB, options.migrations)
   resetSetupCacheForTests()
 
   const app = new Hono().route('/.well-known', wellKnownRoutes).route('/api', createDamApi())

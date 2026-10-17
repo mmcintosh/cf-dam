@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { facets as loadFacets, getAiSettings, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
+import { facets as loadFacets, getAiSettings, getLabelNames, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -23,6 +23,7 @@ const [{ assets, total }, facets, months] = canRead
 const connections = canUpload
   ? (await listConnections(env.DB)).map((c) => ({ id: c.id, name: c.name, storageClasses: c.storageClasses, defaultClass: c.defaultClass, isDefault: c.isDefault }))
   : []
+const labelNames = await getLabelNames(env.DB)
 const canRunAi = principal.permissions.has('ai:run') && Boolean(env.AI) && (await getAiSettings(env.DB)).enabled
 const filtered = [...params.keys()].some((k) => k !== 'sort')
 const sort = filters.sort
@@ -48,7 +49,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
     </div>
   ) : (
     <div class="library">
-      {facets && <Facets facets={facets} params={params} />}
+      {facets && <Facets facets={facets} params={params} labelNames={labelNames} />}
       <section class="main">
         <Timeline months={months} params={params} />
         <div class="toolbar row">
@@ -57,7 +58,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
             <a href={sortLink('added')} class:list={{ on: sort === 'added' }}>Recently added</a>
           </nav>
           <a class="btn btn-sm" href={`/map${params.toString() ? `?${params}` : ''}`}>Map</a>
-          <span class="hint muted">⌘-click or shift-click to select · 1–5 rate · P pick · X reject</span>
+          <span class="hint muted">⌘-click or shift-click to select · 1–5 rate · 6–9 label · P pick · X reject</span>
           <span class="spacer"></span>
           {canUpload && <Uploader client:idle connections={connections} />}
         </div>
@@ -71,6 +72,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
             canEdit={principal.permissions.has('assets:edit')}
             canDelete={principal.permissions.has('assets:delete')}
             canRunAi={canRunAi}
+            labelNames={labelNames}
           />
         ) : (
           <p class="muted">Nothing matches. Remove a filter or try fewer words.</p>

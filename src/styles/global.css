@@ -25,6 +25,13 @@
   --warning: #fbbf24;
   --danger: #ff6b7a;
 
+  /* Colour labels (Lightroom's five). */
+  --label-red: #f05252;
+  --label-yellow: #f5c518;
+  --label-green: #34c76f;
+  --label-blue: #3b82f6;
+  --label-purple: #a855f7;
+
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;

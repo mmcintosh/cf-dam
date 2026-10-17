@@ -1,0 +1,103 @@
+---
+/** One level of the keyword facet: each keyword links to its filter; branches fold. Renders itself for children. */
+import type { KeywordFacet } from '@cf-dam/api'
+
+interface Props {
+  nodes: KeywordFacet[]
+  all: KeywordFacet[]
+  active: string | null
+  link: (path: string | null) => string
+}
+const { nodes, all, active, link } = Astro.props
+const children = (id: string) => all.filter((k) => k.parentId === id)
+const activeKey = active?.toLowerCase().replace(/\s*(?:>|\||›)\s*/g, ' › ')
+const isActive = (k: KeywordFacet) => activeKey === k.path.toLowerCase() || (!activeKey?.includes('›') && activeKey === k.name.toLowerCase())
+// Open a branch when the active keyword is inside it.
+const contains = (k: KeywordFacet) => !!activeKey && activeKey.startsWith(`${k.path.toLowerCase()} › `)
+---
+<ul class="kw">
+  {nodes.map((k) => {
+    const kids = children(k.id)
+    const row = (
+      <a href={link(isActive(k) ? null : k.path)} class:list={['kw-link', { on: isActive(k) }]} title={k.path}>
+        <span>{k.name}</span><span class="count">{k.count}</span>
+      </a>
+    )
+    return (
+      <li>
+        {kids.length > 0 ? (
+          <details open={contains(k) || isActive(k)}>
+            <summary class="kw-summary">{row}</summary>
+            <Astro.self nodes={kids} all={all} active={active} link={link} />
+          </details>
+        ) : row}
+      </li>
+    )
+  })}
+</ul>
+
+<style>
+  .kw {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+  }
+  .kw .kw {
+    margin-left: 12px;
+    padding-left: 6px;
+    border-left: 1px solid var(--border);
+  }
+  details {
+    border: 0;
+    padding: 0;
+  }
+  .kw-summary {
+    list-style: none;
+    display: block;
+    position: relative;
+    cursor: pointer;
+  }
+  .kw-summary::-webkit-details-marker {
+    display: none;
+  }
+  .kw-summary::before {
+    content: '▸';
+    position: absolute;
+    left: -10px;
+    top: 5px;
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    transition: transform 120ms var(--ease);
+  }
+  details[open] > .kw-summary::before {
+    transform: rotate(90deg);
+  }
+  .kw-link {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--text-muted);
+  }
+  .kw-link span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .kw-link:hover {
+    text-decoration: none;
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .kw-link.on {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .count {
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+</style>

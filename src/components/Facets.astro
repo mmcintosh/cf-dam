@@ -1,12 +1,14 @@
 ---
 /** The filter sidebar: every facet with counts, as plain links, so each view has its own URL. */
-import type { Facets, FacetValue } from '@cf-dam/api'
+import type { Facets, FacetValue, LabelNames } from '@cf-dam/api'
+import KeywordTree from './KeywordTree.astro'
 
 interface Props {
   facets: Facets
   params: URLSearchParams
+  labelNames: LabelNames
 }
-const { facets, params } = Astro.props
+const { facets, params, labelNames } = Astro.props
 
 const link = (changes: Record<string, string | null>) => {
   const next = new URLSearchParams(params)
@@ -23,6 +25,7 @@ const LABELS: Record<string, Record<string, string>> = {
   orientation: { landscape: 'Landscape', portrait: 'Portrait', square: 'Square' },
   tier: { hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
   year: { undated: 'Undated' },
+  label: { ...labelNames, none: 'No label' },
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
 
@@ -39,7 +42,7 @@ const ratingCounts = (() => {
 })()
 
 const active: { key: string; text: string }[] = []
-for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
   const value = params.get(key)
   if (!value) continue
   const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)
@@ -53,8 +56,9 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
   { key: 'orientation', title: 'Orientation', values: facets.orientation, open: false },
   { key: 'camera', title: 'Camera', values: facets.camera, open: false },
   { key: 'lens', title: 'Lens', values: facets.lens, open: false },
-  { key: 'tag', title: 'Tags', values: facets.tag, open: true },
+  { key: 'label', title: 'Label', values: facets.label, open: true },
 ]
+const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
 ---
 <aside class="facets" aria-label="Filters">
   {active.length > 0 && (
@@ -93,7 +97,7 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
         {section.values.slice(0, 12).map((v) => (
           <li>
             <a href={link({ [section.key]: params.get(section.key) === v.value ? null : v.value })} class:list={{ on: params.get(section.key) === v.value }}>
-              <span>{section.key === 'tier' && <i class={`dot dot-${v.value}`}></i>}{label(section.key, v.value)}</span>
+              <span>{(section.key === 'tier' || section.key === 'label') && <i class={`dot dot-${v.value}`}></i>}{label(section.key, v.value)}</span>
               <span class="count">{v.count}</span>
             </a>
           </li>
@@ -101,6 +105,13 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
       </ul>
     </details>
   ))}
+
+  {facets.tag.length > 0 && (
+    <details open>
+      <summary>Keywords</summary>
+      <div class="values"><KeywordTree nodes={rootKeywords} all={facets.tag} active={params.get('tag')} link={(path) => link({ tag: path })} /></div>
+    </details>
+  )}
 </aside>
 
 <style>
@@ -203,5 +214,20 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
   }
   .dot-deep {
     background: #818cf8;
+  }
+  .dot-red {
+    background: var(--label-red);
+  }
+  .dot-yellow {
+    background: var(--label-yellow);
+  }
+  .dot-green {
+    background: var(--label-green);
+  }
+  .dot-blue {
+    background: var(--label-blue);
+  }
+  .dot-purple {
+    background: var(--label-purple);
   }
 </style>

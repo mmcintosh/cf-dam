@@ -7,6 +7,7 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { addTags, getAsset, getTags } from './assets'
+import { matchKeywords } from './keywords'
 import { indexAsset } from './search'
 import { analyzeImage, DEFAULT_VISION_MODEL, modelImage, USD_PER_1000_NEURONS, VISION_MODELS } from './vision'
 
@@ -142,7 +143,9 @@ export async function acceptSuggestions(db: D1Database, ids: string[], fields: A
 }
 
 export async function removeAiTag(db: D1Database, id: string, tag: string): Promise<void> {
-  await db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (SELECT id FROM tags WHERE name = ?)").bind(id, tag).run()
+  const ids = await matchKeywords(db, tag)
+  if (ids.length === 0) return
+  await db.prepare(`DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (${ids.map(() => '?').join(',')})`).bind(id, ...ids).run()
   await indexAsset(db, id)
 }
 

@@ -119,13 +119,3 @@ albumRoutes.delete('/:id/items', requirePermission('assets:edit'), async (c) => 
   }
 })
 
-export const tagRoutes = new Hono<DamEnv>()
-
-tagRoutes.get('/', requirePermission('assets:read'), async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT t.name, COUNT(a.id) AS count FROM tags t
-     JOIN asset_tags at ON at.tag_id = t.id JOIN assets a ON a.id = at.asset_id AND a.deleted_at IS NULL
-     GROUP BY t.id ORDER BY count DESC, t.name LIMIT 500`,
-  ).all<{ name: string; count: number }>()
-  return c.json({ tags: results })
-})
