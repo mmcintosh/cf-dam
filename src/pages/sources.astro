@@ -1,0 +1,10 @@
+---
+import AppLayout from '../layouts/AppLayout.astro'
+import Sources from '../components/Sources.svelte'
+
+// A pairing code can arrive in the URL (the agent's status page links here).
+const code = new URL(Astro.url).searchParams.get('code')
+---
+<AppLayout title="NAS agents" subtitle="Index photos where they live. Originals stay on the NAS; cf-dam gets their metadata and previews.">
+  <Sources client:load initialCode={code} />
+</AppLayout>

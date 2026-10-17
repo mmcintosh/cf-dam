@@ -274,6 +274,10 @@ export interface ListFilters {
   creator?: string
   /** Has GPS ('some') or not ('none'). */
   gps?: 'some' | 'none'
+  /** Stored on this connection (a NAS agent's, R2, an S3 bucket). */
+  storedOn?: string
+  /** A copy of the original is missing (not found in a NAS agent's last scan). */
+  missing?: boolean
   orientation?: Orientation
   type?: FileKind
   tier?: Tier
@@ -369,6 +373,11 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
       params.push(filters[key])
     }
   }
+  if (use('storedOn')) {
+    where.push(`a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state != 'gone')`)
+    params.push(filters.storedOn)
+  }
+  if (filters.missing && omit !== 'missing') where.push(`a.id IN (SELECT asset_id FROM asset_locations WHERE state = 'missing')`)
   if (use('gps')) where.push(filters.gps === 'none' ? 'a.gps_lat IS NULL' : 'a.gps_lat IS NOT NULL')
   if (use('label')) {
     where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
@@ -486,6 +495,8 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     city: text(query.city),
     creator: text(query.creator),
     gps: query.gps === 'none' || query.gps === 'some' ? query.gps : undefined,
+    storedOn: text(query.on, 100),
+    missing: query.missing === '1' ? true : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,

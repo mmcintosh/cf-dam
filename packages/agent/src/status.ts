@@ -21,7 +21,7 @@ export function page(v: StatusView): string {
   const p = v.progress
   const body =
     v.phase === 'pairing'
-      ? `<p>Open <a href="${esc(v.url)}/sources">${esc(v.url)}/sources</a> and enter this code:</p><p class="code">${esc(v.pairingCode)}</p>`
+      ? `<p>Open <a href="${esc(v.url)}/sources?code=${esc(v.pairingCode)}">${esc(v.url)}/sources</a> and enter this code:</p><p class="code">${esc(v.pairingCode)}</p>`
       : `<dl>
           <dt>State</dt><dd>${esc(v.phase)}${v.phase === 'scanning' && p.root ? ` · ${esc(p.root)}` : ''}</dd>
           <dt>Indexed</dt><dd>${v.done.toLocaleString()} photos</dd>

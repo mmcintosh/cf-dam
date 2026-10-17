@@ -10,8 +10,10 @@ interface Props {
   labelNames: LabelNames
   savedSearches: SavedSearch[]
   canSave: boolean
+  /** Display name for the `on` filter (a NAS agent's or bucket's name rather than its id). */
+  storedOnName?: string | null
 }
-const { facets, params, labelNames, savedSearches, canSave } = Astro.props
+const { facets, params, labelNames, savedSearches, canSave, storedOnName } = Astro.props
 const current = normalizeQuery(params.toString())
 const alreadySaved = savedSearches.some((s) => s.query === current)
 
@@ -31,6 +33,9 @@ const LABELS: Record<string, Record<string, string>> = {
   tier: { nas: 'On NAS', hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
   year: { undated: 'Undated' },
   label: { ...labelNames, none: 'No label' },
+  missing: { '1': 'Missing from the NAS' },
+  on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
+  gps: { some: 'With a location', none: 'Without a location' },
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
 
@@ -47,7 +52,7 @@ const ratingCounts = (() => {
 })()
 
 const active: { key: string; text: string }[] = []
-for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['missing', ''], ['on', 'Stored on'], ['gps', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
   const value = params.get(key)
   if (!value) continue
   const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)

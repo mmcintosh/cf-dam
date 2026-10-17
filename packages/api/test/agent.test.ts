@@ -197,6 +197,10 @@ describe('folders and files', () => {
     expect(await (await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['b.jpg', 'renamed/c.jpg', 'never-was.jpg'] }))).json()).toEqual({ missing: 2 })
     expect((await asset(b!)).locations[0]!.state).toBe('missing')
     expect((await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['../x'] }))).status).toBe(400)
+    const count = async (q: string) => ((await (await h.fetch(`/api/assets?${q}`, { cookie: admin })).json()) as { total: number }).total
+    expect(await count('missing=1')).toBe(2)
+    expect(await count(`on=nas-${sourceId}`)).toBe(4)
+    expect(await count('on=r2')).toBe(0)
 
     // c turns up elsewhere without the agent knowing where it was: matched by fingerprint.
     const found = await send(key, [{ root, path: 'archive/c-copy.jpg', size: 300, quickHash: hex('c') }])

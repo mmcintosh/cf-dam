@@ -59,8 +59,8 @@ presetRoutes.delete('/:id', requirePermission('assets:edit'), async (c) => {
 
 export const savedSearchRoutes = new Hono<DamEnv>()
 
-const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'orientation', 'type', 'tier', 'sort']
-const PARAM: Partial<Record<keyof ListFilters, string>> = { albumId: 'album' }
+const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'gps', 'storedOn', 'missing', 'orientation', 'type', 'tier', 'sort']
+const PARAM: Partial<Record<keyof ListFilters, string>> = { albumId: 'album', storedOn: 'on' }
 
 /** Keep only filters the library understands, in a stable order, so a saved search is a clean URL. */
 export function normalizeQuery(query: string): string {
@@ -69,7 +69,7 @@ export function normalizeQuery(query: string): string {
   for (const key of KEEP) {
     const value = filters[key]
     if (value === undefined || value === '' || (key === 'sort' && value === 'captured')) continue
-    out.set(PARAM[key] ?? key, String(value))
+    out.set(PARAM[key] ?? key, value === true ? '1' : String(value))
   }
   return out.toString()
 }
