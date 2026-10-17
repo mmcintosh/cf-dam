@@ -162,7 +162,6 @@ describe('folders and files', () => {
   it('recognises unchanged, changed, renamed and missing files, and queues AI after the first scan', async () => {
     const { key, sourceId } = await pair()
     const root = await addRoot(sourceId)
-    const scanStart = new Date().toISOString()
     const first = await send(key, [
       { root, path: 'a.jpg', size: 100, quickHash: hex('a') },
       { root, path: 'b.jpg', size: 200, quickHash: hex('b') },
@@ -171,11 +170,9 @@ describe('folders and files', () => {
     const [a, b, c] = first.body.results.map((r) => r.assetId)
     for (const id of [a!, b!, c!]) await upload(key, id)
     await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id: a }, { id: b }, { id: c }] }))
-    expect(await (await agentFetch(key, '/api/agent/scans/complete', json({ root, startedAt: scanStart }))).json()).toEqual({ missing: 0 })
+    expect(await (await agentFetch(key, '/api/agent/scans/complete', json({ root }))).json()).toEqual({ missing: 0 })
 
-    // Second scan: a unchanged, b edited, c renamed (the agent knows), d new; e never existed.
-    await new Promise((r) => setTimeout(r, 5))
-    const second = new Date().toISOString()
+    // Second scan: a unchanged, b edited, c renamed (the agent knows), d new.
     const again = await send(key, [
       { root, path: 'a.jpg', size: 100, quickHash: hex('a') },
       { root, path: 'b.jpg', size: 250, quickHash: hex('B') },
@@ -196,16 +193,10 @@ describe('folders and files', () => {
     // New photos after the first scan follow "analyse new uploads".
     expect((await asset(d)).ai.status).toBe('queued')
 
-    // Third scan sees only a and d: b and c go missing (not deleted).
-    await new Promise((r) => setTimeout(r, 5))
-    const third = new Date().toISOString()
-    await send(key, [
-      { root, path: 'a.jpg', size: 100, quickHash: hex('a') },
-      { root, path: 'd.jpg', size: 400, quickHash: hex('d') },
-    ])
-    expect(await (await agentFetch(key, '/api/agent/scans/complete', json({ root, startedAt: third }))).json()).toEqual({ missing: 2 })
+    // Third scan: b and c are gone (the agent lists them); they're marked missing, not deleted.
+    expect(await (await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['b.jpg', 'renamed/c.jpg', 'never-was.jpg'] }))).json()).toEqual({ missing: 2 })
     expect((await asset(b!)).locations[0]!.state).toBe('missing')
-    expect(second < third).toBe(true)
+    expect((await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['../x'] }))).status).toBe(400)
 
     // c turns up elsewhere without the agent knowing where it was: matched by fingerprint.
     const found = await send(key, [{ root, path: 'archive/c-copy.jpg', size: 300, quickHash: hex('c') }])

@@ -11,8 +11,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "deploy": "astro build && wrangler deploy",
-    "check": "astro check && npm run check -w @cf-dam/api",
-    "test": "npm test -w @cf-dam/api",
+    "check": "astro check && npm run check -w @cf-dam/api && npm run check -w @cf-dam/agent",
+    "test": "npm test -w @cf-dam/api && npm test -w @cf-dam/agent",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {

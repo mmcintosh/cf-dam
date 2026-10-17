@@ -24,6 +24,10 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
 }
 
 export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata): Promise<void> {
+  // Width and height are stored as the photo is seen, upright. Cameras record the sensor's size and an
+  // Orientation; 5–8 mean turned a quarter, so a portrait shot's recorded 6000×4000 is really 4000×6000.
+  const sideways = meta.orientation !== null && meta.orientation >= 5 && meta.orientation <= 8
+  const [width, height] = sideways ? [meta.height, meta.width] : [meta.width, meta.height]
   // COALESCE keeps anything a person (or the uploading client) already set.
   await db
     .prepare(
@@ -39,7 +43,7 @@ export async function saveMetadata(db: D1Database, assetId: string, meta: Normal
        WHERE id = ?`,
     )
     .bind(
-      meta.width, meta.height, meta.orientation, meta.capturedAt, meta.capturedOffset,
+      width, height, meta.orientation, meta.capturedAt, meta.capturedOffset,
       meta.cameraMake, meta.cameraModel, meta.lens, meta.focalLength, meta.aperture,
       meta.exposureTime, meta.iso, meta.gpsLat, meta.gpsLng, meta.rating, meta.title, meta.caption,
       JSON.stringify(meta.raw), nowIso(), assetId,
@@ -66,12 +70,16 @@ export async function saveMetadata(db: D1Database, assetId: string, meta: Normal
  */
 export async function finishAsset(env: DamBindings, assetId: string, opts: { hash?: string | null; queueAi: boolean }): Promise<void> {
   const db = env.DB
+  // A hash it already has (a moved file) stands; otherwise use the one given, or compute it.
+  const existing = opts.hash ? null : (await db.prepare('SELECT phash FROM assets WHERE id = ?').bind(assetId).first<{ phash: string | null }>())?.phash
   const hash =
     opts.hash ??
-    (await hashFromThumbnail(env, assetId).catch((error) => {
-      console.warn('[process] could not hash', assetId, error)
-      return null
-    }))
+    (existing
+      ? null
+      : await hashFromThumbnail(env, assetId).catch((error) => {
+          console.warn('[process] could not hash', assetId, error)
+          return null
+        }))
   if (hash) await recordHash(db, assetId, hash)
 
   // Presets marked "apply to new uploads" fill whatever the file left empty; then city and

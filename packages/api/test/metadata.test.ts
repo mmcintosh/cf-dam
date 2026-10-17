@@ -129,3 +129,18 @@ describe('saved searches', () => {
     expect(((await (await h.fetch('/api/saved-searches', { cookie: admin })).json()) as { searches: unknown[] }).searches).toEqual([])
   })
 })
+
+describe('photo sizes', () => {
+  it('stores the size a rotated photo is seen at, so portrait shots are portrait', async () => {
+    const sideways = new Uint8Array(
+      await (await import('sharp')).default({ create: { width: 1200, height: 800, channels: 3, background: '#357' } })
+        .jpeg()
+        .withMetadata({ orientation: 6 })
+        .toBuffer(),
+    )
+    const id = await upload('portrait.jpg', sideways)
+    const a = (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as { width: number; height: number }
+    expect([a.width, a.height]).toEqual([800, 1200])
+    expect(await total('orientation=portrait')).toBe(1)
+  })
+})

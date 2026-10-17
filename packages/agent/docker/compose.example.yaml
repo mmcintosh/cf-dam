@@ -1,0 +1,19 @@
+# cf-dam NAS agent on Synology: Container Manager → Project → Create → paste this.
+# cf-dam's "NAS agents" page generates this file with your address filled in.
+services:
+  cf-dam-agent:
+    image: ghcr.io/mmcintosh/cf-dam-agent:1
+    restart: unless-stopped
+    environment:
+      CF_DAM_URL: https://dam.example.com
+      AGENT_NAME: Studio NAS
+    volumes:
+      # One line per shared folder to index, always ending in :ro (read-only).
+      - /volume1/photo:/photos/photo:ro
+      # The agent's own state and key. Keep it: deleting it means pairing again.
+      - /volume1/docker/cf-dam-agent:/data
+    ports:
+      - "8790:8790" # status page: http://your-nas:8790
+    # Below DSM's own services; the first index of a big archive takes a day or more.
+    cpu_shares: 256
+    mem_limit: 1g

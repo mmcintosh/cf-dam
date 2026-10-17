@@ -75,7 +75,8 @@ export function iptcFromRaw(raw: Record<string, unknown>): IptcValues {
   const contact = (raw.CreatorContactInfo ?? {}) as Record<string, unknown>
   const values: IptcValues = {
     headline: text(raw.Headline),
-    creator: text(raw.creator) ?? text(raw.Byline) ?? text(raw.Artist),
+    // IPTC By-line first (Lightroom writes it and XMP's creator together); the agent uses the same order.
+    creator: text(raw.Byline) ?? text(raw.creator) ?? text(raw.Artist),
     creatorTitle: text(raw.AuthorsPosition) ?? text(raw.BylineTitle),
     credit: text(raw.Credit),
     source: text(raw.Source),

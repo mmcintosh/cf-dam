@@ -452,23 +452,28 @@ export async function completeAssets(env: DamBindings, source: SourceRow, items:
 }
 
 /**
- * A full scan of a root finished. Files of that root not seen since it started are missing from the
- * NAS (moved elsewhere or deleted); they stay in the catalogue, marked so. Never deleted.
+ * A full scan of a root finished. The agent lists the files it knew that are gone (it sends only new
+ * and changed files, so the server can't infer absence). They stay in the catalogue, marked missing
+ * from the NAS: moved somewhere unindexed, or deleted. Never deleted here.
  */
 export async function completeScan(db: D1Database, source: SourceRow, input: Record<string, unknown>): Promise<{ missing: number }> {
   const root = typeof input.root === 'string' ? await db.prepare('SELECT * FROM source_roots WHERE id = ? AND source_id = ?').bind(input.root, source.id).first<RootRow>() : null
   if (!root) throw new AgentError('Unknown root.', 404)
-  if (typeof input.startedAt !== 'string' || Number.isNaN(Date.parse(input.startedAt))) throw new AgentError('startedAt is the time the scan began.')
-  const startedAt = new Date(input.startedAt).toISOString()
+  const missing = input.missing ?? []
+  if (!Array.isArray(missing) || missing.length > 5000) throw new AgentError('missing is a list of up to 5,000 paths; send more in further calls.')
+  const keys = missing.map((p) => `${root.path}/${cleanRelativePath(p)}`)
   const now = nowIso()
-  const [marked] = await db.batch([
-    db
-      .prepare(
-        `UPDATE asset_locations SET state = 'missing', updated_at = ?
-         WHERE connection_id = ? AND substr(key, 1, ?) = ? AND state = 'present' AND (seen_at IS NULL OR seen_at < ?)`,
-      )
-      .bind(now, source.connection_id, root.path.length + 1, `${root.path}/`, startedAt),
-    db.prepare('UPDATE source_roots SET last_scan_at = ?, first_scan_done_at = COALESCE(first_scan_done_at, ?) WHERE id = ?').bind(now, now, root.id),
-  ])
-  return { missing: marked?.meta.changes ?? 0 }
+  let marked = 0
+  for (let i = 0; i < keys.length; i += 90) {
+    const slice = keys.slice(i, i + 90)
+    const result = await db
+      .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND state = 'present' AND key IN (${slice.map(() => '?').join(',')})`)
+      .bind(now, source.connection_id, ...slice)
+      .run()
+    marked += result.meta.changes
+  }
+  if (input.final !== false) {
+    await db.prepare('UPDATE source_roots SET last_scan_at = ?, first_scan_done_at = COALESCE(first_scan_done_at, ?) WHERE id = ?').bind(now, now, root.id).run()
+  }
+  return { missing: marked }
 }

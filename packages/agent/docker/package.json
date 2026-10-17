@@ -1,0 +1,9 @@
+{
+  "name": "cf-dam-agent-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "exiftool-vendored": "39.0.1",
+    "sharp": "0.35.5"
+  }
+}
