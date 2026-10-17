@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cf } from '@astrojs/cloudflare/hono'
 import { actions, i18n, middleware, notFound, pages, sessions } from 'astro/hono'
-import { createDamApi, ensureMigrated, securityHeaders, type DamBindings } from '@cf-dam/api'
+import { createDamApi, ensureMigrated, runSweep, securityHeaders, type DamBindings } from '@cf-dam/api'
 
 // The Worker entry (wrangler `main`). One Worker serves both halves: the JSON API under /api,
 // with real env and executionCtx, then Astro for every other path.
@@ -27,4 +27,16 @@ app.use(middleware())
 app.use(i18n())
 app.use(pages())
 
-export default app
+export default {
+  fetch: app.fetch,
+  // Every minute (wrangler.jsonc `triggers`): process imported files and finish restores.
+  async scheduled(_controller: ScheduledController, env: Env & DamBindings, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      ensureMigrated(env.DB)
+        .then(() => runSweep(env))
+        .then((result) => {
+          if (result.processed || result.restored) console.log('[sweep]', JSON.stringify(result))
+        }),
+    )
+  },
+} satisfies ExportedHandler<Env & DamBindings>

@@ -1,6 +1,7 @@
 /** Storage connections. Reading the list needs assets:upload (to pick a destination); changes need sources:manage. */
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
+import { importPage } from '../catalog/importer'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, optionalString, readJsonObject, requiredString, stringArray } from '../lib/http'
@@ -71,6 +72,35 @@ connectionRoutes.post('/:id/test', requirePermission('sources:manage'), async (c
     return c.json({ ok: true })
   } catch (error) {
     return c.json({ ok: false, message: error instanceof Error ? error.message : 'The test failed.' })
+  }
+})
+
+/**
+ * Catalogue what's already in the bucket, one page (up to 1000 objects) per call. Call again with
+ * the returned cursor until it is null. Nothing is copied; previews are made by the sweep.
+ */
+connectionRoutes.post('/:id/import', requirePermission('sources:manage'), async (c) => {
+  const connection = await getConnection(c.env.DB, c.req.param('id'))
+  if (!connection) return c.json({ error: 'not_found' }, 404)
+  try {
+    const body = await readJsonObject(c)
+    const result = await importPage(c.env, connection, {
+      prefix: optionalString(body, 'prefix', 500),
+      cursor: optionalString(body, 'cursor', 2000),
+      userId: c.get('principal')!.userId,
+    })
+    if (result.imported > 0) {
+      await logActivity(c.env.DB, {
+        userId: c.get('principal')!.userId,
+        action: 'storage.imported',
+        targetType: 'storage_connection',
+        targetId: connection.id,
+        details: { imported: result.imported },
+      })
+    }
+    return c.json(result)
+  } catch (error) {
+    return failure(c, error)
   }
 })
 

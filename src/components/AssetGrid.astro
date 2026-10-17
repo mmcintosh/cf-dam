@@ -34,7 +34,7 @@ const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?
       ) : (
         <span class="placeholder">
           <strong>{ext(asset.filename)}</strong>
-          <span>{asset.status === 'processing' ? 'Processing…' : 'No preview'}</span>
+          <span>{asset.status === 'processing' ? 'Processing…' : asset.status === 'queued' ? 'Queued' : 'No preview'}</span>
         </span>
       )}
       <span class="overlay">

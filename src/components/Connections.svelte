@@ -79,6 +79,36 @@
     testResults[id] = await api<{ ok: boolean; message?: string }>(`/api/connections/${id}/test`, { method: 'POST' })
   }
 
+  let importing = $state<Record<string, { prefix: string; running: boolean; imported: number; skipped: number; done: boolean; error: string }>>({})
+
+  function importState(id: string) {
+    importing[id] ??= { prefix: '', running: false, imported: 0, skipped: 0, done: false, error: '' }
+    return importing[id]
+  }
+
+  /** Page through the bucket, one call per 1000 objects, until the cursor runs out. */
+  async function runImport(id: string) {
+    const state = importState(id)
+    Object.assign(state, { running: true, imported: 0, skipped: 0, done: false, error: '' })
+    let cursor: string | null = null
+    try {
+      do {
+        const page: { imported: number; skipped: number; cursor: string | null } = await api(`/api/connections/${id}/import`, {
+          method: 'POST',
+          body: JSON.stringify({ prefix: state.prefix || undefined, cursor: cursor ?? undefined }),
+        })
+        state.imported += page.imported
+        state.skipped += page.skipped
+        cursor = page.cursor
+      } while (cursor)
+      state.done = true
+    } catch (e) {
+      state.error = e instanceof Error ? e.message : 'The import stopped.'
+    } finally {
+      state.running = false
+    }
+  }
+
   async function makeDefault(id: string) {
     await api(`/api/connections/${id}/default`, { method: 'POST' })
     await load()
@@ -128,6 +158,21 @@
         <div class="alert" class:alert-success={result.ok} class:alert-error={!result.ok}>
           {result.ok ? 'Connected: wrote, read back and deleted a test object.' : result.message}
         </div>
+      {/if}
+      {#if c.provider === 's3'}
+        {@const state = importState(c.id)}
+        <details class="import">
+          <summary>Catalogue files already in this bucket</summary>
+          <p class="muted">Every file becomes searchable where it is. Nothing is copied. Previews are made in the background; archived files are listed with their name, size and class.</p>
+          <div class="row">
+            <input type="text" placeholder="Folder to start from (optional), e.g. photos/2019/" bind:value={state.prefix} style="flex: 1" aria-label="Folder to import" />
+            <button class="btn" onclick={() => runImport(c.id)} disabled={state.running}>{state.running ? 'Importing…' : 'Import'}</button>
+          </div>
+          {#if state.running || state.done}
+            <p class="muted">{state.imported} new {state.imported === 1 ? 'file' : 'files'} catalogued, {state.skipped} skipped{state.done ? '. Done.' : '…'}</p>
+          {/if}
+          {#if state.error}<div class="alert alert-error">{state.error}</div>{/if}
+        </details>
       {/if}
     </article>
   {/each}
@@ -253,6 +298,12 @@
   }
   .classes-pick legend {
     margin-bottom: 8px;
+  }
+  .import {
+    margin-top: 14px;
+  }
+  .import p {
+    margin: 8px 0;
   }
   details summary {
     cursor: pointer;

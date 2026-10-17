@@ -18,6 +18,7 @@ export { ensureMigrated, migrate } from './db/migrate'
 export { createAuth } from './auth/auth'
 export { resolvePrincipal, principalJson, type Principal } from './auth/principal'
 export { setupNeeded } from './routes/setup'
+export { runSweep, type SweepResult } from './catalog/sweeper'
 export { securityHeaders } from './lib/security-headers'
 
 export const API_VERSION = '0.1.0'
