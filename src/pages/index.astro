@@ -1,23 +1,94 @@
 ---
-import { env } from 'cloudflare:workers'
-import { createDamApi } from '@cf-dam/api'
+import AppLayout from '../layouts/AppLayout.astro'
 
-// Call the API in-process: a Worker fetching its own hostname is a self-subrequest.
-const res = await createDamApi().request('/health', {}, env)
-const health = await res.json()
+const principal = Astro.locals.principal!
+const firstName = (principal.name || principal.email).split(' ')[0]
+
+const roadmap = [
+  { phase: 'Phase 2', title: 'Uploads and the catalog', body: 'Upload, EXIF, duplicate detection, full-text search, tags and albums.' },
+  { phase: 'Phase 3', title: 'The library', body: 'Justified grid, a loupe that zooms from the thumbnail, facets and culling.' },
+  { phase: 'Phase 5', title: 'Your NAS, indexed in place', body: 'A small agent catalogues the archive where it lives. No original moves.' },
+  { phase: 'Phase 6', title: 'Storage lifecycle', body: 'Originals flow from hot to warm to deep archive, and come back on request.' },
+]
 ---
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cf-dam</title>
-  </head>
-  <body>
-    <main>
-      <h1>cf-dam</h1>
-      <p>Open-source digital asset manager on Cloudflare. Early scaffold.</p>
-      <pre>{JSON.stringify(health, null, 2)}</pre>
-    </main>
-  </body>
-</html>
+<AppLayout title={`Welcome, ${firstName}`} subtitle="Your archive is set up. The library arrives next.">
+  <section class="hero card">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="hero-body">
+      <span class="badge badge-accent">Phase 1 · accounts</span>
+      <h2>Nothing in the archive yet</h2>
+      <p class="muted">
+        Accounts, roles, two-factor sign-in and API keys are ready. Create an API key for the NAS agent now, or invite the
+        people who'll work in the archive.
+      </p>
+      <div class="row">
+        <a class="btn btn-primary" href="/account">Create an API key</a>
+        {principal.permissions.has('users:manage') && <a class="btn" href="/admin/users">Add people</a>}
+      </div>
+    </div>
+  </section>
+
+  <h3 class="section-title">Coming next</h3>
+  <div class="roadmap">
+    {roadmap.map((item) => (
+      <article class="card step">
+        <span class="badge">{item.phase}</span>
+        <h4>{item.title}</h4>
+        <p class="muted">{item.body}</p>
+      </article>
+    ))}
+  </div>
+</AppLayout>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding: 36px;
+  }
+  .glow {
+    position: absolute;
+    inset: auto -10% -60% 40%;
+    height: 140%;
+    background: radial-gradient(closest-side, var(--accent-glow), transparent);
+    filter: blur(30px);
+  }
+  .hero-body {
+    position: relative;
+    display: grid;
+    gap: 14px;
+    max-width: 560px;
+  }
+  .hero h2 {
+    font-size: 1.5rem;
+  }
+  .hero p {
+    margin: 0;
+  }
+  .section-title {
+    margin: 36px 0 14px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+  }
+  .roadmap {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+  }
+  .step {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    padding: 20px;
+  }
+  .step h4 {
+    margin: 4px 0 0;
+    font-size: 1rem;
+  }
+  .step p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+</style>

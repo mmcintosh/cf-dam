@@ -1,0 +1,68 @@
+---
+import Base from './Base.astro'
+import Logo from '../components/Logo.astro'
+interface Props {
+  title: string
+}
+const { title } = Astro.props
+---
+<Base title={title}>
+  <div class="aurora" aria-hidden="true"></div>
+  <main class="center">
+    <a class="brand" href="/"><Logo size={36} /><span>cf-dam</span></a>
+    <div class="card panel"><slot /></div>
+    <p class="foot muted">Open-source digital asset management on Cloudflare</p>
+  </main>
+</Base>
+
+<style>
+  .aurora {
+    position: fixed;
+    inset: -20%;
+    z-index: -1;
+    background:
+      radial-gradient(40% 35% at 25% 30%, color-mix(in srgb, var(--accent-strong) 38%, transparent), transparent 70%),
+      radial-gradient(35% 30% at 75% 65%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 70%),
+      radial-gradient(30% 25% at 60% 20%, color-mix(in srgb, #2dd4bf 16%, transparent), transparent 70%);
+    filter: blur(40px);
+    animation: drift 24s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    to {
+      transform: translate3d(3%, -2%, 0) rotate(6deg) scale(1.05);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aurora {
+      animation: none;
+    }
+  }
+  .center {
+    min-height: 100vh;
+    display: grid;
+    place-content: center;
+    gap: 22px;
+    padding: 32px 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text);
+    font-weight: 650;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+  }
+  .brand:hover {
+    text-decoration: none;
+  }
+  .panel {
+    width: min(420px, calc(100vw - 32px));
+    padding: 30px;
+  }
+  .foot {
+    text-align: center;
+    font-size: 0.8rem;
+  }
+</style>

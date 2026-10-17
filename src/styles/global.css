@@ -1,0 +1,287 @@
+@import '@fontsource-variable/inter';
+
+/* Design tokens. Dark is the default (photos read best on dark); light follows the OS. */
+:root {
+  color-scheme: dark;
+  --font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+
+  --bg: #090b10;
+  --bg-elevated: #0f1218;
+  --surface: rgb(20 24 33 / 0.72);
+  --surface-strong: #161a23;
+  --surface-hover: rgb(255 255 255 / 0.05);
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.16);
+  --text: #eceef3;
+  --text-muted: #9aa2b1;
+  --text-faint: #6b7385;
+
+  --accent: #8aa4ff;
+  --accent-strong: #6d8bff;
+  --accent-glow: rgb(109 139 255 / 0.35);
+  --accent-2: #c08cff;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #ff6b7a;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 40px rgb(0 0 0 / 0.45);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f5f6f9;
+    --bg-elevated: #ffffff;
+    --surface: rgb(255 255 255 / 0.8);
+    --surface-strong: #ffffff;
+    --surface-hover: rgb(0 0 0 / 0.04);
+    --border: rgb(15 20 35 / 0.09);
+    --border-strong: rgb(15 20 35 / 0.18);
+    --text: #10131a;
+    --text-muted: #5a6273;
+    --text-faint: #8a92a3;
+    --accent: #4a68f0;
+    --accent-strong: #3554e0;
+    --accent-glow: rgb(74 104 240 / 0.25);
+    --shadow: 0 1px 2px rgb(15 20 35 / 0.06), 0 12px 32px rgb(15 20 35 / 0.08);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Building blocks shared by pages and islands ─────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px) saturate(140%);
+  padding: 24px;
+}
+
+.card {
+  min-width: 0;
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.card .lead {
+  color: var(--text-muted);
+  margin: 6px 0 20px;
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field label,
+.label {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+select {
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 550;
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 120ms var(--ease), background 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.btn:hover {
+  background: var(--surface-hover);
+  text-decoration: none;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-primary {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-2));
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.btn-danger {
+  color: var(--danger);
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 0.85rem;
+}
+
+.alert {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  border: 1px solid;
+}
+.alert-error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.alert-success {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+.badge-accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.badge-ok {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+}
+.badge-off {
+  color: var(--text-faint);
+}
+
+table.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  padding: 0 12px 10px;
+}
+.table td {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+code,
+.mono {
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

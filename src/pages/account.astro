@@ -1,0 +1,48 @@
+---
+import { env } from 'cloudflare:workers'
+import AppLayout from '../layouts/AppLayout.astro'
+import ApiKeys from '../components/ApiKeys.svelte'
+import ChangePassword from '../components/ChangePassword.svelte'
+import TwoFactor from '../components/TwoFactor.svelte'
+
+const principal = Astro.locals.principal!
+const row = await env.DB.prepare('SELECT two_factor_enabled, created_at FROM users WHERE id = ?')
+  .bind(principal.userId)
+  .first<{ two_factor_enabled: number; created_at: string }>()
+const grantable = [...principal.permissions].sort()
+const canManageKeys = principal.permissions.has('apikeys:manage')
+const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dateStyle: 'long' }) : ''
+---
+<AppLayout title="Account" subtitle={`${principal.email} · member since ${since}`}>
+  <div class="grid">
+    <section class="card">
+      <h2>Two-factor sign-in</h2>
+      <p class="lead">A code from your phone, on top of your password.</p>
+      <TwoFactor client:load enabled={row?.two_factor_enabled === 1} />
+    </section>
+    <section class="card">
+      <h2>Password</h2>
+      <p class="lead">At least 12 characters.</p>
+      <ChangePassword client:load />
+    </section>
+    {canManageKeys && (
+      <section class="card wide">
+        <h2>API keys</h2>
+        <p class="lead">For the NAS agent, scripts and integrations. A key can only do what you can, limited to the scopes you pick.</p>
+        <ApiKeys client:load grantable={grantable} />
+      </section>
+    )}
+  </div>
+</AppLayout>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+  .wide {
+    grid-column: 1 / -1;
+  }
+</style>

@@ -1,0 +1,9 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro'
+import UsersAdmin from '../../components/UsersAdmin.svelte'
+
+const principal = Astro.locals.principal!
+---
+<AppLayout title="People" subtitle="Who can reach this archive, and what they can do.">
+  <UsersAdmin client:load selfId={principal.userId} />
+</AppLayout>

@@ -1,0 +1,7 @@
+# Signs sessions and encrypts two-factor secrets. Use 32+ random characters,
+# e.g. the output of: openssl rand -base64 32
+BETTER_AUTH_SECRET=
+
+# Needed once, to create the first administrator at /setup. Any string you choose;
+# you'll type it on the setup page. Not needed when running on localhost.
+SETUP_TOKEN=

@@ -1,0 +1,21 @@
+import type { Principal } from './auth/principal'
+
+/** Cloudflare bindings and vars the API reads. */
+export interface DamBindings {
+  DB: D1Database
+  MEDIA_BUCKET?: R2Bucket
+  /** Rate-limit counters. Optional: without it, rate limiting is skipped. */
+  CACHE_KV?: KVNamespace
+  /** Signs Better Auth sessions and encrypts 2FA secrets. Required. */
+  BETTER_AUTH_SECRET?: string
+  /** Pins the public origin (e.g. https://dam.example.com). Unset, it is taken from each request. */
+  BETTER_AUTH_URL?: string
+  /** Required to create the first admin anywhere but localhost. */
+  SETUP_TOKEN?: string
+}
+
+export interface DamVariables {
+  principal?: Principal
+}
+
+export type DamEnv = { Bindings: DamBindings; Variables: DamVariables }

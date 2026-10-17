@@ -1,16 +1,30 @@
 import { Hono } from 'hono'
+import { csrf } from 'hono/csrf'
+import { HTTPException } from 'hono/http-exception'
+import { createAuth } from './auth/auth'
+import { authenticate } from './auth/principal'
+import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
+import type { DamEnv } from './env'
+import { meRoutes } from './routes/me'
+import { setupRoutes } from './routes/setup'
+import { roleRoutes, userRoutes } from './routes/users'
 
-/** Cloudflare bindings the API reads. Each becomes required as the feature that uses it lands. */
-export interface DamBindings {
-  DB?: D1Database
-  MEDIA_BUCKET?: R2Bucket
-}
+export type { DamBindings, DamEnv } from './env'
+export { ensureMigrated, migrate } from './db/migrate'
+export { createAuth } from './auth/auth'
+export { resolvePrincipal, principalJson, type Principal } from './auth/principal'
+export { setupNeeded } from './routes/setup'
+export { securityHeaders } from './lib/security-headers'
 
-export const API_VERSION = '0.0.0'
+export const API_VERSION = '0.1.0'
 
 /** The DAM's JSON API, mounted by the app Worker at `/api`. */
 export function createDamApi() {
-  const api = new Hono<{ Bindings: DamBindings }>()
+  const api = new Hono<DamEnv>()
+
+  // Cookie-authenticated form posts from another origin are refused. JSON requests can't be sent
+  // cross-origin without a CORS preflight, which this API never grants.
+  api.use('*', csrf())
 
   api.get('/health', (c) =>
     c.json({
@@ -23,6 +37,30 @@ export function createDamApi() {
       },
     }),
   )
+
+  // Better Auth's endpoints, metered by our limiter first.
+  api.on(['GET', 'POST'], '/auth/*', async (c) => {
+    const rule = authRateLimitRule(c.req.path)
+    if (rule) {
+      const limited = await consumeRateLimit(c, rule)
+      if (limited) return limited
+    }
+    return createAuth(c.env, c.req.raw).handler(c.req.raw)
+  })
+
+  api.route('/setup', setupRoutes)
+
+  api.use('*', authenticate())
+  api.route('/me', meRoutes)
+  api.route('/users', userRoutes)
+  api.route('/roles', roleRoutes)
+
+  api.onError((error, c) => {
+    // Middleware such as csrf() rejects by throwing; keep its status instead of turning it into a 500.
+    if (error instanceof HTTPException) return error.getResponse()
+    console.error('[api] unhandled error', error)
+    return c.json({ error: 'internal_error' }, 500)
+  })
 
   return api
 }
