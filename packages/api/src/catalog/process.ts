@@ -10,6 +10,7 @@ import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { addTags, getAsset, getLocations, isLabel, primaryLocation } from './assets'
 import { applyUploadPresets, iptcUpdate } from './iptc'
+import { fillPlacesFromGps } from './places'
 import { getLabelNames } from './library'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
@@ -95,8 +96,10 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
     const hash = await hashFromThumbnail(env, assetId).catch(() => null)
     if (hash) await recordHash(db, assetId, hash)
 
-    // Presets marked "apply to new uploads" fill whatever the file left empty.
+    // Presets marked "apply to new uploads" fill whatever the file left empty; then city and
+    // country from GPS where still empty.
     await applyUploadPresets(db, assetId)
+    await fillPlacesFromGps(env, [assetId])
 
     // Queue AI review; the sweep runs it in the background (a model call takes seconds).
     const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))

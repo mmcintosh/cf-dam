@@ -272,6 +272,8 @@ export interface ListFilters {
   country?: string
   city?: string
   creator?: string
+  /** Has GPS ('some') or not ('none'). */
+  gps?: 'some' | 'none'
   orientation?: Orientation
   type?: FileKind
   tier?: Tier
@@ -365,6 +367,7 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
       params.push(filters[key])
     }
   }
+  if (use('gps')) where.push(filters.gps === 'none' ? 'a.gps_lat IS NULL' : 'a.gps_lat IS NOT NULL')
   if (use('label')) {
     where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
     if (filters.label !== 'none') params.push(filters.label)
@@ -480,6 +483,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     country: text(query.country),
     city: text(query.city),
     creator: text(query.creator),
+    gps: query.gps === 'none' || query.gps === 'some' ? query.gps : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,

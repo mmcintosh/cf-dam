@@ -13,6 +13,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { aiAvailable, analyzeAsset } from './ai'
 import { hashFromThumbnail, recordHash } from './phash'
 import { processAsset } from './process'
+import { fillPlacesFromGps } from './places'
 import { indexAsset, unindexed } from './search'
 
 const PROCESS_BUDGET_MS = 20_000
@@ -23,6 +24,7 @@ const RESTORE_CHECKS_PER_RUN = 50
 
 export interface SweepResult {
   indexed: number
+  placed: number
   analysed: number
   hashed: number
   processed: number
@@ -31,7 +33,7 @@ export interface SweepResult {
 }
 
 export async function runSweep(env: DamBindings): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
   const started = Date.now()
 
   const { results: queued } = await env.DB.prepare(
@@ -55,6 +57,15 @@ export async function runSweep(env: DamBindings): Promise<SweepResult> {
     if (Date.now() - started > PROCESS_BUDGET_MS) break
     await indexAsset(env.DB, id)
     result.indexed++
+  }
+
+  // City and country from GPS for photos that have never been looked up.
+  const { results: unplaced } = await env.DB.prepare(
+    'SELECT id FROM assets WHERE gps_lat IS NOT NULL AND place_checked_at IS NULL AND deleted_at IS NULL LIMIT 500',
+  ).all<{ id: string }>()
+  if (unplaced.length > 0) {
+    result.placed = await fillPlacesFromGps(env, unplaced.map((r) => r.id))
+    for (const { id } of unplaced) await indexAsset(env.DB, id)
   }
 
   // AI review, a few at a time in parallel: each call waits seconds on the model, not on CPU.

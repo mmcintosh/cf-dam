@@ -113,6 +113,9 @@ const facts: [string, string][] = [
         <h2>Details</h2>
         <dl class="facts">
           {facts.map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
+          {principal.permissions.has('assets:edit') && (
+            <><dt>{asset.gps ? '' : 'Location'}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? 'Move on the map' : 'Set on the map'}</a></dd></>
+          )}
         </dl>
       </section>
       <section class="card">

@@ -6,7 +6,9 @@ import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
 import { acceptSuggestions, analyzeAsset, removeAiTag, type AcceptField } from '../catalog/ai'
+import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
+import { indexAsset } from '../catalog/search'
 import { isRenditionName, renditionKey } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -70,6 +72,14 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
         bulk = { action, label }
         break
       }
+      case 'gps': {
+        const { lat, lng } = body
+        const valid = (v: unknown, max: number) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max
+        if (lat === null && lng === null) bulk = { action, lat: null, lng: null }
+        else if (valid(lat, 90) && valid(lng, 180)) bulk = { action, lat: Math.round((lat as number) * 1e7) / 1e7, lng: Math.round((lng as number) * 1e7) / 1e7 }
+        else throw new BadRequest('lat and lng are degrees (−90…90, −180…180), or both null.')
+        break
+      }
       case 'preset': {
         if (typeof body.presetId !== 'string') throw new BadRequest('presetId is required.')
         bulk = { action, presetId: body.presetId, overwrite: body.overwrite === true }
@@ -103,6 +113,10 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
     const needed = BULK_PERMISSION[bulk.action]
     if (!principal.permissions.has(needed)) return c.json({ error: 'forbidden', permission: needed }, 403)
     const changed = await applyBulk(c.env.DB, ids, bulk)
+    if (bulk.action === 'gps' && bulk.lat !== null) {
+      await fillPlacesFromGps(c.env, ids)
+      for (const id of ids.slice(0, MAX_BULK)) await indexAsset(c.env.DB, id)
+    }
     await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed } })
     return c.json({ changed })
   } catch (error) {

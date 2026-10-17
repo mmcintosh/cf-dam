@@ -119,6 +119,7 @@ export type BulkAction =
   | { action: 'flag'; flag: 'pick' | 'reject' | null }
   | { action: 'label'; label: Label | null }
   | { action: 'preset'; presetId: string; overwrite: boolean }
+  | { action: 'gps'; lat: number | null; lng: number | null }
   | { action: 'title'; title: string | null }
   | { action: 'caption'; caption: string | null }
   | { action: 'album-add'; albumId: string }
@@ -134,6 +135,7 @@ export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
   flag: 'assets:edit',
   label: 'assets:edit',
   preset: 'assets:edit',
+  gps: 'assets:edit',
   title: 'assets:edit',
   caption: 'assets:edit',
   'album-add': 'assets:edit',
@@ -186,6 +188,19 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
       for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50))
       break
     }
+    case 'gps':
+      // Places filled in from the old position go with it; the caller looks the new one up.
+      await each(
+        `UPDATE assets SET gps_lat = ?, gps_lng = ?, place_checked_at = NULL, updated_at = ?,
+           city = CASE WHEN location_source = 'gps' THEN NULL ELSE city END,
+           state = CASE WHEN location_source = 'gps' THEN NULL ELSE state END,
+           country = CASE WHEN location_source = 'gps' THEN NULL ELSE country END,
+           country_code = CASE WHEN location_source = 'gps' THEN NULL ELSE country_code END,
+           location_source = CASE WHEN location_source = 'gps' THEN NULL ELSE location_source END
+         WHERE id = ?`,
+        (id) => [bulk.lat, bulk.lng, now, id],
+      )
+      break
     case 'title':
       await each('UPDATE assets SET title = ?, updated_at = ? WHERE id = ?', (id) => [bulk.title, now, id])
       break
@@ -213,7 +228,7 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
       return live.length
   }
   // Titles, captions and tags are searchable; keep the index in step.
-  if (['tag-add', 'tag-remove', 'title', 'caption', 'preset'].includes(bulk.action)) {
+  if (['tag-add', 'tag-remove', 'title', 'caption', 'preset', 'gps'].includes(bulk.action)) {
     for (const id of live) await indexAsset(db, id)
   }
   return live.length

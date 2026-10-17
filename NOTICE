@@ -30,3 +30,8 @@ which is distributed under the MIT License:
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
+
+This product includes place data from GeoNames (https://www.geonames.org),
+licensed under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/).
+The file public/places/cities1000.tsv.gz is derived from cities1000.txt, admin1CodesASCII.txt
+and countryInfo.txt by scripts/build-places.mjs.

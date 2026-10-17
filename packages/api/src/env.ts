@@ -18,6 +18,8 @@ export interface DamBindings {
   IMAGES?: ImagesBinding
   /** Workers AI, for tags, alt text and captions. Without it, AI review is off. */
   AI?: Ai
+  /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
+  ASSETS?: Fetcher
 }
 
 export interface DamVariables {
