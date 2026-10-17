@@ -8,6 +8,7 @@ import type { DamEnv } from './env'
 import { albumRoutes, tagRoutes } from './routes/albums'
 import { assetRoutes } from './routes/assets'
 import { connectionRoutes } from './routes/connections'
+import { duplicateRoutes } from './routes/duplicates'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
 import { uploadRoutes } from './routes/uploads'
@@ -65,6 +66,7 @@ export function createDamApi() {
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
   api.route('/tags', tagRoutes)
+  api.route('/duplicates', duplicateRoutes)
 
   api.onError((error, c) => {
     // Middleware such as csrf() rejects by throwing; keep its status instead of turning it into a 500.
@@ -79,5 +81,6 @@ export function createDamApi() {
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
 export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
 export { facets, geoPoints, timeline, type Facets, type FacetValue } from './catalog/library'
+export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

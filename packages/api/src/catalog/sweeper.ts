@@ -2,12 +2,14 @@
  * The scheduled sweep (cron, every minute): background work that can't happen inside a request.
  *
  *  1. Process queued assets (imports): metadata and previews, a few per run, inside a time budget.
- *  2. Check archived originals with a restore in progress, and mark them restored when ready.
+ *  2. Fingerprint photos that have no look-alike hash yet (older uploads).
+ *  3. Check archived originals with a restore in progress, and mark them restored when ready.
  */
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
+import { hashFromThumbnail, recordHash } from './phash'
 import { processAsset } from './process'
 import { indexAsset } from './search'
 
@@ -16,13 +18,14 @@ const MAX_PER_RUN = 25
 const RESTORE_CHECKS_PER_RUN = 50
 
 export interface SweepResult {
+  hashed: number
   processed: number
   restoresChecked: number
   restored: number
 }
 
 export async function runSweep(env: DamBindings): Promise<SweepResult> {
-  const result: SweepResult = { processed: 0, restoresChecked: 0, restored: 0 }
+  const result: SweepResult = { hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
   const started = Date.now()
 
   const { results: queued } = await env.DB.prepare(
@@ -39,6 +42,19 @@ export async function runSweep(env: DamBindings): Promise<SweepResult> {
     if (claimed.meta.changes === 0) continue
     await processAsset(env, id)
     result.processed++
+  }
+
+  // Backfill look-alike fingerprints for assets that have a thumbnail but no hash yet.
+  const { results: unhashed } = await env.DB.prepare(
+    `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
+     WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' LIMIT 50`,
+  ).all<{ id: string }>()
+  for (const { id } of unhashed) {
+    if (Date.now() - started > PROCESS_BUDGET_MS) break
+    const hash = await hashFromThumbnail(env, id).catch(() => null)
+    if (!hash) continue
+    await recordHash(env.DB, id, hash)
+    result.hashed++
   }
 
   const { results: restoring } = await env.DB.prepare(

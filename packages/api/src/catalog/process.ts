@@ -11,6 +11,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { addTags, getAsset, getLocations, primaryLocation } from './assets'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
+import { hashFromThumbnail, recordHash } from './phash'
 import { indexAsset } from './search'
 import exifr from 'exifr'
 
@@ -77,6 +78,10 @@ export async function processAsset(env: DamBindings, assetId: string): Promise<v
         if (embedded) await storeEmbeddedThumbnail(env, assetId, embedded)
       }
     }
+
+    // Look-alike fingerprint, from the thumbnail (works for archived originals with client previews too).
+    const hash = await hashFromThumbnail(env, assetId).catch(() => null)
+    if (hash) await recordHash(db, assetId, hash)
 
     await indexAsset(db, assetId)
     await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), assetId).run()
