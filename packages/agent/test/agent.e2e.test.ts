@@ -2,13 +2,14 @@
  * The real agent against the real API (in-process, as the API's own tests run it): pair, index a
  * folder, stop halfway and resume without duplicates, recognise a rename, report a deletion.
  */
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, json, setUpAdmin, type Harness } from '../../api/test/harness.ts'
-import { Api } from '../src/api.ts'
+import { Api, ApiError, LinkError, Unpaired } from '../src/api.ts'
 import { Agent } from '../src/main.ts'
 import type { Volume } from '../src/volumes.ts'
 
@@ -29,6 +30,7 @@ beforeEach(async () => {
   data = mkdtempSync(join(tmpdir(), 'nas-data-'))
   calls.length = 0
   volumes = []
+  fault = null
 })
 afterEach(async () => {
   await h.dispose()
@@ -38,10 +40,16 @@ afterEach(async () => {
 
 let volumes: Volume[] = []
 
+/** Trouble on the line: return a response (or throw) instead of reaching cf-dam. */
+let fault: ((path: string) => Response | null) | null = null
+
 function newAgent(): Agent {
-  const fetchImpl = (url: string, init?: RequestInit) => {
-    calls.push(`${init?.method ?? 'GET'} ${url.slice(BASE.length)}`)
-    return h.fetch(url.slice(BASE.length), init as RequestInit & { cookie?: string })
+  const fetchImpl = async (url: string, init?: RequestInit) => {
+    const path = url.slice(BASE.length)
+    calls.push(`${init?.method ?? 'GET'} ${path}`)
+    const injected = fault?.(path)
+    if (injected) return injected
+    return h.fetch(path, init as RequestInit & { cookie?: string })
   }
   return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
 }
@@ -57,7 +65,7 @@ async function photo(rel: string, seed: number) {
 }
 
 const list = async (query = '') =>
-  (await (await h.fetch(`/api/assets?limit=200${query}`, { cookie: admin })).json()) as { total: number; assets: { id: string; filename: string; renditions: string[]; storage: { storageClass: string } | null }[] }
+  (await (await h.fetch(`/api/assets?limit=200${query}`, { cookie: admin })).json()) as { total: number; assets: { id: string; filename: string; status: string; renditions: string[]; storage: { storageClass: string } | null }[] }
 
 async function pairAndAddRoot(agent: Agent): Promise<void> {
   const pairing = agent.pair()
@@ -101,7 +109,7 @@ describe('the agent, end to end', () => {
     for (let i = 10; i < 40; i++) await photo(`2024/IMG_${2000 + i}.jpg`, i)
     const interrupted = newAgent()
     await interrupted.pair()
-    const stopper = setInterval(() => interrupted.status().progress.sent >= 1 && interrupted.stop(), 5)
+    const stopper = setInterval(() => calls.some((c) => c.endsWith('/assets/complete')) && interrupted.stop(), 5)
     await interrupted.scanAll()
     clearInterval(stopper)
     const partial = (await list()).total
@@ -126,7 +134,7 @@ describe('the agent, end to end', () => {
     const deleted = all.assets.find((a) => a.filename === 'IMG_1002.jpg')!
     const gone = (await (await h.fetch(`/api/assets/${deleted.id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
     expect(gone.locations[0]!.state).toBe('missing')
-  })
+  }, 180_000) // 35 photos through the local D1, at ~25 ms a query
 
   it('treats an unplugged drive as offline, and finds it again at a new mount point', async () => {
     // A USB drive, seen by the agent as a volume mounted at <photos>/Drive.
@@ -144,11 +152,14 @@ describe('the agent, end to end', () => {
     await agent.scanAll()
     expect((await list()).total).toBe(3)
 
-    // Unplugged: the folder is unreachable. Offline, and nothing goes missing.
+    // Unplugged: the folder is unreachable. Offline, and nothing goes missing. Another card that
+    // mounts where it used to be, with the same name, is not it: nothing is imported from it.
     const elsewhere = join(photos, 'Drive 1')
     renameSync(mount, elsewhere)
     volumes = []
+    await photo('Drive/DCIM/IMG_9000.jpg', 77)
     await agent.scanAll()
+    expect((await list()).total).toBe(3)
     const sources = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; photos: { missing: number } }[] }
     expect(sources.sources[0]!.roots[0]!.offlineSince).not.toBeNull()
     expect(sources.sources[0]!.photos.missing).toBe(0)
@@ -156,13 +167,105 @@ describe('the agent, end to end', () => {
     const page = (await (await h.fetch(`/api/assets/${one.id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
     expect(page.locations[0]!.state).toBe('present')
 
-    // Plugged back in, mounted as "Drive 1" this time: found by its id, nothing re-sent, online again.
+    // Plugged back in, mounted as "Drive 1" this time, with a photo added meanwhile: found by its id,
+    // only the new photo sent (read from where the drive is now), online again.
     volumes = [{ id: 'uuid:ARCHIVE-2014-B', label: 'Archive 2014-B', path: elsewhere, removable: true }]
+    await photo('Drive 1/2014/IMG_3003.jpg', 60)
+    calls.length = 0
+    await agent.scanAll()
+    expect(calls.filter((c) => c.includes('/assets/batch'))).toHaveLength(1)
+    const after = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; photos: { total: number; missing: number } }[] }
+    expect(after.sources[0]!.roots[0]!.offlineSince).toBeNull()
+    expect(after.sources[0]!.photos).toMatchObject({ total: 4, missing: 0 })
+    const newcomer = (await list()).assets.find((a) => a.filename === 'IMG_3003.jpg')
+    expect(newcomer?.renditions).toContain('thumb')
+  })
+
+  it('finishes photos a broken scan left half-sent, and keeps one bad file from stopping the rest', async () => {
+    for (let i = 0; i < 3; i++) await photo(`2023/IMG_${4000 + i}.jpg`, i + 20)
+    writeFileSync(join(photos, '2023', 'broken.jpg'), randomBytes(5000))
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    // The link drops just as the batch is to be finished: the scan stops, nothing is recorded…
+    fault = (path) => (path === '/api/agent/assets/complete' ? Response.json({ error: 'internal' }, { status: 503 }) : null)
+    await expect(agent.scanAll()).rejects.toBeInstanceOf(ApiError)
+    expect((await list()).assets.filter((a) => a.status === 'processing')).toHaveLength(3)
+    // …so the next scan sends those photos again, and cf-dam finishes them: no duplicates.
+    fault = null
+    await agent.scanAll()
+    const all = await list()
+    expect(all.total).toBe(3)
+    expect(all.assets.every((a) => a.status === 'ready')).toBe(true)
+    // The broken file is recorded against itself, and left alone after three tries.
+    expect(agent.status().failed).toBe(1)
+    calls.length = 0
+    await agent.scanAll()
+    await agent.scanAll()
+    await agent.scanAll()
+    expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
+  })
+
+  it('recognises a photo moved between two indexed folders, whichever is scanned first', async () => {
+    await photo('B/2019/IMG_5000.jpg', 31)
+    await photo('B/2019/IMG_5001.jpg', 32)
+    const agent = newAgent()
+    const pairing = agent.pair()
+    while (!agent.status().pairingCode) await new Promise((r) => setTimeout(r, 20))
+    const { source } = (await (await h.fetch('/api/sources/pair', { ...json({ code: agent.status().pairingCode }), cookie: admin })).json()) as { source: { id: string } }
+    await pairing
+    for (const dir of ['A', 'B']) {
+      mkdirSync(join(photos, dir), { recursive: true })
+      expect((await h.fetch(`/api/sources/${source.id}/roots`, { ...json({ path: join(photos, dir) }), cookie: admin })).status).toBe(201)
+    }
+    await agent.scanAll()
+    const before = (await list()).assets.find((a) => a.filename === 'IMG_5000.jpg')!
+    // Moved from B to A; A comes first in the scan.
+    mkdirSync(join(photos, 'A', 'sorted'))
+    renameSync(join(photos, 'B', '2019', 'IMG_5000.jpg'), join(photos, 'A', 'sorted', 'IMG_5000.jpg'))
+    await agent.scanAll()
+    const all = await list()
+    expect(all.total).toBe(2)
+    const after = (await (await h.fetch(`/api/assets/${before.id}`, { cookie: admin })).json()) as { locations: { state: string }[] }
+    expect(after.locations).toEqual([expect.objectContaining({ state: 'present' })])
+    expect((await list('&missing=1')).total).toBe(0)
+
+    // A folder switched off and on again isn't re-read from scratch.
+    const sources = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { id: string }[] }[] }
+    const rootB = sources.sources[0]!.roots[1]!.id
+    await h.fetch(`/api/sources/${source.id}/roots/${rootB}`, { method: 'PATCH', body: JSON.stringify({ enabled: false }), cookie: admin })
+    await agent.scanAll()
+    await h.fetch(`/api/sources/${source.id}/roots/${rootB}`, { method: 'PATCH', body: JSON.stringify({ enabled: true }), cookie: admin })
     calls.length = 0
     await agent.scanAll()
     expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
-    const after = (await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { roots: { offlineSince: string | null }[]; photos: { total: number; missing: number } }[] }
-    expect(after.sources[0]!.roots[0]!.offlineSince).toBeNull()
-    expect(after.sources[0]!.photos).toMatchObject({ total: 3, missing: 0 })
+  })
+
+  it('keeps its key and its file list when a firewall, not cf-dam, says 403', async () => {
+    await photo('2023/IMG_6000.jpg', 40)
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    const blocked = () => new Response('<html><body>Sorry, you have been blocked</body></html>', { status: 403, headers: { 'Content-Type': 'text/html' } })
+    fault = blocked
+    await expect(agent.scanAll()).rejects.toBeInstanceOf(ApiError)
+    expect(agent.state.credentials(BASE)).not.toBeNull()
+    // cf-dam's own refusal is the key gone.
+    fault = () => Response.json({ error: 'unauthenticated' }, { status: 401 })
+    await expect(agent.scanAll()).rejects.toBeInstanceOf(Unpaired)
+    // No network at all is the link.
+    fault = () => {
+      throw new TypeError('fetch failed')
+    }
+    await expect(agent.scanAll()).rejects.toBeInstanceOf(LinkError)
+    fault = null
+
+    // Losing the key keeps the file list; pairing again as the same source keeps it, as a new one clears it.
+    const saved = agent.state.credentials(BASE)!
+    agent.state.clearCredentials()
+    expect(agent.state.counts().done).toBe(1)
+    agent.state.saveCredentials(saved)
+    expect(agent.state.counts().done).toBe(1)
+    agent.state.saveCredentials({ ...saved, sourceId: 'another' })
+    expect(agent.state.counts().done).toBe(0)
   })
 })

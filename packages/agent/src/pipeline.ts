@@ -1,13 +1,13 @@
 /**
- * One scan of one folder: walk it, work out what changed, send new and changed photos in batches
- * (metadata first; previews only for what cf-dam asks for), then report what's gone.
+ * A scan: walk the folders, work out what changed, send new and changed photos in batches (metadata
+ * and previews; previews are uploaded only where cf-dam asks for them), then report what's gone.
  */
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ApiError, type Api } from './api.ts'
-import type { Extractor } from './extract.ts'
+import { ApiError, isLinkError, type Api } from './api.ts'
+import type { AgentMetadata, Extractor } from './extract.ts'
 import { render, renderSheet, type Rendered } from './render.ts'
-import { isVideo, plan, quickHash, walk, type Found } from './scan.ts'
+import { isVideo, plan, quickHash as qh, walk, type Found, type Plan } from './scan.ts'
 import type { FileRow, State } from './state.ts'
 
 export interface Root {
@@ -34,14 +34,14 @@ export interface Progress {
 
 export const newProgress = (): Progress => ({ root: null, current: null, found: 0, queued: 0, sent: 0, failed: 0, missing: 0, startedAt: null, lastError: null })
 
-interface Ctx {
+export interface Ctx {
   api: Api
   state: State
   extractor: Extractor
   workers: number
   defaultExcludes: string[]
   progress: Progress
-  /** Checked between batches, so pausing or shutting down takes effect within a batch. */
+  /** Checked between files and batches, so pausing or shutting down takes effect within a batch. */
   shouldStop: () => boolean
 }
 
@@ -51,7 +51,8 @@ const BATCH = 20
 interface Item {
   file: Found
   quickHash: string
-  previousPath?: string
+  /** Where it was, when it looks like a move: a gone file with the same fingerprint, in any folder. */
+  previous?: { rootId: string; path: string }
 }
 
 interface BatchResult {
@@ -59,161 +60,258 @@ interface BatchResult {
   assetId?: string
   result: 'created' | 'updated' | 'unchanged' | 'moved' | 'rejected'
   needs?: ('thumb' | 'preview')[]
+  ready?: boolean
   error?: string
 }
 
+interface Prepared {
+  item: Item
+  meta: AgentMetadata | undefined
+  rendered: Rendered | null
+  error: string | null
+}
+
+/** `limit` at a time; after a failure no new ones start, and the first failure is thrown. */
 async function inParallel<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length)
   let next = 0
+  let failed = false
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
+      while (next < items.length && !failed) {
         const i = next++
-        out[i] = await fn(items[i]!)
+        try {
+          out[i] = await fn(items[i]!)
+        } catch (error) {
+          failed = true
+          throw error
+        }
       }
     }),
   )
   return out
 }
 
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+interface Surveyed {
+  root: Root
+  here: string
+  work: Plan['work']
+  gone: FileRow[]
+}
+
 /**
- * One folder. `here` is where it is right now (a drive may have come back at a new mount point); file
- * paths sent to cf-dam are relative, so they don't change when the drive does.
+ * One pass over the agent's folders, in three steps, so that a file moved from one folder to another
+ * is recognised whichever of the two is scanned first:
+ *  1. walk every folder and work out what's new, changed and gone;
+ *  2. folder by folder, fingerprint the new and changed files and send them (a new file with the
+ *     fingerprint of a gone one, in any folder, is that file moved);
+ *  3. only then tell cf-dam what's gone, and forget it.
+ * `here` is where each folder is right now (a drive may have come back at a new mount point), or null
+ * when its drive isn't connected. File paths sent to cf-dam are relative, so they don't change with it.
+ * Stopping (pause, shutdown) skips step 3: nothing is reported missing from a scan that didn't finish.
  */
-export async function scanRoot(ctx: Ctx, root: Root, here: string = root.path): Promise<void> {
+export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | null }[]): Promise<void> {
   const { api, state, progress } = ctx
-  const abs = (rel: string) => join(here, rel)
-  progress.root = root.path
   progress.startedAt = new Date().toISOString()
 
-  // Unplugged drive, unmounted share: offline, not empty. Never report its photos missing for that.
-  const reachable = await stat(here).then((s) => s.isDirectory()).catch(() => false)
-  const found = reachable ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include) : new Map<string, Found>()
+  const surveyed: Surveyed[] = []
+  for (const { root, here } of roots) {
+    if (ctx.shouldStop()) return
+    progress.root = root.path
+    const s = await survey(ctx, root, here)
+    if (s) surveyed.push(s)
+  }
+
+  const goneByHash = new Map<string, { rootId: string; path: string }>()
+  for (const s of surveyed) for (const g of s.gone) if (g.quick_hash && g.status === 'done') goneByHash.set(g.quick_hash, { rootId: s.root.id, path: g.path })
+
+  for (const { root, here, work } of surveyed) {
+    progress.root = root.path
+    const items: Item[] = []
+    for (const { file, known } of work) {
+      if (ctx.shouldStop()) return
+      try {
+        const quickHash = await qh(join(here, file.path), file.size)
+        const previous = !known ? goneByHash.get(quickHash) : undefined
+        if (previous) goneByHash.delete(quickHash)
+        items.push({ file, quickHash, previous })
+      } catch (error) {
+        progress.failed++
+        progress.lastError = `${file.path}: ${message(error)}`
+        state.failed(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: null }, message(error))
+      }
+    }
+    for (let i = 0; i < items.length; i += BATCH) {
+      if (ctx.shouldStop()) return
+      await sendBatch(ctx, root, here, items.slice(i, i + BATCH))
+    }
+  }
+
+  // What's gone, in chunks. A file that moved is reported too: cf-dam already has it at its new
+  // path, so nothing is marked; and if the move didn't go through, the photo is rightly missing
+  // until the next scan finds it by its fingerprint.
+  for (const { root, gone } of surveyed) {
+    if (ctx.shouldStop()) return
+    const missing = gone.map((g) => g.path)
+    for (let i = 0; i === 0 || i < missing.length; i += 5000) {
+      const chunk = missing.slice(i, i + 5000)
+      const last = i + 5000 >= missing.length
+      const res = await api.call<{ missing: number }>('POST', '/api/agent/scans/complete', { root: root.id, missing: chunk, final: last })
+      progress.missing += res.body.missing
+    }
+    state.forget(root.id, missing)
+  }
+  progress.root = null
+  progress.current = null
+}
+
+/** Step 1 for one folder. Null when it's offline: its drive unplugged, its share unmounted. */
+async function survey(ctx: Ctx, root: Root, here: string | null): Promise<Surveyed | null> {
+  const { api, state, progress } = ctx
+  // Offline, not empty: never report its photos missing for that.
+  const reachable = here !== null && (await stat(here).then((s) => s.isDirectory()).catch(() => false))
+  const { found, unreadable } = reachable ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include) : { found: new Map<string, Found>(), unreadable: [] }
   const known = state.files(root.id)
   // A folder that suddenly shows nothing at all, when we knew files there, is a mount gone wrong.
   if (!reachable || (found.size === 0 && known.size > 0)) {
     if (!root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: false })
-    progress.root = null
-    return
+    return null
   }
   if (root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: true })
-  const { work, gone } = plan(found, known)
-  progress.found = found.size
-  progress.queued = work.length
-
-  // Fingerprint the work, then pair new files with gone ones: the same fingerprint is a move or rename.
-  const items: Item[] = []
-  const goneByHash = new Map<string, FileRow>()
-  for (const g of gone) if (g.quick_hash && g.status === 'done') goneByHash.set(g.quick_hash, g)
-  for (const { file, known: row } of work) {
-    if (ctx.shouldStop()) return
-    try {
-      const qh = await quickHash(abs(file.path), file.size)
-      const was = !row ? goneByHash.get(qh) : undefined
-      if (was) goneByHash.delete(qh)
-      items.push({ file, quickHash: qh, previousPath: was?.path })
-    } catch (error) {
-      progress.failed++
-      state.failed(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: null }, String(error))
-    }
-  }
-  const moved = new Set(items.filter((i) => i.previousPath).map((i) => i.previousPath!))
-
-  for (let i = 0; i < items.length; i += BATCH) {
-    if (ctx.shouldStop()) return
-    await sendBatch(ctx, root, items.slice(i, i + BATCH))
-  }
-
-  // Report what's gone (moves were reported as moves), in chunks, then forget it locally.
-  const missing = gone.filter((g) => !moved.has(g.path)).map((g) => g.path)
-  for (let i = 0; i === 0 || i < missing.length; i += 5000) {
-    const chunk = missing.slice(i, i + 5000)
-    const last = i + 5000 >= missing.length
-    const res = await api.call<{ missing: number }>('POST', '/api/agent/scans/complete', { root: root.id, missing: chunk, final: last })
-    progress.missing += res.body.missing
-  }
-  state.forget(root.id, [...missing, ...moved])
-  progress.current = null
+  const { work, gone } = plan(found, known, unreadable)
+  progress.found += found.size
+  progress.queued += work.length
+  return { root, here, work, gone }
 }
 
-async function sendBatch(ctx: Ctx, root: Root, batch: Item[]): Promise<void> {
+/**
+ * Read, render and send one batch. A file is recorded as done only once cf-dam has finished it, so a
+ * scan stopped part-way (paused, network gone, the agent killed) sends it again next time.
+ */
+async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Promise<void> {
   const { api, state, extractor, progress } = ctx
-  const abs = (rel: string) => join(root.path, rel)
+  const abs = (rel: string) => join(here, rel)
+  const failed = (item: Item, error: unknown) => {
+    progress.failed++
+    progress.lastError = `${item.file.path}: ${message(error)}`
+    state.failed(root.id, item.file.path, { size: item.file.size, mtimeMs: item.file.mtimeMs, quickHash: item.quickHash }, message(error))
+  }
+  const preview = async (path: string) => {
+    const x = await extractor.extract(abs(path))
+    const rendered = x.source ? await render(x.source, x.orientation) : null
+    if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
+    return { meta: x.meta, rendered }
+  }
 
   // Read and render everything except moves (their previews are usually already in cf-dam).
-  const prepared = await inParallel(batch, ctx.workers, async (item) => {
-    if (item.previousPath) return { item, meta: undefined, rendered: null as Rendered | null, error: null as string | null }
+  const prepared = await inParallel(batch, ctx.workers, async (item): Promise<Prepared> => {
+    if (item.previous) return { item, meta: undefined, rendered: null, error: null }
     progress.current = item.file.path
     try {
-      const x = await extractor.extract(abs(item.file.path))
-      const rendered = x.source ? await render(x.source, x.orientation) : null
-      if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
+      const { meta, rendered } = await preview(item.file.path)
       // A video without ffmpeg is still worth indexing (date, length, place); it just has no preview.
       const ok = rendered !== null || isVideo(item.file.path)
-      return { item, meta: x.meta, rendered, error: ok ? null : 'No preview could be made from this file.' }
+      return { item, meta, rendered, error: ok ? null : 'No preview could be made from this file.' }
     } catch (error) {
-      return { item, meta: undefined, rendered: null, error: error instanceof Error ? error.message : String(error) }
+      return { item, meta: undefined, rendered: null, error: message(error) }
     }
   })
-
+  for (const p of prepared) if (p.error) failed(p.item, p.error)
   const toSend = prepared.filter((p) => !p.error)
-  for (const p of prepared.filter((p) => p.error)) {
-    progress.failed++
-    progress.lastError = `${p.item.file.path}: ${p.error}`
-    state.failed(root.id, p.item.file.path, { size: p.item.file.size, mtimeMs: p.item.file.mtimeMs, quickHash: p.item.quickHash }, p.error!)
-  }
   if (toSend.length === 0) return
 
-  const { body } = await api.call<{ results: BatchResult[] }>('POST', '/api/agent/assets/batch', {
-    items: toSend.map((p) => ({
-      root: root.id,
-      path: p.item.file.path,
-      size: p.item.file.size,
-      mtime: new Date(p.item.file.mtimeMs).toISOString(),
-      quickHash: p.item.quickHash,
-      previousPath: p.item.previousPath,
-      metadata: p.meta,
-    })),
-  })
-
-  const complete: { id: string; phash?: string }[] = []
-  await inParallel(body.results.map((r, i) => ({ r, p: toSend[i]! })), ctx.workers, async ({ r, p }) => {
+  const results = await ingest(ctx, root, toSend)
+  const pending: { p: Prepared; assetId: string; phash?: string }[] = []
+  await inParallel(results, ctx.workers, async ({ r, p }) => {
     const file = p.item.file
-    if (r.result === 'rejected' || !r.assetId) {
-      progress.failed++
-      progress.lastError = `${file.path}: ${r.error ?? 'rejected'}`
-      state.failed(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash }, r.error ?? 'rejected')
-      return
-    }
+    if (r.result === 'rejected' || !r.assetId) return failed(p.item, r.error ?? 'rejected')
     try {
       if (r.needs && r.needs.length > 0) {
         // A move whose previews went missing: render it now after all.
-        let rendered = p.rendered
-        if (!rendered && p.item.previousPath) {
-          const x = await extractor.extract(abs(file.path))
-          rendered = x.source ? await render(x.source, x.orientation) : null
-          if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
-        }
-        if (!rendered && !isVideo(file.path)) throw new ApiError('No preview could be made from this file.', 0)
+        const rendered = p.rendered ?? (p.item.previous ? (await preview(file.path)).rendered : null)
+        if (!rendered && !isVideo(file.path)) throw new Error('No preview could be made from this file.')
         if (rendered) {
-          const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = r.needs.map((name) => [name, name === 'thumb' ? rendered!.thumb : rendered!.preview])
+          const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = r.needs.map((name) => [name, name === 'thumb' ? rendered.thumb : rendered.preview])
           if (rendered.sheet) uploads.push(['sheet', rendered.sheet])
           for (const [name, bytes] of uploads) {
             await api.call('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, { raw: new Uint8Array(bytes), contentType: 'image/webp' })
           }
         }
-        complete.push({ id: r.assetId, phash: rendered?.phash })
-      } else if (r.result !== 'unchanged') {
-        complete.push({ id: r.assetId, phash: p.rendered?.phash })
+        pending.push({ p, assetId: r.assetId, phash: rendered?.phash })
+      } else if (r.result === 'unchanged' && r.ready !== false) {
+        // Already in cf-dam and finished: nothing to do but remember it.
+        state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId: r.assetId })
+        progress.sent++
+      } else {
+        pending.push({ p, assetId: r.assetId, phash: p.rendered?.phash })
       }
-      state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId: r.assetId })
-      progress.sent++
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error
-      progress.failed++
-      progress.lastError = `${file.path}: ${error.message}`
-      state.failed(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash }, error.message)
+      if (isLinkError(error)) throw error
+      failed(p.item, error)
     }
   })
-  if (complete.length > 0) await api.call('POST', '/api/agent/assets/complete', { items: complete })
+  if (pending.length === 0) return
+
+  let finished: { id: string; status: string; error?: string }[]
+  try {
+    finished = (await api.call<{ results: typeof finished }>('POST', '/api/agent/assets/complete', { items: pending.map((x) => ({ id: x.assetId, phash: x.phash })) })).body.results
+  } catch (error) {
+    if (isLinkError(error)) throw error
+    for (const x of pending) failed(x.p.item, error)
+    return
+  }
+  const byId = new Map(finished.map((f) => [f.id, f]))
+  for (const { p, assetId } of pending) {
+    const f = byId.get(assetId)
+    if (f?.status !== 'ready') {
+      failed(p.item, f?.error ?? 'cf-dam did not finish this photo.')
+      continue
+    }
+    const file = p.item.file
+    state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId })
+    progress.sent++
+  }
+}
+
+/**
+ * The batch's metadata to cf-dam. If cf-dam fails on the batch as a whole, the files go one at a
+ * time, so one file that trips it can't hold up the rest; if every one fails too, it's cf-dam (or
+ * the link), and the scan stops to try again later.
+ */
+async function ingest(ctx: Ctx, root: Root, toSend: Prepared[]): Promise<{ r: BatchResult; p: Prepared }[]> {
+  const item = (p: Prepared) => ({
+    root: root.id,
+    path: p.item.file.path,
+    size: p.item.file.size,
+    mtime: new Date(p.item.file.mtimeMs).toISOString(),
+    quickHash: p.item.quickHash,
+    previousPath: p.item.previous?.path,
+    previousRoot: p.item.previous?.rootId,
+    metadata: p.meta,
+  })
+  const send = (ps: Prepared[], retries?: number) => ctx.api.call<{ results: BatchResult[] }>('POST', '/api/agent/assets/batch', { items: ps.map(item) }, { retries })
+  try {
+    const { body } = await send(toSend)
+    return body.results.map((r, i) => ({ r, p: toSend[i]! }))
+  } catch (error) {
+    // Paused, unpaired, no network: stop now.
+    if (!(error instanceof ApiError)) throw error
+    const out: { r: BatchResult; p: Prepared }[] = []
+    let accepted = 0
+    for (const p of toSend) {
+      if (ctx.shouldStop()) throw error
+      try {
+        const { body } = await send([p], 1)
+        out.push({ r: body.results[0]!, p })
+        accepted++
+      } catch (one) {
+        if (!(one instanceof ApiError)) throw one
+        out.push({ r: { path: p.item.file.path, result: 'rejected', error: one.message }, p })
+      }
+    }
+    if (accepted === 0 && toSend.length > 1 && isLinkError(error)) throw error
+    return out
+  }
 }

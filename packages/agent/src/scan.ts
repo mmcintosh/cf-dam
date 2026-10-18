@@ -53,40 +53,48 @@ export interface Found {
   mtimeMs: number
 }
 
+export interface Walked {
+  found: Map<string, Found>
+  /** Folders that couldn't be read, or not to the end (relative; '' is the root). Files known under them aren't gone. */
+  unreadable: string[]
+}
+
 /** Every photo under `root` (relative paths with '/'), skipping excluded folders and files. Symlinks are not followed. */
-export async function walk(root: string, exclude: string[], include: string[] = []): Promise<Map<string, Found>> {
+export async function walk(root: string, exclude: string[], include: string[] = []): Promise<Walked> {
   const match = matcher(exclude, include)
   const found = new Map<string, Found>()
+  const unreadable: string[] = []
   const visit = async (dir: string): Promise<void> => {
-    let handle
+    const relDir = relative(root, dir).split(sep).join('/')
     try {
-      handle = await opendir(dir)
-    } catch {
-      return // unreadable folder: skip it, don't stop the scan
-    }
-    for await (const entry of handle) {
-      const abs = join(dir, entry.name)
-      const rel = relative(root, abs).split(sep).join('/')
-      if (entry.isDirectory()) {
-        if (!match.skipDir(rel)) await visit(abs)
-      } else if (entry.isFile() && (PHOTO_EXTENSIONS.has(extname(entry.name).toLowerCase()) || isVideo(entry.name)) && match.keepFile(rel)) {
-        try {
-          const s = await stat(abs)
-          found.set(rel, { path: rel, size: s.size, mtimeMs: Math.floor(s.mtimeMs) })
-        } catch {
-          // vanished between listing and stat
+      // A share that drops mid-listing throws here or part-way through; either way, don't stop the scan.
+      for await (const entry of await opendir(dir)) {
+        const abs = join(dir, entry.name)
+        const rel = relative(root, abs).split(sep).join('/')
+        if (entry.isDirectory()) {
+          if (!match.skipDir(rel)) await visit(abs)
+        } else if (entry.isFile() && (PHOTO_EXTENSIONS.has(extname(entry.name).toLowerCase()) || isVideo(entry.name)) && match.keepFile(rel)) {
+          try {
+            const s = await stat(abs)
+            found.set(rel, { path: rel, size: s.size, mtimeMs: Math.floor(s.mtimeMs) })
+          } catch (error) {
+            // Vanished between listing and stat is fine; anything else, the file may well still be there.
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') unreadable.push(rel)
+          }
         }
       }
+    } catch {
+      unreadable.push(relDir)
     }
   }
   await visit(root)
-  return found
+  return { found, unreadable }
 }
 
 export interface Plan {
   /** New or changed files, each with where it used to be if it looks like a move. */
   work: { file: Found; known: FileRow | undefined }[]
-  /** Files known before and not found now. */
+  /** Files known before and not found now (and not under a folder that couldn't be read). */
   gone: FileRow[]
 }
 
@@ -94,7 +102,7 @@ export interface Plan {
  * Compare what's on disk with what was sent. Unchanged and done: nothing to do. Changed size or
  * mtime, new, or failed fewer than three times: work. Known but not found: gone.
  */
-export function plan(found: Map<string, Found>, known: Map<string, FileRow>): Plan {
+export function plan(found: Map<string, Found>, known: Map<string, FileRow>, unreadable: string[] = []): Plan {
   const work: Plan['work'] = []
   for (const file of found.values()) {
     const row = known.get(file.path)
@@ -103,7 +111,8 @@ export function plan(found: Map<string, Found>, known: Map<string, FileRow>): Pl
     if (same && row.status === 'error' && row.attempts >= 3) continue
     work.push({ file, known: row })
   }
-  const gone = [...known.values()].filter((r) => !found.has(r.path))
+  const shaded = (path: string) => unreadable.some((d) => d === '' || path === d || path.startsWith(`${d}/`))
+  const gone = [...known.values()].filter((r) => !found.has(r.path) && !shaded(r.path))
   return { work, gone }
 }
 

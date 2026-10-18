@@ -3,7 +3,8 @@
 The same agent as the NAS one, run on your own computer: for folders on its disks, on network shares
 it mounts, and on **external drives that are only plugged in now and then**. A drive's photos stay in
 cf-dam while it's unplugged (marked offline), and are picked up again when it comes back, under any
-drive letter or mount point.
+drive letter or mount point. Drives are known by their volume id, not their name or letter, so another
+card also called EOS_DIGITAL, or another disk that gets E:, is never mistaken for it.
 
 It only reads your photos. It never changes, moves or deletes them.
 

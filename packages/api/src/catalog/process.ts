@@ -23,21 +23,24 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
-export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata): Promise<void> {
+export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata, opts: { fileChanged?: boolean } = {}): Promise<void> {
   // Width and height are stored as the photo is seen, upright. Cameras record the sensor's size and an
   // Orientation; 5–8 mean turned a quarter, so a portrait shot's recorded 6000×4000 is really 4000×6000.
   const sideways = meta.orientation !== null && meta.orientation >= 5 && meta.orientation <= 8
   const [width, height] = sideways ? [meta.height, meta.width] : [meta.width, meta.height]
-  // COALESCE keeps anything a person (or the uploading client) already set.
+  // COALESCE keeps anything a person (or the uploading client) already set. When the file itself has
+  // changed (re-exported, cropped), what it says about itself replaces the old values: its size, date,
+  // camera and place. What people write (title, caption, rating, IPTC, keywords) still only fills gaps.
+  const file = (column: string) => (opts.fileChanged ? `${column} = COALESCE(?, ${column})` : `${column} = COALESCE(${column}, ?)`)
   await db
     .prepare(
       `UPDATE assets SET
-         width = COALESCE(width, ?), height = COALESCE(height, ?), orientation = COALESCE(orientation, ?),
-         captured_at = COALESCE(captured_at, ?), captured_offset = COALESCE(captured_offset, ?),
-         camera_make = COALESCE(camera_make, ?), camera_model = COALESCE(camera_model, ?), lens = COALESCE(lens, ?),
-         focal_length = COALESCE(focal_length, ?), aperture = COALESCE(aperture, ?),
-         exposure_time = COALESCE(exposure_time, ?), iso = COALESCE(iso, ?),
-         gps_lat = COALESCE(gps_lat, ?), gps_lng = COALESCE(gps_lng, ?), rating = COALESCE(rating, ?),
+         ${file('width')}, ${file('height')}, ${file('orientation')},
+         ${file('captured_at')}, ${file('captured_offset')},
+         ${file('camera_make')}, ${file('camera_model')}, ${file('lens')},
+         ${file('focal_length')}, ${file('aperture')},
+         ${file('exposure_time')}, ${file('iso')},
+         ${file('gps_lat')}, ${file('gps_lng')}, rating = COALESCE(rating, ?),
          title = COALESCE(title, ?), caption = COALESCE(caption, ?),
          metadata = ?, updated_at = ?
        WHERE id = ?`,
@@ -51,7 +54,7 @@ export async function saveMetadata(db: D1Database, assetId: string, meta: Normal
     .run()
   if (meta.video) {
     await db
-      .prepare('UPDATE assets SET duration = COALESCE(duration, ?), video_codec = COALESCE(video_codec, ?), frame_rate = COALESCE(frame_rate, ?) WHERE id = ?')
+      .prepare(`UPDATE assets SET ${file('duration')}, ${file('video_codec')}, ${file('frame_rate')} WHERE id = ?`)
       .bind(meta.video.duration, meta.video.codec, meta.video.frameRate, assetId)
       .run()
   }

@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanAgentPath, keyOf } from '../src/catalog/agents'
 import { decodePng, hashPixels } from '../src/catalog/phash'
+import { runSweep } from '../src/catalog/sweeper'
 import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const placesGz = readFileSync(new URL('../../../public/places/cities1000.tsv.gz', import.meta.url))
@@ -207,6 +208,81 @@ describe('folders and files', () => {
     const found = await send(key, [{ root, path: 'archive/c-copy.jpg', size: 300, quickHash: hex('c') }])
     expect(found.body.results[0]).toMatchObject({ result: 'moved', assetId: c })
     expect((await asset(c!)).locations[0]!.state).toBe('present')
+  })
+
+  it('never gives a deleted photo’s entry to a new file saved under its name, and keeps one photo per path', async () => {
+    const { key, sourceId } = await pair()
+    const root = await addRoot(sourceId)
+    const first = await send(key, [{ root, path: 'a.jpg', size: 100, quickHash: hex('a'), metadata: { width: 6000, height: 4000, capturedAt: '2019-06-01T09:58:12', title: 'Fjord' } }])
+    const old = first.body.results[0]!.assetId
+    await upload(key, old)
+    await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id: old }] }))
+    await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['a.jpg'] }))
+
+    // A different photo, saved as a.jpg: a new entry. The old one stays, still missing, still itself.
+    const other = await send(key, [{ root, path: 'a.jpg', size: 200, quickHash: hex('z'), metadata: { width: 4000, height: 3000, capturedAt: '2024-01-01T10:00:00' } }])
+    expect(other.body.results[0]).toMatchObject({ result: 'created', ready: false })
+    const fresh = other.body.results[0]!.assetId
+    expect(fresh).not.toBe(old)
+    const was = (await (await h.fetch(`/api/assets/${old}`, { cookie: admin })).json()) as { title: string; width: number; locations: { state: string }[] }
+    expect(was).toMatchObject({ title: 'Fjord', width: 6000, locations: [expect.objectContaining({ state: 'missing' })] })
+
+    // The same new file sent twice at once: one photo.
+    const twice = await Promise.all([1, 2].map(() => send(key, [{ root, path: 'b.jpg', size: 300, quickHash: hex('b') }])))
+    expect(new Set(twice.map((t) => t.body.results[0]!.assetId)).size).toBe(1)
+    await h.env.DB.prepare("INSERT INTO assets (id, filename, mime_type, size, status, created_at, updated_at) VALUES ('dup', 'b.jpg', 'image/jpeg', 1, 'ready', 'x', 'x')").run()
+    const duplicate = h.env.DB.prepare("INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, updated_at) VALUES ('dup', ?, '/photos/photo/b.jpg', 'NAS', 'present', 'x')").bind(`nas-${sourceId}`)
+    await expect(duplicate.run()).rejects.toThrow(/UNIQUE/)
+
+    // The original a.jpg's file is back (a share that dropped): it is that photo again, present.
+    await agentFetch(key, '/api/agent/scans/complete', json({ root, missing: ['a.jpg'] }))
+    const back = await send(key, [{ root, path: 'a.jpg', size: 100, quickHash: hex('a') }])
+    expect(back.body.results[0]).toMatchObject({ result: 'unchanged', assetId: old, ready: true, needs: [] })
+    expect((await asset(old)).locations[0]!.state).toBe('present')
+  })
+
+  it('replaces what a re-saved file says about itself, and keeps what people wrote', async () => {
+    const { key, sourceId } = await pair()
+    const root = await addRoot(sourceId)
+    const sent = await send(key, [{ root, path: 'a.jpg', size: 100, quickHash: hex('a'), metadata: { width: 6000, height: 4000, capturedAt: '2019-06-01T09:58:12', gpsLat: 60.39, gpsLng: 5.32, title: 'From the file' } }])
+    const id = sent.body.results[0]!.assetId
+    await upload(key, id)
+    await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id }] }))
+    await h.fetch(`/api/assets/${id}`, { method: 'PATCH', body: JSON.stringify({ title: 'Mine' }), cookie: admin })
+    // Cropped and re-exported, with the date corrected.
+    const changed = await send(key, [{ root, path: 'a.jpg', size: 90, quickHash: hex('A'), metadata: { width: 3000, height: 2000, capturedAt: '2019-06-02T09:58:12', gpsLat: 59.91, gpsLng: 10.75, title: 'Retitled in the file' } }])
+    expect(changed.body.results[0]).toMatchObject({ result: 'updated', needs: ['thumb', 'preview'] })
+    const a = (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as { width: number; capturedAt: string; title: string; gps: { lat: number } | null; status: string }
+    expect(a).toMatchObject({ width: 3000, title: 'Mine', status: 'processing' })
+    expect(a.capturedAt).toContain('2019-06-02')
+    expect(a.gps?.lat).toBeCloseTo(59.91)
+  })
+
+  it('knows a file moved between two folders, and finishes photos an agent left half-sent', async () => {
+    const { key, sourceId } = await pair()
+    const one = await addRoot(sourceId, '/photos/one')
+    const two = await addRoot(sourceId, '/photos/two')
+    const sent = await send(key, [{ root: one, path: 'x.jpg', size: 100, quickHash: hex('x') }])
+    const id = sent.body.results[0]!.assetId
+    await upload(key, id)
+    await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id }] }))
+    const moved = await send(key, [{ root: two, path: 'sorted/x.jpg', size: 100, quickHash: hex('x'), previousRoot: one, previousPath: 'x.jpg' }])
+    expect(moved.body.results[0]).toMatchObject({ result: 'moved', assetId: id, ready: true, needs: [] })
+    // Another agent's folder can't be named as where a file was.
+    const other = await pair('Other NAS')
+    const theirs = await addRoot(other.sourceId, '/photos/three')
+    expect((await send(key, [{ root: two, path: 'y.jpg', size: 1, quickHash: hex('y'), previousRoot: theirs, previousPath: 'y.jpg' }])).body.results[0]!.result).toBe('rejected')
+
+    // An agent that sent a photo and stopped before finishing it: sent again, it's "not ready" and
+    // gets finished; never sent again, the sweep finishes it after an hour.
+    const half = (await send(key, [{ root: one, path: 'h.jpg', size: 5, quickHash: hex('h') }])).body.results[0]!.assetId
+    await upload(key, half)
+    expect((await send(key, [{ root: one, path: 'h.jpg', size: 5, quickHash: hex('h') }])).body.results[0]).toMatchObject({ result: 'unchanged', ready: false, needs: [] })
+    const lost = (await send(key, [{ root: one, path: 'l.jpg', size: 6, quickHash: hex('l') }])).body.results[0]!.assetId
+    await h.env.DB.prepare("UPDATE assets SET updated_at = '2020-01-01T00:00:00Z' WHERE id IN (?, ?)").bind(half, lost).run()
+    expect((await runSweep(h.env)).recovered).toBe(2)
+    expect((await asset(half)).status).toBe('ready')
+    expect((await asset(lost)).status).toBe('ready')
   })
 
   it('stops while paused, cannot touch other photos, and is cut off when revoked', async () => {

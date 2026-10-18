@@ -17,7 +17,6 @@ import { nowIso } from '../lib/time'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
 import { finishAsset, saveMetadata } from './process'
-import { hasRendition } from './renditions'
 import { mimeTypeFor, safeFilename } from './uploads'
 
 export class AgentError extends Error {
@@ -344,10 +343,12 @@ export async function setRootOnline(db: D1Database, source: SourceRow, rootId: s
 }
 
 export async function agentConfig(db: D1Database, source: SourceRow) {
-  const roots = (await listRoots(db, source.id)).filter((r) => r.enabled === 1).map(rootJson)
+  const all = await listRoots(db, source.id)
   return {
     source: { id: source.id, name: source.name, paused: source.paused === 1 },
-    roots,
+    roots: all.filter((r) => r.enabled === 1).map(rootJson),
+    // Every folder, switched off or not: the agent keeps what it knows about a folder that's only off.
+    knownRoots: all.map((r) => r.id),
     scanIntervalMinutes: SCAN_INTERVAL_MINUTES,
     defaultExcludes: DEFAULT_EXCLUDES,
   }
@@ -360,6 +361,8 @@ export interface IngestResult {
   assetId?: string
   result: 'created' | 'updated' | 'unchanged' | 'moved' | 'rejected'
   needs?: ('thumb' | 'preview')[]
+  /** False when the asset was never finished (the agent stopped before completing it): complete it now. */
+  ready?: boolean
   error?: string
 }
 
@@ -374,15 +377,22 @@ interface LocationMatch {
 
 const HEX64 = /^[0-9a-f]{64}$/
 
-async function needs(db: D1Database, assetId: string): Promise<('thumb' | 'preview')[]> {
-  const missing: ('thumb' | 'preview')[] = []
-  for (const name of ['thumb', 'preview'] as const) if (!(await hasRendition(db, assetId, name))) missing.push(name)
-  return missing
+/** Which previews an asset still lacks, and whether it was finished. One query. */
+async function standing(db: D1Database, assetId: string): Promise<{ needs: ('thumb' | 'preview')[]; ready: boolean }> {
+  const row = await db
+    .prepare("SELECT a.status, (SELECT GROUP_CONCAT(name) FROM renditions WHERE asset_id = a.id AND name IN ('thumb', 'preview')) AS have FROM assets a WHERE a.id = ?")
+    .bind(assetId)
+    .first<{ status: string; have: string | null }>()
+  const have = new Set((row?.have ?? '').split(','))
+  return { needs: (['thumb', 'preview'] as const).filter((n) => !have.has(n)), ready: row?.status === 'ready' }
 }
+
+const isUniqueViolation = (error: unknown) => error instanceof Error && /UNIQUE constraint failed/i.test(error.message)
 
 /**
  * One batch of files from a scan. Each item: the root it is in, its path inside that root, size,
- * mtime, quick fingerprint, metadata as the agent read it, and optionally where it used to be.
+ * mtime, quick fingerprint, metadata as the agent read it, and optionally where it used to be
+ * (`previousPath`, in `previousRoot` when it moved between folders; the same root otherwise).
  */
 export async function ingestBatch(env: DamBindings, source: SourceRow, items: unknown): Promise<IngestResult[]> {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH) throw new AgentError(`Send 1 to ${MAX_BATCH} items at a time.`)
@@ -393,7 +403,11 @@ export async function ingestBatch(env: DamBindings, source: SourceRow, items: un
     const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
     const shownPath = typeof item.path === 'string' ? item.path.slice(0, 200) : '?'
     try {
-      results.push(await ingestOne(env, source, roots, item))
+      results.push(await ingestOne(env, source, roots, item).catch((error) => {
+        // The same new file sent twice at once: the other request created it; look again.
+        if (isUniqueViolation(error)) return ingestOne(env, source, roots, item)
+        throw error
+      }))
     } catch (error) {
       if (!(error instanceof AgentError)) throw error
       results.push({ path: shownPath, result: 'rejected', error: error.message })
@@ -404,8 +418,12 @@ export async function ingestBatch(env: DamBindings, source: SourceRow, items: un
 
 async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string, RootRow>, item: Record<string, unknown>): Promise<IngestResult> {
   const db = env.DB
-  const root = typeof item.root === 'string' ? roots.get(item.root) : undefined
-  if (!root || root.enabled !== 1) throw new AgentError('Unknown or disabled root.')
+  const rootOf = (id: unknown) => {
+    const root = typeof id === 'string' ? roots.get(id) : undefined
+    if (!root || root.enabled !== 1) throw new AgentError('Unknown or disabled root.')
+    return root
+  }
+  const root = rootOf(item.root)
   const rel = cleanRelativePath(item.path)
   const key = keyOf(root.path, rel)
   const size = item.size
@@ -415,47 +433,63 @@ async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string,
   const mtime = typeof item.mtime === 'string' && !Number.isNaN(Date.parse(item.mtime)) ? new Date(item.mtime).toISOString() : null
   const now = nowIso()
   const conn = source.connection_id
+  const same = (l: LocationMatch) => l.quick_hash === quickHash && l.size === size
 
-  const at = (k: string) =>
-    db.prepare('SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND key = ?').bind(conn, k).first<LocationMatch>()
+  // Rows at a path: the present one first, then photos that used to be there.
+  const at = async (k: string) =>
+    (
+      await db
+        .prepare("SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND key = ? ORDER BY state = 'present' DESC, updated_at DESC")
+        .bind(conn, k)
+        .all<LocationMatch>()
+    ).results
   const touch = (assetId: string, k: string) =>
     db
       .prepare(`UPDATE asset_locations SET key = ?, size = ?, mtime = ?, quick_hash = ?, seen_at = ?, state = 'present', updated_at = ? WHERE asset_id = ? AND connection_id = ?`)
       .bind(k, size, mtime, quickHash, now, now, assetId, conn)
       .run()
 
-  // 1. Known path.
-  const here = await at(key)
+  const rows = await at(key)
+  const here = rows.find((r) => r.state === 'present')
   if (here) {
-    if (here.quick_hash === quickHash && here.size === size) {
+    // 1. Known path, same file.
+    if (same(here)) {
       await touch(here.asset_id, key)
-      return { path: rel, assetId: here.asset_id, result: 'unchanged', needs: await needs(db, here.asset_id) }
+      return { path: rel, assetId: here.asset_id, result: 'unchanged', ...(await standing(db, here.asset_id)) }
     }
-    // The file changed (re-saved, re-exported): new size and fingerprint, fresh renditions.
+    // The file changed (re-saved, re-exported): new size and fingerprint, what the file says about
+    // itself (size, date, camera) replaced, fresh renditions.
     await touch(here.asset_id, key)
     await db.prepare("UPDATE assets SET size = ?, status = 'processing', phash = NULL, updated_at = ? WHERE id = ?").bind(size, now, here.asset_id).run()
     const meta = normalizeAgentMetadata(item.metadata)
-    if (meta) await saveMetadata(db, here.asset_id, meta)
-    return { path: rel, assetId: here.asset_id, result: 'updated', needs: ['thumb', 'preview'] }
+    if (meta) await saveMetadata(db, here.asset_id, meta, { fileChanged: true })
+    return { path: rel, assetId: here.asset_id, result: 'updated', needs: ['thumb', 'preview'], ready: false }
+  }
+  // 2. A file that was missing is back where it was (a share that dropped, a folder restored).
+  // A different file now saved under a missing photo's name is a new photo; the old one stays missing.
+  const back = rows.find(same)
+  if (back) {
+    await touch(back.asset_id, key)
+    return { path: rel, assetId: back.asset_id, result: 'unchanged', ...(await standing(db, back.asset_id)) }
   }
 
-  // 2. Moved or renamed: the agent says where it was, or the same file went missing from this agent.
-  const previous = item.previousPath !== undefined ? await at(keyOf(root.path, cleanRelativePath(item.previousPath))) : null
+  // 3. Moved or renamed: the agent says where it was, or the same file went missing from this agent.
+  const previousRoot = item.previousPath !== undefined ? rootOf(item.previousRoot ?? item.root) : null
+  const previous = previousRoot ? (await at(keyOf(previousRoot.path, cleanRelativePath(item.previousPath)))).find(same) : undefined
   const moved =
-    previous && previous.quick_hash === quickHash
-      ? previous
-      : await db
-          .prepare("SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND quick_hash = ? AND size = ? AND state = 'missing' LIMIT 1")
-          .bind(conn, quickHash, size)
-          .first<LocationMatch>()
+    previous ??
+    (await db
+      .prepare("SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND quick_hash = ? AND size = ? AND state = 'missing' ORDER BY updated_at DESC LIMIT 1")
+      .bind(conn, quickHash, size)
+      .first<LocationMatch>())
   if (moved) {
     await touch(moved.asset_id, key)
     const filename = safeFilename(rel)
     await db.prepare('UPDATE assets SET filename = ?, updated_at = ? WHERE id = ?').bind(filename, now, moved.asset_id).run()
-    return { path: rel, assetId: moved.asset_id, result: 'moved', needs: await needs(db, moved.asset_id) }
+    return { path: rel, assetId: moved.asset_id, result: 'moved', ...(await standing(db, moved.asset_id)) }
   }
 
-  // 3. New to the catalogue.
+  // 4. New to the catalogue.
   const filename = safeFilename(rel)
   const mimeType = mimeTypeFor(filename, typeof item.mimeType === 'string' ? item.mimeType : undefined)
   const assetId = randomId()
@@ -472,7 +506,7 @@ async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string,
   ])
   const meta = normalizeAgentMetadata(item.metadata)
   if (meta) await saveMetadata(db, assetId, meta)
-  return { path: rel, assetId, result: 'created', needs: ['thumb', 'preview'] }
+  return { path: rel, assetId, result: 'created', needs: ['thumb', 'preview'], ready: false }
 }
 
 /** Assets this agent may touch: those with a location on its connection. */
@@ -486,10 +520,10 @@ const HEX16 = /^[0-9a-f]{16}$/
  * After renditions are up: finish each asset (hash, presets, places, AI, index, ready). An agent's
  * first scan of a folder doesn't queue AI review; that is a cost people start on purpose.
  */
-export async function completeAssets(env: DamBindings, source: SourceRow, items: unknown): Promise<{ id: string; status: 'ready' | 'rejected'; error?: string }[]> {
+export async function completeAssets(env: DamBindings, source: SourceRow, items: unknown): Promise<{ id: string; status: 'ready' | 'rejected' | 'failed'; error?: string }[]> {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH) throw new AgentError(`Send 1 to ${MAX_BATCH} items at a time.`)
   const roots = await listRoots(env.DB, source.id)
-  const out: { id: string; status: 'ready' | 'rejected'; error?: string }[] = []
+  const out: { id: string; status: 'ready' | 'rejected' | 'failed'; error?: string }[] = []
   for (const raw of items) {
     const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
     const id = typeof item.id === 'string' ? item.id : ''
@@ -500,8 +534,14 @@ export async function completeAssets(env: DamBindings, source: SourceRow, items:
     }
     const root = roots.find((r) => location.key.startsWith(prefixOf(r.path)))
     const hash = typeof item.phash === 'string' && HEX16.test(item.phash) ? item.phash : null
-    await finishAsset(env, id, { hash, queueAi: Boolean(root?.first_scan_done_at) })
-    out.push({ id, status: 'ready' })
+    // One asset that can't be finished mustn't fail the others; it stays 'processing' for the sweep.
+    try {
+      await finishAsset(env, id, { hash, queueAi: Boolean(root?.first_scan_done_at) })
+      out.push({ id, status: 'ready' })
+    } catch (error) {
+      console.error('[agent] could not finish', id, error)
+      out.push({ id, status: 'failed', error: 'cf-dam could not finish this photo; it will try again.' })
+    }
   }
   return out
 }

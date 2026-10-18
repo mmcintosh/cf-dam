@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { Api, Paused, Unpaired } from './api.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
-import { newProgress, scanRoot, type Root } from './pipeline.ts'
+import { newProgress, scanRoots, type Root } from './pipeline.ts'
 import { State } from './state.ts'
 import { serveStatus, type StatusView } from './status.ts'
 import { listVolumes, locate, toAgentPath, type Volume } from './volumes.ts'
@@ -19,6 +19,8 @@ const log = (...args: unknown[]) => console.log(new Date().toISOString(), ...arg
 interface Config {
   source: { id: string; name: string; paused: boolean }
   roots: Root[]
+  /** Every folder, including those switched off (whose state is kept). Older cf-dams don't send it. */
+  knownRoots?: string[]
   scanIntervalMinutes: number
   defaultExcludes: string[]
 }
@@ -32,12 +34,16 @@ export class Agent {
   private rescan = true
   private scanIntervalMs = 15 * 60_000
   private view: StatusView
+  /** cf-dam's refusals of the key in a row; only a few in a row mean it is really gone. */
+  private refusals = 0
 
   constructor(
     readonly config: AgentConfig,
     api?: Api,
     /** Where drives come from: the OS normally; tests stand in their own. */
     private readonly volumeLister: () => Promise<Volume[]> = listVolumes,
+    /** How often to tell cf-dam it's alive, also in the middle of a scan. */
+    private readonly heartbeatMs = 60_000,
   ) {
     this.state = new State(config.dataDir)
     this.api = api ?? new Api(config.url)
@@ -97,6 +103,7 @@ export class Agent {
     })
     this.paused = res.body.paused
     if (res.body.rescan) this.rescan = true
+    this.refusals = 0
   }
 
   private volumes: Volume[] = []
@@ -146,17 +153,26 @@ export class Agent {
     this.volumes = await this.volumeLister().catch(() => this.volumes)
     const { body: config } = await this.api.call<Config>('GET', '/api/agent/config')
     this.scanIntervalMs = Math.max(1, config.scanIntervalMinutes) * 60_000
-    this.state.keepRoots(config.roots.map((r) => r.id))
+    this.state.keepRoots(config.knownRoots ?? config.roots.map((r) => r.id))
     if (config.source.paused) {
       this.paused = true
       return
     }
     this.view.phase = 'scanning'
     this.view.progress = newProgress()
-    for (const root of config.roots) {
-      if (this.stopping || this.paused) break
-      log(`Scanning ${root.path}`)
-      await scanRoot(
+    // Keep cf-dam posted during a long scan: the agent shows as online, and a pause or a rescan
+    // clicked in cf-dam is heard within a minute (a pause stops the scan between files).
+    let beating = false
+    const beat = setInterval(() => {
+      if (beating) return
+      beating = true
+      this.heartbeat()
+        .catch(() => {})
+        .finally(() => (beating = false))
+    }, this.heartbeatMs)
+    try {
+      log(`Scanning ${config.roots.map((r) => r.path).join(', ') || 'nothing yet'}`)
+      await scanRoots(
         {
           api: this.api,
           state: this.state,
@@ -166,14 +182,15 @@ export class Agent {
           progress: this.view.progress,
           shouldStop: () => this.stopping || this.paused,
         },
-        root,
-        locate(root, this.volumes),
+        config.roots.map((root) => ({ root, here: locate(root, this.volumes) })),
       )
-      const p = this.view.progress
-      log(`Done ${root.path}: ${p.found} found, ${p.sent} sent, ${p.failed} failed, ${p.missing} missing`)
+    } finally {
+      clearInterval(beat)
     }
+    const p = this.view.progress
+    log(`Scan done: ${p.found} found, ${p.sent} sent, ${p.failed} failed, ${p.missing} missing`)
     this.view.lastScanAt = new Date().toISOString()
-    this.view.phase = 'idle'
+    this.view.phase = this.paused ? 'paused' : 'idle'
   }
 
   async run(): Promise<void> {
@@ -208,7 +225,15 @@ export class Agent {
         }
       } catch (error) {
         if (error instanceof Unpaired) {
-          log('cf-dam revoked this agent. Pairing again.')
+          // Once could be a deploy or a hiccup; three times a minute apart, the key is gone. The file
+          // list is kept until the new pairing says whether it's still the same source.
+          if (++this.refusals < 3) {
+            log('cf-dam refused this agent’s key; checking again in a minute.')
+            await sleep(60_000)
+            continue
+          }
+          log('cf-dam no longer accepts this agent’s key. Pairing again.')
+          this.refusals = 0
           this.state.clearCredentials()
           continue
         }

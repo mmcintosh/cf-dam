@@ -76,12 +76,14 @@ export async function listVolumes(): Promise<Volume[]> {
 
 /**
  * Where a folder is right now. A folder on a tracked volume moves with it: the part of its path
- * below the volume is kept, the volume's current mount point is put in front.
+ * below the volume is kept, the volume's current mount point is put in front. Null when its volume
+ * isn't connected: whatever is at the old path now (another card also called EOS_DIGITAL, another
+ * drive at E:) is not this folder.
  */
-export function locate(root: { path: string; volume: { id: string; path: string | null } | null }, volumes: Volume[]): string {
+export function locate(root: { path: string; volume: { id: string; path: string | null } | null }, volumes: Volume[]): string | null {
   if (!root.volume?.path) return root.path
   const now = volumes.find((v) => v.id === root.volume!.id)
-  if (!now) return root.path
+  if (!now) return null
   const below = root.path.slice(root.volume.path.length).replace(/^\/+/, '')
   const base = now.path.endsWith('/') ? now.path : `${now.path}/`
   return below ? `${base}${below}` : now.path

@@ -1,7 +1,8 @@
 /**
  * The scheduled sweep (cron, every minute): background work that can't happen inside a request.
  *
- *  1. Process queued assets (imports): metadata and previews, a few per run, inside a time budget.
+ *  1. Process queued assets (imports): metadata and previews, a few per run, inside a time budget;
+ *     and pick up assets left in 'processing' by a request or run that died part-way.
  *  2. Repair the search index, and run queued AI review (in parallel, within a budget).
  *  3. Fingerprint photos that have no look-alike hash yet (older uploads).
  *  4. Check archived originals with a restore in progress, and mark them restored when ready.
@@ -12,7 +13,7 @@ import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { aiAvailable, analyzeAsset } from './ai'
 import { hashFromThumbnail, recordHash } from './phash'
-import { processAsset } from './process'
+import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps } from './places'
 import { indexAsset, unindexed } from './search'
 
@@ -21,6 +22,8 @@ const MAX_PER_RUN = 25
 const AI_BUDGET_MS = 40_000
 const AI_CONCURRENCY = 4
 const RESTORE_CHECKS_PER_RUN = 50
+/** Nothing takes this long in 'processing'; an asset still there was abandoned. */
+const STALE_PROCESSING_MS = 60 * 60_000
 
 export interface SweepResult {
   indexed: number
@@ -30,10 +33,11 @@ export interface SweepResult {
   processed: number
   restoresChecked: number
   restored: number
+  recovered: number
 }
 
 export async function runSweep(env: DamBindings): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0 }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0 }
   const started = Date.now()
 
   const { results: queued } = await env.DB.prepare(
@@ -50,6 +54,29 @@ export async function runSweep(env: DamBindings): Promise<SweepResult> {
     if (claimed.meta.changes === 0) continue
     await processAsset(env, id)
     result.processed++
+  }
+
+  // Abandoned in 'processing': an upload goes back in the queue. A NAS agent's file is finished with
+  // whatever previews arrived; the agent re-sends the file (it records nothing until it is finished),
+  // and missing previews are asked for then.
+  const { results: stuck } = await env.DB.prepare(
+    `SELECT a.id, EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.storage_class = 'NAS') AS nas
+     FROM assets a WHERE a.status = 'processing' AND a.updated_at < ? AND a.deleted_at IS NULL LIMIT 20`,
+  )
+    .bind(new Date(Date.now() - STALE_PROCESSING_MS).toISOString())
+    .all<{ id: string; nas: number }>()
+  for (const { id, nas } of stuck) {
+    if (Date.now() - started > PROCESS_BUDGET_MS) break
+    if (nas) {
+      await finishAsset(env, id, { queueAi: false }).catch(async (error) => {
+        console.warn('[sweep] could not finish', id, error)
+        // Try again in an hour, not every minute.
+        await env.DB.prepare('UPDATE assets SET updated_at = ? WHERE id = ?').bind(nowIso(), id).run()
+      })
+    } else {
+      await env.DB.prepare("UPDATE assets SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'processing'").bind(nowIso(), id).run()
+    }
+    result.recovered++
   }
 
   // Repair the search index (after a rebuild, or a write that failed).

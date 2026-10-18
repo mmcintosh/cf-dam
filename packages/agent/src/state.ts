@@ -48,7 +48,11 @@ export class State {
         PRIMARY KEY (root_id, path)
       );
       CREATE INDEX IF NOT EXISTS files_hash ON files (root_id, quick_hash);
+      CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
+    // Which source the file list belongs to (state from before this was recorded: the saved one's).
+    const saved = this.readCredentials()
+    if (saved?.sourceId) this.db.prepare('INSERT OR IGNORE INTO meta (name, value) VALUES (?, ?)').run('source_id', saved.sourceId)
   }
 
   files(rootId: string): Map<string, FileRow> {
@@ -94,25 +98,35 @@ export class State {
     return { done: row.done ?? 0, error: row.error ?? 0 }
   }
 
-  credentials(url: string): Credentials | null {
+  private readCredentials(): Partial<Credentials> | null {
     if (!existsSync(this.credentialsPath)) return null
     try {
-      const c = JSON.parse(readFileSync(this.credentialsPath, 'utf8')) as Credentials
-      // Credentials belong to one cf-dam; pointing the agent elsewhere means pairing again.
-      return c.url === url && c.apiKey && c.sourceId ? c : null
+      return JSON.parse(readFileSync(this.credentialsPath, 'utf8')) as Partial<Credentials>
     } catch {
       return null
     }
   }
 
+  credentials(url: string): Credentials | null {
+    const c = this.readCredentials()
+    // Credentials belong to one cf-dam; pointing the agent elsewhere means pairing again.
+    return c && c.url === url && c.apiKey && c.sourceId ? (c as Credentials) : null
+  }
+
+  /**
+   * A new pairing. The file list says what was sent to one source; paired again as the same source it
+   * still holds, as a new one (a new source in cf-dam, with its own photos) it starts afresh.
+   */
   saveCredentials(c: Credentials): void {
+    const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'source_id'").get() as { value: string } | undefined)?.value
+    if (was !== c.sourceId) this.db.exec('DELETE FROM files')
+    this.db.prepare("INSERT INTO meta (name, value) VALUES ('source_id', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(c.sourceId)
     writeFileSync(this.credentialsPath, JSON.stringify(c), { mode: 0o600 })
     chmodSync(this.credentialsPath, 0o600)
   }
 
+  /** The key no longer works. The file list stays until a new pairing says whose it is. */
   clearCredentials(): void {
     writeFileSync(this.credentialsPath, '{}', { mode: 0o600 })
-    // A new pairing is a new source in cf-dam: start the file list afresh.
-    this.db.exec('DELETE FROM files')
   }
 }
