@@ -35,6 +35,7 @@ async function agent(): Promise<{ key: string; root: string }> {
   const start = (await (await h.fetch('/api/agent/pair/start', json({ name: 'NAS' }))).json()) as { deviceCode: string; userCode: string }
   await h.fetch('/api/sources/pair', { ...json({ code: start.userCode }), cookie: admin })
   const { apiKey: key, sourceId } = (await (await h.fetch('/api/agent/pair/poll', json({ deviceCode: start.deviceCode }))).json()) as { apiKey: string; sourceId: string }
+  await h.fetch('/api/agent/folders', { ...json({ folders: ['/photos'] }), headers: { Authorization: `Bearer ${key}` } })
   const res = await h.fetch(`/api/sources/${sourceId}/roots`, { ...json({ path: '/photos', label: 'Photos' }), cookie: admin })
   return { key, root: ((await res.json()) as { root: { id: string } }).root.id }
 }

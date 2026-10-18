@@ -411,7 +411,8 @@ assetRoutes.post('/:id/ai/accept', requirePermission('assets:edit'), async (c) =
 assetRoutes.delete('/:id/ai/tags/:tag', requirePermission('assets:edit'), async (c) => {
   const id = c.req.param('id')
   if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
-  await removeAiTag(c.env.DB, id, decodeURIComponent(c.req.param('tag')))
+  // Hono has already decoded the parameter: decoding again turned '%' into a 500.
+  await removeAiTag(c.env.DB, id, c.req.param('tag'))
   return c.json({ tags: await getTags(c.env.DB, id) })
 })
 

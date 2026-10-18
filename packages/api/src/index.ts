@@ -91,7 +91,7 @@ export function createDamApi() {
 
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
 export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
-export { facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValue, type KeywordFacet, type LabelNames } from './catalog/library'
+export { DEFAULT_LABEL_NAMES, facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValue, type KeywordFacet, type LabelNames } from './catalog/library'
 export { keywordTree, type KeywordNode } from './catalog/keywords'
 export { IPTC_FIELDS, listPresets, type IptcField, type IptcKey, type Preset } from './catalog/iptc'
 export { listSavedSearches, normalizeQuery, type SavedSearch } from './routes/metadata'
@@ -100,5 +100,5 @@ export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
-export { getConnection, listConnections, type Connection } from './storage/connections'
+export { browserOrigins, getConnection, listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

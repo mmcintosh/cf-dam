@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
 import { cf } from '@astrojs/cloudflare/hono'
 import { actions, i18n, middleware, notFound, pages, sessions } from 'astro/hono'
-import { createDamApi, ensureMigrated, runSweep, securityHeaders, wellKnownRoutes, type DamBindings } from '@cf-dam/api'
+import { browserOrigins, createDamApi, ensureMigrated, runSweep, securityHeaders, wellKnownRoutes, type DamBindings } from '@cf-dam/api'
 
 // The Worker entry (wrangler `main`). One Worker serves both halves: the JSON API under /api,
 // with real env and executionCtx, then Astro for every other path.
 const app = new Hono<{ Bindings: Env & DamBindings }>()
 
-app.use('*', securityHeaders())
+// Pages may talk to the S3 buckets configured as connections (presigned uploads and playback), no others.
+app.use('*', securityHeaders((c) => browserOrigins(c.env.DB)))
 
 // A Deploy-to-Cloudflare install never runs `wrangler d1 migrations apply`; the first request in
 // each isolate brings the schema up to date instead.

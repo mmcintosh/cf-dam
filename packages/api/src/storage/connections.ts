@@ -5,7 +5,7 @@ import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { R2Provider } from './r2'
-import { S3Provider } from './s3'
+import { bucketOrigin, S3Provider } from './s3'
 import { activeSigningKey, roleCredentials } from './oidc'
 import { deriveKey, open, seal, storageSecret } from './secret-box'
 import { isStorageClass, S3_STORAGE_CLASSES, StorageError, type StorageClass, type StorageProvider } from './types'
@@ -96,6 +96,15 @@ export async function listConnections(db: D1Database): Promise<Connection[]> {
     .prepare("SELECT * FROM storage_connections WHERE provider != 'nas' ORDER BY is_default DESC, created_at")
     .all<ConnectionRow>()
   return results.map(toConnection)
+}
+
+/**
+ * Where browsers reach buckets directly (presigned upload parts, video playback), for the pages'
+ * CSP. Path style as providerFor uses it: keyless (role) connections are always virtual-hosted.
+ */
+export async function browserOrigins(db: D1Database): Promise<string[]> {
+  const buckets = (await listConnections(db)).filter((c) => c.provider === 's3' && c.endpoint && c.bucket)
+  return [...new Set(buckets.map((c) => bucketOrigin({ endpoint: c.endpoint!, bucket: c.bucket!, forcePathStyle: c.authMode === 'access-key' && c.forcePathStyle })))]
 }
 
 export async function getConnection(db: D1Database, id: string): Promise<Connection | null> {

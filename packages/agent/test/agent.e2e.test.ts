@@ -51,7 +51,7 @@ function newAgent(): Agent {
     if (injected) return injected
     return h.fetch(path, init as RequestInit & { cookie?: string })
   }
-  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
+  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Test NAS', extraFolders: [] }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
 }
 
 async function photo(rel: string, seed: number) {
@@ -235,6 +235,7 @@ describe('the agent, end to end', () => {
     while (!agent.status().pairingCode) await new Promise((r) => setTimeout(r, 20))
     const { source } = (await (await h.fetch('/api/sources/pair', { ...json({ code: agent.status().pairingCode }), cookie: admin })).json()) as { source: { id: string } }
     await pairing
+    await agent.reportFolders()
     for (const dir of ['A', 'B']) {
       mkdirSync(join(photos, dir), { recursive: true })
       expect((await h.fetch(`/api/sources/${source.id}/roots`, { ...json({ path: join(photos, dir) }), cookie: admin })).status).toBe(201)

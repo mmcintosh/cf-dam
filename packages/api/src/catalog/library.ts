@@ -242,7 +242,7 @@ const xmpDate = (captured: string | null, offset: string | null) => (captured ? 
  */
 export type LabelNames = Record<Label, string>
 
-const DEFAULT_LABEL_NAMES: LabelNames = { red: 'Red', yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple' }
+export const DEFAULT_LABEL_NAMES: LabelNames = { red: 'Red', yellow: 'Yellow', green: 'Green', blue: 'Blue', purple: 'Purple' }
 
 /** What each colour label is called in this archive (Lightroom writes the name, not the colour). */
 export async function getLabelNames(db: D1Database): Promise<LabelNames> {

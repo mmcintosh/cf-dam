@@ -296,7 +296,8 @@ export async function moveKeyword(db: D1Database, id: string, change: { name?: s
   if (!row) throw new KeywordConflict('No such keyword.')
   const name = change.name !== undefined ? cleanKeywordName(change.name) : row.name
   if (!name) throw new KeywordConflict('A keyword needs a name.')
-  const parentId = change.parentId !== undefined ? change.parentId : row.parent_id
+  // '' is top level, as null is (it used to be stored as a parent that doesn't exist: a 500).
+  const parentId = change.parentId !== undefined ? change.parentId || null : row.parent_id
   let parentPath = ''
   let parentFull = ''
   if (parentId) {

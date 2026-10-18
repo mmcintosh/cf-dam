@@ -144,7 +144,7 @@ describe('migrate', () => {
            ('a2', 'harbour', '', '', '', '', '', ''), ('a3', 'gone', '', '', '', '', '', '')`,
       ),
     ])
-    expect(await migrate(db)).toEqual(['0019_search_keys'])
+    expect(await migrate(db, MIGRATIONS.filter((m) => m.name < '0020'))).toEqual(['0019_search_keys'])
     const found = async (q: string) =>
       (await db.prepare('SELECT a.id FROM assets a WHERE a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) ORDER BY a.id').bind(q).all<{ id: string }>()).results.map((r) => r.id)
     expect(await found('bergen')).toEqual(['a1'])

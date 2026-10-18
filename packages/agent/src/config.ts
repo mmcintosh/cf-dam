@@ -1,7 +1,7 @@
 /** Settings from the environment. In Docker these come from the compose file Synology runs. */
 import { existsSync } from 'node:fs'
 import { availableParallelism, homedir, hostname, totalmem } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 
 export const VERSION = '0.1.0'
 
@@ -20,6 +20,8 @@ export interface AgentConfig {
   workers: number
   /** Shown in cf-dam when pairing. */
   name: string
+  /** Desktops: folders to offer besides drives, shares and Pictures (AGENT_FOLDERS, ';' or ':' separated as PATH is). */
+  extraFolders: string[]
 }
 
 const MIB = 1024 * 1024
@@ -57,5 +59,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
     host: env.STATUS_HOST?.trim() || (docker ? '0.0.0.0' : '127.0.0.1'),
     workers,
     name: env.AGENT_NAME?.trim() || hostname(),
+    extraFolders: (env.AGENT_FOLDERS ?? '').split(delimiter).map((f) => f.trim()).filter(Boolean),
   }
 }

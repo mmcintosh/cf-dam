@@ -67,6 +67,15 @@ function stripQuotes(etag: string | null): string {
   return (etag ?? '').replace(/^"|"$/g, '')
 }
 
+/**
+ * The origin a bucket's URLs have: the endpoint's for path-style, `bucket.` in front of its host for
+ * virtual-hosted. Browsers PUT and GET presigned URLs there, so the page's CSP names it.
+ */
+export function bucketOrigin(config: { endpoint: string; bucket: string; forcePathStyle?: boolean }): string {
+  const base = new URL(config.endpoint)
+  return config.forcePathStyle ? base.origin : `${base.protocol}//${config.bucket}.${base.host}`
+}
+
 export class S3Provider implements StorageProvider {
   readonly kind = 's3' as const
   readonly capabilities
@@ -89,9 +98,10 @@ export class S3Provider implements StorageProvider {
   /** The object (or bucket, when `key` is empty) URL, with optional query parameters. */
   url(key: string, query: Record<string, string> = {}): URL {
     const path = key ? `/${encodeKey(key)}` : '/'
+    const origin = bucketOrigin(this.config)
     const url = this.config.forcePathStyle
-      ? new URL(`${this.base.origin}${this.base.pathname.replace(/\/$/, '')}/${encodeURIComponent(this.config.bucket)}${path}`)
-      : new URL(`${this.base.protocol}//${this.config.bucket}.${this.base.host}${this.base.pathname.replace(/\/$/, '')}${path}`)
+      ? new URL(`${origin}${this.base.pathname.replace(/\/$/, '')}/${encodeURIComponent(this.config.bucket)}${path}`)
+      : new URL(`${origin}${this.base.pathname.replace(/\/$/, '')}${path}`)
     for (const [name, value] of Object.entries(query)) url.searchParams.set(name, value)
     return url
   }

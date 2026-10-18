@@ -10,7 +10,7 @@ import { Extractor } from './extract.ts'
 import { newProgress, scanRoots, type Root } from './pipeline.ts'
 import { State } from './state.ts'
 import { serveStatus, type StatusView } from './status.ts'
-import { listVolumes, locate, toAgentPath, type Volume } from './volumes.ts'
+import { isSystemVolume, listVolumes, locate, toAgentPath, type Volume } from './volumes.ts'
 import { homedir } from 'node:os'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -110,8 +110,9 @@ export class Agent {
   private volumes: Volume[] = []
 
   /**
-   * The folders cf-dam can offer. In Docker: everything mounted under the photos folder, two levels
-   * down. On a Mac or PC: each drive and mounted share (and its folders), and the Pictures folder.
+   * The folders cf-dam can offer, and the only ones it lets people choose (or folders inside them).
+   * In Docker: the photos folder and what's mounted under it, two levels down. On a Mac or PC: each
+   * drive and mounted share but the system disk (and their folders), Pictures, and AGENT_FOLDERS.
    */
   async reportFolders(): Promise<void> {
     this.volumes = await this.volumeLister().catch(() => [])
@@ -135,13 +136,20 @@ export class Agent {
         if (depth < 2) list(path, depth + 1)
       }
     }
-    if (this.config.photosDir) list(this.config.photosDir, 1)
-    else {
+    if (this.config.photosDir) {
+      folders.push(this.config.photosDir)
+      list(this.config.photosDir, 1)
+    } else {
       for (const v of this.volumes) {
+        if (isSystemVolume(v)) continue
         folders.push(v.path)
         list(v.path, 2)
       }
       folders.push(join(homedir(), 'Pictures'))
+      for (const f of this.config.extraFolders) {
+        folders.push(f)
+        list(f, 2)
+      }
     }
     await this.api.call('POST', '/api/agent/folders', {
       folders: [...new Set(folders.map(toAgentPath))].slice(0, 500),

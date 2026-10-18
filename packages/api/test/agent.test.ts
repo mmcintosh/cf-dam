@@ -37,6 +37,8 @@ async function pair(name = 'Studio NAS'): Promise<{ key: string; sourceId: strin
   expect(done.status).toBe('approved')
   // The key is handed over once.
   expect((await h.fetch('/api/agent/pair/poll', json({ deviceCode }))).status).toBe(410)
+  // What the agent offers; folders can only be chosen from it.
+  await agentFetch(done.apiKey, '/api/agent/folders', json({ folders: ['/photos'] }))
   return { key: done.apiKey, sourceId: done.sourceId }
 }
 

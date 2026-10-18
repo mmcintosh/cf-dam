@@ -8,6 +8,7 @@
  */
 import type { MiddlewareHandler } from 'hono'
 import type { DamBindings, DamEnv } from '../env'
+import { sha256Hex } from '../lib/crypto'
 import { findLiveApiKey, looksLikeApiKey, touchApiKey } from './api-keys'
 import { createAuth } from './auth'
 import { loadGrants } from './roles'
@@ -61,16 +62,19 @@ export async function resolvePrincipal(
 ): Promise<Principal | null> {
   const key = presentedApiKey(request)
   if (key !== null) {
+    // A NAS agent's key belongs to its source, whoever approved it: it can do exactly one thing, sync
+    // as that source. `userId` is the approver's, where they still exist; nothing an agent does uses it.
+    const source = await env.DB.prepare('SELECT id, name, created_by FROM sources WHERE key_hash = ? AND revoked_at IS NULL')
+      .bind(await sha256Hex(key))
+      .first<{ id: string; name: string; created_by: string | null }>()
+    if (source) {
+      return { userId: source.created_by ?? '', email: '', name: source.name, roles: [], permissions: new Set(['agent:sync']), via: 'api_key', sourceId: source.id }
+    }
     const record = await findLiveApiKey(env.DB, key)
     if (!record) return null
     const user = await activeUser(env.DB, record.userId)
     if (!user) return null
     waitUntil?.(touchApiKey(env.DB, record.id))
-    // A NAS agent's key: it can do exactly one thing, sync as its own source, whatever its approver may do.
-    const source = await env.DB.prepare('SELECT id FROM sources WHERE api_key_id = ? AND revoked_at IS NULL').bind(record.id).first<{ id: string }>()
-    if (source) {
-      return { userId: user.id, email: user.email, name: user.name, roles: [], permissions: new Set(['agent:sync']), via: 'api_key', apiKeyId: record.id, sourceId: source.id }
-    }
     const grants = await loadGrants(env.DB, user.id)
     const scopes = new Set(record.scopes)
     return {

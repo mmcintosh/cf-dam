@@ -10,7 +10,7 @@
  * (SHA-256 of size + first and last MiB), either because the agent says where the file was
  * (`previousPath`) or because a file with that fingerprint went missing from the same agent.
  */
-import { createApiKey } from '../auth/api-keys'
+import { API_KEY_PREFIX } from '../auth/api-keys'
 import type { DamBindings } from '../env'
 import { randomBase62, randomId, sha256Hex } from '../lib/crypto'
 import { nowIso } from '../lib/time'
@@ -71,13 +71,14 @@ interface PairingRow {
   version: string | null
   source_id: string | null
   sealed_key: string | null
+  claimed_at: string | null
   expires_at: string
 }
 
 /** What a person sees before approving: the name and platform the agent gave. */
 export async function pendingPairing(db: D1Database, code: string): Promise<PairingRow | null> {
   const row = await db.prepare('SELECT * FROM pairing_requests WHERE user_code = ?').bind(normalizeUserCode(code)).first<PairingRow>()
-  return row && row.expires_at > nowIso() && !row.source_id ? row : null
+  return row && row.expires_at > nowIso() && !row.source_id && !row.claimed_at ? row : null
 }
 
 /**
@@ -92,7 +93,18 @@ export async function approvePairing(env: DamBindings, code: string, input: { na
   const now = nowIso()
   const sourceId = randomId()
   const connectionId = `nas-${sourceId}`
-  const { key, record } = await createApiKey(db, { userId: input.userId, name: `NAS agent: ${name}`, scopes: ['agent:sync'], expiresAt: null })
+  // Claimed first, so two people approving one code at once can't both make an agent. The claim also
+  // gives the agent a fresh ten minutes to collect its key: a code approved just before it expired
+  // was otherwise purged (by the next pairing to start) before the agent's next poll.
+  const collectBy = new Date(Date.now() + PAIRING_TTL_SECONDS * 1000).toISOString()
+  const claimed = await db
+    .prepare('UPDATE pairing_requests SET claimed_at = ?, expires_at = ? WHERE device_hash = ? AND claimed_at IS NULL AND source_id IS NULL AND expires_at > ?')
+    .bind(now, collectBy, row.device_hash, now)
+    .run()
+  if (claimed.meta.changes !== 1) throw new AgentError('That code has just been approved, or has expired.', 409)
+  // The key is the source's own (only its hash is kept), not an API key of the approver's: the agent
+  // outlives their account, and only disconnecting it revokes it.
+  const key = API_KEY_PREFIX + randomBase62(40)
   const sealed = await seal(await deriveKey(storageSecret(env)), key)
   await db.batch([
     db
@@ -102,8 +114,8 @@ export async function approvePairing(env: DamBindings, code: string, input: { na
       )
       .bind(connectionId, name, input.userId, now, now),
     db
-      .prepare('INSERT INTO sources (id, name, connection_id, api_key_id, platform, version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(sourceId, name, connectionId, record.id, row.platform, row.version, input.userId, now),
+      .prepare('INSERT INTO sources (id, name, connection_id, key_hash, platform, version, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(sourceId, name, connectionId, await sha256Hex(key), row.platform, row.version, input.userId, now),
     db.prepare('UPDATE pairing_requests SET source_id = ?, sealed_key = ? WHERE device_hash = ?').bind(sourceId, sealed, row.device_hash),
   ])
   return { id: sourceId, name }
@@ -225,8 +237,14 @@ export const within = (path: string, base: string) => path === base || path.star
 
 /** A file's path inside a root: 'sub/dir/IMG_1.CR3'. Relative, never escaping the root. */
 export function cleanRelativePath(path: unknown): string {
-  const absolute = cleanAgentPath(typeof path === 'string' ? `/${path}` : path)
-  return absolute.slice(1)
+  // Relative means relative: not empty, not '/srv/x' (which, given a leading '/', read as //srv/x, a
+  // network path), not 'C:/x'.
+  if (typeof path !== 'string' || path.length === 0 || path.startsWith('/') || /^[A-Za-z]:/.test(path)) {
+    throw new AgentError('A file path is relative to its folder: 2023/IMG_1.jpg.')
+  }
+  const relative = cleanAgentPath(`/${path}`).slice(1)
+  if (!relative) throw new AgentError('A file path is relative to its folder: 2023/IMG_1.jpg.')
+  return relative
 }
 
 const globs = (value: unknown): string[] => {
@@ -245,8 +263,14 @@ export async function addRoot(db: D1Database, sourceId: string, input: Record<st
   // Nested folders would index the same files twice under two keys.
   const roots = await listRoots(db, sourceId)
   if (roots.some((r) => (within(path, r.path) || within(r.path, path)) && path !== r.path)) throw new AgentError('That folder is inside, or contains, a folder already indexed.', 409)
-  // On a volume the agent reported (a USB drive, a mounted share)? Remember which, to find it again.
   const source = await getSource(db, sourceId)
+  // Only a folder the agent offered, or one inside it (review B5): otherwise anyone who may manage
+  // sources could index any path on a paired computer, a person's whole home folder. (Windows paths
+  // and shares compare without case, as Windows does.)
+  const fold = (p: string) => (/^[A-Z]:\/|^\/\//.test(p) ? p.toLowerCase() : p)
+  const offered = json<string[]>(source?.folders ?? '[]', [])
+  if (!offered.some((f) => within(fold(path), fold(f)))) throw new AgentError('Choose one of the folders the agent offers, or a folder inside one.', 400)
+  // On a volume the agent reported (a USB drive, a mounted share)? Remember which, to find it again.
   const volumes = json<Volume[]>(source?.volumes ?? '[]', [])
   const volume = volumes.filter((v) => within(path, v.path)).sort((a, b) => b.path.length - a.path.length)[0]
   await db
@@ -302,11 +326,7 @@ export async function removeRoot(db: D1Database, source: SourceRow, rootId: stri
 export async function revokeSource(db: D1Database, id: string): Promise<boolean> {
   const source = await getSource(db, id)
   if (!source || source.revoked_at) return false
-  const now = nowIso()
-  await db.batch([
-    db.prepare('UPDATE sources SET revoked_at = ? WHERE id = ?').bind(now, id),
-    ...(source.api_key_id ? [db.prepare('UPDATE api_keys SET revoked_at = COALESCE(revoked_at, ?) WHERE id = ?').bind(now, source.api_key_id)] : []),
-  ])
+  await db.prepare('UPDATE sources SET revoked_at = ?, key_hash = NULL WHERE id = ?').bind(nowIso(), id).run()
   return true
 }
 

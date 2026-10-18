@@ -6,7 +6,7 @@
  * 'E:/', '//nas/photo'.
  */
 import { execFile } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { readdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -65,6 +65,20 @@ async function windowsVolumes(): Promise<Volume[]> {
     path: `${v.DriveLetter.toUpperCase()}:/`,
     removable: v.DriveType !== 'Fixed',
   }))
+}
+
+/**
+ * The disk the system runs from (macOS's 'Macintosh HD', Windows's C:). Its root isn't offered as a
+ * folder: that would let anyone managing agents in cf-dam index every person's files on it. Pictures
+ * and AGENT_FOLDERS are offered instead.
+ */
+export function isSystemVolume(v: Volume, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (/^[A-Za-z]:\/$/.test(v.path)) return v.path.slice(0, 2).toUpperCase() === (env.SystemDrive ?? 'C:').toUpperCase()
+  try {
+    return realpathSync(v.path) === '/'
+  } catch {
+    return false
+  }
 }
 
 /** Volumes on this machine. In Docker (a NAS) there are none to track: the shares are mounted for good. */

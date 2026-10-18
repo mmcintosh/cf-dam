@@ -18,6 +18,12 @@ It only reads your photos. It never changes, moves or deletes them.
   package). Without it, HEIC photos are listed as failed, and tried again once it's installed and the
   agent is updated.
 
+cf-dam offers its folder picker the drives and shares this computer has mounted, and your Pictures
+folder, and only lets people pick those or folders inside them. The system disk itself (Macintosh HD,
+C:) isn't offered, so nobody managing agents in cf-dam can index everyone's files on it. For photos
+elsewhere on it, list their folders in `AGENT_FOLDERS` (separated by `;` on Windows, `:` on a Mac), e.g.
+`AGENT_FOLDERS="D:/Photos;C:/Archive"`, and they're offered too.
+
 The status page answers on this computer only (http://localhost:8790). To see it from elsewhere on
 your network, set `STATUS_HOST=0.0.0.0` (and `PORT` for another port).
 

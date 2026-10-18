@@ -3,6 +3,7 @@
  * which carries only `agent:sync` and names its source (see auth/principal.ts).
  */
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { requirePermission } from '../auth/principal'
 import { consumeRateLimit } from '../auth/rate-limit'
 import {
@@ -19,7 +20,7 @@ import {
   setRootOnline,
   startPairing,
 } from '../catalog/agents'
-import { isRenditionName, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
+import { isRenditionName, MAX_CLIENT_RENDITION_BYTES, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { BadRequest, readJsonObject } from '../lib/http'
 
@@ -30,6 +31,23 @@ function failure(c: Context<DamEnv>, error: unknown) {
   if (error instanceof BadRequest || error instanceof RenditionRejected) return c.json({ error: 'invalid_request', message: error.message }, 400)
   throw error
 }
+
+/**
+ * Bodies are bounded before anything reads them (with or without a Content-Length): the pairing
+ * endpoints are open to anyone, and a rendition was buffered whole before its size was checked.
+ * Each bound is well above what the agent sends: 100 photos' metadata, 5,000 paths of a scan.
+ */
+const KIB = 1024
+const limit = (maxSize: number): MiddlewareHandler<DamEnv> =>
+  bodyLimit({ maxSize, onError: (c) => c.json({ error: 'too_large', message: `This request is limited to ${Math.round(maxSize / KIB).toLocaleString('en')} KB.` }, 413) })
+agentRoutes.use('/pair/*', limit(4 * KIB))
+agentRoutes.use('/heartbeat', limit(64 * KIB))
+agentRoutes.use('/folders', limit(1024 * KIB))
+agentRoutes.use('/roots/*', limit(4 * KIB))
+agentRoutes.use('/assets/batch', limit(8 * 1024 * KIB))
+agentRoutes.use('/assets/complete', limit(256 * KIB))
+agentRoutes.use('/assets/:id/renditions/:name', limit(MAX_CLIENT_RENDITION_BYTES))
+agentRoutes.use('/scans/*', limit(8 * 1024 * KIB))
 
 agentRoutes.post('/pair/start', async (c) => {
   const limited = await consumeRateLimit(c, { max: 10, windowMs: 10 * 60_000, keyPrefix: 'agent-pair' })
