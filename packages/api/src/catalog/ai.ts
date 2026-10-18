@@ -47,38 +47,73 @@ export async function saveAiSettings(db: D1Database, patch: Partial<AiSettings>)
   return getAiSettings(db)
 }
 
+/** Tries per photo before a backfill leaves it alone (each one is billed). */
+export const AI_MAX_ATTEMPTS = 3
+/** A photo 'running' for longer than this was left by a run that died. */
+export const AI_RUNNING_STALE_MS = 10 * 60_000
+
 /** Whether AI can run at all here: the binding exists and it is switched on. */
 export async function aiAvailable(env: DamBindings): Promise<boolean> {
   return Boolean(env.AI) && (await getAiSettings(env.DB)).enabled
 }
 
-/** Queue assets that have a preview for analysis. Returns how many were queued. */
+/**
+ * Queue assets that have a preview for analysis. Returns how many were queued. A backfill
+ * ('unanalysed') takes failed photos only while they have tries left; photos chosen by hand start
+ * their count again. A photo being analysed right now is left to finish.
+ */
 export async function queueForAi(db: D1Database, ids: string[] | 'unanalysed'): Promise<number> {
   const hasPreview = "EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id)"
   if (ids === 'unanalysed') {
     const result = await db
-      .prepare(`UPDATE assets SET ai_status = 'queued', ai_error = NULL WHERE deleted_at IS NULL AND ${hasPreview} AND (ai_status IS NULL OR ai_status = 'failed')`)
+      .prepare(
+        `UPDATE assets SET ai_status = 'queued', ai_error = NULL WHERE deleted_at IS NULL AND ${hasPreview}
+           AND (ai_status IS NULL OR (ai_status = 'failed' AND ai_attempts < ?))`,
+      )
+      .bind(AI_MAX_ATTEMPTS)
       .run()
     return result.meta.changes
   }
   const result = await db
-    .prepare(`UPDATE assets SET ai_status = 'queued', ai_error = NULL WHERE deleted_at IS NULL AND ${hasPreview} AND id IN (SELECT value FROM json_each(?))`)
+    .prepare(
+      `UPDATE assets SET ai_status = 'queued', ai_error = NULL, ai_attempts = 0
+       WHERE deleted_at IS NULL AND ${hasPreview} AND id IN (SELECT value FROM json_each(?)) AND ai_status IS NOT 'running'`,
+    )
     .bind(JSON.stringify(ids))
     .run()
   return result.meta.changes
 }
 
-/** Run the model on one asset now and store what it found. */
+/**
+ * Claim one photo for analysis now (the "Analyse" button), as the sweep claims its batch: false when
+ * it is already being analysed, so two clicks, or a click during the sweep, don't pay twice.
+ */
+export async function claimForAi(db: D1Database, assetId: string): Promise<boolean> {
+  const stale = new Date(Date.now() - AI_RUNNING_STALE_MS).toISOString()
+  const claimed = await db
+    .prepare(
+      `UPDATE assets SET ai_status = 'running', ai_started_at = ?, ai_attempts = ai_attempts + 1
+       WHERE id = ? AND deleted_at IS NULL AND NOT (ai_status IS 'running' AND ai_started_at > ?)`,
+    )
+    .bind(nowIso(), assetId, stale)
+    .run()
+  return claimed.meta.changes === 1
+}
+
+/**
+ * Run the model on one asset, already claimed ('running'), and store what it found. Whatever goes
+ * wrong, the photo ends up 'failed' with the reason, never left 'running'.
+ */
 export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'done' | 'failed' | 'skipped'> {
   const db = env.DB
   if (!env.AI) return 'skipped'
-  const asset = await getAsset(db, assetId)
-  if (!asset) {
-    await db.prepare("UPDATE assets SET ai_status = 'skipped' WHERE id = ?").bind(assetId).run()
-    return 'skipped'
-  }
-  const settings = await getAiSettings(db)
   try {
+    const asset = await getAsset(db, assetId)
+    if (!asset) {
+      await db.prepare("UPDATE assets SET ai_status = 'skipped' WHERE id = ?").bind(assetId).run()
+      return 'skipped'
+    }
+    const settings = await getAiSettings(db)
     const image = await modelImage(env, assetId)
     if (!image) {
       await db.prepare("UPDATE assets SET ai_status = 'skipped', ai_error = 'No preview to analyse.' WHERE id = ?").bind(assetId).run()
@@ -110,6 +145,7 @@ export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'
       .prepare("UPDATE assets SET ai_status = 'failed', ai_error = ? WHERE id = ?")
       .bind(error instanceof Error ? error.message.slice(0, 300) : 'Analysis failed', assetId)
       .run()
+      .catch(() => {}) // the database itself failing: the sweep's stale check puts it back
     return 'failed'
   }
 }

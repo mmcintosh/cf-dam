@@ -80,7 +80,7 @@ export function buildPrompt(context: VisionContext): string {
     'You catalogue photos for a professional photo archive. Describe only what is visible; do not guess names of people or places unless they are unmistakable or given below.',
     ...hints,
     'Reply with JSON only, no prose, in exactly this shape:',
-    '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "any readable text in the picture exactly as written (signs, shirts, documents), or empty"}',
+    '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "readable text in the picture exactly as written (signs, shirts, documents), at most 500 characters, or empty"}',
   ].join('\n')
 }
 
@@ -90,7 +90,8 @@ export function extractJson(text: string): unknown {
   const candidate = fenced ?? text
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
-  if (start < 0 || end <= start) throw new Error('The model did not return JSON.')
+  if (start < 0) throw new Error('The model did not return JSON.')
+  if (end <= start) throw new Error('The model’s reply was cut off before the end.')
   return JSON.parse(candidate.slice(start, end + 1))
 }
 
@@ -139,15 +140,30 @@ interface ModelReply {
   usage?: { prompt_tokens?: number; completion_tokens?: number; neurons?: number }
 }
 
-export async function analyzeImage(ai: Ai, modelId: string, dataUrl: string, context: VisionContext): Promise<VisionResult> {
+/** A model call that hasn't answered by then won't: give up, and let the photo be retried. */
+export const MODEL_TIMEOUT_MS = 90_000
+/**
+ * Room for the reply. A sign- or document-heavy photo's text made 1,000 tokens too few: the JSON was
+ * cut off after the call was billed (review B6). The prompt also caps the text at 500 characters.
+ */
+const MAX_TOKENS = { chat: 2000, moondream: 1500 }
+
+export async function analyzeImage(ai: Ai, modelId: string, dataUrl: string, context: VisionContext, timeoutMs = MODEL_TIMEOUT_MS): Promise<VisionResult> {
   const model = VISION_MODELS.find((m) => m.id === modelId) ?? VISION_MODELS[0]!
   const prompt = buildPrompt(context)
   // Bound: the binding's run() reads private fields from `this`.
-  const run = ai.run.bind(ai) as unknown as (model: string, input: Record<string, unknown>) => Promise<ModelReply>
+  const call = ai.run.bind(ai) as unknown as (model: string, input: Record<string, unknown>) => Promise<ModelReply>
+  const run = (id: string, input: Record<string, unknown>) => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`The model didn’t answer within ${Math.round(timeoutMs / 1000)} s.`)), timeoutMs)
+    })
+    return Promise.race([call(id, input), late]).finally(() => clearTimeout(timer))
+  }
   let reply: ModelReply
   if (model.style === 'moondream') {
     // stream: false explicitly; left unset, the binding hands back a stream.
-    reply = await run(model.id, { task: 'query', image: dataUrl, question: prompt, reasoning: false, max_tokens: 700, temperature: 0.2, stream: false })
+    reply = await run(model.id, { task: 'query', image: dataUrl, question: prompt, reasoning: false, max_tokens: MAX_TOKENS.moondream, temperature: 0.2, stream: false })
   } else {
     reply = await run(model.id, {
       messages: [
@@ -159,7 +175,7 @@ export async function analyzeImage(ai: Ai, modelId: string, dataUrl: string, con
           ],
         },
       ],
-      max_tokens: 1000,
+      max_tokens: MAX_TOKENS.chat,
       temperature: 0.2,
       ...(model.jsonSchema ? { response_format: { type: 'json_schema', json_schema: SCHEMA } } : {}),
     })

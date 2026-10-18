@@ -16,7 +16,7 @@ import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
-import { aiAvailable, analyzeAsset } from './ai'
+import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
@@ -137,7 +137,7 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       // Claim a few so an overlapping run doesn't analyse the same photos.
       const { results: claimed } = await db
         .prepare(
-          `UPDATE assets SET ai_status = 'running', ai_started_at = ?
+          `UPDATE assets SET ai_status = 'running', ai_started_at = ?, ai_attempts = ai_attempts + 1
            WHERE id IN (SELECT id FROM assets WHERE ai_status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT ?) AND ai_status = 'queued'
            RETURNING id`,
         )
@@ -147,9 +147,14 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       const outcomes = await Promise.all(claimed.map(({ id }) => analyzeAsset(env, id)))
       result.analysed += outcomes.filter((o) => o === 'done').length
     }
-    // A run that died mid-analysis leaves 'running' behind; give those another go.
-    await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE ai_status = 'running' AND ai_started_at < ?")
-      .bind(new Date(Date.now() - 10 * 60_000).toISOString())
+    // A run that died mid-analysis leaves 'running' behind: another go while it has tries left.
+    await db
+      .prepare(
+        `UPDATE assets SET ai_status = CASE WHEN ai_attempts < ? THEN 'queued' ELSE 'failed' END,
+           ai_error = CASE WHEN ai_attempts < ? THEN ai_error ELSE 'The analysis didn’t finish, ${AI_MAX_ATTEMPTS} times.' END
+         WHERE ai_status = 'running' AND ai_started_at < ?`,
+      )
+      .bind(AI_MAX_ATTEMPTS, AI_MAX_ATTEMPTS, new Date(Date.now() - AI_RUNNING_STALE_MS).toISOString())
       .run()
   }
 

@@ -5,7 +5,7 @@ import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
-import { acceptSuggestions, analyzeAsset, removeAiTag, type AcceptField } from '../catalog/ai'
+import { acceptSuggestions, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
@@ -389,6 +389,7 @@ assetRoutes.post('/:id/ai/analyze', requirePermission('ai:run'), async (c) => {
   const id = c.req.param('id')
   if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: 'This deployment has no Workers AI binding.' }, 409)
+  if (!(await claimForAi(c.env.DB, id))) return c.json({ error: 'busy', message: 'This photo is being analysed already.' }, 409)
   const outcome = await analyzeAsset(c.env, id)
   const row = (await getAsset(c.env.DB, id))!
   return c.json({ outcome, ai: assetJson(row, []).ai, tags: await getTags(c.env.DB, id) }, outcome === 'failed' ? 502 : 200)

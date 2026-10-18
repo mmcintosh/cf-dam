@@ -18,10 +18,10 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
-import { bands, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, type Decoded } from './dhash'
+import { bands, bitsSet, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS, type Decoded } from './dhash'
 import { renditionKey } from './renditions'
 
-export { areaGrey, bands, DEAD_ZONE, dhash, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE } from './dhash'
+export { areaGrey, bands, bitsSet, DEAD_ZONE, dhash, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS } from './dhash'
 
 // ── PNG (8-bit, non-interlaced: what Images emits) ────────────────────────────
 
@@ -133,8 +133,10 @@ export async function hashFromThumbnail(env: DamBindings, assetId: string): Prom
   return hashPixels(await decodePng(new Uint8Array(await png.response().arrayBuffer())))
 }
 
-/** Look-alikes considered per photo, nearest bands first: enough for any real archive. */
+/** Candidates considered per photo, those sharing the most bands (so the nearest) first. */
 const MAX_CANDIDATES = 2000
+/** Look-alikes kept per photo, nearest first: a burst of 300 frames isn't 45,000 pairs. */
+export const MAX_PAIRS_PER_PHOTO = 50
 
 /**
  * Store each asset's hash and record every look-alike within MAX_DISTANCE: three round trips for any
@@ -143,6 +145,8 @@ const MAX_CANDIDATES = 2000
 export async function recordHashes(db: D1Database, items: { id: string; hash: string }[]): Promise<number> {
   if (items.length === 0) return 0
   const ids = JSON.stringify(items.map((i) => i.id))
+  // Hashes too plain to compare are stored, but get no bands: nothing finds them, they find nothing.
+  const detailed = items.filter((i) => bitsSet(i.hash) >= MIN_DETAIL_BITS)
   const candidates = await db.batch([
     db
       .prepare("UPDATE assets SET phash = json_extract(j.value, '$[1]') FROM json_each(?) j WHERE assets.id = json_extract(j.value, '$[0]')")
@@ -150,18 +154,20 @@ export async function recordHashes(db: D1Database, items: { id: string; hash: st
     db.prepare('DELETE FROM asset_hash_bands WHERE asset_id IN (SELECT value FROM json_each(?))').bind(ids),
     db
       .prepare("INSERT INTO asset_hash_bands (asset_id, band, value) SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?)")
-      .bind(JSON.stringify(items.flatMap(({ id, hash }) => bands(hash).map((value, band) => [id, band, value])))),
-    // Photos sharing a band with each of these (with these photos among each other too).
+      .bind(JSON.stringify(detailed.flatMap(({ id, hash }) => bands(hash).map((value, band) => [id, band, value])))),
+    // Photos sharing a band with each of these (with these photos among each other too), those sharing
+    // the most bands first: they're the nearest, so a cut at MAX_CANDIDATES drops the farthest.
     db
       .prepare(
         `SELECT me, my_width, my_height, id, phash, width, height FROM (
-           SELECT me, my_width, my_height, id, phash, width, height, ROW_NUMBER() OVER (PARTITION BY me) AS n FROM (
-             SELECT DISTINCT mine.asset_id AS me, s.width AS my_width, s.height AS my_height, a.id, a.phash, a.width, a.height
+           SELECT me, my_width, my_height, id, phash, width, height, ROW_NUMBER() OVER (PARTITION BY me ORDER BY shared DESC, id) AS n FROM (
+             SELECT mine.asset_id AS me, s.width AS my_width, s.height AS my_height, a.id, a.phash, a.width, a.height, COUNT(*) AS shared
              FROM asset_hash_bands mine
              JOIN assets s ON s.id = mine.asset_id
              JOIN asset_hash_bands hb ON hb.band = mine.band AND hb.value = mine.value AND hb.asset_id != mine.asset_id
              JOIN assets a ON a.id = hb.asset_id
              WHERE mine.asset_id IN (SELECT value FROM json_each(?)) AND a.deleted_at IS NULL AND a.phash IS NOT NULL
+             GROUP BY mine.asset_id, a.id
            )
          ) WHERE n <= ?`,
       )
@@ -169,15 +175,23 @@ export async function recordHashes(db: D1Database, items: { id: string; hash: st
   ])
   const hashOf = new Map(items.map((i) => [i.id, i.hash]))
   const ratio = (w: number | null, h: number | null) => (w && h ? w / h : null)
-  const pairs = new Map<string, [string, string, number]>()
+  const near = new Map<string, { other: string; distance: number }[]>()
   for (const r of candidates[3]!.results as { me: string; my_width: number | null; my_height: number | null; id: string; phash: string; width: number | null; height: number | null }[]) {
+    // Bands stored before MIN_DETAIL_BITS (0022 removes them; this is belt and braces).
+    if (bitsSet(r.phash) < MIN_DETAIL_BITS) continue
     const mine = ratio(r.my_width, r.my_height)
     const other = ratio(r.width, r.height)
     if (mine && other && Math.abs(mine - other) / Math.max(mine, other) > MAX_ASPECT_DIFFERENCE) continue
     const distance = hamming(hashOf.get(r.me)!, r.phash)
     if (distance > MAX_DISTANCE) continue
-    const [a, b] = r.me < r.id ? [r.me, r.id] : [r.id, r.me]
-    pairs.set(`${a} ${b}`, [a, b, distance])
+    near.set(r.me, [...(near.get(r.me) ?? []), { other: r.id, distance }])
+  }
+  const pairs = new Map<string, [string, string, number]>()
+  for (const [me, list] of near) {
+    for (const { other, distance } of list.sort((x, y) => x.distance - y.distance || x.other.localeCompare(y.other)).slice(0, MAX_PAIRS_PER_PHOTO)) {
+      const [a, b] = me < other ? [me, other] : [other, me]
+      pairs.set(`${a} ${b}`, [a, b, distance])
+    }
   }
   if (pairs.size > 0) {
     await db

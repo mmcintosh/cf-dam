@@ -1,6 +1,7 @@
 /**
  * Migrations in code, for what SQL can't do. They run in order with the SQL files (see migrate.ts).
  */
+import { bitsSet, MIN_DETAIL_BITS } from '../catalog/dhash'
 import { cleanKeywordName } from '../catalog/keywords'
 import type { Migration } from './migrate'
 
@@ -100,4 +101,26 @@ export async function repairKeywordKeys(db: D1Database): Promise<void> {
   ])
 }
 
-export const CODE_MIGRATIONS: Migration[] = [{ name: '0018_keyword_keys', run: repairKeywordKeys }]
+/**
+ * Hashes too plain to compare (MIN_DETAIL_BITS) stop being paired: their bands go, and so do the
+ * look-alike pairs they made that nobody has dismissed. SQLite can't count bits, so it's done here,
+ * a few thousand ids per statement.
+ */
+export async function unpairPlainHashes(db: D1Database): Promise<void> {
+  const { results } = await db.prepare('SELECT id, phash FROM assets WHERE phash IS NOT NULL').all<{ id: string; phash: string }>()
+  const plain = results.filter((r) => bitsSet(r.phash) < MIN_DETAIL_BITS).map((r) => r.id)
+  const statements: D1PreparedStatement[] = []
+  for (let i = 0; i < plain.length; i += 5000) {
+    const list = JSON.stringify(plain.slice(i, i + 5000))
+    statements.push(
+      db.prepare('DELETE FROM asset_hash_bands WHERE asset_id IN (SELECT value FROM json_each(?))').bind(list),
+      db.prepare('DELETE FROM similar_pairs WHERE dismissed = 0 AND (a IN (SELECT value FROM json_each(?)) OR b IN (SELECT value FROM json_each(?)))').bind(list, list),
+    )
+  }
+  if (statements.length > 0) await db.batch(statements)
+}
+
+export const CODE_MIGRATIONS: Migration[] = [
+  { name: '0018_keyword_keys', run: repairKeywordKeys },
+  { name: '0022_plain_hashes', run: unpairPlainHashes },
+]
