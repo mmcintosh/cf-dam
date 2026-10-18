@@ -13,6 +13,13 @@ It only reads your photos. It never changes, moves or deletes them.
 - **Node.js 24** from https://nodejs.org (the LTS installer).
 - About 1 GB of free memory while it indexes.
 - The address of your cf-dam, e.g. `https://dam.example.com`.
+- For previews of iPhone and Samsung **HEIC** photos: nothing on a Mac (it uses macOS's own `sips`); on
+  Windows or Linux, libheif's `heif-dec` or `heif-convert` on the PATH (Linux: the `libheif-examples`
+  package). Without it, HEIC photos are listed as failed, and tried again once it's installed and the
+  agent is updated.
+
+The status page answers on this computer only (http://localhost:8790). To see it from elsewhere on
+your network, set `STATUS_HOST=0.0.0.0` (and `PORT` for another port).
 
 ## macOS
 

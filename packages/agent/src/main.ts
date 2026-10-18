@@ -46,6 +46,7 @@ export class Agent {
     private readonly heartbeatMs = 60_000,
   ) {
     this.state = new State(config.dataDir)
+    this.state.newVersion(VERSION)
     this.api = api ?? new Api(config.url)
     this.extractor = new Extractor(config.workers)
     this.view = { name: config.name, version: VERSION, url: config.url, phase: 'starting', pairingCode: null, progress: newProgress(), done: 0, failed: 0, lastScanAt: null, message: null }
@@ -194,8 +195,8 @@ export class Agent {
   }
 
   async run(): Promise<void> {
-    serveStatus(this.config.port, this.status)
-    log(`cf-dam agent ${VERSION} for ${this.config.url}, ${this.config.workers} at a time; status on port ${this.config.port}`)
+    serveStatus(this.config.port, this.config.host, this.status, (message) => log(message))
+    log(`cf-dam agent ${VERSION} for ${this.config.url}, ${this.config.workers} at a time; status on ${this.config.host}:${this.config.port}`)
     while (!this.stopping) {
       try {
         await this.pair()
@@ -258,7 +259,11 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     process.on(signal, () => {
       log('Stopping…')
       agent.stop()
-      setTimeout(() => process.exit(0), 5_000).unref()
+      // Stopped on purpose: whatever is being read by then isn't to blame.
+      setTimeout(() => {
+        agent.state.clearReading()
+        process.exit(0)
+      }, 5_000).unref()
     })
   }
   void agent.run()

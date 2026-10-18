@@ -1,5 +1,11 @@
 # Publishes the NAS agent image to GitHub Container Registry for amd64 and arm64 (Synology's
 # Plus models and its ARM "j"/value models). Runs only when a tag like agent-v0.1.0 is pushed.
+#
+# Tags: agent-v0.1.0 publishes 0.1.0 and 0.1 (before 1.0 a minor version may break things, so there
+# is no "0"); from agent-v1.2.3 on, also 1. The compose files cf-dam hands out name AGENT_IMAGE_TAG
+# (packages/api/src/routes/sources.ts), which must be one of these.
+# GHCR makes a new package private: after the first publish, set cf-dam-agent to Public under the
+# package's settings, or Synology can't pull it.
 name: Agent image
 
 on:
@@ -28,7 +34,8 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/cf-dam-agent
           tags: |
             type=match,pattern=agent-v(\d+\.\d+\.\d+),group=1
-            type=match,pattern=agent-v(\d+)\.\d+\.\d+,group=1
+            type=match,pattern=agent-v(\d+\.\d+)\.\d+,group=1
+            type=match,pattern=agent-v(\d+)\.\d+\.\d+,group=1,enable=${{ !startsWith(github.ref_name, 'agent-v0.') }}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -37,7 +44,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      # The same agent with ffmpeg, for video posters and contact sheets: tags 1-video, 0.1.0-video.
+      # The same agent with ffmpeg, for video posters and contact sheets: tags 0.1.0-video, 0.1-video.
       - id: video
         uses: docker/metadata-action@v5
         with:
@@ -45,7 +52,8 @@ jobs:
           flavor: suffix=-video
           tags: |
             type=match,pattern=agent-v(\d+\.\d+\.\d+),group=1
-            type=match,pattern=agent-v(\d+)\.\d+\.\d+,group=1
+            type=match,pattern=agent-v(\d+\.\d+)\.\d+,group=1
+            type=match,pattern=agent-v(\d+)\.\d+\.\d+,group=1,enable=${{ !startsWith(github.ref_name, 'agent-v0.') }}
       - uses: docker/build-push-action@v6
         with:
           context: .

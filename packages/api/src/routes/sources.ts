@@ -164,6 +164,12 @@ sourceRoutes.delete('/:id/roots/:rootId', async (c) => {
   return c.body(null, 204)
 })
 
+/**
+ * The agent image the compose file names: a tag the agent's release workflow publishes
+ * (.github/workflows/agent.yml). Before 1.0 that's major.minor; there is no '0'.
+ */
+export const AGENT_IMAGE_TAG = '0.1'
+
 /** The Container Manager project file for this deployment: paste into Synology, add your folders. */
 sourceRoutes.get('/compose', (c) => {
   const url = new URL(c.req.url).origin
@@ -171,8 +177,8 @@ sourceRoutes.get('/compose', (c) => {
 # Add one line under volumes for each shared folder to index, always ending in :ro (read-only).
 services:
   cf-dam-agent:
-    # For video previews too, use cf-dam-agent:1-video (about 465 MB larger).
-    image: ghcr.io/mmcintosh/cf-dam-agent:1
+    # For video previews too, use cf-dam-agent:${AGENT_IMAGE_TAG}-video (about 465 MB larger).
+    image: ghcr.io/mmcintosh/cf-dam-agent:${AGENT_IMAGE_TAG}
     restart: unless-stopped
     environment:
       CF_DAM_URL: ${url}
@@ -182,6 +188,7 @@ services:
     ports:
       - "8790:8790"
     cpu_shares: 256
+    mem_limit: 1g
 `
   return c.text(yaml, 200, { 'Content-Type': 'text/yaml; charset=utf-8' })
 })

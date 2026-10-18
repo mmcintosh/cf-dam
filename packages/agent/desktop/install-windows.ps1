@@ -7,8 +7,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $node) { throw 'Install Node.js 24 from https://nodejs.org first.' }
-& $node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'
-if ($LASTEXITCODE -ne 0) { throw 'Node.js 24 or newer is needed.' }
+# The version as PowerShell sees it: Windows PowerShell 5.1 strips the double quotes from arguments
+# to programs, so a check written in JavaScript (node -e '...split(".")...') always failed.
+$major = [int]((& $node --version).TrimStart('v').Split('.')[0])
+if ($major -lt 24) { throw 'Node.js 24 or newer is needed.' }
+
+# Values go into a .cmd file: '%' would expand there, and a '"' would end the quoted value.
+function CmdValue([string]$value) {
+  if ($value.Contains('"')) { throw "Quotes can't be used in '$value'." }
+  return $value.Replace('%', '%%')
+}
 
 $root = Join-Path $env:APPDATA 'cf-dam-agent'
 $app = Join-Path $root 'app'
@@ -16,16 +24,18 @@ New-Item -ItemType Directory -Force -Path $app | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'agent.mjs'), (Join-Path $PSScriptRoot 'package.json') $app -Force
 Push-Location $app
 npm install --omit=dev --no-audit --no-fund | Out-Null
+$installed = $LASTEXITCODE
 Pop-Location
+if ($installed -ne 0) { throw 'npm install failed; run it in that folder to see why.' }
 
 # A small launcher sets the address and name, and keeps a log.
 $launcher = Join-Path $root 'run-agent.cmd'
 @"
 @echo off
-set "CF_DAM_URL=$Url"
-set "AGENT_NAME=$Name"
+set "CF_DAM_URL=$(CmdValue $Url)"
+set "AGENT_NAME=$(CmdValue $Name)"
 set NODE_NO_WARNINGS=1
-"$node" "$app\agent.mjs" >> "$root\agent.log" 2>&1
+"$(CmdValue $node)" "$(CmdValue $app)\agent.mjs" >> "$(CmdValue $root)\agent.log" 2>&1
 "@ | Set-Content -Encoding ASCII $launcher
 
 # Runs as this user at sign-in, so mapped drives and network shares are reachable with their credentials.

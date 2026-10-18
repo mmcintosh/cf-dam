@@ -2,14 +2,15 @@
  * Reading a photo with ExifTool: its metadata, in the shape cf-dam's Worker stores
  * (normalizeAgentMetadata in packages/api/src/catalog/metadata.ts), and the image to make previews from.
  *
- * Previews (spike 5a): JPEG/PNG/TIFF/HEIC are their own source. RAW files carry an embedded JPEG; the
+ * Previews (spike 5a): JPEG/PNG/TIFF are their own source, read from the file by sharp. HEIC goes
+ * through libheif's converter (or sips on a Mac): prebuilt sharp reads only AVIF. RAW files carry an embedded JPEG; the
  * largest is found by its group-qualified offset and length and read straight from the file (5 ms; a
  * maker-note thumbnail also called PreviewImage can't shadow it). CR3, RAF and RW2 record no offsets,
  * so ExifTool extracts the preview to a temp file instead.
  */
 import { ExifTool, type Tags } from 'exiftool-vendored'
 import { execFile, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
@@ -18,9 +19,27 @@ import sharp from 'sharp'
 import { isVideo } from './scan.ts'
 
 const run = promisify(execFile)
-/** Optional helpers, found once: LibRaw for RAWs with tiny previews, ffmpeg for video frames. */
+/** Optional helpers, found once: LibRaw for RAWs with tiny previews, ffmpeg for video frames, a HEIC converter. */
 const has = (cmd: string) => spawnSync(cmd, ['-version'], { stdio: 'ignore' }).error === undefined
-export const TOOLS = { dcrawEmu: has('dcraw_emu'), ffmpeg: has('ffmpeg') }
+const heicTool = (): 'sips' | 'heif-dec' | 'heif-convert' | null =>
+  process.platform === 'darwin' && has('sips') ? 'sips' : has('heif-dec') ? 'heif-dec' : has('heif-convert') ? 'heif-convert' : null
+export const TOOLS = { dcrawEmu: has('dcraw_emu'), ffmpeg: has('ffmpeg'), heic: heicTool() }
+/** Prebuilt sharp has libheif without an HEVC decoder (AVIF only); a sharp built on a full libvips may have one. */
+const SHARP_READS_HEIC = sharp.format.heif?.input.fileSuffix?.includes('.heic') ?? false
+
+/** A helper that hangs (a damaged file, a share gone quiet) is killed rather than holding up the scan. */
+const TIMEOUT = { dcrawEmu: 120_000, ffmpegFrame: 60_000, heic: 120_000 }
+
+/**
+ * ffmpeg one frame at a time across all workers: decoding a 4K HEVC frame takes ~300 MB, and five at
+ * once per video, three videos at once, was enough to run a 1 GB container out of memory.
+ */
+let ffmpegTurn: Promise<unknown> = Promise.resolve()
+function oneFfmpegAtATime<T>(fn: () => Promise<T>): Promise<T> {
+  const mine = ffmpegTurn.then(fn, fn)
+  ffmpegTurn = mine.catch(() => undefined)
+  return mine
+}
 
 export interface AgentMetadata {
   width: number | null
@@ -168,16 +187,22 @@ export function mapVideo(t: T): AgentMetadata {
 }
 
 /** Formats sharp decodes directly; everything else is treated as RAW. */
-const DIRECT = new Set(['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp', '.avif', '.gif', '.heic', '.heif'])
+const DIRECT = new Set(['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp', '.avif', '.gif'])
+const HEIC = new Set(['.heic', '.heif'])
 /** Embedded-image tags, largest-first by convention; the actual choice is by length. */
 const EMBEDDED = ['JpgFromRaw', 'PreviewImage', 'OtherImage', 'ThumbnailImage']
 
 export interface Extracted {
   meta: AgentMetadata
-  /** Encoded image (JPEG, TIFF or the file itself) to render previews from, or null if there is none. */
-  source: Buffer | null
+  /**
+   * The image to render previews from: the file's own path (sharp reads it as it goes, so a 45 MP
+   * TIFF isn't held in memory twice), or encoded bytes (a RAW's preview, a video frame); null if none.
+   */
+  source: Buffer | string | null
   /** The orientation to apply if `source` carries none (a RAW's, for its embedded preview); null when already upright. */
   orientation: number | null
+  /** False when `source`'s own orientation tag is not to be followed (a converted HEIC's may be stale). */
+  ownOrientation?: false
   /** Videos: four frames for the contact sheet (when ffmpeg is installed). */
   frames?: Buffer[]
 }
@@ -197,17 +222,47 @@ export class Extractor {
     const tags = (await this.exiftool.read(path)) as Tags & T
     if (isVideo(path)) return this.video(path, tags)
     const meta = mapTags(tags)
-    if (DIRECT.has(extname(path).toLowerCase())) return { meta, source: readFileSync(path), orientation: meta.orientation }
+    const ext = extname(path).toLowerCase()
+    if (DIRECT.has(ext) || (HEIC.has(ext) && SHARP_READS_HEIC)) return { meta, source: path, orientation: meta.orientation }
+    if (HEIC.has(ext)) {
+      // The converters apply the HEIF's own rotation (irot), which is what counts; the EXIF tag copied
+      // into their output may say the same again. Without an irot, the EXIF orientation is the one.
+      return { meta, source: await this.heic(path), orientation: 'Rotation' in tags ? null : meta.orientation, ownOrientation: false }
+    }
     const embedded = await this.embedded(path, tags)
     if (TOOLS.dcrawEmu) {
       const size = embedded ? await sharp(embedded).metadata().catch(() => null) : null
       if (!size || Math.max(size.width ?? 0, size.height ?? 0) < MIN_PREVIEW_EDGE) {
         // Half-size decode (~0.5 s): white-balanced, already turned upright by LibRaw.
-        const decoded = await run('dcraw_emu', ['-h', '-w', '-T', '-Z', '-', path], { encoding: 'buffer', maxBuffer: 512 * 1024 * 1024 }).catch(() => null)
+        const decoded = await run('dcraw_emu', ['-h', '-w', '-T', '-Z', '-', path], {
+          encoding: 'buffer',
+          maxBuffer: 512 * 1024 * 1024,
+          timeout: TIMEOUT.dcrawEmu,
+          killSignal: 'SIGKILL',
+        }).catch(() => null)
         if (decoded && decoded.stdout.length > 0) return { meta, source: decoded.stdout, orientation: null }
       }
     }
     return { meta, source: embedded, orientation: meta.orientation }
+  }
+
+  /**
+   * HEIC → JPEG in a temp folder, by libheif's heif-dec/heif-convert or macOS's sips. (A file holding
+   * several images makes heif-convert number its outputs; the primary comes first.)
+   */
+  private async heic(path: string): Promise<Buffer> {
+    if (!TOOLS.heic) throw new Error('Reading HEIC needs libheif (heif-dec) on this computer.')
+    const dir = mkdtempSync(join(this.tmp, 'heic-'))
+    const out = join(dir, 'out.jpg')
+    try {
+      const args = TOOLS.heic === 'sips' ? ['-s', 'format', 'jpeg', '-s', 'formatOptions', '92', path, '--out', out] : ['-q', '92', path, out]
+      await run(TOOLS.heic, args, { timeout: TIMEOUT.heic, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 })
+      const written = readdirSync(dir).filter((f) => f.endsWith('.jpg')).sort()
+      if (written.length === 0) throw new Error('The HEIC converter wrote no image.')
+      return readFileSync(join(dir, written.includes('out.jpg') ? 'out.jpg' : written[0]!))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   }
 
   /** A poster frame at 10% in, and four frames for the sheet, when ffmpeg is here; metadata either way. */
@@ -215,16 +270,23 @@ export class Extractor {
     const meta = mapVideo(tags)
     if (!TOOLS.ffmpeg) return { meta, source: null, orientation: null }
     const duration = meta.video?.duration ?? 0
+    // One decoding thread: frames are small, and threads multiply ffmpeg's memory.
     const frameAt = async (at: number, width: number): Promise<Buffer | null> => {
-      const out = await run(
-        'ffmpeg',
-        ['-v', 'error', '-ss', at.toFixed(2), '-i', path, '-frames:v', '1', '-vf', `scale='min(${width},iw)':-2`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '3', '-'],
-        { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 },
+      const out = await oneFfmpegAtATime(() =>
+        run(
+          'ffmpeg',
+          ['-nostdin', '-v', 'error', '-threads', '1', '-ss', at.toFixed(2), '-i', path, '-frames:v', '1', '-vf', `scale='min(${width},iw)':-2`, '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '3', '-'],
+          { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024, timeout: TIMEOUT.ffmpegFrame, killSignal: 'SIGKILL' },
+        ),
       ).catch(() => null)
       return out && out.stdout.length > 0 ? out.stdout : null
     }
     const poster = await frameAt(duration * 0.1, 2048)
-    const frames = duration > 0 ? (await Promise.all([0.2, 0.4, 0.6, 0.8].map((f) => frameAt(duration * f, 480)))).filter((f): f is Buffer => f !== null) : []
+    const frames: Buffer[] = []
+    for (const f of duration > 0 && poster ? [0.2, 0.4, 0.6, 0.8] : []) {
+      const frame = await frameAt(duration * f, 480)
+      if (frame) frames.push(frame)
+    }
     return { meta, source: poster, orientation: null, frames: frames.length === 4 ? frames : undefined }
   }
 

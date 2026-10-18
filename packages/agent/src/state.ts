@@ -18,6 +18,9 @@ export interface FileRow {
   attempts: number
 }
 
+/** Recorded against a file the agent was reading when it died (killed for memory, most likely). */
+export const STOPPED_READING = 'The agent stopped while reading this file (out of memory?).'
+
 export interface Credentials {
   url: string
   apiKey: string
@@ -49,7 +52,20 @@ export class State {
       );
       CREATE INDEX IF NOT EXISTS files_hash ON files (root_id, quick_hash);
       CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS reading (
+        root_id    TEXT NOT NULL,
+        path       TEXT NOT NULL,
+        size       INTEGER NOT NULL,
+        mtime_ms   INTEGER NOT NULL,
+        quick_hash TEXT,
+        PRIMARY KEY (root_id, path)
+      );
     `)
+    // Files still marked as being read: the agent died reading them. Each counts as a failed try, so
+    // a file that kills it every time is left alone after three, instead of the same batch forever.
+    const stopped = this.db.prepare('SELECT * FROM reading').all() as unknown as { root_id: string; path: string; size: number; mtime_ms: number; quick_hash: string | null }[]
+    for (const r of stopped) this.failed(r.root_id, r.path, { size: r.size, mtimeMs: r.mtime_ms, quickHash: r.quick_hash }, STOPPED_READING)
+    this.db.exec('DELETE FROM reading')
     // Which source the file list belongs to (state from before this was recorded: the saved one's).
     const saved = this.readCredentials()
     if (saved?.sourceId) this.db.prepare('INSERT OR IGNORE INTO meta (name, value) VALUES (?, ?)').run('source_id', saved.sourceId)
@@ -80,6 +96,31 @@ export class State {
            status = 'error', error = excluded.error, attempts = files.attempts + 1, updated_at = excluded.updated_at`,
       )
       .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, error.slice(0, 500), new Date().toISOString())
+  }
+
+  /** Around reading and rendering a file: the marks a crash leaves behind (see the constructor). */
+  reading(rootId: string, path: string, f: { size: number; mtimeMs: number; quickHash: string }): void {
+    this.db.prepare('INSERT OR REPLACE INTO reading (root_id, path, size, mtime_ms, quick_hash) VALUES (?, ?, ?, ?, ?)').run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash)
+  }
+
+  read(rootId: string, path: string): void {
+    this.db.prepare('DELETE FROM reading WHERE root_id = ? AND path = ?').run(rootId, path)
+  }
+
+  /** Stopping on purpose (SIGTERM): whatever was being read wasn't at fault. */
+  clearReading(): void {
+    this.db.exec('DELETE FROM reading')
+  }
+
+  /**
+   * A new agent version may read what the last one couldn't (HEIC, say): files given up on get their
+   * three tries again.
+   */
+  newVersion(version: string): void {
+    const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'agent_version'").get() as { value: string } | undefined)?.value
+    if (was === version) return
+    this.db.exec("UPDATE files SET attempts = 0 WHERE status = 'error'")
+    this.db.prepare("INSERT INTO meta (name, value) VALUES ('agent_version', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(version)
   }
 
   forget(rootId: string, paths: string[]): void {

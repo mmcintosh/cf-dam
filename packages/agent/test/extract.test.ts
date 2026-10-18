@@ -30,7 +30,8 @@ describe('reading photos with ExifTool', () => {
       creator: 'Mark Photographer', credit: 'Mark Photo AS', usageTerms: 'Editorial use only', contactEmail: 'mark@example.com',
       city: 'Bergen', sublocation: 'Bryggen', state: 'Vestland', countryCode: 'NO', jobId: 'JOB-2041',
     })
-    expect(source?.length).toBeGreaterThan(1000)
+    // Read from the file by sharp as it renders, not held in memory whole.
+    expect(source).toBe(fixture('iptc.jpg'))
   })
 })
 
@@ -61,6 +62,24 @@ describe('rendering', () => {
  *   exiftool -Rotation=90 phone.mov
  */
 const clip = (name: string) => new URL(`./fixtures/${name}`, import.meta.url).pathname
+
+/**
+ * A HEIC (HEVC-coded, as phones write them), stored sideways with EXIF Orientation 6 and no irot:
+ *   heif-enc -q 40 in.jpg -o phone.heic   (libheif 1.15; in.jpg 600×400, a light strip down the left)
+ */
+describe('HEIC', () => {
+  it.skipIf(!TOOLS.heic)('converts it with libheif (prebuilt sharp has no HEVC) and turns it upright', async () => {
+    const x = await extractor.extract(clip('phone.heic'))
+    expect(Buffer.isBuffer(x.source)).toBe(true)
+    const r = await render(x.source!, x.orientation, x.ownOrientation ?? true)
+    expect([r.width, r.height]).toEqual([400, 600])
+    // The strip that ran down the left is now along the top.
+    const { data, info } = await sharp(r.preview).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+    const at = (x: number, y: number) => data[(y * info.width + x) * info.channels]!
+    expect(at(200, 20)).toBeGreaterThan(180)
+    expect(at(200, 580)).toBeLessThan(120)
+  })
+})
 
 describe('videos', () => {
   it('reads length, codec, frame rate, a phone’s local time and offset, and rotation', async () => {

@@ -32,10 +32,13 @@ export async function renderSheet(frames: Buffer[]): Promise<Buffer> {
     .toBuffer()
 }
 
-/** `fallbackOrientation`: the RAW's own Orientation, for an embedded preview that has none. */
-export async function render(source: Buffer, fallbackOrientation: number | null = null): Promise<Rendered> {
+/**
+ * `source`: a file's path or encoded bytes. `fallbackOrientation`: the RAW's own Orientation, for an
+ * embedded preview that has none. `ownOrientation: false` ignores the source's tag and uses the fallback.
+ */
+export async function render(source: Buffer | string, fallbackOrientation: number | null = null, ownOrientation = true): Promise<Rendered> {
   let image = sharp(source, { sequentialRead: true, failOn: 'none' })
-  const own = (await image.metadata()).orientation
+  const own = ownOrientation ? (await image.metadata()).orientation : undefined
   image = own && own !== 1 ? image.rotate() : fallbackOrientation && ROTATE[fallbackOrientation] ? image.rotate(ROTATE[fallbackOrientation]) : image
   const preview = await image
     .toColourspace('srgb')

@@ -16,10 +16,11 @@ RUN npx esbuild packages/agent/src/main.ts --bundle --platform=node --format=esm
 
 FROM node:24-slim
 # ExifTool is Perl; tini reaps ExifTool's child processes and passes signals on; LibRaw (1 MB) decodes
-# RAWs whose embedded preview is too small. VIDEO=1 adds ffmpeg for video posters and contact sheets:
-# about 465 MB more, so it is a separate image (…:1-video); without it, videos are indexed with no preview.
+# RAWs whose embedded preview is too small; libheif's heif-convert, with its HEVC decoder, reads phones'
+# HEIC (prebuilt sharp reads only AVIF). VIDEO=1 adds ffmpeg for video posters and contact sheets:
+# about 465 MB more, so it is a separate image (…:0.1-video); without it, videos are indexed with no preview.
 ARG VIDEO=0
-RUN apt-get update && apt-get install -y --no-install-recommends perl tini libraw-bin $([ "$VIDEO" = 1 ] && echo ffmpeg) \
+RUN apt-get update && apt-get install -y --no-install-recommends perl tini libraw-bin libheif-examples $([ "$VIDEO" = 1 ] && echo ffmpeg) \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY packages/agent/docker/package.json ./

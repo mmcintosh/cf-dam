@@ -2,8 +2,8 @@
 # cf-dam's "NAS agents" page generates this file with your address filled in.
 services:
   cf-dam-agent:
-    # For video previews too, use cf-dam-agent:1-video (about 465 MB larger).
-    image: ghcr.io/mmcintosh/cf-dam-agent:1
+    # For video previews too, use cf-dam-agent:0.1-video (about 465 MB larger).
+    image: ghcr.io/mmcintosh/cf-dam-agent:0.1
     restart: unless-stopped
     environment:
       CF_DAM_URL: https://dam.example.com

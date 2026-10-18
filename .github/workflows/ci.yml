@@ -49,7 +49,10 @@ jobs:
           context: .
           file: packages/agent/Dockerfile
           push: false
+          load: true
           tags: cf-dam-agent:ci
+      # Phones' HEIC needs libheif's HEVC decoder in the image (prebuilt sharp has none).
+      - run: docker run --rm -v "$PWD/packages/agent/test/fixtures:/f:ro" --entrypoint heif-convert cf-dam-agent:ci /f/phone.heic /tmp/out.jpg
 
   secrets:
     runs-on: ubuntu-latest

@@ -51,7 +51,7 @@ function newAgent(): Agent {
     if (injected) return injected
     return h.fetch(path, init as RequestInit & { cookie?: string })
   }
-  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
+  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Test NAS' }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
 }
 
 async function photo(rel: string, seed: number) {
@@ -203,6 +203,28 @@ describe('the agent, end to end', () => {
     await agent.scanAll()
     await agent.scanAll()
     expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
+  })
+
+  it('after dying mid-read, blames that file once, reads it on its own, and finishes it', async () => {
+    for (let i = 0; i < 3; i++) await photo(`2023/IMG_${5000 + i}.jpg`, i + 40)
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    expect((await list()).total).toBe(3)
+    // The photo is edited, and the agent is killed (out of memory, say) while reading it.
+    await photo('2023/IMG_5001.jpg', 99)
+    const { root_id: rootId } = agent.state.db.prepare('SELECT root_id FROM files LIMIT 1').get() as { root_id: string }
+    agent.state.reading(rootId, '2023/IMG_5001.jpg', { size: 1, mtimeMs: 1, quickHash: 'x' })
+    agent.state.db.close()
+    // Started again: it shows as failed, is tried again, and this time goes through.
+    const again = newAgent()
+    expect(again.status().failed).toBe(1)
+    await again.pair() // the saved key
+    calls.length = 0
+    await again.scanAll()
+    expect(again.status()).toMatchObject({ failed: 0, done: 3 })
+    expect(calls.filter((c) => c.startsWith('POST /api/agent/assets/batch'))).toHaveLength(1)
+    expect((await list()).total).toBe(3)
   })
 
   it('recognises a photo moved between two indexed folders, whichever is scanned first', async () => {

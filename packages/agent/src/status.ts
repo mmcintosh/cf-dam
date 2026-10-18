@@ -49,7 +49,12 @@ ${body}
 </main></body></html>`
 }
 
-export function serveStatus(port: number, view: () => StatusView): Server {
+/**
+ * Listens on `host` (this computer only, on a desktop). A port already taken (another program, or the
+ * last run of this agent still letting go) must not stop the agent: it says so once and tries again
+ * every minute.
+ */
+export function serveStatus(port: number, host: string, view: () => StatusView, log: (message: string) => void = () => {}): Server {
   const server = createServer((req, res) => {
     if (req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok')
@@ -61,6 +66,16 @@ export function serveStatus(port: number, view: () => StatusView): Server {
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }).end(page(view()))
   })
-  server.listen(port)
+  let warned = false
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (!warned) log(`The status page can't use ${host}:${port} (${error.code ?? error.message}); trying again every minute. Set PORT to use another port.`)
+    warned = true
+    setTimeout(() => server.listen(port, host), 60_000).unref()
+  })
+  server.on('listening', () => {
+    if (warned) log(`The status page is up on port ${port}.`)
+    warned = false
+  })
+  server.listen(port, host)
   return server
 }

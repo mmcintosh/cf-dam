@@ -8,7 +8,7 @@ import { ApiError, isLinkError, type Api } from './api.ts'
 import type { AgentMetadata, Extractor } from './extract.ts'
 import { render, renderSheet, type Rendered } from './render.ts'
 import { isVideo, plan, quickHash as qh, walk, type Found, type Plan } from './scan.ts'
-import type { FileRow, State } from './state.ts'
+import { STOPPED_READING, type FileRow, type State } from './state.ts'
 
 export interface Root {
   id: string
@@ -53,6 +53,8 @@ interface Item {
   quickHash: string
   /** Where it was, when it looks like a move: a gone file with the same fingerprint, in any folder. */
   previous?: { rootId: string; path: string }
+  /** The agent died while reading it last time, maybe because of it: it's read on its own. */
+  suspect: boolean
 }
 
 interface BatchResult {
@@ -136,7 +138,7 @@ export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | nu
         const quickHash = await qh(join(here, file.path), file.size)
         const previous = !known ? goneByHash.get(quickHash) : undefined
         if (previous) goneByHash.delete(quickHash)
-        items.push({ file, quickHash, previous })
+        items.push({ file, quickHash, previous, suspect: known?.status === 'error' && known.error === STOPPED_READING })
       } catch (error) {
         progress.failed++
         progress.lastError = `${file.path}: ${message(error)}`
@@ -198,26 +200,39 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
     progress.lastError = `${item.file.path}: ${message(error)}`
     state.failed(root.id, item.file.path, { size: item.file.size, mtimeMs: item.file.mtimeMs, quickHash: item.quickHash }, message(error))
   }
-  const preview = async (path: string) => {
-    const x = await extractor.extract(abs(path))
-    const rendered = x.source ? await render(x.source, x.orientation) : null
-    if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
-    return { meta: x.meta, rendered }
+  const preview = async (item: Item) => {
+    const { path, size, mtimeMs } = item.file
+    // Marked while it's being read: if the agent dies here, the next start knows which file it was on.
+    state.reading(root.id, path, { size, mtimeMs, quickHash: item.quickHash })
+    try {
+      const x = await extractor.extract(abs(path))
+      const rendered = x.source ? await render(x.source, x.orientation, x.ownOrientation ?? true) : null
+      if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
+      return { meta: x.meta, rendered }
+    } finally {
+      state.read(root.id, path)
+    }
   }
 
-  // Read and render everything except moves (their previews are usually already in cf-dam).
-  const prepared = await inParallel(batch, ctx.workers, async (item): Promise<Prepared> => {
+  // Read and render everything except moves (their previews are usually already in cf-dam). Files
+  // the agent died on last time go one at a time after the rest, so a second death is pinned on the
+  // file that caused it, not on whichever others were being read alongside.
+  const prepare = async (item: Item): Promise<Prepared> => {
     if (item.previous) return { item, meta: undefined, rendered: null, error: null }
     progress.current = item.file.path
     try {
-      const { meta, rendered } = await preview(item.file.path)
+      const { meta, rendered } = await preview(item)
       // A video without ffmpeg is still worth indexing (date, length, place); it just has no preview.
       const ok = rendered !== null || isVideo(item.file.path)
       return { item, meta, rendered, error: ok ? null : 'No preview could be made from this file.' }
     } catch (error) {
       return { item, meta: undefined, rendered: null, error: message(error) }
     }
-  })
+  }
+  const prepared = [
+    ...(await inParallel(batch.filter((item) => !item.suspect), ctx.workers, prepare)),
+    ...(await inParallel(batch.filter((item) => item.suspect), 1, prepare)),
+  ]
   for (const p of prepared) if (p.error) failed(p.item, p.error)
   const toSend = prepared.filter((p) => !p.error)
   if (toSend.length === 0) return
@@ -230,7 +245,7 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
     try {
       if (r.needs && r.needs.length > 0) {
         // A move whose previews went missing: render it now after all.
-        const rendered = p.rendered ?? (p.item.previous ? (await preview(file.path)).rendered : null)
+        const rendered = p.rendered ?? (p.item.previous ? (await preview(p.item)).rendered : null)
         if (!rendered && !isVideo(file.path)) throw new Error('No preview could be made from this file.')
         if (rendered) {
           const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = r.needs.map((name) => [name, name === 'thumb' ? rendered.thumb : rendered.preview])
