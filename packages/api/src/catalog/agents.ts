@@ -289,8 +289,10 @@ export async function removeRoot(db: D1Database, source: SourceRow, rootId: stri
   if (!root) return false
   await db.batch([
     db
-      .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND substr(key, 1, ?) = ?`)
-      .bind(nowIso(), source.connection_id, prefixOf(root.path).length, prefixOf(root.path)),
+      // Keys under the folder, as a range: 'E:/x/' up to 'E:/x0' ('0' follows '/'). (A substr with a
+      // JS length would miscount any folder name with an emoji in it.)
+      .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND key >= ? AND key < ?`)
+      .bind(nowIso(), source.connection_id, prefixOf(root.path), `${prefixOf(root.path).slice(0, -1)}0`),
     db.prepare('DELETE FROM source_roots WHERE id = ?').bind(rootId),
   ])
   return true

@@ -9,9 +9,16 @@
  * applied it counts as applied. Either way, isolates racing on a fresh database converge.
  */
 
+import { CODE_MIGRATIONS } from './repairs'
+
 export interface Migration {
   name: string
-  sql: string
+  sql?: string
+  /**
+   * A repair that SQL can't express (Unicode lower-casing, merging what collides). It must be
+   * idempotent and do its writes in one batch, so isolates racing on it converge.
+   */
+  run?: (db: D1Database) => Promise<void>
 }
 
 // Bundled at build time by Vite (Astro) and by Vitest alike; ordered by file name.
@@ -21,9 +28,10 @@ const files = import.meta.glob<string>('./migrations/*.sql', {
   eager: true,
 })
 
-export const MIGRATIONS: Migration[] = Object.entries(files)
-  .map(([path, sql]) => ({ name: path.slice(path.lastIndexOf('/') + 1, -'.sql'.length), sql }))
-  .sort((a, b) => a.name.localeCompare(b.name))
+export const MIGRATIONS: Migration[] = [
+  ...Object.entries(files).map(([path, sql]) => ({ name: path.slice(path.lastIndexOf('/') + 1, -'.sql'.length), sql })),
+  ...CODE_MIGRATIONS,
+].sort((a, b) => a.name.localeCompare(b.name))
 
 /**
  * Split a migration into statements. A statement ends at a `;` that ends a line, and `--`
@@ -57,7 +65,13 @@ export async function migrate(db: D1Database, migrations: Migration[] = MIGRATIO
   const ran: string[] = []
   for (const migration of migrations) {
     if (applied.has(migration.name)) continue
-    const statements = splitStatements(migration.sql).map((s) => db.prepare(s))
+    if (migration.run) {
+      await migration.run(db)
+      await db.prepare('INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)').bind(migration.name, new Date().toISOString()).run()
+      ran.push(migration.name)
+      continue
+    }
+    const statements = splitStatements(migration.sql ?? '').map((s) => db.prepare(s))
     statements.push(
       db
         .prepare('INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)')

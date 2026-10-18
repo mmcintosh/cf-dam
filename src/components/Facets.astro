@@ -35,6 +35,7 @@ const LABELS: Record<string, Record<string, string>> = {
   label: { ...labelNames, none: 'No label' },
   missing: { '1': 'Missing from the NAS' },
   on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
+  kw: Object.fromEntries(facets.tag.map((k) => [k.id, k.path])),
   gps: { some: 'With a location', none: 'Without a location' },
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
@@ -52,7 +53,7 @@ const ratingCounts = (() => {
 })()
 
 const active: { key: string; text: string }[] = []
-for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['missing', ''], ['on', 'Stored on'], ['gps', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['kw', 'Keyword'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['missing', ''], ['on', 'Stored on'], ['gps', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
   const value = params.get(key)
   if (!value) continue
   const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)
@@ -134,7 +135,7 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
   {facets.tag.length > 0 && (
     <details open>
       <summary>Keywords</summary>
-      <div class="values"><KeywordTree nodes={rootKeywords} all={facets.tag} active={params.get('tag')} link={(path) => link({ tag: path })} /></div>
+      <div class="values"><KeywordTree nodes={rootKeywords} all={facets.tag} activeId={params.get('kw')} activeTag={params.get('tag')} link={(id) => link({ kw: id, tag: null })} /></div>
     </details>
   )}
 </aside>

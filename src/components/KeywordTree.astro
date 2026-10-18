@@ -5,21 +5,25 @@ import type { KeywordFacet } from '@cf-dam/api'
 interface Props {
   nodes: KeywordFacet[]
   all: KeywordFacet[]
-  active: string | null
-  link: (path: string | null) => string
+  /** The keyword chosen in this tree (`kw=`), by id. */
+  activeId: string | null
+  /** Or a keyword typed by name or path (`tag=`): every keyword it means is lit. */
+  activeTag: string | null
+  link: (id: string | null) => string
 }
-const { nodes, all, active, link } = Astro.props
+const { nodes, all, activeId, activeTag, link } = Astro.props
 const children = (id: string) => all.filter((k) => k.parentId === id)
-const activeKey = active?.toLowerCase().replace(/\s*(?:>|\||›)\s*/g, ' › ')
-const isActive = (k: KeywordFacet) => activeKey === k.path.toLowerCase() || (!activeKey?.includes('›') && activeKey === k.name.toLowerCase())
+const typed = activeTag?.toLowerCase().replace(/\s*(?:>|\||›)\s*/g, ' › ')
+const chosenPath = all.find((k) => k.id === activeId)?.path.toLowerCase() ?? typed
+const isActive = (k: KeywordFacet) => k.id === activeId || (!activeId && !!typed && (typed === k.path.toLowerCase() || (!typed.includes('›') && typed === k.name.toLowerCase())))
 // Open a branch when the active keyword is inside it.
-const contains = (k: KeywordFacet) => !!activeKey && activeKey.startsWith(`${k.path.toLowerCase()} › `)
+const contains = (k: KeywordFacet) => !!chosenPath && chosenPath.startsWith(`${k.path.toLowerCase()} › `)
 ---
 <ul class="kw">
   {nodes.map((k) => {
     const kids = children(k.id)
     const row = (
-      <a href={link(isActive(k) ? null : k.path)} class:list={['kw-link', { on: isActive(k) }]} title={k.path}>
+      <a href={link(k.id === activeId ? null : k.id)} class:list={['kw-link', { on: isActive(k) }]} title={k.path}>
         <span>{k.name}</span><span class="count">{k.count}</span>
       </a>
     )
@@ -28,7 +32,7 @@ const contains = (k: KeywordFacet) => !!activeKey && activeKey.startsWith(`${k.p
         {kids.length > 0 ? (
           <details open={contains(k) || isActive(k)}>
             <summary class="kw-summary">{row}</summary>
-            <Astro.self nodes={kids} all={all} active={active} link={link} />
+            <Astro.self nodes={kids} all={all} activeId={activeId} activeTag={activeTag} link={link} />
           </details>
         ) : row}
       </li>

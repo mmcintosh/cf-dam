@@ -145,7 +145,7 @@ export async function acceptSuggestions(db: D1Database, ids: string[], fields: A
 export async function removeAiTag(db: D1Database, id: string, tag: string): Promise<void> {
   const ids = await matchKeywords(db, tag)
   if (ids.length === 0) return
-  await db.prepare(`DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (${ids.map(() => '?').join(',')})`).bind(id, ...ids).run()
+  await db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai' AND tag_id IN (SELECT value FROM json_each(?))").bind(id, JSON.stringify(ids)).run()
   await indexAsset(db, id)
 }
 

@@ -105,6 +105,111 @@ describe('the keyword tree', () => {
     expect(await tagsOf(ids[1]!)).toEqual([])
   })
 
+  it('merges a keyword into its parent without losing what is below it', async () => {
+    // People › Smith › Smith › Anna, merged into People: Anna and its photo stay.
+    await patch(ids[0]!, { tags: ['People > Smith > Smith > Anna'] })
+    await patch(ids[1]!, { tags: ['People > Smith'] })
+    const smith = await byPath('People › Smith')
+    const people = await byPath('People')
+    expect((await h.fetch(`/api/tags/${smith.id}/merge`, { ...json({ into: people.id }), cookie: admin })).status).toBe(200)
+    expect((await tree()).map((k) => k.path)).toEqual(['People', 'People › Smith', 'People › Smith › Anna'])
+    expect((await tagsOf(ids[0]!)).map((t) => t.path)).toEqual(['People › Smith › Anna'])
+    expect((await tagsOf(ids[1]!)).map((t) => t.path)).toEqual(['People'])
+  })
+
+  it('handles names outside A–Z: accents fold, emoji rename and move', async () => {
+    await patch(ids[0]!, { tags: ['ÖSTERREICH'] })
+    await patch(ids[1]!, { tags: ['österreich'] })
+    expect((await tree()).map((k) => k.path)).toEqual(['ÖSTERREICH'])
+    expect(await total(`tag=${encodeURIComponent('Österreich')}`)).toBe(2)
+
+    await patch(ids[2]!, { tags: ['Trips 🏔️ > Alps 🏔️ > Zermatt'] })
+    const alps = await byPath('Trips 🏔️ › Alps 🏔️')
+    expect((await h.fetch(`/api/tags/${alps.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Alpen 🇨🇭' }), cookie: admin })).status).toBe(200)
+    expect((await tagsOf(ids[2]!)).map((t) => t.path)).toEqual(['Trips 🏔️ › Alpen 🇨🇭 › Zermatt'])
+    const top = await byPath('ÖSTERREICH')
+    expect((await h.fetch(`/api/tags/${alps.id}`, { method: 'PATCH', body: JSON.stringify({ parentId: top.id }), cookie: admin })).status).toBe(200)
+    expect((await tagsOf(ids[2]!)).map((t) => t.path)).toEqual(['ÖSTERREICH › Alpen 🇨🇭 › Zermatt'])
+    expect(await total(`tag=${encodeURIComponent('Österreich')}`)).toBe(3)
+    expect((await h.fetch(`/api/tags/${alps.id}`, { method: 'DELETE', cookie: admin })).status).toBe(200)
+    expect((await tree()).map((k) => k.path)).toEqual(['Trips 🏔️', 'ÖSTERREICH'])
+  })
+
+  it('links facets to one keyword exactly, by id, so renames keep saved searches', async () => {
+    await patch(ids[0]!, { tags: ['Smith'] })
+    await patch(ids[1]!, { tags: ['People > Smith'] })
+    const top = await byPath('Smith')
+    // A typed name means every Smith; the facet means that one.
+    expect(await total('tag=Smith')).toBe(2)
+    expect(await total(`kw=${top.id}`)).toBe(1)
+    const saved = await h.fetch('/api/saved-searches', { ...json({ name: 'Smiths', query: `kw=${top.id}` }), cookie: admin })
+    expect(saved.status).toBe(201)
+    await h.fetch(`/api/tags/${top.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Smith family' }), cookie: admin })
+    const list = (await (await h.fetch('/api/saved-searches', { cookie: admin })).json()) as { searches: { name: string; count: number }[] }
+    expect(list.searches).toEqual([expect.objectContaining({ name: 'Smiths', count: 1 })])
+
+    // Many saved searches: counted a few to a statement, each right.
+    // 80 of them, two bound values each: more than one statement's worth.
+    await h.env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 79)
+       INSERT INTO saved_searches (id, name, query, position, created_by, created_at)
+       SELECT 'ss' || i, 'S' || printf('%02d', i), CASE WHEN i % 2 THEN ? ELSE 'tag=Smith&rating=0' END, i + 1, NULL, '2026-01-01' FROM n`,
+    )
+      .bind(`kw=${top.id}&rating=1`)
+      .run()
+    const many = (await (await h.fetch('/api/saved-searches', { cookie: admin })).json()) as { searches: { name: string; count: number }[] }
+    expect(many.searches).toHaveLength(81)
+    expect(many.searches.find((s) => s.name === 'S79')?.count).toBe(0)
+    // (A typed name follows the name: since the rename, only People › Smith is a Smith.)
+    expect(many.searches.find((s) => s.name === 'S00')?.count).toBe(1)
+    expect(many.searches.find((s) => s.name === 'S01')?.count).toBe(0)
+
+    // Removing more keywords than D1 binds values in one go.
+    const lots = Array.from({ length: 120 }, (_, i) => `k${i}`)
+    await patch(ids[2]!, { tags: lots })
+    const removed = await h.fetch('/api/assets/bulk', { ...json({ ids: [ids[2]], action: 'tag-remove', tags: lots }), cookie: admin })
+    expect(removed.status).toBe(200)
+    expect(await tagsOf(ids[2]!)).toEqual([])
+  })
+
+  it('counts a big keyword tree quickly', async () => {
+    // 2,000 keywords three deep, 300 photos with 100 keywords each (30,000 tag rows).
+    const db = h.env.DB
+    const now = new Date().toISOString()
+    await db.batch([
+      db.prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 19)
+         INSERT INTO tags (id, name, name_key, parent_id, path, full_path, created_at) SELECT 'a' || i, 'A' || i, 'a' || i, NULL, 'a' || i, 'A' || i, ? FROM n`,
+      ).bind(now),
+      db.prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 199)
+         INSERT INTO tags (id, name, name_key, parent_id, path, full_path, created_at) SELECT 'b' || i, 'B' || i, 'b' || i, 'a' || (i % 20), 'a' || (i % 20) || '|b' || i, 'A' || (i % 20) || '|B' || i, ? FROM n`,
+      ).bind(now),
+      db.prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 1779)
+         INSERT INTO tags (id, name, name_key, parent_id, path, full_path, created_at)
+         SELECT 'c' || i, 'C' || i, 'c' || i, 'b' || (i % 200), 'a' || ((i % 200) % 20) || '|b' || (i % 200) || '|c' || i, 'A' || ((i % 200) % 20) || '|B' || (i % 200) || '|C' || i, ? FROM n`,
+      ).bind(now),
+      db.prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 299)
+         INSERT INTO assets (id, filename, mime_type, size, status, created_at, updated_at) SELECT 'p' || i, 'p' || i || '.jpg', 'image/jpeg', 1, 'ready', ?, ? FROM n`,
+      ).bind(now, now),
+      db.prepare(
+        `WITH RECURSIVE p(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM p WHERE i < 299), k(j) AS (SELECT 0 UNION ALL SELECT j + 1 FROM k WHERE j < 99)
+         INSERT INTO asset_tags (asset_id, tag_id, source, created_at) SELECT 'p' || i, 'c' || ((i * 7 + j * 13) % 1780), 'import', ? FROM p, k`,
+      ).bind(now),
+    ])
+    const started = Date.now()
+    const keywords = await tree()
+    expect(keywords).toHaveLength(2000)
+    expect(keywords.find((k) => k.path === 'A0')!.total).toBeGreaterThan(0)
+    const facets = (await (await h.fetch('/api/assets/facets', { cookie: admin })).json()) as { tag: unknown[] }
+    expect(facets.tag.length).toBeGreaterThan(100)
+    expect(await total(`kw=a3`)).toBeGreaterThan(0)
+    expect(await total('tag=B7')).toBeGreaterThan(0)
+    expect(Date.now() - started).toBeLessThan(15_000)
+  })
+
   it('makes synonyms searchable and exports keywords the way Lightroom does', async () => {
     await patch(ids[0]!, { tags: ['Places > Europe > Norway > Bergen', 'Clients > Smith Wedding'] })
     const bergen = await byPath('Places › Europe › Norway › Bergen')

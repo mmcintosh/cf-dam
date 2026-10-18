@@ -6,7 +6,7 @@ import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
 import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAsset, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
 import { getPreset, iptcXmp, presetStatements } from './iptc'
-import { AT_OR_BELOW, displayPath, matchKeywords } from './keywords'
+import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAsset } from './search'
 
@@ -56,9 +56,9 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
     // Counts roll up: a photo tagged Bergen counts towards Norway, Europe and Places too.
     db
       .prepare(
-        `SELECT f.id, f.parent_id AS parentId, f.name, f.full_path AS path, COUNT(DISTINCT a.id) AS count
-         FROM assets a JOIN asset_tags at ON at.asset_id = a.id JOIN tags t ON t.id = at.tag_id
-         JOIN tags f ON ${AT_OR_BELOW('t', 'f')}
+        `${SUBTREE('SELECT id FROM tags')}
+         SELECT f.id, f.parent_id AS parentId, f.name, f.full_path AS path, COUNT(DISTINCT a.id) AS count
+         FROM assets a JOIN asset_tags at ON at.asset_id = a.id JOIN under ON under.id = at.tag_id JOIN tags f ON f.id = under.root
          WHERE ${tagWhere.clause} GROUP BY f.id ORDER BY f.path LIMIT 1000`,
       )
       .bind(...tagWhere.params),
@@ -169,7 +169,11 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
     case 'tag-remove': {
       const ids = [...new Set((await Promise.all(bulk.tags.map((t) => matchKeywords(db, t)))).flat())]
       if (ids.length === 0) break
-      await each(`DELETE FROM asset_tags WHERE asset_id = ? AND tag_id IN (${ids.map(() => '?').join(',')})`, (id) => [id, ...ids])
+      // As JSON lists: any number of photos and keywords in one statement (D1 binds at most 100 values).
+      await db
+        .prepare('DELETE FROM asset_tags WHERE asset_id IN (SELECT value FROM json_each(?)) AND tag_id IN (SELECT value FROM json_each(?))')
+        .bind(JSON.stringify(live), JSON.stringify(ids))
+        .run()
       break
     }
     case 'rating':

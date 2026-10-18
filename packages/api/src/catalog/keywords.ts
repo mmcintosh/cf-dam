@@ -2,7 +2,11 @@
  * The keyword tree. Tags are keywords; a keyword may have a parent, like Lightroom's keyword list.
  *
  * - `path` is the lower-cased key of the full path ('places|europe|norway|bergen') and is unique;
- *   `full_path` is how it displays ('Places|Europe|Norway|Bergen').
+ *   `full_path` is how it displays ('Places|Europe|Norway|Bergen'); `name_key` is the keyword's own
+ *   name lower-cased ('bergen'). Keys are always lower-cased here, in JS: SQLite's lower() and
+ *   NOCASE only fold A–Z, so they're never used to compare keywords.
+ * - "At or below a keyword" is a range on `path` (`p` itself, or `p|` up to `p}`: '}' follows '|'),
+ *   which the unique index answers directly.
  * - Filtering on a keyword includes everything below it; search sees a keyword's ancestors and
  *   synonyms; export follows Lightroom's rules (include on export, export parents, export synonyms).
  * - People type paths with '>', '|' or '›' between levels: `Places > Norway > Oslo`.
@@ -13,6 +17,7 @@ import { nowIso } from '../lib/time'
 export interface KeywordRow {
   id: string
   name: string
+  name_key: string
   parent_id: string | null
   path: string
   full_path: string
@@ -45,6 +50,9 @@ export function normalizeName(name: string): string | null {
   return clean.length > 0 && clean.length <= 80 ? clean : null
 }
 
+/** One level's name: a separator inside it becomes '/' (as Lightroom's '|' in a name would). */
+export const cleanKeywordName = (name: string) => normalizeName(name.replace(/[|>›]/g, '/'))
+
 /** `Places > Norway > Oslo` → ['Places', 'Norway', 'Oslo']. Empty levels are dropped. */
 export function splitPath(input: string): string[] {
   return input
@@ -56,8 +64,15 @@ export function splitPath(input: string): string[] {
 
 const keyOf = (names: string[]) => names.join('|').toLowerCase()
 export const displayPath = (fullPath: string) => fullPath.split('|').join(DISPLAY_SEPARATOR)
-/** SQL: keyword `t` is `f` or below it. */
-export const AT_OR_BELOW = (t: string, f: string) => `(${t}.path = ${f}.path OR substr(${t}.path, 1, length(${f}.path) + 1) = ${f}.path || '|')`
+/** SQL: keyword `t` is `f` or below it, as an index range on `t.path`. */
+export const AT_OR_BELOW = (t: string, f: string) => `(${t}.path = ${f}.path OR (${t}.path >= ${f}.path || '|' AND ${t}.path < ${f}.path || '}'))`
+/** SQL and bindings: column `path` is the keyword with key `key`, or below it. */
+export const atOrBelow = (key: string, column = 'path') => ({ sql: `(${column} = ? OR (${column} >= ? AND ${column} < ?))`, params: [key, `${key}|`, `${key}}`] })
+/**
+ * SQL: the ids of every keyword at or below the keywords chosen by `from` (a SELECT of ids), walking
+ * parent links: a few rows per keyword, rather than a comparison of every keyword with every other.
+ */
+export const SUBTREE = (from: string) => `WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (${from}) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id)`
 
 export function keywordJson(row: KeywordRow): Keyword {
   let synonyms: string[] = []
@@ -90,10 +105,10 @@ export async function ensurePath(db: D1Database, names: string[]): Promise<strin
     statements.push(
       db
         .prepare(
-          `INSERT OR IGNORE INTO tags (id, name, parent_id, path, full_path, created_at)
-           VALUES (?, ?, (SELECT id FROM tags WHERE path = ?), ?, ?, ?)`,
+          `INSERT OR IGNORE INTO tags (id, name, name_key, parent_id, path, full_path, created_at)
+           VALUES (?, ?, ?, (SELECT id FROM tags WHERE path = ?), ?, ?, ?)`,
         )
-        .bind(randomId(), names[i], parentKey, keyOf(level), level.join('|'), now),
+        .bind(randomId(), names[i], names[i]!.toLowerCase(), parentKey, keyOf(level), level.join('|'), now),
     )
   }
   await db.batch(statements)
@@ -112,11 +127,11 @@ export async function resolveKeyword(db: D1Database, input: string): Promise<str
   if (names.length > 1) return ensurePath(db, names)
   const existing = await db
     .prepare(
-      `SELECT t.id FROM tags t WHERE t.path = ? OR t.name = ? COLLATE NOCASE
+      `SELECT t.id FROM tags t WHERE t.name_key = ?
        ORDER BY (t.parent_id IS NULL) DESC, (SELECT COUNT(*) FROM asset_tags at WHERE at.tag_id = t.id) DESC, t.path
        LIMIT 1`,
     )
-    .bind(keyOf(names), names[0])
+    .bind(keyOf(names))
     .first<{ id: string }>()
   return existing?.id ?? ensurePath(db, names)
 }
@@ -126,21 +141,34 @@ export async function matchKeywords(db: D1Database, input: string): Promise<stri
   const names = splitPath(input)
   if (names.length === 0) return []
   const { results } = await db
-    .prepare(names.length > 1 ? 'SELECT id FROM tags WHERE path = ?' : 'SELECT id FROM tags WHERE path = ? OR name = ? COLLATE NOCASE')
-    .bind(...(names.length > 1 ? [keyOf(names)] : [keyOf(names), names[0]]))
+    .prepare(names.length > 1 ? 'SELECT id FROM tags WHERE path = ?' : 'SELECT id FROM tags WHERE name_key = ?')
+    .bind(keyOf(names))
     .all<{ id: string }>()
   return results.map((r) => r.id)
 }
 
-/** SQL fragment and binding for "asset `a` has a keyword at or below `input`" (the library's tag filter). */
+/**
+ * SQL fragment and binding for "asset `a` has a keyword at or below `input`" (the library's tag
+ * filter): a path as written, or a plain name meaning every keyword of that name.
+ */
 export function keywordFilterSql(input: string): { sql: string; params: unknown[] } {
   const names = splitPath(input)
   const key = keyOf(names)
+  if (names.length > 1) {
+    const range = atOrBelow(key, 't.path')
+    return { sql: `a.id IN (SELECT at.asset_id FROM tags t JOIN asset_tags at ON at.tag_id = t.id WHERE ${range.sql})`, params: range.params }
+  }
   return {
-    sql: `a.id IN (SELECT at.asset_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id
-                   JOIN tags f ON ${AT_OR_BELOW('t', 'f')}
-                   WHERE ${names.length > 1 ? 'f.path = ?' : '(f.path = ? OR f.name = ? COLLATE NOCASE)'})`,
-    params: names.length > 1 ? [key] : [key, names[0] ?? ''],
+    sql: `a.id IN (SELECT at.asset_id FROM tags f JOIN tags t ON ${AT_OR_BELOW('t', 'f')} JOIN asset_tags at ON at.tag_id = t.id WHERE f.name_key = ?)`,
+    params: [key],
+  }
+}
+
+/** The same for one keyword by id (facet links, saved searches): exact, and unaffected by renames. */
+export function keywordIdFilterSql(id: string): { sql: string; params: unknown[] } {
+  return {
+    sql: `a.id IN (SELECT at.asset_id FROM tags f JOIN tags t ON ${AT_OR_BELOW('t', 'f')} JOIN asset_tags at ON at.tag_id = t.id WHERE f.id = ?)`,
+    params: [id],
   }
 }
 
@@ -160,10 +188,10 @@ export async function keywordTree(db: D1Database): Promise<KeywordNode[]> {
   const [rows, counts] = await db.batch([
     db.prepare('SELECT * FROM tags ORDER BY path'),
     db.prepare(
-      `SELECT f.id, COUNT(DISTINCT CASE WHEN t.id = f.id THEN a.id END) AS count, COUNT(DISTINCT a.id) AS total
-       FROM tags f JOIN tags t ON ${AT_OR_BELOW('t', 'f')}
-       JOIN asset_tags at ON at.tag_id = t.id JOIN assets a ON a.id = at.asset_id AND a.deleted_at IS NULL
-       GROUP BY f.id`,
+      `${SUBTREE('SELECT id FROM tags')}
+       SELECT under.root AS id, COUNT(DISTINCT CASE WHEN under.id = under.root THEN at.asset_id END) AS count, COUNT(DISTINCT at.asset_id) AS total
+       FROM under JOIN asset_tags at ON at.tag_id = under.id JOIN assets a ON a.id = at.asset_id AND a.deleted_at IS NULL
+       GROUP BY under.root`,
     ),
   ])
   const byId = new Map(((counts?.results ?? []) as { id: string; count: number; total: number }[]).map((r) => [r.id, r]))
@@ -176,9 +204,10 @@ export async function keywordTree(db: D1Database): Promise<KeywordNode[]> {
 
 /** Asset ids carrying `id` or anything below it (to reindex after a rename or move). */
 async function assetsUnder(db: D1Database, row: KeywordRow): Promise<string[]> {
+  const range = atOrBelow(row.path, 't.path')
   const { results } = await db
-    .prepare(`SELECT DISTINCT at.asset_id FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE t.path = ? OR substr(t.path, 1, ?) = ?`)
-    .bind(row.path, row.path.length + 1, `${row.path}|`)
+    .prepare(`SELECT DISTINCT at.asset_id FROM tags t JOIN asset_tags at ON at.tag_id = t.id WHERE ${range.sql}`)
+    .bind(...range.params)
     .all<{ asset_id: string }>()
   return results.map((r) => r.asset_id)
 }
@@ -187,7 +216,7 @@ async function assetsUnder(db: D1Database, row: KeywordRow): Promise<string[]> {
 export async function moveKeyword(db: D1Database, id: string, change: { name?: string; parentId?: string | null }): Promise<string[]> {
   const row = await getKeyword(db, id)
   if (!row) throw new KeywordConflict('No such keyword.')
-  const name = change.name !== undefined ? normalizeName(change.name.replace(/[|>›]/g, '/')) : row.name
+  const name = change.name !== undefined ? cleanKeywordName(change.name) : row.name
   if (!name) throw new KeywordConflict('A keyword needs a name.')
   const parentId = change.parentId !== undefined ? change.parentId : row.parent_id
   let parentPath = ''
@@ -206,16 +235,14 @@ export async function moveKeyword(db: D1Database, id: string, change: { name?: s
     throw new KeywordConflict(`“${displayPath(newFull)}” already exists. Merge into it instead.`)
   }
   const affected = await assetsUnder(db, row)
-  const prefixLength = row.path.length
+  const range = atOrBelow(row.path)
   await db.batch([
-    db.prepare('UPDATE tags SET name = ?, parent_id = ? WHERE id = ?').bind(name, parentId, id),
-    // Every keyword at or below: swap the old prefix for the new one, in both forms.
+    db.prepare('UPDATE tags SET name = ?, name_key = ?, parent_id = ? WHERE id = ?').bind(name, name.toLowerCase(), parentId, id),
+    // Every keyword at or below: swap the old prefix for the new one, in both forms. Lengths are
+    // SQLite's own (characters), never JS's (UTF-16 units, which count an emoji twice).
     db
-      .prepare(
-        `UPDATE tags SET path = ? || substr(path, ?), full_path = ? || substr(full_path, ?)
-         WHERE path = ? OR substr(path, 1, ?) = ?`,
-      )
-      .bind(newPath, prefixLength + 1, newFull, row.full_path.length + 1, row.path, prefixLength + 1, `${row.path}|`),
+      .prepare(`UPDATE tags SET path = ? || substr(path, length(?) + 1), full_path = ? || substr(full_path, length(?) + 1) WHERE ${range.sql}`)
+      .bind(newPath, row.path, newFull, row.full_path, ...range.params),
   ])
   return affected
 }
@@ -230,17 +257,27 @@ export async function mergeKeyword(db: D1Database, id: string, intoId: string): 
   if (!row || !into) throw new KeywordConflict('No such keyword.')
   if (into.path.startsWith(`${row.path}|`)) throw new KeywordConflict('Cannot merge a keyword into one below it.')
   const affected = new Set(await assetsUnder(db, row))
-  const { results: children } = await db.prepare('SELECT id, name FROM tags WHERE parent_id = ?').bind(id).all<{ id: string; name: string }>()
-  for (const child of children) {
-    const twin = await db.prepare('SELECT id FROM tags WHERE parent_id = ? AND name = ? COLLATE NOCASE').bind(intoId, child.name).first<{ id: string }>()
-    if (twin) for (const a of await mergeKeyword(db, child.id, twin.id)) affected.add(a)
-    else for (const a of await moveKeyword(db, child.id, { parentId: intoId })) affected.add(a)
+  // Step aside first: merging People › Smith into People, its child People › Smith › Smith takes
+  // its place, which it couldn't while this one still held the path.
+  await db.prepare("UPDATE tags SET path = '~merging~' || id WHERE id = ?").bind(id).run()
+  try {
+    await db.batch([
+      db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT asset_id, ?, source, created_at FROM asset_tags WHERE tag_id = ?').bind(intoId, id),
+      db.prepare('DELETE FROM asset_tags WHERE tag_id = ?').bind(id),
+    ])
+    const { results: children } = await db.prepare('SELECT id, name_key FROM tags WHERE parent_id = ?').bind(id).all<{ id: string; name_key: string }>()
+    for (const child of children) {
+      const twin = await db.prepare('SELECT id FROM tags WHERE path = ? AND id != ?').bind(`${into.path}|${child.name_key}`, child.id).first<{ id: string }>()
+      if (twin) for (const a of await mergeKeyword(db, child.id, twin.id)) affected.add(a)
+      else for (const a of await moveKeyword(db, child.id, { parentId: intoId })) affected.add(a)
+    }
+    // Deleting cascades to children: only once there are none.
+    const gone = await db.prepare('DELETE FROM tags WHERE id = ? AND NOT EXISTS (SELECT 1 FROM tags WHERE parent_id = ?)').bind(id, id).run()
+    if (gone.meta.changes === 0) throw new KeywordConflict('Some keywords below it could not be moved; nothing below it was deleted.')
+  } catch (error) {
+    await db.prepare('UPDATE tags SET path = ? WHERE id = ?').bind(row.path, id).run()
+    throw error
   }
-  await db.batch([
-    db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT asset_id, ?, source, created_at FROM asset_tags WHERE tag_id = ?').bind(intoId, id),
-    db.prepare('DELETE FROM asset_tags WHERE tag_id = ?').bind(id),
-    db.prepare('DELETE FROM tags WHERE id = ?').bind(id),
-  ])
   return [...affected]
 }
 
@@ -249,11 +286,10 @@ export async function deleteKeyword(db: D1Database, id: string): Promise<string[
   const row = await getKeyword(db, id)
   if (!row) return []
   const affected = await assetsUnder(db, row)
-  const under = `path = ? OR substr(path, 1, ?) = ?`
-  const bind = [row.path, row.path.length + 1, `${row.path}|`]
+  const range = atOrBelow(row.path)
   await db.batch([
-    db.prepare(`DELETE FROM asset_tags WHERE tag_id IN (SELECT id FROM tags WHERE ${under})`).bind(...bind),
-    db.prepare(`DELETE FROM tags WHERE ${under}`).bind(...bind),
+    db.prepare(`DELETE FROM asset_tags WHERE tag_id IN (SELECT id FROM tags WHERE ${range.sql})`).bind(...range.params),
+    db.prepare(`DELETE FROM tags WHERE ${range.sql}`).bind(...range.params),
   ])
   return affected
 }

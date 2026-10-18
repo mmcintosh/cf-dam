@@ -63,4 +63,67 @@ describe('migrate', () => {
     await db.prepare("DELETE FROM assets WHERE id = 'a1'").run()
     expect((await db.prepare('SELECT COUNT(*) AS n FROM asset_tags').first<{ n: number }>())?.n).toBe(0)
   })
+
+  it('upgrades tags that land on one keyword, and folds case beyond A–Z (0008, 0018)', async () => {
+    h = await createHarness({}, { migrations: MIGRATIONS.filter((m) => m.name < '0008') })
+    const db = h.env.DB
+    const now = new Date().toISOString()
+    await db.batch([
+      db.prepare("INSERT INTO assets (id, filename, mime_type, status, created_at, updated_at) VALUES ('a1', 'x.jpg', 'image/jpeg', 'ready', ?, ?), ('a2', 'y.jpg', 'image/jpeg', 'ready', ?, ?)").bind(now, now, now, now),
+      // 'a|b' and 'a/b' are one keyword now; SQLite's NOCASE let 'Österreich' and 'österreich' both exist.
+      db.prepare("INSERT INTO tags (id, name, created_at) VALUES ('t1', 'a/b', '2020-01-01'), ('t2', 'a|b', '2021-01-01'), ('t3', 'Österreich', '2020-01-01'), ('t4', 'österreich', '2021-01-01'), ('t5', 'Trips > 2019', '2020-01-01')"),
+      db.prepare("INSERT INTO asset_tags (asset_id, tag_id, source, created_at) VALUES ('a1', 't1', 'user', ?), ('a2', 't2', 'user', ?), ('a2', 't4', 'import', ?), ('a1', 't5', 'user', ?)").bind(now, now, now, now),
+    ])
+    expect(await migrate(db)).toEqual(expect.arrayContaining(['0008_keywords_labels', '0017_keyword_name_key', '0018_keyword_keys']))
+    const tags = await db.prepare('SELECT id, name, name_key, path, full_path FROM tags ORDER BY id').all()
+    expect(tags.results).toEqual([
+      { id: 't1', name: 'a/b', name_key: 'a/b', path: 'a/b', full_path: 'a/b' },
+      // The one whose key was already right is kept.
+      { id: 't4', name: 'österreich', name_key: 'österreich', path: 'österreich', full_path: 'österreich' },
+      { id: 't5', name: 'Trips / 2019', name_key: 'trips / 2019', path: 'trips / 2019', full_path: 'Trips / 2019' },
+    ])
+    const kept = await db.prepare('SELECT asset_id, tag_id FROM asset_tags ORDER BY asset_id, tag_id').all()
+    expect(kept.results).toEqual([
+      { asset_id: 'a1', tag_id: 't1' },
+      { asset_id: 'a1', tag_id: 't5' },
+      { asset_id: 'a2', tag_id: 't1' },
+      { asset_id: 'a2', tag_id: 't4' },
+    ])
+  })
+
+  it('merges keywords whose branches turn out to be one, children and all (0018)', async () => {
+    h = await createHarness({}, { migrations: MIGRATIONS.filter((m) => m.name < '0018') })
+    const db = h.env.DB
+    const now = new Date().toISOString()
+    // As SQLite lower-cased them: two Österreich branches, each with a Wien.
+    await db.batch([
+      db.prepare("INSERT INTO assets (id, filename, mime_type, status, created_at, updated_at) VALUES ('a1', 'x.jpg', 'image/jpeg', 'ready', ?, ?), ('a2', 'y.jpg', 'image/jpeg', 'ready', ?, ?)").bind(now, now, now, now),
+      db.prepare(
+        `INSERT INTO tags (id, name, name_key, parent_id, path, full_path, created_at) VALUES
+           ('o1', 'Österreich', 'Österreich', NULL, 'Österreich', 'Österreich', '2020-01-01'),
+           ('w1', 'Wien', 'wien', 'o1', 'Österreich|wien', 'Österreich|Wien', '2020-01-01'),
+           ('o2', 'österreich', 'österreich', NULL, 'österreich', 'österreich', '2021-01-01'),
+           ('w2', 'WIEN', 'wien', 'o2', 'österreich|wien', 'österreich|WIEN', '2021-01-01'),
+           ('g2', 'Graz', 'graz', 'o2', 'österreich|graz', 'österreich|Graz', '2021-01-01')`,
+      ),
+      db.prepare("INSERT INTO asset_tags (asset_id, tag_id, source, created_at) VALUES ('a1', 'w1', 'user', ?), ('a2', 'w2', 'user', ?), ('a2', 'g2', 'user', ?)").bind(now, now, now),
+    ])
+    expect(await migrate(db)).toEqual(['0018_keyword_keys'])
+    const tags = await db.prepare('SELECT id, parent_id, path, full_path FROM tags ORDER BY path').all()
+    // The one already right (o2's path) is kept; the rest join it.
+    expect(tags.results).toEqual([
+      { id: 'o2', parent_id: null, path: 'österreich', full_path: 'österreich' },
+      { id: 'g2', parent_id: 'o2', path: 'österreich|graz', full_path: 'österreich|Graz' },
+      { id: 'w2', parent_id: 'o2', path: 'österreich|wien', full_path: 'österreich|WIEN' },
+    ])
+    const kept = await db.prepare('SELECT asset_id, tag_id FROM asset_tags ORDER BY asset_id, tag_id').all()
+    expect(kept.results).toEqual([
+      { asset_id: 'a1', tag_id: 'w2' },
+      { asset_id: 'a2', tag_id: 'g2' },
+      { asset_id: 'a2', tag_id: 'w2' },
+    ])
+    // Run again: nothing left to do.
+    await (await import('../src/db/repairs')).repairKeywordKeys(db)
+    expect((await db.prepare('SELECT COUNT(*) AS n FROM tags').first<{ n: number }>())?.n).toBe(3)
+  })
 })

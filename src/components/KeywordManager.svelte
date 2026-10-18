@@ -221,7 +221,7 @@
         <h2>{selected.name}</h2>
         <p class="muted">
           {plural(selected.count)} tagged with it{selected.total > selected.count ? `, ${plural(selected.total)} including keywords below` : ''}.
-          <a href={`/?tag=${encodeURIComponent(selected.path)}`}>Show photos</a>
+          <a href={`/?kw=${encodeURIComponent(selected.id)}`}>Show photos</a>
         </p>
       </header>
 

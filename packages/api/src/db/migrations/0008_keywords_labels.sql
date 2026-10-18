@@ -19,8 +19,15 @@ CREATE TABLE tags_next (
   synonyms           TEXT NOT NULL DEFAULT '[]',
   created_at         TEXT NOT NULL
 );
+-- Two old tags can land on one path ('a|b' and 'a/b'; 'Oslo' and 'oslo' were already one). The
+-- later ones get a stand-in path here, so this can't fail; repair 0018 merges them, and redoes the
+-- keys with full Unicode lower-casing (SQLite's lower() only folds A–Z).
 INSERT INTO tags_next (id, name, parent_id, path, full_path, created_at)
-  SELECT id, replace(name, '|', '/'), NULL, lower(replace(name, '|', '/')), replace(name, '|', '/'), created_at FROM tags;
+  SELECT id, clean, NULL, lower(clean) || CASE WHEN n > 1 THEN '~' || id ELSE '' END, clean, created_at FROM (
+    SELECT id, created_at, replace(name, '|', '/') AS clean,
+           ROW_NUMBER() OVER (PARTITION BY lower(replace(name, '|', '/')) ORDER BY created_at, id) AS n
+    FROM tags
+  );
 DROP TABLE tags;
 ALTER TABLE tags_next RENAME TO tags;
 CREATE INDEX IF NOT EXISTS idx_tags_parent ON tags(parent_id);

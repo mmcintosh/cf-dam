@@ -59,8 +59,8 @@ presetRoutes.delete('/:id', requirePermission('assets:edit'), async (c) => {
 
 export const savedSearchRoutes = new Hono<DamEnv>()
 
-const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'gps', 'storedOn', 'missing', 'orientation', 'type', 'tier', 'sort']
-const PARAM: Partial<Record<keyof ListFilters, string>> = { albumId: 'album', storedOn: 'on' }
+const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'keyword', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'gps', 'storedOn', 'missing', 'orientation', 'type', 'tier', 'sort']
+const PARAM: Partial<Record<keyof ListFilters, string>> = { albumId: 'album', storedOn: 'on', keyword: 'kw' }
 
 /** Keep only filters the library understands, in a stable order, so a saved search is a clean URL. */
 export function normalizeQuery(query: string): string {
@@ -85,18 +85,27 @@ export interface SavedSearch extends SavedSearchRow {
   count: number
 }
 
-/** Saved searches with live counts: one small COUNT each, in one round trip. */
+/**
+ * Saved searches with live counts. The COUNTs go several to a statement (as many as D1's 100 bound
+ * values allow), so a sidebar of saved searches costs a few queries, not one each.
+ */
 export async function listSavedSearches(db: D1Database): Promise<SavedSearch[]> {
   const { results } = await db.prepare('SELECT id, name, query, position FROM saved_searches ORDER BY position, name LIMIT 100').all<SavedSearchRow>()
-  const counts = results.length
-    ? await db.batch(
-        results.map((s) => {
-          const { clause, params } = buildWhere(parseListFilters(Object.fromEntries(new URLSearchParams(s.query))))
-          return db.prepare(`SELECT COUNT(*) AS n FROM assets a WHERE ${clause}`).bind(...params)
-        }),
-      )
-    : []
-  return results.map((s, i) => ({ ...s, count: (counts[i]?.results?.[0] as { n: number } | undefined)?.n ?? 0 }))
+  const counts = results.map((s) => buildWhere(parseListFilters(Object.fromEntries(new URLSearchParams(s.query)))))
+  const statements: D1PreparedStatement[] = []
+  for (let i = 0; i < counts.length; ) {
+    const group: typeof counts = []
+    let bound = 0
+    while (i < counts.length && (group.length === 0 || bound + counts[i]!.params.length <= 100)) {
+      bound += counts[i]!.params.length
+      group.push(counts[i++]!)
+    }
+    const columns = group.map((w, j) => `(SELECT COUNT(*) FROM assets a WHERE ${w.clause}) AS n${j}`)
+    statements.push(db.prepare(`SELECT ${columns.join(', ')}`).bind(...group.flatMap((w) => w.params)))
+  }
+  const rows = statements.length ? (await db.batch<Record<string, number>>(statements)).map((r) => r.results?.[0] ?? {}) : []
+  const flat = rows.flatMap((row) => Object.keys(row).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))).map((k) => row[k]!))
+  return results.map((s, i) => ({ ...s, count: flat[i] ?? 0 }))
 }
 
 savedSearchRoutes.get('/', requirePermission('assets:read'), async (c) => c.json({ searches: await listSavedSearches(c.env.DB) }))

@@ -2,7 +2,7 @@
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
-import { displayPath, keywordFilterSql, resolveKeyword } from './keywords'
+import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeyword } from './keywords'
 import { indexAsset, toFtsQuery } from './search'
 
 export interface AssetRow {
@@ -261,7 +261,10 @@ export async function renditionNames(db: D1Database, assetIds: string[]): Promis
 
 export interface ListFilters {
   q?: string
+  /** Keywords as typed: a path ('Places > Norway'), or a name meaning every keyword of that name. */
   tag?: string
+  /** One keyword by id, and those below it (`kw=`: facet links, saved searches). Part of the tag facet. */
+  keyword?: string
   camera?: string
   lens?: string
   albumId?: string
@@ -334,6 +337,11 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   }
   if (use('tag')) {
     const { sql, params: tagParams } = keywordFilterSql(filters.tag!)
+    where.push(sql)
+    params.push(...tagParams)
+  }
+  if (use('keyword') && omit !== 'tag') {
+    const { sql, params: tagParams } = keywordIdFilterSql(filters.keyword!)
     where.push(sql)
     params.push(...tagParams)
   }
@@ -487,6 +495,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
   return {
     q: text(query.q),
     tag: text(query.tag),
+    keyword: text(query.kw, 64),
     camera: text(query.camera),
     lens: text(query.lens),
     albumId: text(query.album, 64),
