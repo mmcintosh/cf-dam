@@ -133,43 +133,63 @@ export async function hashFromThumbnail(env: DamBindings, assetId: string): Prom
   return hashPixels(await decodePng(new Uint8Array(await png.response().arrayBuffer())))
 }
 
-/** Store an asset's hash and record every look-alike within MAX_DISTANCE. Returns how many it found. */
-export async function recordHash(db: D1Database, assetId: string, hash: string): Promise<number> {
-  const parts = bands(hash)
-  await db.batch([
-    db.prepare('UPDATE assets SET phash = ? WHERE id = ?').bind(hash, assetId),
-    db.prepare('DELETE FROM asset_hash_bands WHERE asset_id = ?').bind(assetId),
-    ...parts.map((value, band) => db.prepare('INSERT INTO asset_hash_bands (asset_id, band, value) VALUES (?, ?, ?)').bind(assetId, band, value)),
+/** Look-alikes considered per photo, nearest bands first: enough for any real archive. */
+const MAX_CANDIDATES = 2000
+
+/**
+ * Store each asset's hash and record every look-alike within MAX_DISTANCE: three round trips for any
+ * number of assets. Returns how many look-alike pairs it found.
+ */
+export async function recordHashes(db: D1Database, items: { id: string; hash: string }[]): Promise<number> {
+  if (items.length === 0) return 0
+  const ids = JSON.stringify(items.map((i) => i.id))
+  const candidates = await db.batch([
+    db
+      .prepare("UPDATE assets SET phash = json_extract(j.value, '$[1]') FROM json_each(?) j WHERE assets.id = json_extract(j.value, '$[0]')")
+      .bind(JSON.stringify(items.map((i) => [i.id, i.hash]))),
+    db.prepare('DELETE FROM asset_hash_bands WHERE asset_id IN (SELECT value FROM json_each(?))').bind(ids),
+    db
+      .prepare("INSERT INTO asset_hash_bands (asset_id, band, value) SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]') FROM json_each(?)")
+      .bind(JSON.stringify(items.flatMap(({ id, hash }) => bands(hash).map((value, band) => [id, band, value])))),
+    // Photos sharing a band with each of these (with these photos among each other too).
+    db
+      .prepare(
+        `SELECT me, my_width, my_height, id, phash, width, height FROM (
+           SELECT me, my_width, my_height, id, phash, width, height, ROW_NUMBER() OVER (PARTITION BY me) AS n FROM (
+             SELECT DISTINCT mine.asset_id AS me, s.width AS my_width, s.height AS my_height, a.id, a.phash, a.width, a.height
+             FROM asset_hash_bands mine
+             JOIN assets s ON s.id = mine.asset_id
+             JOIN asset_hash_bands hb ON hb.band = mine.band AND hb.value = mine.value AND hb.asset_id != mine.asset_id
+             JOIN assets a ON a.id = hb.asset_id
+             WHERE mine.asset_id IN (SELECT value FROM json_each(?)) AND a.deleted_at IS NULL AND a.phash IS NOT NULL
+           )
+         ) WHERE n <= ?`,
+      )
+      .bind(ids, MAX_CANDIDATES),
   ])
-  const self = await db.prepare('SELECT width, height FROM assets WHERE id = ?').bind(assetId).first<{ width: number | null; height: number | null }>()
-  const ratio = self?.width && self.height ? self.width / self.height : null
-  const { results } = await db
-    .prepare(
-      `SELECT DISTINCT a.id, a.phash, a.width, a.height FROM asset_hash_bands hb
-       JOIN assets a ON a.id = hb.asset_id
-       WHERE (${parts.map(() => '(hb.band = ? AND hb.value = ?)').join(' OR ')})
-         AND hb.asset_id != ? AND a.deleted_at IS NULL AND a.phash IS NOT NULL
-       LIMIT 2000`,
-    )
-    .bind(...parts.flatMap((value, band) => [band, value]), assetId)
-    .all<{ id: string; phash: string; width: number | null; height: number | null }>()
-  const sameShape = (r: { width: number | null; height: number | null }) => {
-    if (!ratio || !r.width || !r.height) return true
-    const other = r.width / r.height
-    return Math.abs(ratio - other) / Math.max(ratio, other) <= MAX_ASPECT_DIFFERENCE
+  const hashOf = new Map(items.map((i) => [i.id, i.hash]))
+  const ratio = (w: number | null, h: number | null) => (w && h ? w / h : null)
+  const pairs = new Map<string, [string, string, number]>()
+  for (const r of candidates[3]!.results as { me: string; my_width: number | null; my_height: number | null; id: string; phash: string; width: number | null; height: number | null }[]) {
+    const mine = ratio(r.my_width, r.my_height)
+    const other = ratio(r.width, r.height)
+    if (mine && other && Math.abs(mine - other) / Math.max(mine, other) > MAX_ASPECT_DIFFERENCE) continue
+    const distance = hamming(hashOf.get(r.me)!, r.phash)
+    if (distance > MAX_DISTANCE) continue
+    const [a, b] = r.me < r.id ? [r.me, r.id] : [r.id, r.me]
+    pairs.set(`${a} ${b}`, [a, b, distance])
   }
-  const near = results
-    .filter(sameShape)
-    .map((r) => ({ id: r.id, distance: hamming(hash, r.phash) }))
-    .filter((r) => r.distance <= MAX_DISTANCE)
-  if (near.length > 0) {
-    const now = nowIso()
-    await db.batch(
-      near.map((r) => {
-        const [a, b] = assetId < r.id ? [assetId, r.id] : [r.id, assetId]
-        return db.prepare('INSERT OR IGNORE INTO similar_pairs (a, b, distance, created_at) VALUES (?, ?, ?, ?)').bind(a, b, r.distance, now)
-      }),
-    )
+  if (pairs.size > 0) {
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO similar_pairs (a, b, distance, created_at)
+         SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]'), ? FROM json_each(?)`,
+      )
+      .bind(nowIso(), JSON.stringify([...pairs.values()]))
+      .run()
   }
-  return near.length
+  return pairs.size
 }
+
+/** Store one asset's hash and record its look-alikes. Returns how many it found. */
+export const recordHash = (db: D1Database, assetId: string, hash: string) => recordHashes(db, [{ id: assetId, hash }])

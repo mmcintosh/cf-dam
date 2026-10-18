@@ -36,36 +36,40 @@ export async function importPage(
   const candidates = page.objects.filter((o) => !ignorable(o.key, o.size))
 
   // Skip objects already catalogued from this connection (including cf-dam's own uploads).
-  const known = new Set<string>()
-  for (let i = 0; i < candidates.length; i += 90) {
-    const slice = candidates.slice(i, i + 90)
-    const { results } = await env.DB.prepare(
-      `SELECT key FROM asset_locations WHERE connection_id = ? AND key IN (${slice.map(() => '?').join(',')})`,
-    )
-      .bind(connection.id, ...slice.map((o) => o.key))
-      .all<{ key: string }>()
-    for (const row of results) known.add(row.key)
-  }
+  const { results: existing } = candidates.length
+    ? await env.DB.prepare('SELECT key FROM asset_locations WHERE connection_id = ? AND key IN (SELECT value FROM json_each(?))')
+        .bind(connection.id, JSON.stringify(candidates.map((o) => o.key)))
+        .all<{ key: string }>()
+    : { results: [] as { key: string }[] }
+  const known = new Set(existing.map((r) => r.key))
 
   const fresh = candidates.filter((o) => !known.has(o.key))
   const now = nowIso()
-  const statements: D1PreparedStatement[] = []
-  for (const object of fresh) {
-    const id = randomId()
+  const rows = fresh.map((object) => {
     const filename = safeFilename(object.key)
     const archived = ARCHIVE_CLASSES.has(object.storageClass)
+    return {
+      id: randomId(), filename, mime: mimeTypeFor(filename, undefined), size: object.size, status: archived ? 'ready' : 'queued', created: object.lastModified ?? now,
+      key: object.key, class: object.storageClass, state: archived ? 'archived' : 'present', etag: object.etag,
+    }
+  })
+  const field = (name: string) => `json_extract(j.value, '$.${name}')`
+  // In lists of 500 (keys run to about 1 KB; a bound value is at most 2 MB), all in one batch.
+  const statements: D1PreparedStatement[] = []
+  for (let i = 0; i < rows.length; i += 500) {
+    const list = JSON.stringify(rows.slice(i, i + 500))
     statements.push(
       env.DB.prepare(
         `INSERT INTO assets (id, owner_id, filename, mime_type, size, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, options.userId, filename, mimeTypeFor(filename, undefined), object.size, archived ? 'ready' : 'queued', object.lastModified ?? now, now),
+         SELECT ${field('id')}, ?, ${field('filename')}, ${field('mime')}, ${field('size')}, ${field('status')}, ${field('created')}, ? FROM json_each(?) j`,
+      ).bind(options.userId, now, list),
       env.DB.prepare(
         `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, connection.id, object.key, object.storageClass, archived ? 'archived' : 'present', object.size, object.etag, now),
+         SELECT ${field('id')}, ?, ${field('key')}, ${field('class')}, ${field('state')}, ${field('size')}, ${field('etag')}, ? FROM json_each(?) j`,
+      ).bind(connection.id, now, list),
     )
   }
-  for (let i = 0; i < statements.length; i += 100) await env.DB.batch(statements.slice(i, i + 100))
+  if (statements.length > 0) await env.DB.batch(statements)
 
   return { listed: page.objects.length, imported: fresh.length, skipped: page.objects.length - fresh.length, cursor: page.cursor }
 }

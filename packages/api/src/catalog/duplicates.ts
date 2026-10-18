@@ -4,7 +4,7 @@
  * best rating and any pick into the one kept, so nothing anyone added is lost.
  */
 import { nowIso } from '../lib/time'
-import { assetJson, getLocations, primaryLocation, renditionNames, softDeleteAsset, type AssetJson, type AssetRow } from './assets'
+import { assetJson, locationsOf, primaryLocation, renditionNames, softDeleteAssets, type AssetJson, type AssetRow } from './assets'
 import { indexAsset } from './search'
 
 export interface DuplicateGroup {
@@ -14,33 +14,38 @@ export interface DuplicateGroup {
   assets: (AssetJson & { albums: number; tags: number })[]
 }
 
-async function withDetails(db: D1Database, rows: AssetRow[]) {
-  const ids = rows.map((r) => r.id)
+/**
+ * Groups as shown: each member with where it is, its previews and how many albums and keywords it
+ * has, best first. Four queries for all the groups together.
+ */
+async function withDetails(db: D1Database, groups: { key: string; kind: DuplicateGroup['kind']; rows: AssetRow[] }[]): Promise<DuplicateGroup[]> {
+  const ids = groups.flatMap((g) => g.rows.map((r) => r.id))
   const renditions = await renditionNames(db, ids)
-  const counts = new Map<string, { albums: number; tags: number }>()
+  const locations = await locationsOf(db, ids)
+  const counts = new Map(ids.map((id) => [id, { albums: 0, tags: 0 }]))
   if (ids.length > 0) {
-    const marks = ids.map(() => '?').join(',')
+    const list = JSON.stringify(ids)
     const [albums, tags] = await db.batch<{ id: string; n: number }>([
-      db.prepare(`SELECT asset_id AS id, COUNT(*) AS n FROM album_items WHERE asset_id IN (${marks}) GROUP BY asset_id`).bind(...ids),
-      db.prepare(`SELECT asset_id AS id, COUNT(*) AS n FROM asset_tags WHERE asset_id IN (${marks}) GROUP BY asset_id`).bind(...ids),
+      db.prepare('SELECT asset_id AS id, COUNT(*) AS n FROM album_items WHERE asset_id IN (SELECT value FROM json_each(?)) GROUP BY asset_id').bind(list),
+      db.prepare('SELECT asset_id AS id, COUNT(*) AS n FROM asset_tags WHERE asset_id IN (SELECT value FROM json_each(?)) GROUP BY asset_id').bind(list),
     ])
-    for (const id of ids) counts.set(id, { albums: 0, tags: 0 })
     for (const r of albums!.results) counts.get(r.id)!.albums = r.n
     for (const r of tags!.results) counts.get(r.id)!.tags = r.n
   }
-  const out = []
-  for (const row of rows) {
-    const location = primaryLocation(await getLocations(db, row.id))
-    out.push({ ...assetJson(row, renditions.get(row.id) ?? [], location), ...(counts.get(row.id) ?? { albums: 0, tags: 0 }) })
-  }
-  // Best first: most pixels, then a pick, then the higher rating, then the earliest upload.
-  return out.sort(
-    (x, y) =>
-      (y.width ?? 0) * (y.height ?? 0) - (x.width ?? 0) * (x.height ?? 0) ||
-      Number(y.flag === 'pick') - Number(x.flag === 'pick') ||
-      (y.rating ?? 0) - (x.rating ?? 0) ||
-      x.createdAt.localeCompare(y.createdAt),
-  )
+  return groups.map(({ key, kind, rows }) => ({
+    key,
+    kind,
+    assets: rows
+      .map((row) => ({ ...assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? [])), ...counts.get(row.id)! }))
+      // Best first: most pixels, then a pick, then the higher rating, then the earliest upload.
+      .sort(
+        (x, y) =>
+          (y.width ?? 0) * (y.height ?? 0) - (x.width ?? 0) * (x.height ?? 0) ||
+          Number(y.flag === 'pick') - Number(x.flag === 'pick') ||
+          (y.rating ?? 0) - (x.rating ?? 0) ||
+          x.createdAt.localeCompare(y.createdAt),
+      ),
+  }))
 }
 
 export async function exactGroups(db: D1Database, limit = 50): Promise<{ groups: DuplicateGroup[]; total: number }> {
@@ -55,11 +60,11 @@ export async function exactGroups(db: D1Database, limit = 50): Promise<{ groups:
       `SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1)`,
     ),
   ])
-  const groups: DuplicateGroup[] = []
-  for (const { sha256 } of hashes!.results as { sha256: string }[]) {
-    const { results } = await db.prepare('SELECT * FROM assets WHERE sha256 = ? AND deleted_at IS NULL').bind(sha256).all<AssetRow>()
-    groups.push({ key: sha256, kind: 'exact', assets: await withDetails(db, results) })
-  }
+  const shas = (hashes!.results as { sha256: string }[]).map((r) => r.sha256)
+  const { results: rows } = shas.length
+    ? await db.prepare('SELECT * FROM assets WHERE deleted_at IS NULL AND sha256 IN (SELECT value FROM json_each(?))').bind(JSON.stringify(shas)).all<AssetRow>()
+    : { results: [] as AssetRow[] }
+  const groups = await withDetails(db, shas.map((sha256) => ({ key: sha256, kind: 'exact' as const, rows: rows.filter((r) => r.sha256 === sha256) })))
   return { groups, total: ((total!.results[0] as { n: number } | undefined)?.n) ?? 0 }
 }
 
@@ -95,14 +100,17 @@ export async function similarGroups(db: D1Database, limit = 50): Promise<{ group
     sorted.push(members)
   }
 
-  const groups: DuplicateGroup[] = []
-  for (const ids of sorted.slice(0, limit)) {
-    const { results } = await db
-      .prepare(`SELECT * FROM assets WHERE deleted_at IS NULL AND id IN (${ids.map(() => '?').join(',')})`)
-      .bind(...ids)
-      .all<AssetRow>()
-    if (results.length > 1) groups.push({ key: [...ids].sort()[0]!, kind: 'similar', assets: await withDetails(db, results) })
-  }
+  const shown = sorted.slice(0, limit)
+  const { results: rows } = shown.length
+    ? await db.prepare('SELECT * FROM assets WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(shown.flat())).all<AssetRow>()
+    : { results: [] as AssetRow[] }
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const groups = await withDetails(
+    db,
+    shown
+      .map((ids) => ({ key: [...ids].sort()[0]!, kind: 'similar' as const, rows: ids.map((id) => byId.get(id)).filter((r): r is AssetRow => r !== undefined) }))
+      .filter((g) => g.rows.length > 1),
+  )
   return { groups, total: sorted.length }
 }
 
@@ -110,11 +118,12 @@ export async function similarGroups(db: D1Database, limit = 50): Promise<{ group
 export async function keepOne(db: D1Database, keep: string, remove: string[]): Promise<number> {
   const others = remove.filter((id) => id !== keep)
   if (others.length === 0) return 0
-  const marks = others.map(() => '?').join(',')
+  const list = JSON.stringify(others)
+  const marks = 'SELECT value FROM json_each(?)'
   const now = nowIso()
   await db.batch([
-    db.prepare(`INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, tag_id, source, ? FROM asset_tags WHERE asset_id IN (${marks})`).bind(keep, now, ...others),
-    db.prepare(`INSERT OR IGNORE INTO album_items (album_id, asset_id, position, added_at) SELECT album_id, ?, position, ? FROM album_items WHERE asset_id IN (${marks})`).bind(keep, now, ...others),
+    db.prepare(`INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, tag_id, source, ? FROM asset_tags WHERE asset_id IN (${marks})`).bind(keep, now, list),
+    db.prepare(`INSERT OR IGNORE INTO album_items (album_id, asset_id, position, added_at) SELECT album_id, ?, position, ? FROM album_items WHERE asset_id IN (${marks})`).bind(keep, now, list),
     db
       .prepare(
         `UPDATE assets SET
@@ -125,10 +134,10 @@ export async function keepOne(db: D1Database, keep: string, remove: string[]): P
            updated_at = ?
          WHERE id = ?`,
       )
-      .bind(...others, ...others, ...others, ...others, now, keep),
+      .bind(list, list, list, list, now, keep),
   ])
   await db.prepare("UPDATE assets SET rating = NULLIF(rating, 0) WHERE id = ?").bind(keep).run()
-  for (const id of others) await softDeleteAsset(db, id)
+  await softDeleteAssets(db, others)
   await indexAsset(db, keep)
   return others.length
 }
@@ -138,13 +147,14 @@ export async function keepOne(db: D1Database, keep: string, remove: string[]): P
  * between that one asset and the rest (taking one photo out of a group without breaking up the group).
  */
 export async function dismissPairs(db: D1Database, ids: string[], only?: string): Promise<number> {
-  const marks = ids.map(() => '?').join(',')
+  const list = JSON.stringify(ids)
+  const marks = 'SELECT value FROM json_each(?)'
   const result = only
     ? await db
         .prepare(`UPDATE similar_pairs SET dismissed = 1 WHERE (a = ? AND b IN (${marks})) OR (b = ? AND a IN (${marks}))`)
-        .bind(only, ...ids, only, ...ids)
+        .bind(only, list, only, list)
         .run()
-    : await db.prepare(`UPDATE similar_pairs SET dismissed = 1 WHERE a IN (${marks}) AND b IN (${marks})`).bind(...ids, ...ids).run()
+    : await db.prepare(`UPDATE similar_pairs SET dismissed = 1 WHERE a IN (${marks}) AND b IN (${marks})`).bind(list, list).run()
   return result.meta.changes
 }
 

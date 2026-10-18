@@ -228,7 +228,8 @@ describe('the keyword tree', () => {
 
   it('reindexes big changes through the sweep', async () => {
     await patch(ids[0]!, { tags: ['Old name'] })
-    await h.env.DB.prepare('DELETE FROM assets_fts').run()
+    // As after a keyword change too big to reindex in the request: rows gone, assets marked.
+    await h.env.DB.batch([h.env.DB.prepare('DELETE FROM search_index'), h.env.DB.prepare('UPDATE assets SET indexed_at = NULL')])
     expect(await total('q=old')).toBe(0)
     await runSweep(h.env)
     expect(await total('q=old')).toBe(1)

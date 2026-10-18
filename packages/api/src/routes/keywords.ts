@@ -14,22 +14,21 @@ import {
   updateKeywordOptions,
 } from '../catalog/keywords'
 import { getLabelNames, saveLabelNames, type LabelNames } from '../catalog/library'
-import { indexAsset } from '../catalog/search'
+import { indexAssets, markUnindexed } from '../catalog/search'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, stringArray } from '../lib/http'
 
 export const tagRoutes = new Hono<DamEnv>()
 
-/** Reindex the photos a keyword change touched: the first few now, the rest by the sweep's index repair. */
+/**
+ * Reindex the photos a keyword change touched: the first few hundred now (three round trips per 50),
+ * the rest by the sweep's index repair. Until then search finds them by the old keyword.
+ */
 const INLINE_REINDEX = 300
 async function reindex(db: D1Database, assetIds: string[]): Promise<void> {
-  for (const id of assetIds.slice(0, INLINE_REINDEX)) await indexAsset(db, id)
-  const rest = assetIds.slice(INLINE_REINDEX)
-  for (let i = 0; i < rest.length; i += 90) {
-    const slice = rest.slice(i, i + 90)
-    await db.prepare(`DELETE FROM assets_fts WHERE asset_id IN (${slice.map(() => '?').join(',')})`).bind(...slice).run()
-  }
+  await markUnindexed(db, assetIds.slice(INLINE_REINDEX))
+  await indexAssets(db, assetIds.slice(0, INLINE_REINDEX))
 }
 
 function failure(c: Context<DamEnv>, error: unknown) {

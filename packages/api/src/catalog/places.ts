@@ -146,37 +146,34 @@ export function resetPlacesForTests(): void {
 
 /**
  * Fill city, region and country from GPS for these assets, where nobody (file or person) set them.
- * Places that came from an earlier GPS lookup are replaced, so moving a pin updates them.
+ * Places that came from an earlier GPS lookup are replaced, so moving a pin updates them. Returns
+ * the assets it gave a place. Nothing is marked checked when the place list is unavailable.
  */
-export async function fillPlacesFromGps(env: DamBindings, assetIds: string[]): Promise<number> {
-  if (assetIds.length === 0) return 0
+export async function fillPlacesFromGps(env: DamBindings, assetIds: string[]): Promise<string[]> {
+  if (assetIds.length === 0) return []
   const index = await placeIndex(env)
-  if (!index) return 0
-  let filled = 0
-  for (let i = 0; i < assetIds.length; i += 90) {
-    const slice = assetIds.slice(i, i + 90)
-    const { results } = await env.DB.prepare(
-      `SELECT id, gps_lat, gps_lng, location_source, city, state, country FROM assets WHERE id IN (${slice.map(() => '?').join(',')})`,
-    )
-      .bind(...slice)
-      .all<{ id: string; gps_lat: number | null; gps_lng: number | null; location_source: string | null; city: string | null; state: string | null; country: string | null }>()
-    const now = nowIso()
-    const statements: D1PreparedStatement[] = []
-    for (const row of results) {
-      const ownedElsewhere = row.location_source === 'file' || row.location_source === 'user' || (!row.location_source && (row.city || row.state || row.country))
-      const place = row.gps_lat !== null && row.gps_lng !== null && !ownedElsewhere ? nearestPlace(index, row.gps_lat, row.gps_lng) : null
-      if (place) {
-        filled++
-        statements.push(
-          env.DB.prepare(
-            `UPDATE assets SET city = ?, state = ?, country = ?, country_code = ?, location_source = 'gps', place_checked_at = ? WHERE id = ?`,
-          ).bind(place.city, place.state, place.country, place.countryCode, now, row.id),
-        )
-      } else {
-        statements.push(env.DB.prepare('UPDATE assets SET place_checked_at = ? WHERE id = ?').bind(now, row.id))
-      }
-    }
-    if (statements.length > 0) await env.DB.batch(statements)
+  if (!index) return []
+  const { results } = await env.DB.prepare(
+    'SELECT id, gps_lat, gps_lng, location_source, city, state, country FROM assets WHERE id IN (SELECT value FROM json_each(?))',
+  )
+    .bind(JSON.stringify(assetIds))
+    .all<{ id: string; gps_lat: number | null; gps_lng: number | null; location_source: string | null; city: string | null; state: string | null; country: string | null }>()
+  const places: { id: string; city: string; state: string | null; country: string | null; code: string }[] = []
+  for (const row of results) {
+    const ownedElsewhere = row.location_source === 'file' || row.location_source === 'user' || (!row.location_source && (row.city || row.state || row.country))
+    const place = row.gps_lat !== null && row.gps_lng !== null && !ownedElsewhere ? nearestPlace(index, row.gps_lat, row.gps_lng) : null
+    if (place) places.push({ id: row.id, city: place.city, state: place.state, country: place.country, code: place.countryCode })
   }
-  return filled
+  const now = nowIso()
+  const field = (name: string) => `json_extract(j.value, '$.${name}')`
+  await env.DB.batch([
+    env.DB.prepare('UPDATE assets SET place_checked_at = ? WHERE id IN (SELECT value FROM json_each(?))').bind(now, JSON.stringify(results.map((r) => r.id))),
+    env.DB
+      .prepare(
+        `UPDATE assets SET city = ${field('city')}, state = ${field('state')}, country = ${field('country')}, country_code = ${field('code')}, location_source = 'gps'
+         FROM json_each(?) j WHERE assets.id = ${field('id')}`,
+      )
+      .bind(JSON.stringify(places)),
+  ])
+  return places.map((p) => p.id)
 }

@@ -1,25 +1,43 @@
 /**
  * The scheduled sweep (cron, every minute): background work that can't happen inside a request.
  *
- *  1. Process queued assets (imports): metadata and previews, a few per run, inside a time budget;
- *     and pick up assets left in 'processing' by a request or run that died part-way.
- *  2. Repair the search index, and run queued AI review (in parallel, within a budget).
- *  3. Fingerprint photos that have no look-alike hash yet (older uploads).
- *  4. Check archived originals with a restore in progress, and mark them restored when ready.
+ *  1. Process queued assets (imports): metadata and previews, a few per run; and pick up assets left
+ *     in 'processing' by a request or run that died part-way.
+ *  2. Repair the search index, and fill in places from GPS.
+ *  3. Run queued AI review (in parallel).
+ *  4. Fingerprint photos that have no look-alike hash yet (older uploads).
+ *  5. Check archived originals with a restore in progress, and mark them restored when ready.
+ *
+ * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
+ * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
  */
 import type { DamBindings } from '../env'
+import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { aiAvailable, analyzeAsset } from './ai'
-import { hashFromThumbnail, recordHash } from './phash'
+import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
-import { fillPlacesFromGps } from './places'
-import { indexAsset, unindexed } from './search'
+import { fillPlacesFromGps, placeIndex } from './places'
+import { indexAssets, unindexed } from './search'
 
-const PROCESS_BUDGET_MS = 20_000
+/** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
+export const SLICES = {
+  process: { ms: 15_000, queries: 350 },
+  recover: { ms: 5_000, queries: 60 },
+  index: { ms: 5_000, queries: 60 },
+  places: { ms: 3_000, queries: 20 },
+  ai: { ms: 25_000, queries: 200 },
+  hash: { ms: 8_000, queries: 100 },
+  restores: { ms: 5_000, queries: 60 },
+} satisfies Record<string, { ms: number; queries: number }>
+// Headroom for the queries a stage starts before it sees its slice is used up.
+const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
+if (SLICED > QUERIES_PER_INVOCATION * 0.9) throw new Error('The sweep\'s query slices leave no headroom.')
+
+/** Assets a run may process: each takes a few dozen queries. */
 const MAX_PER_RUN = 25
-const AI_BUDGET_MS = 40_000
 const AI_CONCURRENCY = 4
 const RESTORE_CHECKS_PER_RUN = 50
 /** Nothing takes this long in 'processing'; an asset still there was abandoned. */
@@ -36,132 +54,162 @@ export interface SweepResult {
   recovered: number
 }
 
-export async function runSweep(env: DamBindings): Promise<SweepResult> {
+export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
   const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0 }
-  const started = Date.now()
+  const budget = countQueries(bindings.DB)
+  const env: DamBindings = { ...bindings, DB: budget.db }
+  const db = env.DB
+  /** A stage's clock and query count start when it does; `more()` says whether it may start another item. */
+  const slice = (name: keyof typeof SLICES) => {
+    const { ms, queries } = slices[name]
+    const until = Date.now() + ms
+    const before = budget.used()
+    return { more: () => Date.now() < until && budget.used() - before < queries, queriesLeft: () => queries - (budget.used() - before) }
+  }
 
-  const { results: queued } = await env.DB.prepare(
-    "SELECT id FROM assets WHERE status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT ?",
-  )
-    .bind(MAX_PER_RUN)
-    .all<{ id: string }>()
-  for (const { id } of queued) {
-    if (Date.now() - started > PROCESS_BUDGET_MS) break
-    // Claim it, so an overlapping run doesn't process the same asset.
-    const claimed = await env.DB.prepare("UPDATE assets SET status = 'processing', updated_at = ? WHERE id = ? AND status = 'queued'")
-      .bind(nowIso(), id)
-      .run()
-    if (claimed.meta.changes === 0) continue
-    await processAsset(env, id)
+  // 1. Queued assets, oldest first, each claimed as it is taken so an overlapping run doesn't take it too.
+  const processing = slice('process')
+  for (let n = 0; n < MAX_PER_RUN && processing.more(); n++) {
+    const claimed = await db
+      .prepare(
+        `UPDATE assets SET status = 'processing', updated_at = ?
+         WHERE id = (SELECT id FROM assets WHERE status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT 1) AND status = 'queued'
+         RETURNING id`,
+      )
+      .bind(nowIso())
+      .first<{ id: string }>()
+    if (!claimed) break
+    await processAsset(env, claimed.id)
     result.processed++
   }
 
   // Abandoned in 'processing': an upload goes back in the queue. A NAS agent's file is finished with
   // whatever previews arrived; the agent re-sends the file (it records nothing until it is finished),
   // and missing previews are asked for then.
-  const { results: stuck } = await env.DB.prepare(
-    `SELECT a.id, EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.storage_class = 'NAS') AS nas
-     FROM assets a WHERE a.status = 'processing' AND a.updated_at < ? AND a.deleted_at IS NULL LIMIT 20`,
-  )
+  const recovering = slice('recover')
+  const { results: stuck } = await db
+    .prepare(
+      `SELECT a.id, EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.storage_class = 'NAS') AS nas
+       FROM assets a WHERE a.status = 'processing' AND a.updated_at < ? AND a.deleted_at IS NULL LIMIT 20`,
+    )
     .bind(new Date(Date.now() - STALE_PROCESSING_MS).toISOString())
     .all<{ id: string; nas: number }>()
   for (const { id, nas } of stuck) {
-    if (Date.now() - started > PROCESS_BUDGET_MS) break
+    if (!recovering.more()) break
     if (nas) {
       await finishAsset(env, id, { queueAi: false }).catch(async (error) => {
         console.warn('[sweep] could not finish', id, error)
         // Try again in an hour, not every minute.
-        await env.DB.prepare('UPDATE assets SET updated_at = ? WHERE id = ?').bind(nowIso(), id).run()
+        await db.prepare('UPDATE assets SET updated_at = ? WHERE id = ?').bind(nowIso(), id).run()
       })
     } else {
-      await env.DB.prepare("UPDATE assets SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'processing'").bind(nowIso(), id).run()
+      await db.prepare("UPDATE assets SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'processing'").bind(nowIso(), id).run()
     }
     result.recovered++
   }
 
-  // Repair the search index (after a rebuild, or a write that failed).
-  for (const id of await unindexed(env.DB, 200)) {
-    if (Date.now() - started > PROCESS_BUDGET_MS) break
-    await indexAsset(env.DB, id)
-    result.indexed++
+  // 2. Repair the search index (after a rebuild, a keyword change, or a write that failed): three
+  // round trips per 50 assets.
+  const indexing = slice('index')
+  while (indexing.more() && indexing.queriesLeft() > 4) {
+    const ids = await unindexed(db, 50)
+    if (ids.length === 0) break
+    await indexAssets(db, ids)
+    result.indexed += ids.length
   }
 
-  // City and country from GPS for photos that have never been looked up.
-  const { results: unplaced } = await env.DB.prepare(
-    'SELECT id FROM assets WHERE gps_lat IS NOT NULL AND place_checked_at IS NULL AND deleted_at IS NULL LIMIT 500',
-  ).all<{ id: string }>()
-  if (unplaced.length > 0) {
-    result.placed = await fillPlacesFromGps(env, unplaced.map((r) => r.id))
-    for (const { id } of unplaced) await indexAsset(env.DB, id)
+  // City and country from GPS for photos never looked up. Only when the place list loads: otherwise
+  // the same photos would be read (and reindexed) every minute, for nothing.
+  const placing = slice('places')
+  if (placing.more() && (await placeIndex(env))) {
+    const { results: unplaced } = await db
+      .prepare('SELECT id FROM assets WHERE gps_lat IS NOT NULL AND place_checked_at IS NULL AND deleted_at IS NULL LIMIT 500')
+      .all<{ id: string }>()
+    const placed = await fillPlacesFromGps(env, unplaced.map((r) => r.id))
+    result.placed = placed.length
+    await indexAssets(db, placed)
   }
 
-  // AI review, a few at a time in parallel: each call waits seconds on the model, not on CPU.
-  if (await aiAvailable(env)) {
-    const deadline = started + AI_BUDGET_MS
-    while (Date.now() < deadline) {
-      const { results: batch } = await env.DB.prepare("SELECT id FROM assets WHERE ai_status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT ?")
-        .bind(AI_CONCURRENCY)
+  // 3. AI review, a few at a time in parallel: each call waits seconds on the model, not on CPU.
+  const reviewing = slice('ai')
+  if (reviewing.more() && (await aiAvailable(env))) {
+    while (reviewing.more()) {
+      // Claim a few so an overlapping run doesn't analyse the same photos.
+      const { results: claimed } = await db
+        .prepare(
+          `UPDATE assets SET ai_status = 'running', ai_started_at = ?
+           WHERE id IN (SELECT id FROM assets WHERE ai_status = 'queued' AND deleted_at IS NULL ORDER BY created_at LIMIT ?) AND ai_status = 'queued'
+           RETURNING id`,
+        )
+        .bind(nowIso(), AI_CONCURRENCY)
         .all<{ id: string }>()
-      if (batch.length === 0) break
-      // Claim the batch so an overlapping run doesn't analyse the same photos.
-      const claimed: string[] = []
-      for (const { id } of batch) {
-        const r = await env.DB.prepare("UPDATE assets SET ai_status = 'running', ai_started_at = ? WHERE id = ? AND ai_status = 'queued'").bind(nowIso(), id).run()
-        if (r.meta.changes > 0) claimed.push(id)
-      }
-      const outcomes = await Promise.all(claimed.map((id) => analyzeAsset(env, id)))
+      if (claimed.length === 0) break
+      const outcomes = await Promise.all(claimed.map(({ id }) => analyzeAsset(env, id)))
       result.analysed += outcomes.filter((o) => o === 'done').length
     }
     // A run that died mid-analysis leaves 'running' behind; give those another go.
-    await env.DB.prepare("UPDATE assets SET ai_status = 'queued' WHERE ai_status = 'running' AND ai_started_at < ?")
+    await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE ai_status = 'running' AND ai_started_at < ?")
       .bind(new Date(Date.now() - 10 * 60_000).toISOString())
       .run()
   }
 
-  // Backfill look-alike fingerprints for assets that have a thumbnail but no hash yet.
-  const { results: unhashed } = await env.DB.prepare(
-    `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
-     WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' AND (a.phash_tried_at IS NULL OR a.phash_tried_at < ?)
-     ORDER BY a.phash_tried_at IS NOT NULL, a.phash_tried_at LIMIT 50`,
-  )
-    // A thumbnail that couldn't be hashed is tried again a day later, not every minute.
-    .bind(new Date(Date.now() - 86_400_000).toISOString())
-    .all<{ id: string }>()
-  for (const { id } of unhashed) {
-    if (Date.now() - started > PROCESS_BUDGET_MS) break
-    const hash = await hashFromThumbnail(env, id).catch((error) => {
-      console.warn('[sweep] could not hash', id, error)
-      return null
-    })
-    if (!hash) {
-      await env.DB.prepare('UPDATE assets SET phash_tried_at = ? WHERE id = ?').bind(nowIso(), id).run()
-      continue
+  // 4. Look-alike fingerprints for assets that have a thumbnail but no hash yet.
+  const hashing = slice('hash')
+  if (hashing.more()) {
+    const { results: unhashed } = await db
+      .prepare(
+        `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
+         WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' AND (a.phash_tried_at IS NULL OR a.phash_tried_at < ?)
+         ORDER BY a.phash_tried_at IS NOT NULL, a.phash_tried_at LIMIT 50`,
+      )
+      // A thumbnail that couldn't be hashed is tried again a day later, not every minute.
+      .bind(new Date(Date.now() - 86_400_000).toISOString())
+      .all<{ id: string }>()
+    const hashes: { id: string; hash: string }[] = []
+    const failed: string[] = []
+    for (const { id } of unhashed) {
+      if (!hashing.more()) break
+      const hash = await hashFromThumbnail(env, id).catch((error) => {
+        console.warn('[sweep] could not hash', id, error)
+        return null
+      })
+      if (hash) hashes.push({ id, hash })
+      else failed.push(id)
     }
-    await recordHash(env.DB, id, hash)
-    result.hashed++
+    if (failed.length > 0) await db.prepare('UPDATE assets SET phash_tried_at = ? WHERE id IN (SELECT value FROM json_each(?))').bind(nowIso(), JSON.stringify(failed)).run()
+    await recordHashes(db, hashes)
+    result.hashed = hashes.length
   }
 
-  const { results: restoring } = await env.DB.prepare(
-    "SELECT asset_id, connection_id, key FROM asset_locations WHERE state = 'restoring' ORDER BY updated_at LIMIT ?",
-  )
-    .bind(RESTORE_CHECKS_PER_RUN)
-    .all<{ asset_id: string; connection_id: string; key: string }>()
-  for (const location of restoring) {
-    const connection = await getConnection(env.DB, location.connection_id)
-    if (!connection) continue
-    try {
-      const head = await providerFor(env, connection).head(location.key)
-      result.restoresChecked++
-      if (head && ARCHIVE_CLASSES.has(head.storageClass) && head.restore && !head.restore.ongoing && head.restore.expiresAt) {
-        await env.DB.prepare("UPDATE asset_locations SET state = 'restored', restore_expires_at = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?")
-          .bind(head.restore.expiresAt, nowIso(), location.asset_id, location.connection_id)
-          .run()
-        await indexAsset(env.DB, location.asset_id)
-        result.restored++
+  // 5. Archived originals being restored: ready yet?
+  const restoring = slice('restores')
+  if (restoring.more()) {
+    const { results: locations } = await db
+      .prepare("SELECT asset_id, connection_id, key FROM asset_locations WHERE state = 'restoring' ORDER BY updated_at LIMIT ?")
+      .bind(RESTORE_CHECKS_PER_RUN)
+      .all<{ asset_id: string; connection_id: string; key: string }>()
+    const connections = new Map<string, Awaited<ReturnType<typeof getConnection>>>()
+    const restored: string[] = []
+    for (const location of locations) {
+      if (!restoring.more()) break
+      if (!connections.has(location.connection_id)) connections.set(location.connection_id, await getConnection(db, location.connection_id))
+      const connection = connections.get(location.connection_id)
+      if (!connection) continue
+      try {
+        const head = await providerFor(env, connection).head(location.key)
+        result.restoresChecked++
+        if (head && ARCHIVE_CLASSES.has(head.storageClass) && head.restore && !head.restore.ongoing && head.restore.expiresAt) {
+          await db.prepare("UPDATE asset_locations SET state = 'restored', restore_expires_at = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?")
+            .bind(head.restore.expiresAt, nowIso(), location.asset_id, location.connection_id)
+            .run()
+          restored.push(location.asset_id)
+          result.restored++
+        }
+      } catch (error) {
+        console.warn('[sweep] restore check failed', location.asset_id, error)
       }
-    } catch (error) {
-      console.warn('[sweep] restore check failed', location.asset_id, error)
     }
+    await indexAssets(db, restored)
   }
 
   return result

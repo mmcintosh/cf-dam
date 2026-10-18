@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { nearestPlace, parsePlaces } from '../src/catalog/places'
+import { nearestPlace, parsePlaces, resetPlacesForTests } from '../src/catalog/places'
 import { runSweep } from '../src/catalog/sweeper'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
@@ -77,5 +77,16 @@ describe('filling in places from GPS', () => {
     const sweep = await runSweep(h.env)
     expect(sweep.placed).toBe(1)
     expect((await asset(a)).iptc.city).toBe('Ålesund')
+  })
+
+  it('leaves photos for later, without rereading them every minute, while the place list is unavailable', async () => {
+    const a = await upload('a.jpg', camera)
+    await h.env.DB.prepare('UPDATE assets SET city = NULL, state = NULL, country = NULL, country_code = NULL, location_source = NULL, place_checked_at = NULL WHERE id = ?').bind(a).run()
+    // The same database, now with a place list that won't load.
+    h = { ...h, env: { ...h.env, ASSETS: { fetch: async () => new Response('', { status: 503 }) } as unknown as Fetcher } }
+    resetPlacesForTests()
+    const quiet = await h.count(() => runSweep(h.env))
+    expect(quiet.roundTrips).toBeLessThan(15)
+    expect((await h.env.DB.prepare('SELECT place_checked_at FROM assets WHERE id = ?').bind(a).first<{ place_checked_at: string | null }>())?.place_checked_at).toBeNull()
   })
 })

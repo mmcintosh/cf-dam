@@ -4,11 +4,11 @@
  */
 import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
-import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAsset, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
+import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAssets, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
 import { getPreset, iptcXmp, presetStatements } from './iptc'
 import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
-import { indexAsset } from './search'
+import { indexAssets } from './search'
 
 export interface FacetValue {
   value: string
@@ -149,47 +149,45 @@ export const MAX_BULK = 500
 /** Apply one action to many assets. Returns how many existed (deleted ones are skipped). */
 export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction): Promise<number> {
   const unique = [...new Set(ids)].slice(0, MAX_BULK)
-  const live: string[] = []
-  for (let i = 0; i < unique.length; i += 90) {
-    const slice = unique.slice(i, i + 90)
-    const { results } = await db
-      .prepare(`SELECT id FROM assets WHERE deleted_at IS NULL AND id IN (${slice.map(() => '?').join(',')})`)
-      .bind(...slice)
-      .all<{ id: string }>()
-    live.push(...results.map((r) => r.id))
-  }
+  const { results } = await db
+    .prepare('SELECT id FROM assets WHERE deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(unique))
+    .all<{ id: string }>()
+  const live = results.map((r) => r.id)
   if (live.length === 0) return 0
   const now = nowIso()
-  const each = (sql: string, bind: (id: string) => unknown[]) => db.batch(live.map((id) => db.prepare(sql).bind(...bind(id))))
+  const list = JSON.stringify(live)
+  // One statement for all of them: `sql` sets columns, then the ids are bound after `values`.
+  const each = (sql: string, values: unknown[]) => db.prepare(`${sql} WHERE id IN (SELECT value FROM json_each(?))`).bind(...values, list).run()
 
   switch (bulk.action) {
     case 'tag-add':
-      for (const id of live) await addTags(db, id, bulk.tags, 'user')
+      await addTags(db, live, bulk.tags, 'user')
       break
     case 'tag-remove': {
-      const ids = [...new Set((await Promise.all(bulk.tags.map((t) => matchKeywords(db, t)))).flat())]
+      const ids = await matchKeywords(db, bulk.tags)
       if (ids.length === 0) break
       // As JSON lists: any number of photos and keywords in one statement (D1 binds at most 100 values).
       await db
         .prepare('DELETE FROM asset_tags WHERE asset_id IN (SELECT value FROM json_each(?)) AND tag_id IN (SELECT value FROM json_each(?))')
-        .bind(JSON.stringify(live), JSON.stringify(ids))
+        .bind(list, JSON.stringify(ids))
         .run()
       break
     }
     case 'rating':
-      await each('UPDATE assets SET rating = ?, updated_at = ? WHERE id = ?', (id) => [bulk.rating, now, id])
+      await each('UPDATE assets SET rating = ?, updated_at = ?', [bulk.rating, now])
       break
     case 'flag':
-      await each('UPDATE assets SET flag = ?, updated_at = ? WHERE id = ?', (id) => [bulk.flag, now, id])
+      await each('UPDATE assets SET flag = ?, updated_at = ?', [bulk.flag, now])
       break
     case 'label':
-      await each('UPDATE assets SET label = ?, updated_at = ? WHERE id = ?', (id) => [bulk.label, now, id])
+      await each('UPDATE assets SET label = ?, updated_at = ?', [bulk.label, now])
       break
     case 'preset': {
       const preset = await getPreset(db, bulk.presetId)
       if (!preset) return 0
       const statements = presetStatements(db, preset, live, bulk.overwrite)
-      for (let i = 0; i < statements.length; i += 50) await db.batch(statements.slice(i, i + 50))
+      if (statements.length > 0) await db.batch(statements)
       break
     }
     case 'gps':
@@ -200,30 +198,29 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
            state = CASE WHEN location_source = 'gps' THEN NULL ELSE state END,
            country = CASE WHEN location_source = 'gps' THEN NULL ELSE country END,
            country_code = CASE WHEN location_source = 'gps' THEN NULL ELSE country_code END,
-           location_source = CASE WHEN location_source = 'gps' THEN NULL ELSE location_source END
-         WHERE id = ?`,
-        (id) => [bulk.lat, bulk.lng, now, id],
+           location_source = CASE WHEN location_source = 'gps' THEN NULL ELSE location_source END`,
+        [bulk.lat, bulk.lng, now],
       )
       break
     case 'title':
-      await each('UPDATE assets SET title = ?, updated_at = ? WHERE id = ?', (id) => [bulk.title, now, id])
+      await each('UPDATE assets SET title = ?, updated_at = ?', [bulk.title, now])
       break
     case 'caption':
-      await each('UPDATE assets SET caption = ?, updated_at = ? WHERE id = ?', (id) => [bulk.caption, now, id])
+      await each('UPDATE assets SET caption = ?, updated_at = ?', [bulk.caption, now])
       break
     case 'album-add': {
       const start =
         (await db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM album_items WHERE album_id = ?').bind(bulk.albumId).first<{ next: number }>())?.next ?? 0
       await db.batch([
-        ...live.map((id, i) =>
-          db.prepare('INSERT OR IGNORE INTO album_items (album_id, asset_id, position, added_at) VALUES (?, ?, ?, ?)').bind(bulk.albumId, id, start + i, now),
-        ),
+        db
+          .prepare('INSERT OR IGNORE INTO album_items (album_id, asset_id, position, added_at) SELECT ?, value, ? + key, ? FROM json_each(?)')
+          .bind(bulk.albumId, start, now, list),
         db.prepare('UPDATE albums SET updated_at = ? WHERE id = ?').bind(now, bulk.albumId),
       ])
       break
     }
     case 'delete':
-      for (const id of live) await softDeleteAsset(db, id)
+      await softDeleteAssets(db, live)
       return live.length
     case 'ai-queue':
       return queueForAi(db, live)
@@ -231,10 +228,9 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
       await acceptSuggestions(db, live, bulk.fields, bulk.overwrite)
       return live.length
   }
-  // Titles, captions and tags are searchable; keep the index in step.
-  if (['tag-add', 'tag-remove', 'title', 'caption', 'preset', 'gps'].includes(bulk.action)) {
-    for (const id of live) await indexAsset(db, id)
-  }
+  // Titles, captions and tags are searchable; keep the index in step. (After a GPS change the caller
+  // looks the new places up, then reindexes.)
+  if (['tag-add', 'tag-remove', 'title', 'caption', 'preset'].includes(bulk.action)) await indexAssets(db, live)
   return live.length
 }
 

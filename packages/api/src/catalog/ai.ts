@@ -8,7 +8,7 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { addTags, getAsset, getTags } from './assets'
 import { matchKeywords } from './keywords'
-import { indexAsset } from './search'
+import { indexAsset, indexAssets } from './search'
 import { analyzeImage, DEFAULT_VISION_MODEL, modelImage, USD_PER_1000_NEURONS, VISION_MODELS } from './vision'
 
 export interface AiSettings {
@@ -61,16 +61,11 @@ export async function queueForAi(db: D1Database, ids: string[] | 'unanalysed'): 
       .run()
     return result.meta.changes
   }
-  let queued = 0
-  for (let i = 0; i < ids.length; i += 90) {
-    const slice = ids.slice(i, i + 90)
-    const result = await db
-      .prepare(`UPDATE assets SET ai_status = 'queued', ai_error = NULL WHERE deleted_at IS NULL AND ${hasPreview} AND id IN (${slice.map(() => '?').join(',')})`)
-      .bind(...slice)
-      .run()
-    queued += result.meta.changes
-  }
-  return queued
+  const result = await db
+    .prepare(`UPDATE assets SET ai_status = 'queued', ai_error = NULL WHERE deleted_at IS NULL AND ${hasPreview} AND id IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(ids))
+    .run()
+  return result.meta.changes
 }
 
 /** Run the model on one asset now and store what it found. */
@@ -126,20 +121,16 @@ export type AcceptField = 'alt' | 'caption' | 'tags'
  * tags become the person's own.
  */
 export async function acceptSuggestions(db: D1Database, ids: string[], fields: AcceptField[], overwrite = false): Promise<void> {
+  if (ids.length === 0) return
   const now = nowIso()
-  for (const id of ids) {
-    const statements: D1PreparedStatement[] = []
-    for (const field of fields) {
-      if (field === 'tags') {
-        statements.push(db.prepare("UPDATE asset_tags SET source = 'user' WHERE asset_id = ? AND source = 'ai'").bind(id))
-      } else {
-        const condition = overwrite ? '' : `AND (${field} IS NULL OR ${field} = '')`
-        statements.push(db.prepare(`UPDATE assets SET ${field} = ai_${field}, updated_at = ? WHERE id = ? AND ai_${field} IS NOT NULL ${condition}`).bind(now, id))
-      }
-    }
-    if (statements.length > 0) await db.batch(statements)
-    await indexAsset(db, id)
-  }
+  const list = JSON.stringify(ids)
+  const statements = fields.map((field) => {
+    if (field === 'tags') return db.prepare("UPDATE asset_tags SET source = 'user' WHERE asset_id IN (SELECT value FROM json_each(?)) AND source = 'ai'").bind(list)
+    const condition = overwrite ? '' : `AND (${field} IS NULL OR ${field} = '')`
+    return db.prepare(`UPDATE assets SET ${field} = ai_${field}, updated_at = ? WHERE id IN (SELECT value FROM json_each(?)) AND ai_${field} IS NOT NULL ${condition}`).bind(now, list)
+  })
+  if (statements.length > 0) await db.batch(statements)
+  await indexAssets(db, ids)
 }
 
 export async function removeAiTag(db: D1Database, id: string, tag: string): Promise<void> {

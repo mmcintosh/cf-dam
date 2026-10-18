@@ -126,7 +126,7 @@ export function parseIptcPatch(body: Record<string, unknown>): IptcValues {
  * SQL to write values to an asset. `fillOnly` sets only fields that are empty (file imports, presets
  * applied gently). Location edits by a person mark the location as theirs.
  */
-export function iptcUpdate(db: D1Database, assetId: string, values: IptcValues, opts: { fillOnly?: boolean; locationSource?: 'file' | 'user' | 'gps' } = {}): D1PreparedStatement | null {
+export function iptcUpdate(db: D1Database, assetIds: string | string[], values: IptcValues, opts: { fillOnly?: boolean; locationSource?: 'file' | 'user' | 'gps' } = {}): D1PreparedStatement | null {
   const sets: string[] = []
   const params: unknown[] = []
   for (const [key, value] of Object.entries(values) as [IptcKey, string | null][]) {
@@ -144,7 +144,9 @@ export function iptcUpdate(db: D1Database, assetId: string, values: IptcValues, 
     sets.push(opts.fillOnly ? 'location_source = COALESCE(location_source, ?)' : 'location_source = ?')
     params.push(opts.locationSource)
   }
-  return db.prepare(`UPDATE assets SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...params, nowIso(), assetId)
+  return db
+    .prepare(`UPDATE assets SET ${sets.join(', ')}, updated_at = ? WHERE id IN (SELECT value FROM json_each(?))`)
+    .bind(...params, nowIso(), JSON.stringify([assetIds].flat()))
 }
 
 /** An asset row's IPTC values, keyed for the API. */
@@ -245,12 +247,13 @@ export async function savePreset(db: D1Database, input: { id?: string; name: str
 
 /** Apply a preset's fields to assets. Without `overwrite`, only empty fields are filled. */
 export function presetStatements(db: D1Database, preset: Preset, assetIds: string[], overwrite: boolean): D1PreparedStatement[] {
-  return assetIds.map((id) => iptcUpdate(db, id, preset.fields, { fillOnly: !overwrite, locationSource: 'user' })).filter((s): s is D1PreparedStatement => s !== null)
+  const statement = assetIds.length > 0 ? iptcUpdate(db, assetIds, preset.fields, { fillOnly: !overwrite, locationSource: 'user' }) : null
+  return statement ? [statement] : []
 }
 
 /** Presets marked "apply to new uploads", filling empty fields only. */
-export async function applyUploadPresets(db: D1Database, assetId: string): Promise<void> {
+export async function applyUploadPresets(db: D1Database, assetIds: string[]): Promise<void> {
   const presets = (await listPresets(db)).filter((p) => p.applyToUploads)
-  const statements = presets.flatMap((p) => presetStatements(db, p, [assetId], false))
+  const statements = presets.flatMap((p) => presetStatements(db, p, assetIds, false))
   if (statements.length > 0) await db.batch(statements)
 }

@@ -16,7 +16,7 @@ import { randomBase62, randomId, sha256Hex } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
-import { finishAsset, saveMetadata } from './process'
+import { finishAssets, metadataLookups, metadataStatements } from './process'
 import { mimeTypeFor, safeFilename } from './uploads'
 
 export class AgentError extends Error {
@@ -372,22 +372,26 @@ interface LocationMatch {
   asset_id: string
   key: string
   size: number | null
-  mtime: string | null
   quick_hash: string | null
   state: string
+  updated_at: string
+  /** The asset's status, and which previews it has: for telling the agent what it still needs. */
+  status: string
+  have: string | null
+}
+
+interface IngestItem {
+  rel: string
+  key: string
+  size: number
+  quickHash: string
+  mtime: string | null
+  previousKey: string | null
+  mimeType: string | undefined
+  metadata: unknown
 }
 
 const HEX64 = /^[0-9a-f]{64}$/
-
-/** Which previews an asset still lacks, and whether it was finished. One query. */
-async function standing(db: D1Database, assetId: string): Promise<{ needs: ('thumb' | 'preview')[]; ready: boolean }> {
-  const row = await db
-    .prepare("SELECT a.status, (SELECT GROUP_CONCAT(name) FROM renditions WHERE asset_id = a.id AND name IN ('thumb', 'preview')) AS have FROM assets a WHERE a.id = ?")
-    .bind(assetId)
-    .first<{ status: string; have: string | null }>()
-  const have = new Set((row?.have ?? '').split(','))
-  return { needs: (['thumb', 'preview'] as const).filter((n) => !have.has(n)), ready: row?.status === 'ready' }
-}
 
 const isUniqueViolation = (error: unknown) => error instanceof Error && /UNIQUE constraint failed/i.test(error.message)
 
@@ -395,31 +399,33 @@ const isUniqueViolation = (error: unknown) => error instanceof Error && /UNIQUE 
  * One batch of files from a scan. Each item: the root it is in, its path inside that root, size,
  * mtime, quick fingerprint, metadata as the agent read it, and optionally where it used to be
  * (`previousPath`, in `previousRoot` when it moved between folders; the same root otherwise).
+ *
+ * A fixed number of round trips whatever the batch holds: one read of every location the items could
+ * match, the keywords they bring (see metadataLookups), and one batch of writes, which D1 runs as a
+ * transaction. When another request created one of the same new files meanwhile, the unique index
+ * on present NAS paths fails the batch, and it is worked out again from what is there now.
  */
 export async function ingestBatch(env: DamBindings, source: SourceRow, items: unknown): Promise<IngestResult[]> {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH) throw new AgentError(`Send 1 to ${MAX_BATCH} items at a time.`)
-  const db = env.DB
-  const roots = new Map((await listRoots(db, source.id)).map((r) => [r.id, r]))
-  const results: IngestResult[] = []
-  for (const raw of items) {
+  const roots = new Map((await listRoots(env.DB, source.id)).map((r) => [r.id, r]))
+  const parsed = items.map((raw): IngestItem | IngestResult => {
     const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-    const shownPath = typeof item.path === 'string' ? item.path.slice(0, 200) : '?'
     try {
-      results.push(await ingestOne(env, source, roots, item).catch((error) => {
-        // The same new file sent twice at once: the other request created it; look again.
-        if (isUniqueViolation(error)) return ingestOne(env, source, roots, item)
-        throw error
-      }))
+      return parseIngestItem(roots, item)
     } catch (error) {
       if (!(error instanceof AgentError)) throw error
-      results.push({ path: shownPath, result: 'rejected', error: error.message })
+      return { path: typeof item.path === 'string' ? item.path.slice(0, 200) : '?', result: 'rejected', error: error.message }
     }
+  })
+  try {
+    return await ingestParsed(env, source, parsed)
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error
+    return ingestParsed(env, source, parsed)
   }
-  return results
 }
 
-async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string, RootRow>, item: Record<string, unknown>): Promise<IngestResult> {
-  const db = env.DB
+function parseIngestItem(roots: Map<string, RootRow>, item: Record<string, unknown>): IngestItem {
   const rootOf = (id: unknown) => {
     const root = typeof id === 'string' ? roots.get(id) : undefined
     if (!root || root.enabled !== 1) throw new AgentError('Unknown or disabled root.')
@@ -427,88 +433,154 @@ async function ingestOne(env: DamBindings, source: SourceRow, roots: Map<string,
   }
   const root = rootOf(item.root)
   const rel = cleanRelativePath(item.path)
-  const key = keyOf(root.path, rel)
   const size = item.size
   if (!Number.isSafeInteger(size) || (size as number) < 0) throw new AgentError('size is a whole number of bytes.')
   const quickHash = typeof item.quickHash === 'string' && HEX64.test(item.quickHash) ? item.quickHash : null
   if (!quickHash) throw new AgentError('quickHash is 64 lower-case hex characters.')
   const mtime = typeof item.mtime === 'string' && !Number.isNaN(Date.parse(item.mtime)) ? new Date(item.mtime).toISOString() : null
-  const now = nowIso()
+  const previousKey = item.previousPath !== undefined ? keyOf(rootOf(item.previousRoot ?? item.root).path, cleanRelativePath(item.previousPath)) : null
+  return {
+    rel,
+    key: keyOf(root.path, rel),
+    size: size as number,
+    quickHash,
+    mtime,
+    previousKey,
+    mimeType: typeof item.mimeType === 'string' ? item.mimeType : undefined,
+    metadata: item.metadata,
+  }
+}
+
+async function ingestParsed(env: DamBindings, source: SourceRow, parsed: (IngestItem | IngestResult)[]): Promise<IngestResult[]> {
+  const db = env.DB
   const conn = source.connection_id
-  const same = (l: LocationMatch) => l.quick_hash === quickHash && l.size === size
+  const items = parsed.filter((p): p is IngestItem => 'quickHash' in p)
+  const now = nowIso()
 
-  // Rows at a path: the present one first, then photos that used to be there.
-  const at = async (k: string) =>
-    (
-      await db
-        .prepare("SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND key = ? ORDER BY state = 'present' DESC, updated_at DESC")
-        .bind(conn, k)
+  // Every row the items could be: at their paths, at the paths they say they came from, or missing
+  // with the same fingerprint.
+  const { results: rows } = items.length
+    ? await db
+        .prepare(
+          `SELECT l.asset_id, l.key, l.size, l.quick_hash, l.state, l.updated_at, a.status,
+                  (SELECT GROUP_CONCAT(name) FROM renditions WHERE asset_id = l.asset_id AND name IN ('thumb', 'preview')) AS have
+           FROM asset_locations l JOIN assets a ON a.id = l.asset_id
+           WHERE l.rowid IN (
+             SELECT rowid FROM asset_locations WHERE connection_id = ? AND key IN (SELECT value FROM json_each(?))
+             UNION SELECT rowid FROM asset_locations WHERE connection_id = ? AND quick_hash IN (SELECT value FROM json_each(?)) AND state = 'missing'
+           )`,
+        )
+        .bind(conn, JSON.stringify(items.flatMap((i) => (i.previousKey ? [i.key, i.previousKey] : [i.key]))), conn, JSON.stringify(items.map((i) => i.quickHash)))
         .all<LocationMatch>()
-    ).results
-  const touch = (assetId: string, k: string) =>
-    db
-      .prepare(`UPDATE asset_locations SET key = ?, size = ?, mtime = ?, quick_hash = ?, seen_at = ?, state = 'present', updated_at = ? WHERE asset_id = ? AND connection_id = ?`)
-      .bind(k, size, mtime, quickHash, now, now, assetId, conn)
-      .run()
+    : { results: [] as LocationMatch[] }
 
-  const rows = await at(key)
-  const here = rows.find((r) => r.state === 'present')
-  if (here) {
-    // 1. Known path, same file.
-    if (same(here)) {
-      await touch(here.asset_id, key)
-      return { path: rel, assetId: here.asset_id, result: 'unchanged', ...(await standing(db, here.asset_id)) }
+  // Decided in order, as the one-at-a-time version would: a row an earlier item took is where that item put it.
+  const newest = (a: LocationMatch, b: LocationMatch) => b.updated_at.localeCompare(a.updated_at)
+  const at = (k: string) => rows.filter((r) => r.key === k).sort((a, b) => Number(b.state === 'present') - Number(a.state === 'present') || newest(a, b))
+  const standing = (r: LocationMatch) => {
+    const have = new Set((r.have ?? '').split(','))
+    return { needs: (['thumb', 'preview'] as const).filter((n) => !have.has(n)), ready: r.status === 'ready' }
+  }
+  const touches: LocationMatch[] = []
+  const take = (r: LocationMatch, item: IngestItem) => {
+    Object.assign(r, { key: item.key, size: item.size, quick_hash: item.quickHash, state: 'present', updated_at: now })
+    touches.push(r)
+    return r
+  }
+  const created: { assetId: string; item: IngestItem; filename: string }[] = []
+  const changed: { assetId: string; item: IngestItem }[] = []
+  const renamed: { assetId: string; filename: string }[] = []
+
+  const decide = (item: IngestItem): IngestResult => {
+    const same = (l: LocationMatch) => l.quick_hash === item.quickHash && l.size === item.size
+    const here = at(item.key).find((r) => r.state === 'present')
+    if (here) {
+      // 1. Known path, same file.
+      if (same(here)) return { path: item.rel, assetId: take(here, item).asset_id, result: 'unchanged', ...standing(here) }
+      // The file changed (re-saved, re-exported): new size and fingerprint, what the file says about
+      // itself (size, date, camera) replaced, fresh renditions.
+      take(here, item).status = 'processing'
+      changed.push({ assetId: here.asset_id, item })
+      return { path: item.rel, assetId: here.asset_id, result: 'updated', needs: ['thumb', 'preview'], ready: false }
     }
-    // The file changed (re-saved, re-exported): new size and fingerprint, what the file says about
-    // itself (size, date, camera) replaced, fresh renditions.
-    await touch(here.asset_id, key)
-    await db.prepare("UPDATE assets SET size = ?, status = 'processing', phash = NULL, updated_at = ? WHERE id = ?").bind(size, now, here.asset_id).run()
-    const meta = normalizeAgentMetadata(item.metadata)
-    if (meta) await saveMetadata(db, here.asset_id, meta, { fileChanged: true })
-    return { path: rel, assetId: here.asset_id, result: 'updated', needs: ['thumb', 'preview'], ready: false }
-  }
-  // 2. A file that was missing is back where it was (a share that dropped, a folder restored).
-  // A different file now saved under a missing photo's name is a new photo; the old one stays missing.
-  const back = rows.find(same)
-  if (back) {
-    await touch(back.asset_id, key)
-    return { path: rel, assetId: back.asset_id, result: 'unchanged', ...(await standing(db, back.asset_id)) }
-  }
+    // 2. A file that was missing is back where it was (a share that dropped, a folder restored).
+    // A different file now saved under a missing photo's name is a new photo; the old one stays missing.
+    const back = at(item.key).find(same)
+    if (back) return { path: item.rel, assetId: take(back, item).asset_id, result: 'unchanged', ...standing(back) }
 
-  // 3. Moved or renamed: the agent says where it was, or the same file went missing from this agent.
-  const previousRoot = item.previousPath !== undefined ? rootOf(item.previousRoot ?? item.root) : null
-  const previous = previousRoot ? (await at(keyOf(previousRoot.path, cleanRelativePath(item.previousPath)))).find(same) : undefined
-  const moved =
-    previous ??
-    (await db
-      .prepare("SELECT asset_id, key, size, mtime, quick_hash, state FROM asset_locations WHERE connection_id = ? AND quick_hash = ? AND size = ? AND state = 'missing' ORDER BY updated_at DESC LIMIT 1")
-      .bind(conn, quickHash, size)
-      .first<LocationMatch>())
-  if (moved) {
-    await touch(moved.asset_id, key)
-    const filename = safeFilename(rel)
-    await db.prepare('UPDATE assets SET filename = ?, updated_at = ? WHERE id = ?').bind(filename, now, moved.asset_id).run()
-    return { path: rel, assetId: moved.asset_id, result: 'moved', ...(await standing(db, moved.asset_id)) }
-  }
+    // 3. Moved or renamed: the agent says where it was, or the same file went missing from this agent.
+    const previous = item.previousKey ? at(item.previousKey).find(same) : undefined
+    const moved = previous ?? rows.filter((r) => r.state === 'missing' && same(r)).sort(newest)[0]
+    if (moved) {
+      take(moved, item)
+      renamed.push({ assetId: moved.asset_id, filename: safeFilename(item.rel) })
+      return { path: item.rel, assetId: moved.asset_id, result: 'moved', ...standing(moved) }
+    }
 
-  // 4. New to the catalogue.
-  const filename = safeFilename(rel)
-  const mimeType = mimeTypeFor(filename, typeof item.mimeType === 'string' ? item.mimeType : undefined)
-  const assetId = randomId()
-  await db.batch([
-    db
-      .prepare(`INSERT INTO assets (id, owner_id, filename, mime_type, size, status, created_at, updated_at) VALUES (?, (SELECT created_by FROM sources WHERE id = ?), ?, ?, ?, 'processing', ?, ?)`)
-      .bind(assetId, source.id, filename, mimeType, size, now, now),
-    db
-      .prepare(
-        `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, mtime, quick_hash, seen_at, updated_at)
-         VALUES (?, ?, ?, 'NAS', 'present', ?, ?, ?, ?, ?)`,
-      )
-      .bind(assetId, conn, key, size, mtime, quickHash, now, now),
-  ])
-  const meta = normalizeAgentMetadata(item.metadata)
-  if (meta) await saveMetadata(db, assetId, meta)
-  return { path: rel, assetId, result: 'created', needs: ['thumb', 'preview'], ready: false }
+    // 4. New to the catalogue.
+    const assetId = randomId()
+    created.push({ assetId, item, filename: safeFilename(item.rel) })
+    rows.push({ asset_id: assetId, key: item.key, size: item.size, quick_hash: item.quickHash, state: 'present', updated_at: now, status: 'processing', have: null })
+    return { path: item.rel, assetId, result: 'created', needs: ['thumb', 'preview'], ready: false }
+  }
+  const results = parsed.map((p) => ('quickHash' in p ? decide(p) : p))
+
+  const metas = [
+    ...created.map((c) => ({ assetId: c.assetId, meta: normalizeAgentMetadata(c.item.metadata), fileChanged: false })),
+    ...changed.map((c) => ({ assetId: c.assetId, meta: normalizeAgentMetadata(c.item.metadata), fileChanged: true })),
+  ].filter((m): m is { assetId: string; meta: NonNullable<typeof m.meta>; fileChanged: boolean } => m.meta !== null)
+  const lookups = await metadataLookups(db, metas.map((m) => m.meta))
+
+  const field = (name: string) => `json_extract(j.value, '$.${name}')`
+  const statements: D1PreparedStatement[] = []
+  if (created.length > 0) {
+    const list = JSON.stringify(
+      created.map((c) => ({ id: c.assetId, filename: c.filename, mime: mimeTypeFor(c.filename, c.item.mimeType), key: c.item.key, size: c.item.size, mtime: c.item.mtime, hash: c.item.quickHash })),
+    )
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO assets (id, owner_id, filename, mime_type, size, status, created_at, updated_at)
+           SELECT ${field('id')}, (SELECT created_by FROM sources WHERE id = ?), ${field('filename')}, ${field('mime')}, ${field('size')}, 'processing', ?, ? FROM json_each(?) j`,
+        )
+        .bind(source.id, now, now, list),
+      db
+        .prepare(
+          `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, mtime, quick_hash, seen_at, updated_at)
+           SELECT ${field('id')}, ?, ${field('key')}, 'NAS', 'present', ${field('size')}, ${field('mtime')}, ${field('hash')}, ?, ? FROM json_each(?) j`,
+        )
+        .bind(conn, now, now, list),
+    )
+  }
+  if (touches.length > 0) {
+    const byAsset = new Map(touches.map((t) => [t.asset_id, t]))
+    const mtimes = new Map(items.map((i) => [i.key, i.mtime]))
+    statements.push(
+      db
+        .prepare(
+          `UPDATE asset_locations SET key = ${field('key')}, size = ${field('size')}, mtime = ${field('mtime')}, quick_hash = ${field('hash')}, seen_at = ?, state = 'present', updated_at = ?
+           FROM json_each(?) j WHERE asset_locations.asset_id = ${field('id')} AND asset_locations.connection_id = ?`,
+        )
+        .bind(now, now, JSON.stringify([...byAsset.values()].map((t) => ({ id: t.asset_id, key: t.key, size: t.size, mtime: mtimes.get(t.key) ?? null, hash: t.quick_hash }))), conn),
+    )
+  }
+  if (changed.length > 0) {
+    statements.push(
+      db
+        .prepare(`UPDATE assets SET size = ${field('size')}, status = 'processing', phash = NULL, updated_at = ? FROM json_each(?) j WHERE assets.id = ${field('id')}`)
+        .bind(now, JSON.stringify(changed.map((c) => ({ id: c.assetId, size: c.item.size })))),
+    )
+  }
+  if (renamed.length > 0) {
+    statements.push(
+      db
+        .prepare(`UPDATE assets SET filename = ${field('filename')}, updated_at = ? FROM json_each(?) j WHERE assets.id = ${field('id')}`)
+        .bind(now, JSON.stringify(renamed.map((r) => ({ id: r.assetId, filename: r.filename })))),
+    )
+  }
+  for (const m of metas) statements.push(...metadataStatements(db, m.assetId, m.meta, lookups, { fileChanged: m.fileChanged }))
+  if (statements.length > 0) await db.batch(statements)
+  return results
 }
 
 /** Assets this agent may touch: those with a location on its connection. */
@@ -521,31 +593,44 @@ const HEX16 = /^[0-9a-f]{16}$/
 /**
  * After renditions are up: finish each asset (hash, presets, places, AI, index, ready). An agent's
  * first scan of a folder doesn't queue AI review; that is a cost people start on purpose.
+ * All at once; if that fails, one at a time, so one asset that can't be finished doesn't fail the
+ * others (it stays 'processing' for the sweep).
  */
 export async function completeAssets(env: DamBindings, source: SourceRow, items: unknown): Promise<{ id: string; status: 'ready' | 'rejected' | 'failed'; error?: string }[]> {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH) throw new AgentError(`Send 1 to ${MAX_BATCH} items at a time.`)
   const roots = await listRoots(env.DB, source.id)
-  const out: { id: string; status: 'ready' | 'rejected' | 'failed'; error?: string }[] = []
-  for (const raw of items) {
+  const wanted = items.map((raw) => {
     const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-    const id = typeof item.id === 'string' ? item.id : ''
-    const location = await env.DB.prepare('SELECT key FROM asset_locations WHERE asset_id = ? AND connection_id = ?').bind(id, source.connection_id).first<{ key: string }>()
-    if (!location) {
-      out.push({ id, status: 'rejected', error: 'Not one of this agent’s files.' })
-      continue
-    }
-    const root = roots.find((r) => location.key.startsWith(prefixOf(r.path)))
-    const hash = typeof item.phash === 'string' && HEX16.test(item.phash) ? item.phash : null
-    // One asset that can't be finished mustn't fail the others; it stays 'processing' for the sweep.
-    try {
-      await finishAsset(env, id, { hash, queueAi: Boolean(root?.first_scan_done_at) })
-      out.push({ id, status: 'ready' })
-    } catch (error) {
-      console.error('[agent] could not finish', id, error)
-      out.push({ id, status: 'failed', error: 'cf-dam could not finish this photo; it will try again.' })
+    return { id: typeof item.id === 'string' ? item.id : '', hash: typeof item.phash === 'string' && HEX16.test(item.phash) ? item.phash : null }
+  })
+  const { results: locations } = await env.DB.prepare('SELECT asset_id, key FROM asset_locations WHERE connection_id = ? AND asset_id IN (SELECT value FROM json_each(?))')
+    .bind(source.connection_id, JSON.stringify(wanted.map((w) => w.id)))
+    .all<{ asset_id: string; key: string }>()
+  const keys = new Map(locations.map((l) => [l.asset_id, l.key]))
+  const finish = [...new Map(wanted.filter((w) => keys.has(w.id)).map((w) => [w.id, w])).values()].map((w) => {
+    const key = keys.get(w.id)!
+    const root = roots.find((r) => key.startsWith(prefixOf(r.path)))
+    return { id: w.id, hash: w.hash, queueAi: Boolean(root?.first_scan_done_at) }
+  })
+  const failed = new Set<string>()
+  try {
+    await finishAssets(env, finish)
+  } catch (error) {
+    console.error('[agent] could not finish the batch; trying one at a time', error)
+    for (const f of finish) {
+      await finishAssets(env, [f]).catch((e) => {
+        console.error('[agent] could not finish', f.id, e)
+        failed.add(f.id)
+      })
     }
   }
-  return out
+  return wanted.map(({ id }) =>
+    !keys.has(id)
+      ? { id, status: 'rejected' as const, error: 'Not one of this agent’s files.' }
+      : failed.has(id)
+        ? { id, status: 'failed' as const, error: 'cf-dam could not finish this photo; it will try again.' }
+        : { id, status: 'ready' as const },
+  )
 }
 
 /**
@@ -560,15 +645,19 @@ export async function completeScan(db: D1Database, source: SourceRow, input: Rec
   if (!Array.isArray(missing) || missing.length > 5000) throw new AgentError('missing is a list of up to 5,000 paths; send more in further calls.')
   const keys = missing.map((p) => keyOf(root.path, cleanRelativePath(p)))
   const now = nowIso()
-  let marked = 0
-  for (let i = 0; i < keys.length; i += 90) {
-    const slice = keys.slice(i, i + 90)
-    const result = await db
-      .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND state = 'present' AND key IN (${slice.map(() => '?').join(',')})`)
-      .bind(now, source.connection_id, ...slice)
-      .run()
-    marked += result.meta.changes
-  }
+  // In lists of 500 (a key is at most about 2 KB, a bound value at most 2 MB), all in one batch.
+  const chunks = Array.from({ length: Math.ceil(keys.length / 500) }, (_, i) => keys.slice(i * 500, (i + 1) * 500))
+  const marked = chunks.length
+    ? (
+        await db.batch(
+          chunks.map((chunk) =>
+            db
+              .prepare(`UPDATE asset_locations SET state = 'missing', updated_at = ? WHERE connection_id = ? AND state = 'present' AND key IN (SELECT value FROM json_each(?))`)
+              .bind(now, source.connection_id, JSON.stringify(chunk)),
+          ),
+        )
+      ).reduce((n, r) => n + r.meta.changes, 0)
+    : 0
   if (input.final !== false) {
     await db.prepare('UPDATE source_roots SET last_scan_at = ?, first_scan_done_at = COALESCE(first_scan_done_at, ?) WHERE id = ?').bind(now, now, root.id).run()
   }

@@ -108,7 +108,7 @@ describe('migrate', () => {
       ),
       db.prepare("INSERT INTO asset_tags (asset_id, tag_id, source, created_at) VALUES ('a1', 'w1', 'user', ?), ('a2', 'w2', 'user', ?), ('a2', 'g2', 'user', ?)").bind(now, now, now),
     ])
-    expect(await migrate(db)).toEqual(['0018_keyword_keys'])
+    expect(await migrate(db, MIGRATIONS.filter((m) => m.name < '0019'))).toEqual(['0018_keyword_keys'])
     const tags = await db.prepare('SELECT id, parent_id, path, full_path FROM tags ORDER BY path').all()
     // The one already right (o2's path) is kept; the rest join it.
     expect(tags.results).toEqual([
@@ -125,5 +125,34 @@ describe('migrate', () => {
     // Run again: nothing left to do.
     await (await import('../src/db/repairs')).repairKeywordKeys(db)
     expect((await db.prepare('SELECT COUNT(*) AS n FROM tags').first<{ n: number }>())?.n).toBe(3)
+  })
+
+  it('moves search to the numbered index without losing what is indexed (0019)', async () => {
+    h = await createHarness({}, { migrations: MIGRATIONS.filter((m) => m.name < '0019') })
+    const db = h.env.DB
+    const now = new Date().toISOString()
+    await db.batch([
+      db.prepare(
+        `INSERT INTO assets (id, filename, mime_type, status, created_at, updated_at, deleted_at) VALUES
+           ('a1', 'fjord.jpg', 'image/jpeg', 'ready', ?, ?, NULL), ('a2', 'harbour.jpg', 'image/jpeg', 'ready', ?, ?, NULL),
+           ('a3', 'gone.jpg', 'image/jpeg', 'ready', ?, ?, ?), ('a4', 'never.jpg', 'image/jpeg', 'ready', ?, ?, NULL)`,
+      ).bind(now, now, now, now, now, now, now, now, now),
+      // a1 twice (a delete that failed once), a3 deleted since, a4 never indexed.
+      db.prepare(
+        `INSERT INTO assets_fts (asset_id, filename, title, caption, tags, camera, place, ai) VALUES
+           ('a1', 'old fjord', '', '', '', '', '', ''), ('a1', 'fjord', '', '', 'Bergen', '', '', ''),
+           ('a2', 'harbour', '', '', '', '', '', ''), ('a3', 'gone', '', '', '', '', '', '')`,
+      ),
+    ])
+    expect(await migrate(db)).toEqual(['0019_search_keys'])
+    const found = async (q: string) =>
+      (await db.prepare('SELECT a.id FROM assets a WHERE a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) ORDER BY a.id').bind(q).all<{ id: string }>()).results.map((r) => r.id)
+    expect(await found('bergen')).toEqual(['a1'])
+    expect(await found('old')).toEqual([])
+    expect(await found('gone')).toEqual([])
+    expect(await found('harbour')).toEqual(['a2'])
+    // What wasn't indexed is left for the sweep.
+    const { results } = await db.prepare('SELECT id FROM assets WHERE indexed_at IS NULL AND deleted_at IS NULL').all<{ id: string }>()
+    expect(results.map((r) => r.id)).toEqual(['a4'])
   })
 })

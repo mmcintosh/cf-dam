@@ -136,13 +136,91 @@ export async function resolveKeyword(db: D1Database, input: string): Promise<str
   return existing?.id ?? ensurePath(db, names)
 }
 
-/** Every keyword `input` could mean (for removing and filtering): the path, or all keywords with that name. */
-export async function matchKeywords(db: D1Database, input: string): Promise<string[]> {
-  const names = splitPath(input)
-  if (names.length === 0) return []
+/**
+ * resolveKeyword for many inputs at once, in two round trips however many there are: one to look up
+ * plain names, one batch that creates every missing level (parents first) and reads back the ids.
+ * Returns input → keyword id; inputs that hold no name are left out.
+ */
+export async function resolveKeywords(db: D1Database, inputs: string[]): Promise<Map<string, string>> {
+  const parsed = new Map<string, string[]>()
+  for (const input of new Set(inputs)) {
+    const names = splitPath(input)
+    if (names.length > 0) parsed.set(input, names)
+  }
+  const out = new Map<string, string>()
+  if (parsed.size === 0) return out
+
+  // Plain names: the keyword of that name that resolveKeyword would choose.
+  const plain = [...new Set([...parsed.values()].filter((n) => n.length === 1).map(keyOf))]
+  const named = new Map<string, string>()
+  if (plain.length > 0) {
+    const { results } = await db
+      .prepare(
+        `SELECT name_key, id FROM (
+           SELECT t.name_key, t.id, ROW_NUMBER() OVER (
+             PARTITION BY t.name_key ORDER BY (t.parent_id IS NULL) DESC, (SELECT COUNT(*) FROM asset_tags at WHERE at.tag_id = t.id) DESC, t.path
+           ) AS n
+           FROM tags t WHERE t.name_key IN (SELECT value FROM json_each(?))
+         ) WHERE n = 1`,
+      )
+      .bind(JSON.stringify(plain))
+      .all<{ name_key: string; id: string }>()
+    for (const r of results) named.set(r.name_key, r.id)
+  }
+
+  // Everything else is a path, created as needed. One INSERT per depth, so each level's parent exists
+  // (made by this batch or already there) when the level below looks it up.
+  const wanted = new Map<string, string[]>()
+  for (const names of parsed.values()) if (!(names.length === 1 && named.has(keyOf(names)))) wanted.set(keyOf(names), names)
+  const ids = new Map(named)
+  if (wanted.size > 0) {
+    const levels = new Map<string, { id: string; name: string; name_key: string; parent: string | null; path: string; full_path: string; depth: number }>()
+    for (const names of wanted.values()) {
+      for (let i = 0; i < names.length; i++) {
+        const path = keyOf(names.slice(0, i + 1))
+        if (levels.has(path)) continue
+        levels.set(path, {
+          id: randomId(),
+          name: names[i]!,
+          name_key: names[i]!.toLowerCase(),
+          parent: i === 0 ? null : keyOf(names.slice(0, i)),
+          path,
+          full_path: names.slice(0, i + 1).join('|'),
+          depth: i,
+        })
+      }
+    }
+    const now = nowIso()
+    const depths = Math.max(...[...levels.values()].map((l) => l.depth)) + 1
+    const results = await db.batch([
+      ...Array.from({ length: depths }, (_, depth) =>
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO tags (id, name, name_key, parent_id, path, full_path, created_at)
+             SELECT json_extract(value, '$.id'), json_extract(value, '$.name'), json_extract(value, '$.name_key'),
+                    (SELECT id FROM tags WHERE path = json_extract(value, '$.parent')), json_extract(value, '$.path'), json_extract(value, '$.full_path'), ?
+             FROM json_each(?)`,
+          )
+          .bind(now, JSON.stringify([...levels.values()].filter((l) => l.depth === depth))),
+      ),
+      db.prepare('SELECT id, path FROM tags WHERE path IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...wanted.keys()])),
+    ])
+    for (const r of results[results.length - 1]!.results as { id: string; path: string }[]) ids.set(r.path, r.id)
+  }
+  for (const [input, names] of parsed) {
+    const id = ids.get(keyOf(names))
+    if (id) out.set(input, id)
+  }
+  return out
+}
+
+/** Every keyword the inputs could mean (for removing and filtering): each path, or all keywords with that name. One query. */
+export async function matchKeywords(db: D1Database, inputs: string | string[]): Promise<string[]> {
+  const parsed = [inputs].flat().map(splitPath).filter((n) => n.length > 0)
+  if (parsed.length === 0) return []
   const { results } = await db
-    .prepare(names.length > 1 ? 'SELECT id FROM tags WHERE path = ?' : 'SELECT id FROM tags WHERE name_key = ?')
-    .bind(keyOf(names))
+    .prepare('SELECT id FROM tags WHERE path IN (SELECT value FROM json_each(?)) OR name_key IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(parsed.filter((n) => n.length > 1).map(keyOf)), JSON.stringify(parsed.filter((n) => n.length === 1).map(keyOf)))
     .all<{ id: string }>()
   return results.map((r) => r.id)
 }
@@ -349,14 +427,27 @@ const parseSynonyms = (value: string): string[] => {
   }
 }
 
-/** What search should match for an asset's keywords: each keyword, its ancestors and its synonyms. */
-export async function searchTerms(db: D1Database, assetId: string): Promise<string> {
-  const terms = new Set<string>()
-  for (const k of await assetKeywords(db, assetId)) {
-    for (const level of k.full_path.split('|')) terms.add(level)
-    for (const s of parseSynonyms(k.synonyms)) terms.add(s)
+/**
+ * What search should match for each asset's keywords: each keyword, its ancestors and its synonyms.
+ * One query for any number of assets.
+ */
+export async function searchTerms(db: D1Database, assetIds: string[]): Promise<Map<string, string>> {
+  const terms = new Map(assetIds.map((id) => [id, new Set<string>()]))
+  if (assetIds.length > 0) {
+    const { results } = await db
+      .prepare(
+        `SELECT at.asset_id, t.full_path, t.synonyms FROM asset_tags at JOIN tags t ON t.id = at.tag_id
+         WHERE at.asset_id IN (SELECT value FROM json_each(?)) ORDER BY t.path`,
+      )
+      .bind(JSON.stringify(assetIds))
+      .all<{ asset_id: string; full_path: string; synonyms: string }>()
+    for (const k of results) {
+      const set = terms.get(k.asset_id)!
+      for (const level of k.full_path.split('|')) set.add(level)
+      for (const s of parseSynonyms(k.synonyms)) set.add(s)
+    }
   }
-  return [...terms].join(' ')
+  return new Map([...terms].map(([id, set]) => [id, [...set].join(' ')]))
 }
 
 /**

@@ -8,7 +8,7 @@ import { SAFE_INLINE_TYPES } from '../catalog/metadata'
 import { acceptSuggestions, analyzeAsset, removeAiTag, type AcceptField } from '../catalog/ai'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
-import { indexAsset } from '../catalog/search'
+import { indexAssets } from '../catalog/search'
 import { isRenditionName, renditionKey } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -118,9 +118,9 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
     const needed = BULK_PERMISSION[bulk.action]
     if (!principal.permissions.has(needed)) return c.json({ error: 'forbidden', permission: needed }, 403)
     const changed = await applyBulk(c.env.DB, ids, bulk)
-    if (bulk.action === 'gps' && bulk.lat !== null) {
-      await fillPlacesFromGps(c.env, ids)
-      for (const id of ids.slice(0, MAX_BULK)) await indexAsset(c.env.DB, id)
+    if (bulk.action === 'gps') {
+      if (bulk.lat !== null) await fillPlacesFromGps(c.env, ids.slice(0, MAX_BULK))
+      await indexAssets(c.env.DB, ids.slice(0, MAX_BULK))
     }
     await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed } })
     return c.json({ changed })

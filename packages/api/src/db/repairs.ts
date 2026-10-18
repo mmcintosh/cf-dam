@@ -77,6 +77,7 @@ export async function repairKeywordKeys(db: D1Database): Promise<void> {
   const mergeJson = JSON.stringify(merges)
   await db.batch([
     // Photos of the keywords that change are searched for by their new names: let the sweep reindex them.
+    // (This runs before 0019 replaces assets_fts with search_index; 0019 leaves these unindexed.)
     db.prepare('DELETE FROM assets_fts WHERE asset_id IN (SELECT asset_id FROM asset_tags WHERE tag_id IN (SELECT value FROM json_each(?)))').bind(touched),
     // Out of the way first: paths are unique, and the new ones may be taken by rows not yet moved.
     db.prepare("UPDATE tags SET path = '~repair~' || id WHERE id IN (SELECT value FROM json_each(?))").bind(touched),

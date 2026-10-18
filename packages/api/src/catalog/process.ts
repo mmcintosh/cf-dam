@@ -8,66 +8,89 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
-import { addTags, getAsset, getLocations, isLabel, primaryLocation } from './assets'
+import { getAsset, getLocations, isLabel, primaryLocation, tagStatement } from './assets'
 import { applyUploadPresets, iptcUpdate } from './iptc'
+import { resolveKeywords } from './keywords'
 import { fillPlacesFromGps } from './places'
-import { getLabelNames } from './library'
+import { getLabelNames, type LabelNames } from './library'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
-import { aiAvailable, getAiSettings } from './ai'
-import { hashFromThumbnail, recordHash } from './phash'
-import { indexAsset } from './search'
+import { getAiSettings } from './ai'
+import { hashFromThumbnail, recordHashes } from './phash'
+import { indexAsset, indexAssets } from './search'
 import exifr from 'exifr'
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }
 
-export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata, opts: { fileChanged?: boolean } = {}): Promise<void> {
+/** What saving metadata looks up first: label names and keyword ids, for any number of photos at once. */
+export interface MetadataLookups {
+  labels: LabelNames | null
+  keywords: Map<string, string>
+}
+
+export async function metadataLookups(db: D1Database, metas: NormalizedMetadata[]): Promise<MetadataLookups> {
+  return {
+    labels: metas.some((m) => m.label) ? await getLabelNames(db) : null,
+    keywords: await resolveKeywords(db, metas.flatMap((m) => m.keywords.slice(0, 200))),
+  }
+}
+
+/** The writes that save a photo's metadata, to run in one batch with others (see metadataLookups). */
+export function metadataStatements(db: D1Database, assetId: string, meta: NormalizedMetadata, lookups: MetadataLookups, opts: { fileChanged?: boolean } = {}): D1PreparedStatement[] {
   // Width and height are stored as the photo is seen, upright. Cameras record the sensor's size and an
   // Orientation; 5–8 mean turned a quarter, so a portrait shot's recorded 6000×4000 is really 4000×6000.
   const sideways = meta.orientation !== null && meta.orientation >= 5 && meta.orientation <= 8
   const [width, height] = sideways ? [meta.height, meta.width] : [meta.width, meta.height]
+  // xmp:Label holds the label's name; match it against this archive's names, then the colours themselves.
+  let label: string | null = null
+  if (meta.label && lookups.labels) {
+    const wanted = meta.label.toLowerCase()
+    const named = Object.entries(lookups.labels).find(([, name]) => name.toLowerCase() === wanted)?.[0] ?? wanted
+    if (isLabel(named)) label = named
+  }
   // COALESCE keeps anything a person (or the uploading client) already set. When the file itself has
   // changed (re-exported, cropped), what it says about itself replaces the old values: its size, date,
   // camera and place. What people write (title, caption, rating, IPTC, keywords) still only fills gaps.
   const file = (column: string) => (opts.fileChanged ? `${column} = COALESCE(?, ${column})` : `${column} = COALESCE(${column}, ?)`)
-  await db
-    .prepare(
-      `UPDATE assets SET
-         ${file('width')}, ${file('height')}, ${file('orientation')},
-         ${file('captured_at')}, ${file('captured_offset')},
-         ${file('camera_make')}, ${file('camera_model')}, ${file('lens')},
-         ${file('focal_length')}, ${file('aperture')},
-         ${file('exposure_time')}, ${file('iso')},
-         ${file('gps_lat')}, ${file('gps_lng')}, rating = COALESCE(rating, ?),
-         title = COALESCE(title, ?), caption = COALESCE(caption, ?),
-         metadata = ?, updated_at = ?
-       WHERE id = ?`,
-    )
-    .bind(
-      width, height, meta.orientation, meta.capturedAt, meta.capturedOffset,
-      meta.cameraMake, meta.cameraModel, meta.lens, meta.focalLength, meta.aperture,
-      meta.exposureTime, meta.iso, meta.gpsLat, meta.gpsLng, meta.rating, meta.title, meta.caption,
-      JSON.stringify(meta.raw), nowIso(), assetId,
-    )
-    .run()
+  const statements = [
+    db
+      .prepare(
+        `UPDATE assets SET
+           ${file('width')}, ${file('height')}, ${file('orientation')},
+           ${file('captured_at')}, ${file('captured_offset')},
+           ${file('camera_make')}, ${file('camera_model')}, ${file('lens')},
+           ${file('focal_length')}, ${file('aperture')},
+           ${file('exposure_time')}, ${file('iso')},
+           ${file('gps_lat')}, ${file('gps_lng')}, rating = COALESCE(rating, ?),
+           title = COALESCE(title, ?), caption = COALESCE(caption, ?), label = COALESCE(label, ?),
+           metadata = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .bind(
+        width, height, meta.orientation, meta.capturedAt, meta.capturedOffset,
+        meta.cameraMake, meta.cameraModel, meta.lens, meta.focalLength, meta.aperture,
+        meta.exposureTime, meta.iso, meta.gpsLat, meta.gpsLng, meta.rating, meta.title, meta.caption, label,
+        JSON.stringify(meta.raw), nowIso(), assetId,
+      ),
+  ]
   if (meta.video) {
-    await db
-      .prepare(`UPDATE assets SET ${file('duration')}, ${file('video_codec')}, ${file('frame_rate')} WHERE id = ?`)
-      .bind(meta.video.duration, meta.video.codec, meta.video.frameRate, assetId)
-      .run()
+    statements.push(
+      db
+        .prepare(`UPDATE assets SET ${file('duration')}, ${file('video_codec')}, ${file('frame_rate')} WHERE id = ?`)
+        .bind(meta.video.duration, meta.video.codec, meta.video.frameRate, assetId),
+    )
   }
   const iptc = iptcUpdate(db, assetId, meta.iptc, { fillOnly: true, locationSource: 'file' })
-  if (iptc) await iptc.run()
-  // xmp:Label holds the label's name; match it against this archive's names, then the colours themselves.
-  if (meta.label) {
-    const names = await getLabelNames(db)
-    const wanted = meta.label.toLowerCase()
-    const label = (Object.entries(names).find(([, name]) => name.toLowerCase() === wanted)?.[0] ?? wanted)
-    if (isLabel(label)) await db.prepare('UPDATE assets SET label = COALESCE(label, ?) WHERE id = ?').bind(label, assetId).run()
-  }
-  if (meta.keywords.length > 0) await addTags(db, assetId, meta.keywords, 'import')
+  if (iptc) statements.push(iptc)
+  const tags = [...new Set(meta.keywords.slice(0, 200).map((k) => lookups.keywords.get(k)).filter((id): id is string => id !== undefined))]
+  if (tags.length > 0) statements.push(tagStatement(db, tags.map((id) => [assetId, id] as const), 'import'))
+  return statements
+}
+
+export async function saveMetadata(db: D1Database, assetId: string, meta: NormalizedMetadata, opts: { fileChanged?: boolean } = {}): Promise<void> {
+  await db.batch(metadataStatements(db, assetId, meta, await metadataLookups(db, [meta]), opts))
 }
 
 /**
@@ -76,37 +99,57 @@ export async function saveMetadata(db: D1Database, assetId: string, meta: Normal
  * `hash` is a look-alike hash already computed (by an agent, with the same reducer); otherwise it is
  * computed from the stored thumbnail. `queueAi` is false for an agent's first import of a folder,
  * which could be thousands of photos: those wait for someone to start them on the AI review page.
+ * Any number of assets in a fixed number of round trips (the index takes three per 50).
  */
-export async function finishAsset(env: DamBindings, assetId: string, opts: { hash?: string | null; queueAi: boolean }): Promise<void> {
+export async function finishAssets(env: DamBindings, items: { id: string; hash?: string | null; queueAi: boolean }[]): Promise<void> {
+  if (items.length === 0) return
   const db = env.DB
+  const ids = items.map((i) => i.id)
   // A hash it already has (a moved file) stands; otherwise use the one given, or compute it.
-  const existing = opts.hash ? null : (await db.prepare('SELECT phash FROM assets WHERE id = ?').bind(assetId).first<{ phash: string | null }>())?.phash
-  const hash =
-    opts.hash ??
-    (existing
-      ? null
-      : await hashFromThumbnail(env, assetId).catch((error) => {
-          console.warn('[process] could not hash', assetId, error)
-          return null
-        }))
-  if (hash) await recordHash(db, assetId, hash)
+  const unhashed = items.filter((i) => !i.hash).map((i) => i.id)
+  const { results: existing } = unhashed.length
+    ? await db.prepare('SELECT id FROM assets WHERE phash IS NOT NULL AND id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(unhashed)).all<{ id: string }>()
+    : { results: [] }
+  const hashed = new Set(existing.map((r) => r.id))
+  const hashes: { id: string; hash: string }[] = []
+  for (const item of items) {
+    const hash =
+      item.hash ??
+      (hashed.has(item.id)
+        ? null
+        : await hashFromThumbnail(env, item.id).catch((error) => {
+            console.warn('[process] could not hash', item.id, error)
+            return null
+          }))
+    if (hash) hashes.push({ id: item.id, hash })
+  }
+  await recordHashes(db, hashes)
 
   // Presets marked "apply to new uploads" fill whatever the file left empty; then city and
   // country from GPS where still empty.
-  await applyUploadPresets(db, assetId)
-  await fillPlacesFromGps(env, [assetId])
+  await applyUploadPresets(db, ids)
+  await fillPlacesFromGps(env, ids)
 
-  // Queue AI review; the sweep runs it in the background (a model call takes seconds).
-  if (opts.queueAi) {
-    const previewable = (await hasRendition(db, assetId, 'preview')) || (await hasRendition(db, assetId, 'thumb'))
-    if (previewable && (await aiAvailable(env)) && (await getAiSettings(db)).auto) {
-      await db.prepare("UPDATE assets SET ai_status = 'queued' WHERE id = ? AND ai_status IS NULL").bind(assetId).run()
+  // Queue AI review for those that have a preview; the sweep runs it in the background (a model call takes seconds).
+  const forAi = items.filter((i) => i.queueAi).map((i) => i.id)
+  if (forAi.length > 0 && env.AI) {
+    const settings = await getAiSettings(db)
+    if (settings.enabled && settings.auto) {
+      await db
+        .prepare(
+          `UPDATE assets SET ai_status = 'queued' WHERE id IN (SELECT value FROM json_each(?)) AND ai_status IS NULL
+             AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id AND r.name IN ('preview', 'thumb'))`,
+        )
+        .bind(JSON.stringify(forAi))
+        .run()
     }
   }
 
-  await indexAsset(db, assetId)
-  await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id = ?").bind(nowIso(), assetId).run()
+  await indexAssets(db, ids)
+  await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id IN (SELECT value FROM json_each(?))").bind(nowIso(), JSON.stringify(ids)).run()
 }
+
+export const finishAsset = (env: DamBindings, assetId: string, opts: { hash?: string | null; queueAi: boolean }) => finishAssets(env, [{ id: assetId, ...opts }])
 
 export async function processAsset(env: DamBindings, assetId: string): Promise<void> {
   const db = env.DB

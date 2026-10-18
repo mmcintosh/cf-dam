@@ -2,8 +2,8 @@
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
-import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeyword } from './keywords'
-import { indexAsset, toFtsQuery } from './search'
+import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeywords } from './keywords'
+import { indexAsset, SEARCH_MATCH, toFtsQuery } from './search'
 
 export interface AssetRow {
   id: string
@@ -95,6 +95,18 @@ export async function getLocations(db: D1Database, assetId: string): Promise<Loc
   return results
 }
 
+/** The locations of many assets, in one query. */
+export async function locationsOf(db: D1Database, assetIds: string[]): Promise<Map<string, LocationRow[]>> {
+  const map = new Map<string, LocationRow[]>()
+  if (assetIds.length === 0) return map
+  const { results } = await db
+    .prepare('SELECT * FROM asset_locations WHERE asset_id IN (SELECT value FROM json_each(?)) ORDER BY connection_id')
+    .bind(JSON.stringify(assetIds))
+    .all<LocationRow>()
+  for (const row of results) map.set(row.asset_id, [...(map.get(row.asset_id) ?? []), row])
+  return map
+}
+
 /** The location to read the original from: a present one, the built-in R2 first. */
 export function primaryLocation(locations: LocationRow[]): LocationRow | null {
   const usable = locations.filter((l) => l.state !== 'pending' && l.state !== 'gone')
@@ -119,24 +131,29 @@ export async function getTags(db: D1Database, assetId: string): Promise<AssetTag
 
 /** Resolve names or paths to keyword ids, creating keywords as needed (see resolveKeyword). */
 async function resolveAll(db: D1Database, names: string[]): Promise<string[]> {
-  const ids: string[] = []
-  for (const name of [...new Set(names)].slice(0, 200)) {
-    const id = await resolveKeyword(db, name)
-    if (id && !ids.includes(id)) ids.push(id)
-  }
-  return ids
+  return [...new Set((await resolveKeywords(db, [...new Set(names)].slice(0, 200))).values())]
 }
 
 /**
  * Add keywords by name or path (`Places > Norway > Oslo`), creating them as needed. `source` records
  * where a tag came from: user, import, ai, lightroom.
  */
-export async function addTags(db: D1Database, assetId: string, names: string[], source: 'user' | 'import' | 'ai' | 'lightroom'): Promise<void> {
+export async function addTags(db: D1Database, assetIds: string | string[], names: string[], source: TagSource): Promise<void> {
   const ids = await resolveAll(db, names)
-  if (ids.length === 0) return
-  const now = nowIso()
-  await db.batch(ids.map((id) => db.prepare('INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) VALUES (?, ?, ?, ?)').bind(assetId, id, source, now)))
+  const pairs = [assetIds].flat().flatMap((assetId) => ids.map((id) => [assetId, id] as const))
+  if (pairs.length > 0) await tagStatement(db, pairs, source).run()
 }
+
+export type TagSource = 'user' | 'import' | 'ai' | 'lightroom'
+
+/** One statement that tags any number of (asset, keyword) pairs; pairs already there are left as they are. */
+export const tagStatement = (db: D1Database, pairs: (readonly [string, string])[], source: TagSource) =>
+  db
+    .prepare(
+      `INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at)
+       SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), ?, ? FROM json_each(?)`,
+    )
+    .bind(source, nowIso(), JSON.stringify(pairs))
 
 /**
  * Replace an asset's own tags with exactly `names`. AI suggestions are kept apart (they are accepted
@@ -147,11 +164,12 @@ export async function setTags(db: D1Database, assetId: string, names: string[]):
   const now = nowIso()
   await db.batch([
     db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai'").bind(assetId),
-    ...ids.map((id) =>
-      db
-        .prepare("INSERT INTO asset_tags (asset_id, tag_id, source, created_at) VALUES (?, ?, 'user', ?) ON CONFLICT (asset_id, tag_id) DO UPDATE SET source = 'user'")
-        .bind(assetId, id, now),
-    ),
+    db
+      .prepare(
+        `INSERT INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, value, 'user', ? FROM json_each(?) WHERE true
+         ON CONFLICT (asset_id, tag_id) DO UPDATE SET source = 'user'`,
+      )
+      .bind(assetId, now, JSON.stringify(ids)),
   ])
 }
 
@@ -250,10 +268,9 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
 export async function renditionNames(db: D1Database, assetIds: string[]): Promise<Map<string, string[]>> {
   const map = new Map<string, string[]>()
   if (assetIds.length === 0) return map
-  const placeholders = assetIds.map(() => '?').join(',')
   const { results } = await db
-    .prepare(`SELECT asset_id, name FROM renditions WHERE asset_id IN (${placeholders})`)
-    .bind(...assetIds)
+    .prepare('SELECT asset_id, name FROM renditions WHERE asset_id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(assetIds))
     .all<{ asset_id: string; name: string }>()
   for (const row of results) map.set(row.asset_id, [...(map.get(row.asset_id) ?? []), row.name])
   return map
@@ -332,7 +349,7 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   const use = (key: keyof ListFilters) => key !== omit && filters[key] !== undefined && filters[key] !== ''
   const fts = use('q') ? toFtsQuery(filters.q!) : null
   if (fts) {
-    where.push('a.id IN (SELECT asset_id FROM assets_fts WHERE assets_fts MATCH ?)')
+    where.push(SEARCH_MATCH)
     params.push(fts)
   }
   if (use('tag')) {
@@ -429,14 +446,7 @@ export async function listAssets(db: D1Database, filters: ListFilters): Promise<
   const assets = (rows!.results ?? []) as AssetRow[]
   const ids = assets.map((a) => a.id)
   const renditions = await renditionNames(db, ids)
-  const locations = new Map<string, LocationRow[]>()
-  if (ids.length > 0) {
-    const { results } = await db
-      .prepare(`SELECT * FROM asset_locations WHERE asset_id IN (${ids.map(() => '?').join(',')})`)
-      .bind(...ids)
-      .all<LocationRow>()
-    for (const row of results) locations.set(row.asset_id, [...(locations.get(row.asset_id) ?? []), row])
-  }
+  const locations = await locationsOf(db, ids)
   return {
     assets: assets.map((row) => assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? []))),
     total: ((count!.results?.[0] as { n: number } | undefined)?.n) ?? 0,
@@ -476,12 +486,16 @@ export async function updateAsset(
   await indexAsset(db, id)
 }
 
-export async function softDeleteAsset(db: D1Database, id: string): Promise<void> {
+export async function softDeleteAssets(db: D1Database, ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const list = JSON.stringify(ids)
   await db.batch([
-    db.prepare('UPDATE assets SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(nowIso(), nowIso(), id),
-    db.prepare('DELETE FROM assets_fts WHERE asset_id = ?').bind(id),
+    db.prepare('UPDATE assets SET deleted_at = ?, updated_at = ? WHERE id IN (SELECT value FROM json_each(?)) AND deleted_at IS NULL').bind(nowIso(), nowIso(), list),
+    db.prepare('DELETE FROM search_index WHERE rowid IN (SELECT search_id FROM assets WHERE id IN (SELECT value FROM json_each(?)))').bind(list),
   ])
 }
+
+export const softDeleteAsset = (db: D1Database, id: string) => softDeleteAssets(db, [id])
 
 const ORIENTATIONS = new Set(['landscape', 'portrait', 'square'])
 const KINDS = new Set(['photo', 'raw', 'video', 'other'])
