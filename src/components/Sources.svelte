@@ -41,8 +41,19 @@
   let pending = $state<{ name: string; platform: string | null } | null>(null)
   let agentName = $state('')
   let error = $state('')
-  let confirmRevoke = $state<string | null>(null)
   let newFolder = $state<Record<string, string>>({})
+  // Disconnect and Remove ask for a second click, which lapses after a few seconds or when the button
+  // loses focus. Keys: `revoke:<source id>`, `remove:<root id>`.
+  let confirming = $state<string | null>(null)
+  let lapse: ReturnType<typeof setTimeout> | undefined
+  function arm(key: string | null) {
+    clearTimeout(lapse)
+    confirming = key
+    if (key) lapse = setTimeout(() => (confirming = null), 4000)
+  }
+  const disarm = (key: string) => confirming === key && arm(null)
+
+  const failed = (e: unknown, what: string) => (error = `${what}: ${e instanceof Error ? e.message : 'try again.'}`)
 
   async function load() {
     sources = (await api<{ sources: Source[] }>('/api/sources')).sources
@@ -50,7 +61,7 @@
   }
 
   onMount(() => {
-    void load()
+    load().catch((e) => failed(e, 'Could not load the agents'))
     if (initialCode) void startAdding().then(lookUp)
     const timer = setInterval(() => void load().catch(() => {}), 10_000)
     return () => clearInterval(timer)
@@ -58,13 +69,20 @@
 
   async function startAdding() {
     adding = true
-    if (!compose) compose = await (await fetch('/api/sources/compose')).text()
+    if (compose) return
+    const res = await fetch('/api/sources/compose')
+    if (res.ok) compose = await res.text()
+    else error = `Could not load the compose file (${res.status}).`
   }
 
   async function copyCompose() {
-    await navigator.clipboard.writeText(compose)
-    copied = true
-    setTimeout(() => (copied = false), 1500)
+    try {
+      await navigator.clipboard.writeText(compose)
+      copied = true
+      setTimeout(() => (copied = false), 1500)
+    } catch {
+      error = 'Could not copy: select the text and copy it yourself.'
+    }
   }
 
   async function lookUp() {
@@ -93,23 +111,37 @@
     }
   }
 
-  async function update(s: Source, patch: Record<string, unknown>) {
-    await api(`/api/sources/${s.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
-    await load()
+  /** A change to an agent. On failure the page shows what the server has, and why. */
+  async function update(s: Source, patch: Record<string, unknown>, input?: HTMLInputElement) {
+    error = ''
+    try {
+      await api(`/api/sources/${s.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+    } catch (e) {
+      if (input) input.value = s.name
+      failed(e, `“${s.name}” wasn't changed`)
+    }
+    await load().catch(() => {})
   }
 
   async function rescan(s: Source) {
-    await api(`/api/sources/${s.id}/rescan`, { method: 'POST' })
+    error = ''
+    try {
+      await api(`/api/sources/${s.id}/rescan`, { method: 'POST' })
+    } catch (e) {
+      failed(e, `Could not start a scan on “${s.name}”`)
+    }
   }
 
   async function revoke(s: Source) {
-    if (confirmRevoke !== s.id) {
-      confirmRevoke = s.id
-      return
+    if (confirming !== `revoke:${s.id}`) return arm(`revoke:${s.id}`)
+    arm(null)
+    error = ''
+    try {
+      await api(`/api/sources/${s.id}`, { method: 'DELETE' })
+    } catch (e) {
+      failed(e, `“${s.name}” wasn't disconnected`)
     }
-    await api(`/api/sources/${s.id}`, { method: 'DELETE' })
-    confirmRevoke = null
-    await load()
+    await load().catch(() => {})
   }
 
   async function addFolder(s: Source) {
@@ -119,27 +151,37 @@
     try {
       await api(`/api/sources/${s.id}/roots`, { method: 'POST', body: JSON.stringify({ path }) })
       newFolder[s.id] = ''
-      await rescan(s)
-      await load()
     } catch (e) {
       error = e instanceof Error ? e.message : 'Could not add that folder.'
-    }
-  }
-
-  async function updateRoot(s: Source, r: Root, patch: Record<string, unknown>) {
-    await api(`/api/sources/${s.id}/roots/${r.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
-    await load()
-  }
-
-  let confirmRemove = $state<string | null>(null)
-  async function removeRoot(s: Source, r: Root) {
-    if (confirmRemove !== r.id) {
-      confirmRemove = r.id
       return
     }
-    await api(`/api/sources/${s.id}/roots/${r.id}`, { method: 'DELETE' })
-    confirmRemove = null
-    await load()
+    await rescan(s)
+    await load().catch(() => {})
+  }
+
+  /** A change to a folder. On failure its controls go back to what the server has. */
+  async function updateRoot(s: Source, r: Root, patch: Record<string, unknown>, input: HTMLInputElement) {
+    error = ''
+    try {
+      await api(`/api/sources/${s.id}/roots/${r.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+    } catch (e) {
+      if (input.type === 'checkbox') input.checked = r.enabled
+      else input.value = r.exclude.join(', ')
+      failed(e, `${r.path} wasn't changed`)
+    }
+    await load().catch(() => {})
+  }
+
+  async function removeRoot(s: Source, r: Root) {
+    if (confirming !== `remove:${r.id}`) return arm(`remove:${r.id}`)
+    arm(null)
+    error = ''
+    try {
+      await api(`/api/sources/${s.id}/roots/${r.id}`, { method: 'DELETE' })
+    } catch (e) {
+      failed(e, `${r.path} is still indexed`)
+    }
+    await load().catch(() => {})
   }
 
   /** Folders the agent can see that aren't indexed, inside, or around an indexed one. */
@@ -200,13 +242,21 @@
     <section class="card stack agent" class:revoked={s.revoked}>
       <header class="row">
         <span class="dot" class:on={s.online && !s.paused} class:paused={s.paused} title={s.online ? 'Online' : 'Offline'}></span>
-        <input class="name" type="text" value={s.name} disabled={s.revoked} onchange={(e) => update(s, { name: e.currentTarget.value })} aria-label="Agent name" />
+        <input class="name" type="text" value={s.name} disabled={s.revoked} onchange={(e) => update(s, { name: e.currentTarget.value }, e.currentTarget)} aria-label="Agent name" />
         <span class="muted small">{s.revoked ? 'Disconnected' : s.paused ? 'Paused' : s.online ? (s.status.phase === 'scanning' ? 'Scanning' : 'Online') : `Last seen ${ago(s.lastSeenAt)}`}{s.version ? ` · v${s.version}` : ''}{s.platform ? ` · ${s.platform}` : ''}</span>
         <span class="spacer"></span>
         {#if !s.revoked}
           <button class="btn btn-sm" type="button" onclick={() => rescan(s)} disabled={s.paused}>Scan now</button>
           <button class="btn btn-sm" type="button" onclick={() => update(s, { paused: !s.paused })}>{s.paused ? 'Resume' : 'Pause'}</button>
-          <button class="btn btn-sm btn-danger" type="button" onclick={() => revoke(s)}>{confirmRevoke === s.id ? 'Click again to disconnect' : 'Disconnect'}</button>
+          <button
+            class="btn btn-sm btn-danger"
+            type="button"
+            onclick={() => revoke(s)}
+            onblur={() => disarm(`revoke:${s.id}`)}
+            title="Its key stops working at once. Connecting it again means pairing again, as a new agent."
+          >
+            {confirming === `revoke:${s.id}` ? "Click again: can't be undone" : 'Disconnect'}
+          </button>
         {/if}
       </header>
 
@@ -226,7 +276,7 @@
           {#if s.roots.length === 0}<p class="muted small">Nothing indexed yet. Choose a folder the agent can see.</p>{/if}
           {#each s.roots as r (r.id)}
             <div class="root row">
-              <input type="checkbox" checked={r.enabled} onchange={(e) => updateRoot(s, r, { enabled: e.currentTarget.checked })} aria-label={`Index ${r.path}`} />
+              <input type="checkbox" checked={r.enabled} onchange={(e) => updateRoot(s, r, { enabled: e.currentTarget.checked }, e.currentTarget)} aria-label={`Index ${r.path}`} />
               <code>{r.path}</code>
               {#if r.volume}<span class="pill">Drive: {r.volume.label ?? 'unnamed'}</span>{/if}
               {#if r.offlineSince}<span class="pill offline" title="Unplugged or unmounted. Its photos stay here; connect it to update them.">Offline since {ago(r.offlineSince)}</span>{/if}
@@ -238,9 +288,9 @@
                 value={r.exclude.join(', ')}
                 placeholder="Also skip, e.g. Exports/**, *.tmp"
                 aria-label="Folders and files to skip"
-                onchange={(e) => updateRoot(s, r, { exclude: e.currentTarget.value.split(',').map((g) => g.trim()).filter(Boolean) })}
+                onchange={(e) => updateRoot(s, r, { exclude: e.currentTarget.value.split(',').map((g) => g.trim()).filter(Boolean) }, e.currentTarget)}
               />
-              <button class="btn btn-sm" type="button" onclick={() => removeRoot(s, r)}>{confirmRemove === r.id ? 'Click again to stop indexing' : 'Remove'}</button>
+              <button class="btn btn-sm" type="button" onclick={() => removeRoot(s, r)} onblur={() => disarm(`remove:${r.id}`)}>{confirming === `remove:${r.id}` ? 'Click again to stop indexing' : 'Remove'}</button>
             </div>
           {/each}
           <div class="row">

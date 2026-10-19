@@ -71,7 +71,7 @@
           const outcome = await uploadFile(current.file, { connectionId, storageClass }, (p) => (current.progress = p), current.controller.signal)
           current.assetId = outcome.assetId
           current.state = outcome.kind === 'duplicate' ? 'duplicate' : 'done'
-          current.message = outcome.kind === 'duplicate' ? 'Already in the archive' : ''
+          current.message = outcome.kind === 'duplicate' ? 'Already in the archive' : (outcome.note ?? '')
         } catch (error) {
           const aborted = error instanceof DOMException && error.name === 'AbortError'
           current.state = aborted ? 'cancelled' : 'failed'
@@ -94,7 +94,7 @@
       const phase = item.progress?.phase
       return phase === 'hashing' ? 'Checking for duplicates…' : phase === 'preparing' ? 'Making preview…' : phase === 'finishing' ? 'Finishing…' : `${percent(item)}%`
     }
-    return { queued: 'Waiting', done: 'Uploaded', duplicate: item.message, failed: item.message, cancelled: 'Cancelled', working: '' }[item.state]
+    return { queued: 'Waiting', done: item.message || 'Uploaded', duplicate: item.message, failed: item.message, cancelled: 'Cancelled', working: '' }[item.state]
   }
 
   const size = (bytes: number) =>

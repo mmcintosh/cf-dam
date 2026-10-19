@@ -46,34 +46,61 @@
   let suggestions = $state<{ id: string; path: string; total: number }[]>([])
   let suggestionIndex = $state(-1)
   let suggestTimer: ReturnType<typeof setTimeout> | undefined
+  let suggesting: AbortController | undefined
   const leaf = (path: string) => path.split(' › ').at(-1) ?? path
+
+  // The server's splitPath and normalizeName (packages/api/src/catalog/keywords.ts), so a typed
+  // "Places > Norway" is the path it will be saved as. Keep the two the same.
+  const SEPARATORS = /\s*(?:>|\||›)\s*/
+  const toPath = (input: string) =>
+    input
+      .split(SEPARATORS)
+      .map((name) => name.normalize('NFKC').replace(/\s+/g, ' ').trim())
+      .filter((name) => name.length > 0 && name.length <= 80)
+      .slice(0, 12)
+      .join(' › ')
 
   function suggest() {
     clearTimeout(suggestTimer)
+    suggesting?.abort()
     const q = tagInput.trim()
     if (q.length < 1) {
       suggestions = []
       return
     }
     suggestTimer = setTimeout(async () => {
-      const found = await api<{ keywords: { id: string; path: string; total: number }[] }>(`/api/tags?q=${encodeURIComponent(q)}`).catch(() => ({ keywords: [] }))
-      suggestions = found.keywords.filter((k) => !tags.includes(k.path)).slice(0, 8)
-      suggestionIndex = -1
+      const request = (suggesting = new AbortController())
+      try {
+        const found = await api<{ keywords: { id: string; path: string; total: number }[] }>(`/api/tags?q=${encodeURIComponent(q)}`, { signal: request.signal })
+        // An answer to what was typed before, or after a pick, is ignored.
+        if (request !== suggesting || tagInput.trim() !== q) return
+        suggestions = found.keywords.filter((k) => !tags.includes(k.path)).slice(0, 8)
+        suggestionIndex = -1
+      } catch {
+        // Cancelled, or no suggestions to be had: typing still works.
+      }
     }, 120)
   }
 
-  function pickTag(path: string) {
-    if (path && !tags.some((t) => t.toLowerCase() === path.toLowerCase())) {
-      tags = [...tags, path]
-      void save({ tags })
-    }
-    tagInput = ''
+  function closeSuggestions() {
+    clearTimeout(suggestTimer)
+    suggesting?.abort()
+    suggesting = undefined
     suggestions = []
+    suggestionIndex = -1
   }
 
-  function setLabel(value: Label) {
+  function pickTag(typed: string) {
+    const path = toPath(typed)
+    if (path && !tags.some((t) => t.toLowerCase() === path.toLowerCase())) void saveTags([...tags, path])
+    tagInput = ''
+    closeSuggestions()
+  }
+
+  async function setLabel(value: Label) {
+    const before = label
     label = label === value ? null : value
-    void save({ label })
+    if (!(await save({ label }))) label = before
   }
   let ai = $state<AiSuggestions>({ ...props.ai })
   let aiTags = $state<string[]>([...props.aiTags])
@@ -102,39 +129,85 @@
   }
 
   async function accept(fields: ('alt' | 'caption' | 'tags')[], overwrite = false) {
-    const result = await api<{ alt: string | null; caption: string | null; tags: TagRow[] }>(`/api/assets/${props.assetId}/ai/accept`, {
-      method: 'POST',
-      body: JSON.stringify({ fields, overwrite }),
-    })
-    alt = result.alt ?? ''
-    caption = result.caption ?? ''
-    applyTags(result.tags)
+    try {
+      const result = await api<{ alt: string | null; caption: string | null; tags: TagRow[] }>(`/api/assets/${props.assetId}/ai/accept`, {
+        method: 'POST',
+        body: JSON.stringify({ fields, overwrite }),
+      })
+      alt = saved.alt = result.alt ?? ''
+      caption = saved.caption = result.caption ?? ''
+      applyTags(result.tags)
+    } catch (e) {
+      failed(e, "The suggestion wasn't kept")
+    }
   }
 
   async function keepTag(tag: string) {
-    tags = [...tags, tag]
+    const before = aiTags
     aiTags = aiTags.filter((t) => t !== tag)
-    await save({ tags })
+    if (!(await saveTags([...tags, tag]))) aiTags = before
   }
 
   async function dropTag(tag: string) {
+    const before = aiTags
     aiTags = aiTags.filter((t) => t !== tag)
-    await api(`/api/assets/${props.assetId}/ai/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' })
+    try {
+      applyTags((await api<{ tags: TagRow[] }>(`/api/assets/${props.assetId}/ai/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' })).tags)
+    } catch (e) {
+      aiTags = before
+      failed(e, `${leaf(tag)} wasn't dropped`)
+    }
   }
   let status = $state<'idle' | 'saving' | 'saved' | 'error'>('idle')
   let message = $state('')
 
-  async function save(patch: Record<string, unknown>) {
-    if (!props.canEdit) return
+  function failed(e: unknown, what: string) {
+    status = 'error'
+    message = `${what}: ${e instanceof Error ? e.message : 'try again.'}`
+  }
+
+  /** Save a change. False when it didn't save: the caller puts back what the server has. */
+  async function save(patch: Record<string, unknown>): Promise<boolean> {
+    if (!props.canEdit) return false
     status = 'saving'
     try {
       await api(`/api/assets/${props.assetId}`, { method: 'PATCH', body: JSON.stringify(patch) })
       status = 'saved'
       setTimeout(() => status === 'saved' && (status = 'idle'), 1500)
+      return true
     } catch (e) {
-      status = 'error'
-      message = e instanceof Error ? e.message : 'Could not save.'
+      failed(e, "That wasn't saved")
+      return false
     }
+  }
+
+  /** Title, caption and alt text as the server has them. */
+  const saved = { title: props.title ?? '', caption: props.caption ?? '', alt: props.alt ?? '' }
+  async function saveText(field: 'title' | 'caption' | 'alt') {
+    const value = { title, caption, alt }[field]
+    if (await save({ [field]: value })) saved[field] = value
+    else if (field === 'title') title = saved.title
+    else if (field === 'caption') caption = saved.caption
+    else alt = saved.alt
+  }
+
+  /**
+   * Save the keyword list, then show it as the server has it: an existing keyword's own spelling, the
+   * levels a typed path created. On failure, the list as it was.
+   */
+  async function saveTags(next: string[]): Promise<boolean> {
+    const before = tags
+    tags = next
+    if (!(await save({ tags: next }))) {
+      tags = before
+      return false
+    }
+    try {
+      applyTags((await api<{ tags: TagRow[] }>(`/api/assets/${props.assetId}`)).tags)
+    } catch {
+      // Saved; the typed spelling shows until the page is reloaded.
+    }
+    return true
   }
 
   function addTag(event: KeyboardEvent) {
@@ -149,7 +222,7 @@
       return
     }
     if (event.key === 'Escape') {
-      suggestions = []
+      closeSuggestions()
       return
     }
     if (event.key !== 'Enter' && event.key !== ',') return
@@ -159,8 +232,7 @@
   }
 
   function removeTag(tag: string) {
-    tags = tags.filter((t) => t !== tag)
-    void save({ tags })
+    void saveTags(tags.filter((t) => t !== tag))
   }
 
   let albums = $state<{ id: string; name: string }[]>([])
@@ -168,18 +240,24 @@
   let albumMessage = $state('')
 
   onMount(async () => {
-    if (props.canEdit) albums = (await api<{ albums: { id: string; name: string }[] }>('/api/albums')).albums
+    if (props.canEdit) albums = (await api<{ albums: { id: string; name: string }[] }>('/api/albums').catch(() => ({ albums: [] }))).albums
   })
 
   async function addToAlbum() {
     if (!albumId) return
-    await api(`/api/albums/${albumId}/items`, { method: 'POST', body: JSON.stringify({ assetIds: [props.assetId] }) })
-    albumMessage = `Added to ${albums.find((a) => a.id === albumId)?.name ?? 'the album'}.`
+    const name = albums.find((a) => a.id === albumId)?.name ?? 'the album'
+    try {
+      await api(`/api/albums/${albumId}/items`, { method: 'POST', body: JSON.stringify({ assetIds: [props.assetId] }) })
+      albumMessage = `Added to ${name}.`
+    } catch (e) {
+      albumMessage = `Not added to ${name}: ${e instanceof Error ? e.message : 'try again.'}`
+    }
   }
 
-  function rate(value: number) {
+  async function rate(value: number) {
+    const before = rating
     rating = rating === value ? 0 : value
-    void save({ rating })
+    if (!(await save({ rating }))) rating = before
   }
 </script>
 
@@ -216,15 +294,15 @@
 
   <div class="field">
     <label for="title">Title</label>
-    <input id="title" type="text" bind:value={title} disabled={!props.canEdit} onchange={() => save({ title })} />
+    <input id="title" type="text" bind:value={title} disabled={!props.canEdit} onchange={() => saveText('title')} />
   </div>
   <div class="field">
     <label for="caption">Caption</label>
-    <textarea id="caption" rows="3" bind:value={caption} disabled={!props.canEdit} onchange={() => save({ caption })}></textarea>
+    <textarea id="caption" rows="3" bind:value={caption} disabled={!props.canEdit} onchange={() => saveText('caption')}></textarea>
   </div>
   <div class="field">
     <label for="alt">Alt text</label>
-    <input id="alt" type="text" bind:value={alt} disabled={!props.canEdit} onchange={() => save({ alt })} placeholder="Describe the image for people who can't see it" />
+    <input id="alt" type="text" bind:value={alt} disabled={!props.canEdit} onchange={() => saveText('alt')} placeholder="Describe the image for people who can't see it" />
   </div>
   <div class="field">
     <span class="label">Tags</span>
@@ -244,7 +322,7 @@
             bind:value={tagInput}
             onkeydown={addTag}
             oninput={suggest}
-            onblur={() => setTimeout(() => (suggestions = []), 150)}
+            onblur={() => setTimeout(closeSuggestions, 150)}
             aria-label="Add a keyword"
             aria-autocomplete="list"
           />

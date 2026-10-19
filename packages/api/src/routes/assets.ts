@@ -5,7 +5,7 @@ import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
-import { acceptSuggestions, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
+import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
@@ -117,6 +117,7 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
     }
     const needed = BULK_PERMISSION[bulk.action]
     if (!principal.permissions.has(needed)) return c.json({ error: 'forbidden', permission: needed }, 403)
+    if (bulk.action === 'ai-queue' && !(await aiAvailable(c.env))) return c.json({ error: 'ai_off', message: c.env.AI ? AI_OFF : 'This deployment has no Workers AI binding.' }, 409)
     const changed = await applyBulk(c.env.DB, ids, bulk)
     if (bulk.action === 'gps') {
       if (bulk.lat !== null) await fillPlacesFromGps(c.env, ids.slice(0, MAX_BULK))

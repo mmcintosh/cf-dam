@@ -44,6 +44,8 @@
   }
   type Label = 'red' | 'yellow' | 'green' | 'blue' | 'purple'
   const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
+  /** The most one bulk edit takes (the server's MAX_BULK). */
+  const MAX_BULK = 500
   let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
@@ -76,7 +78,8 @@
     const mm = String(Math.floor((t % 3600) / 60)).padStart(h ? 2 : 1, '0')
     return `${h ? `${h}:` : ''}${mm}:${String(t % 60).padStart(2, '0')}`
   }
-  // Hovering a video flicks through its contact sheet (four frames in a 2×2 grid).
+  // Hovering a video flicks through its contact sheet (four frames in a 2×2 grid). Mouse only: on a
+  // touch screen the pointer "enters" on a tap, which opens the loupe anyway.
   let scrubbing = $state<string | null>(null)
   let scrubFrame = $state(0)
   let scrubTimer: ReturnType<typeof setInterval> | undefined
@@ -133,7 +136,10 @@
       openLoupe(index)
     }
   }
-  const selectAll = () => (selected = new Set(assets.map((a) => a.id)))
+  function selectAll() {
+    selected = new Set(assets.slice(0, MAX_BULK).map((a) => a.id))
+    if (assets.length > MAX_BULK) say(`Selected the first ${MAX_BULK}: edits go ${MAX_BULK} at a time`)
+  }
   const clearSelection = () => ((selected = new Set()), (anchor = null))
 
   // ── Edits (optimistic, then the API) ─────────────────────────────────────────
@@ -147,6 +153,10 @@
   async function bulk(body: Record<string, unknown>, ids = targets()): Promise<boolean> {
     if (!canEdit && body.action !== 'delete' && body.action !== 'ai-queue') return false
     if (ids.length === 0) return false
+    if (ids.length > MAX_BULK) {
+      say(`Select at most ${MAX_BULK} at a time (${ids.length} selected)`)
+      return false
+    }
     try {
       await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids, ...body }) })
       return true
@@ -156,17 +166,29 @@
     }
   }
 
+  /**
+   * Show a rating, flag or label at once, then save it. If the save fails, the photos get back what they
+   * had (bulk() says why), unless they've been changed again since.
+   */
+  async function edit<K extends 'rating' | 'flag' | 'label'>(ids: string[], field: K, value: Asset[K]): Promise<boolean> {
+    // Nothing to change, or too many (bulk() says so): nothing is shown either.
+    if (ids.length === 0 || ids.length > MAX_BULK) return bulk({ action: field }, ids)
+    const before = new Map(assets.filter((a) => ids.includes(a.id)).map((a) => [a.id, a[field]]))
+    assets = assets.map((a) => (ids.includes(a.id) ? { ...a, [field]: value } : a))
+    if (await bulk({ action: field, [field]: value }, ids)) return true
+    assets = assets.map((a) => (before.has(a.id) && a[field] === value ? { ...a, [field]: before.get(a.id) } : a))
+    return false
+  }
+
   async function rate(value: number) {
     const ids = targets()
     const rating = value === 0 ? null : value
-    assets = assets.map((a) => (ids.includes(a.id) ? { ...a, rating } : a))
-    if (await bulk({ action: 'rating', rating }, ids)) say(rating ? `${'★'.repeat(rating)} on ${ids.length}` : `Rating cleared on ${ids.length}`)
+    if (await edit(ids, 'rating', rating)) say(rating ? `${'★'.repeat(rating)} on ${ids.length}` : `Rating cleared on ${ids.length}`)
   }
 
-  async function setFlag(flag: 'pick' | 'reject' | null) {
-    const ids = targets()
-    assets = assets.map((a) => (ids.includes(a.id) ? { ...a, flag } : a))
-    if (await bulk({ action: 'flag', flag }, ids)) say(flag ? `${flag === 'pick' ? 'Picked' : 'Rejected'} ${ids.length}` : `Flag cleared on ${ids.length}`)
+  async function setFlag(flag: 'pick' | 'reject' | null, ids = targets()) {
+    if (!(await edit(ids, 'flag', flag))) return
+    say(flag ? `${flag === 'pick' ? 'Picked' : 'Rejected'} ${ids.length}` : `Flag cleared on ${ids.length}`)
     if (loupe !== null && flag) next(1)
   }
 
@@ -175,8 +197,7 @@
     const ids = targets()
     const first = assets.find((a) => a.id === ids[0])
     const label = value && first?.label === value && ids.length === 1 ? null : value
-    assets = assets.map((a) => (ids.includes(a.id) ? { ...a, label } : a))
-    if (await bulk({ action: 'label', label }, ids)) say(label ? `${labelNames[label]} on ${ids.length}` : `Label cleared on ${ids.length}`)
+    if (await edit(ids, 'label', label)) say(label ? `${labelNames[label]} on ${ids.length}` : `Label cleared on ${ids.length}`)
   }
 
   async function addTags() {
@@ -301,21 +322,25 @@
       event.preventDefault()
       return
     }
-    if (!grid?.contains(document.activeElement) && document.activeElement !== document.body) return
+    const inGrid = grid?.contains(document.activeElement) ?? false
+    if (!inGrid && document.activeElement !== document.body) return
+    // From the page itself no tile shows focus: arrows bring it to the grid, and edits need a
+    // selection to act on, never the tile that was focused last.
+    const editable = canEdit && (inGrid || selected.size > 0)
     const cols = columnsGuess()
     if (key === 'arrowright') focus = Math.min(focus + 1, assets.length - 1)
     else if (key === 'arrowleft') focus = Math.max(focus - 1, 0)
     else if (key === 'arrowdown') focus = Math.min(focus + cols, assets.length - 1)
     else if (key === 'arrowup') focus = Math.max(focus - cols, 0)
-    else if (key === 'enter') openLoupe(focus)
-    else if (key === ' ') toggle(focus)
+    else if (key === 'enter' && inGrid) openLoupe(focus)
+    else if (key === ' ' && inGrid) toggle(focus)
     else if (key === 'escape') clearSelection()
     else if (key === 'a' && event.shiftKey) selectAll()
-    else if (/^[0-5]$/.test(key) && canEdit) rate(Number(key))
-    else if (LABEL_KEYS[key] && canEdit) setLabel(LABEL_KEYS[key]!)
-    else if (key === 'p' && canEdit) setFlag('pick')
-    else if (key === 'x' && canEdit) setFlag('reject')
-    else if (key === 'u' && canEdit) setFlag(null)
+    else if (/^[0-5]$/.test(key) && editable) rate(Number(key))
+    else if (LABEL_KEYS[key] && editable) setLabel(LABEL_KEYS[key]!)
+    else if (key === 'p' && editable) setFlag('pick')
+    else if (key === 'x' && editable) setFlag('reject')
+    else if (key === 'u' && editable) setFlag(null)
     else return
     event.preventDefault()
     if (key.startsWith('arrow')) {
@@ -336,6 +361,7 @@
     observer.observe(sentinel)
     return () => observer.disconnect()
   })
+  onMount(() => () => clearInterval(scrubTimer))
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -354,14 +380,17 @@
       title={asset.title ?? asset.filename}
       onclick={(e) => onTileClick(e, index)}
       onfocus={() => (focus = index)}
-      onmouseenter={() => asset.renditions.includes('sheet') && scrub(asset.id)}
-      onmouseleave={() => scrubbing === asset.id && scrub(null)}
+      onpointerenter={(e) => e.pointerType === 'mouse' && asset.renditions.includes('sheet') && scrub(asset.id)}
+      onpointerleave={() => scrubbing === asset.id && scrub(null)}
     >
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {#if asset.renditions.includes('thumb')}
         <img src={`/api/assets/${asset.id}/renditions/thumb`} alt={asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
         <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? 'No preview' : asset.status === 'queued' ? 'Queued' : 'Processing…'}</span></span>
+      {/if}
+      {#if scrubbing === asset.id}
+        <span class="scrub" style={`background-image:url(/api/assets/${asset.id}/renditions/sheet);background-position:${scrubFrame % 2 ? '100%' : '0%'} ${scrubFrame > 1 ? '100%' : '0%'}`}></span>
       {/if}
       <button
         class="tick"
@@ -373,9 +402,6 @@
           e.shiftKey ? selectRange(index) : toggle(index)
         }}>✓</button
       >
-      {#if scrubbing === asset.id}
-        <span class="scrub" style={`background-image:url(/api/assets/${asset.id}/renditions/sheet);background-position:${scrubFrame % 2 ? '100%' : '0%'} ${scrubFrame > 1 ? '100%' : '0%'}`}></span>
-      {/if}
       {#if asset.video}<span class="duration">▶ {asset.video.duration ? clock(asset.video.duration) : ''}</span>{/if}
       {#if asset.flag === 'pick'}<span class="flag pick" title="Pick">⚑</span>{/if}
       {#if asset.label}<span class={`label-strip label-${asset.label}`} title={labelNames[asset.label]}></span>{/if}
@@ -394,6 +420,7 @@
 {#if selected.size > 0 && loupe === null && !compare}
   <div class="bulkbar card" role="toolbar" aria-label="Selection actions">
     <strong>{selected.size} selected</strong>
+    {#if selected.size > MAX_BULK}<span class="muted">edits take {MAX_BULK} at a time</span>{/if}
     {#if canEdit}
       <span class="group">
         {#each [1, 2, 3, 4, 5] as star (star)}<button class="icon" title={`${star} star${star > 1 ? 's' : ''}`} onclick={() => rate(star)}>{star}★</button>{/each}
@@ -439,7 +466,7 @@
     {#if selected.size >= 2 && selected.size <= 4}<button class="btn btn-sm" onclick={openCompare}>Compare</button>{/if}
     {#if canDelete}<button class="btn btn-sm btn-danger" onclick={remove}>Delete</button>{/if}
     <span class="spacer"></span>
-    <button class="btn btn-sm" onclick={selectAll}>Select all {assets.length}</button>
+    <button class="btn btn-sm" onclick={selectAll} title={assets.length > MAX_BULK ? `Edits go ${MAX_BULK} at a time` : undefined}>Select {assets.length > MAX_BULK ? `first ${MAX_BULK}` : `all ${assets.length}`}</button>
     <button class="btn btn-sm" onclick={clearSelection}>Clear</button>
   </div>
 {/if}
@@ -508,8 +535,8 @@
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}
                 <span>
-                  <button class="icon" class:on={asset.flag === 'pick'} onclick={() => bulk({ action: 'flag', flag: 'pick' }, [id]).then(() => (assets = assets.map((a) => (a.id === id ? { ...a, flag: 'pick' } : a))))}>⚑ Pick</button>
-                  <button class="icon" class:on={asset.flag === 'reject'} onclick={() => bulk({ action: 'flag', flag: 'reject' }, [id]).then(() => (assets = assets.map((a) => (a.id === id ? { ...a, flag: 'reject' } : a))))}>✕ Reject</button>
+                  <button class="icon" class:on={asset.flag === 'pick'} onclick={() => setFlag('pick', [id])}>⚑ Pick</button>
+                  <button class="icon" class:on={asset.flag === 'reject'} onclick={() => setFlag('reject', [id])}>✕ Reject</button>
                 </span>
               {/if}
             </figcaption>
@@ -617,6 +644,7 @@
     inset: 0;
     background-size: 200% 200%;
     background-repeat: no-repeat;
+    pointer-events: none;
   }
   /* Bottom right, left of the storage dot: the bottom left carries the name on hover. */
   .duration {

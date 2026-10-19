@@ -150,6 +150,13 @@ describe('AI review', () => {
     expect(await bulk.json()).toEqual({ changed: 1 })
     const backfill = (await (await h.fetch('/api/ai/backfill', { method: 'POST', cookie: admin })).json()) as { queued: number }
     expect(backfill.queued).toBe(1) // b; a is already queued
+    // Switched off, nothing would analyse them: queueing is refused rather than left waiting.
+    await h.fetch('/api/ai/settings', { method: 'PUT', body: JSON.stringify({ enabled: false }), cookie: admin })
+    expect((await h.fetch('/api/assets/bulk', { ...json({ ids: [a], action: 'ai-queue' }), cookie: admin })).status).toBe(409)
+    const off = await h.fetch('/api/ai/backfill', { method: 'POST', cookie: admin })
+    expect(off.status).toBe(409)
+    expect(await off.json()).toMatchObject({ error: 'ai_off' })
+    await h.fetch('/api/ai/settings', { method: 'PUT', body: JSON.stringify({ enabled: true }), cookie: admin })
     await runSweep(h.env)
     expect((await asset(admin, a)).ai.status).toBe('done')
     expect((await asset(admin, b)).ai.status).toBe('done')

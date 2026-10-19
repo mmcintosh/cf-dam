@@ -56,16 +56,26 @@
     }
   }
 
+  // Delete asks for a second click, which lapses after a few seconds or when the button loses focus.
   let confirming = $state<string | null>(null)
+  let lapse: ReturnType<typeof setTimeout> | undefined
+  function arm(id: string | null) {
+    clearTimeout(lapse)
+    confirming = id
+    if (id) lapse = setTimeout(() => (confirming = null), 4000)
+  }
   async function remove(preset: Preset) {
-    if (confirming !== preset.id) {
-      confirming = preset.id
-      return
+    if (confirming !== preset.id) return arm(preset.id)
+    arm(null)
+    error = ''
+    message = ''
+    try {
+      await api(`/api/presets/${preset.id}`, { method: 'DELETE' })
+      presets = presets.filter((p) => p.id !== preset.id)
+      if (editing === preset.id) editing = null
+    } catch (e) {
+      error = `“${preset.name}” wasn't deleted: ${e instanceof Error ? e.message : 'try again.'}`
     }
-    await api(`/api/presets/${preset.id}`, { method: 'DELETE' })
-    presets = presets.filter((p) => p.id !== preset.id)
-    confirming = null
-    if (editing === preset.id) editing = null
   }
 
   const summary = (p: Preset) =>
@@ -91,7 +101,7 @@
       </div>
       {#if props.canEdit}
         <button class="btn btn-sm" type="button" onclick={() => start(preset)}>Edit</button>
-        <button class="btn btn-sm btn-danger" type="button" onclick={() => remove(preset)}>{confirming === preset.id ? 'Click again to delete' : 'Delete'}</button>
+        <button class="btn btn-sm btn-danger" type="button" onclick={() => remove(preset)} onblur={() => confirming === preset.id && arm(null)}>{confirming === preset.id ? 'Click again to delete' : 'Delete'}</button>
       {/if}
     </div>
   {/each}
@@ -100,6 +110,7 @@
     <div><button class="btn btn-primary" type="button" onclick={() => start(null)}>New preset</button></div>
   {/if}
   {#if message}<p class="alert alert-success">{message}</p>{/if}
+  {#if error && editing === null}<div class="alert alert-error">{error}</div>{/if}
 
   {#if editing !== null}
     <form class="card stack" onsubmit={(e) => (e.preventDefault(), save())}>

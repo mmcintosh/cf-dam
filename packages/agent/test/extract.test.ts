@@ -53,6 +53,24 @@ describe('rendering', () => {
   })
 })
 
+describe('contact sheets', () => {
+  it('keeps each frame whole, in tiles of the clip’s own shape', async () => {
+    // A portrait frame, red at the top and blue at the bottom: a 16:9 crop would keep neither.
+    const frame = await sharp({ create: { width: 270, height: 480, channels: 3, background: '#00f' } })
+      .composite([{ input: { create: { width: 270, height: 60, channels: 3, background: '#f00' } }, top: 0, left: 0 }])
+      .jpeg()
+      .toBuffer()
+    const sheet = await renderSheet([frame, frame, frame, frame])
+    const { data, info } = await sharp(sheet).raw().toBuffer({ resolveWithObject: true })
+    expect([info.width, info.height]).toEqual([540, 960])
+    const pixel = (x: number, y: number) => [...data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3)]
+    for (const [x, y] of [[135, 10], [405, 490]]) expect(pixel(x, y)[0]).toBeGreaterThan(200) // each tile's top is red
+    expect(pixel(135, 470)[2]).toBeGreaterThan(200) // and its bottom blue
+    const landscape = await sharp({ create: { width: 480, height: 270, channels: 3, background: '#888' } }).jpeg().toBuffer()
+    expect(await sharp(await renderSheet([landscape, landscape, landscape, landscape])).metadata()).toMatchObject({ width: 960, height: 540 })
+  })
+})
+
 /**
  * Video fixtures, made with the agent's video image:
  *   ffmpeg -f lavfi -i testsrc2=duration=6:size=480x270:rate=25 -c:v libx264 -pix_fmt yuv420p -crf 38 \
@@ -97,6 +115,6 @@ describe('videos', () => {
     const poster = await render(x.source!, x.orientation)
     expect(poster.height).toBeGreaterThan(poster.width) // turned upright
     const sheet = await sharp(await renderSheet(x.frames!)).metadata()
-    expect([sheet.format, sheet.width, sheet.height]).toEqual(['webp', 960, 540])
+    expect([sheet.format, sheet.width, sheet.height]).toEqual(['webp', 540, 960]) // portrait tiles for a portrait clip
   })
 })

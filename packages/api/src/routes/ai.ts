@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
+import { AI_OFF, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
 import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -43,6 +43,8 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
 /** Queue every photo that has never been analysed (or failed). The sweep works through them. */
 aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
   if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: 'This deployment has no Workers AI binding.' }, 409)
+  // Queued while switched off, photos would wait with nothing to analyse them.
+  if (!(await getAiSettings(c.env.DB)).enabled) return c.json({ error: 'ai_off', message: AI_OFF }, 409)
   const queued = await queueForAi(c.env.DB, 'unanalysed')
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.backfill_queued', details: { queued } })
   return c.json({ queued, stats: await aiStats(c.env.DB) })

@@ -24,6 +24,8 @@
   let props: Props = $props()
 
   let values = $state<Record<string, string>>(Object.fromEntries(props.fields.map((f) => [f.key, props.values[f.key] ?? ''])))
+  /** What the server has: a field that fails to save goes back to it. */
+  let saved = $state<Record<string, string>>({ ...values })
   let fromGps = $state(props.placeFromGps)
   const gpsHint = $derived(`${props.fields.filter((f) => fromGps.includes(f.key)).map((f) => f.label.toLowerCase()).join(', ')} from GPS`)
   let status = $state('')
@@ -33,28 +35,39 @@
   // Open the groups that have something in them; Rights always, since that's what people come for.
   const initiallyOpen = (group: string) => group === 'Rights' || props.fields.some((f) => f.group === group && props.values[f.key])
 
+  const label = (key: string) => props.fields.find((f) => f.key === key)?.label ?? key
+
   async function save(key: string) {
     error = ''
     status = 'Saving…'
+    const value = values[key]!.trim()
     try {
-      await api(`/api/assets/${props.assetId}`, { method: 'PATCH', body: JSON.stringify({ iptc: { [key]: values[key]!.trim() || null } }) })
+      await api(`/api/assets/${props.assetId}`, { method: 'PATCH', body: JSON.stringify({ iptc: { [key]: value || null } }) })
+      saved[key] = value
       fromGps = fromGps.filter((k) => k !== key)
       status = 'Saved'
       setTimeout(() => status === 'Saved' && (status = ''), 1500)
     } catch (e) {
       status = ''
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = `${label(key)} wasn't saved (“${value}”): ${e instanceof Error ? e.message : 'try again.'}`
+      values[key] = saved[key]!
     }
   }
 
   async function applyPreset(id: string, overwrite: boolean) {
     if (!id) return
-    await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids: [props.assetId], action: 'preset', presetId: id, overwrite }) })
-    const fresh = await api<{ iptc: Record<string, string | null>; placeFromGps: string[] }>(`/api/assets/${props.assetId}`)
-    values = Object.fromEntries(props.fields.map((f) => [f.key, fresh.iptc[f.key] ?? '']))
-    fromGps = fresh.placeFromGps
-    status = 'Preset applied'
-    setTimeout(() => (status = ''), 1500)
+    error = ''
+    try {
+      await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids: [props.assetId], action: 'preset', presetId: id, overwrite }) })
+      const fresh = await api<{ iptc: Record<string, string | null>; placeFromGps: string[] }>(`/api/assets/${props.assetId}`)
+      values = Object.fromEntries(props.fields.map((f) => [f.key, fresh.iptc[f.key] ?? '']))
+      saved = { ...values }
+      fromGps = fresh.placeFromGps
+      status = 'Preset applied'
+      setTimeout(() => (status = ''), 1500)
+    } catch (e) {
+      error = `The preset wasn't applied: ${e instanceof Error ? e.message : 'try again.'}`
+    }
   }
 </script>
 

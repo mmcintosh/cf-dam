@@ -20,7 +20,8 @@ export interface PartTarget {
   size: number
 }
 
-export type UploadOutcome = { kind: 'uploaded'; assetId: string } | { kind: 'duplicate'; assetId: string }
+/** `note`: something worth a quiet word, such as a preview that couldn't be made or sent. */
+export type UploadOutcome = { kind: 'uploaded'; assetId: string; note?: string } | { kind: 'duplicate'; assetId: string }
 
 export interface Progress {
   phase: 'hashing' | 'preparing' | 'uploading' | 'finishing'
@@ -60,7 +61,23 @@ async function makeRendition(file: Blob, longEdge: number, quality: number): Pro
   const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale))
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
-  return canvas.convertToBlob({ type: 'image/webp', quality })
+  return encode(canvas, quality)
+}
+
+/** WebP, or JPEG where the browser can't write WebP (Safari falls back to PNG, often too big to send). */
+async function encode(canvas: OffscreenCanvas, quality: number): Promise<Blob> {
+  const webp = await canvas.convertToBlob({ type: 'image/webp', quality })
+  return webp.type === 'image/webp' ? webp : canvas.convertToBlob({ type: 'image/jpeg', quality })
+}
+
+/** Send a rendition the browser made. False when it didn't arrive: the upload goes on without it. */
+async function sendRendition(uploadId: string, name: string, blob: Blob, signal?: AbortSignal): Promise<boolean> {
+  try {
+    return (await fetch(`/api/uploads/${uploadId}/renditions/${name}`, { method: 'PUT', body: blob, signal })).ok
+  } catch (error) {
+    if (signal?.aborted) throw error
+    return false
+  }
 }
 
 interface VideoFrames {
@@ -74,44 +91,68 @@ interface VideoFrames {
 /**
  * The Worker can't decode video, so the browser makes the poster (a frame 10% in) and a 2×2 contact
  * sheet, and reads the length and size. Null when this browser can't play the codec (HEVC in some).
+ * The sheet's tiles have the clip's own shape within 480×480, like the agent's (render.ts renderSheet).
+ * The element is attached (hidden), muted and inline: iOS Safari loads and seeks a detached video
+ * slowly or not at all, and each step gives up after a few seconds rather than stalling the upload.
  */
 async function videoFrames(file: File): Promise<VideoFrames | null> {
   const url = URL.createObjectURL(file)
   const video = document.createElement('video')
   video.muted = true
+  video.playsInline = true
+  video.setAttribute('playsinline', '')
   video.preload = 'auto'
-  video.src = url
-  const once = (event: string) =>
+  video.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none'
+  document.body.appendChild(video)
+  const once = (event: string, ms: number) =>
     new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout')), 15_000)
-      video.addEventListener(event, () => (clearTimeout(timer), resolve()), { once: true })
-      video.addEventListener('error', () => (clearTimeout(timer), reject(new Error('unplayable'))), { once: true })
+      const done = (fail?: Error) => {
+        clearTimeout(timer)
+        video.removeEventListener(event, ok)
+        video.removeEventListener('error', bad)
+        if (fail) reject(fail)
+        else resolve()
+      }
+      const ok = () => done()
+      const bad = () => done(new Error('unplayable'))
+      const timer = setTimeout(() => done(new Error('timeout')), ms)
+      video.addEventListener(event, ok)
+      video.addEventListener('error', bad)
     })
   try {
-    await once('loadeddata')
+    const loaded = once('loadeddata', 8_000)
+    video.src = url
+    // iOS may not decode a frame until asked to play; muted and inline, it is allowed to.
+    void video.play().then(() => video.pause(), () => {})
+    await loaded
     const { duration, videoWidth: width, videoHeight: height } = video
     if (!width || !height || !Number.isFinite(duration)) return null
     const grab = async (at: number, w: number, h: number) => {
+      const seeked = once('seeked', 5_000)
       video.currentTime = at
-      await once('seeked')
+      await seeked
       const canvas = new OffscreenCanvas(w, h)
-      // Cover the cell: crop to its shape, centred.
-      const scale = Math.max(w / width, h / height)
-      canvas.getContext('2d')!.drawImage(video, (w - width * scale) / 2, (h - height * scale) / 2, width * scale, height * scale)
+      canvas.getContext('2d')!.drawImage(video, 0, 0, w, h)
       return canvas
     }
     const posterScale = Math.min(1, 2048 / Math.max(width, height))
-    const poster = await (await grab(duration * 0.1, Math.round(width * posterScale), Math.round(height * posterScale))).convertToBlob({ type: 'image/webp', quality: 0.82 })
-    const sheetCanvas = new OffscreenCanvas(960, 540)
-    const ctx = sheetCanvas.getContext('2d')!
-    for (const [i, f] of [0.2, 0.4, 0.6, 0.8].entries()) ctx.drawImage(await grab(duration * f, 480, 270), (i % 2) * 480, Math.floor(i / 2) * 270)
-    const sheet = await sheetCanvas.convertToBlob({ type: 'image/webp', quality: 0.78 })
+    const poster = await encode(await grab(duration * 0.1, Math.round(width * posterScale), Math.round(height * posterScale)), 0.82)
+    const tileScale = 480 / Math.max(width, height)
+    const [tw, th] = [Math.max(1, Math.round(width * tileScale)), Math.max(1, Math.round(height * tileScale))]
+    // The sheet is a bonus: without it the video still has its poster.
+    const sheet = await (async () => {
+      const sheetCanvas = new OffscreenCanvas(tw * 2, th * 2)
+      const ctx = sheetCanvas.getContext('2d')!
+      for (const [i, f] of [0.2, 0.4, 0.6, 0.8].entries()) ctx.drawImage(await grab(duration * f, tw, th), (i % 2) * tw, Math.floor(i / 2) * th)
+      return encode(sheetCanvas, 0.78)
+    })().catch(() => null)
     return { poster, sheet, duration, width, height }
   } catch {
     return null
   } finally {
     video.removeAttribute('src')
     video.load()
+    video.remove()
     URL.revokeObjectURL(url)
   }
 }
@@ -176,19 +217,24 @@ export async function uploadFile(
 
   try {
     onProgress({ phase: 'preparing', sent: 0, total: file.size })
-    const video = file.type.startsWith('video/') ? await videoFrames(file) : null
+    // Previews the browser makes are sent first, but a failure with one never stops the original.
+    let note: string | undefined
+    const isVideo = file.type.startsWith('video/')
+    const video = isVideo ? await videoFrames(file) : null
     if (video) {
       const thumb = await makeRendition(video.poster, 480, 0.78).catch(() => null)
       const renditions: [string, Blob | null][] = [['preview', video.poster], ['thumb', thumb], ['sheet', video.sheet]]
       for (const [name, blob] of renditions) {
-        if (blob) await fetch(`/api/uploads/${created.uploadId}/renditions/${name}`, { method: 'PUT', body: blob, signal })
+        if (blob && !(await sendRendition(created.uploadId, name, blob, signal)) && name === 'preview') note = 'Uploaded without a preview'
       }
+    } else if (isVideo) {
+      note = 'Uploaded without a preview (this browser couldn’t read the video)'
     }
     const workerCannotRead = ARCHIVE_CLASSES.has(created.storageClass) || file.size > WORKER_TRANSFORM_LIMIT
     if (workerCannotRead && BROWSER_DECODABLE.has(file.type)) {
       for (const [name, edge, quality] of [['preview', 2048, 0.82], ['thumb', 480, 0.78]] as const) {
         const blob = await makeRendition(file, edge, quality).catch(() => null)
-        if (blob) await fetch(`/api/uploads/${created.uploadId}/renditions/${name}`, { method: 'PUT', body: blob, signal })
+        if ((!blob || !(await sendRendition(created.uploadId, name, blob, signal))) && name === 'preview') note = 'Uploaded without a preview'
       }
     }
 
@@ -237,7 +283,7 @@ export async function uploadFile(
         video: video ? { duration: video.duration, width: video.width, height: video.height } : undefined,
       }),
     )
-    return { kind: 'uploaded', assetId: done.assetId }
+    return { kind: 'uploaded', assetId: done.assetId, note }
   } catch (error) {
     await fetch(`/api/uploads/${created.uploadId}`, { method: 'DELETE' }).catch(() => {})
     throw error

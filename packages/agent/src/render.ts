@@ -11,6 +11,8 @@ sharp.cache(false)
 
 export const PREVIEW = { longEdge: 2048, quality: 82 }
 export const THUMB = { longEdge: 480, quality: 78 }
+/** A contact sheet tile's long edge: the sheet is two tiles each way (cf-dam takes up to 960). */
+const SHEET_TILE = 480
 const ROTATE: Record<number, number> = { 3: 180, 6: 90, 8: 270 }
 
 export interface Rendered {
@@ -23,11 +25,19 @@ export interface Rendered {
   sheet?: Buffer
 }
 
-/** Four video frames in a 2×2 grid, each 480 px wide: the library flips through them on hover. */
+/**
+ * Four video frames in a 2×2 grid, each the clip's own shape within 480×480 (a portrait clip's tiles
+ * are portrait): the library flips through them on hover, each quarter filling a tile of the thumb's
+ * shape, so nothing is cropped or squeezed. The browser uploader makes the same grid.
+ */
 export async function renderSheet(frames: Buffer[]): Promise<Buffer> {
-  const tiles = await Promise.all(frames.map((f) => sharp(f).resize(480, 270, { fit: 'cover' }).toBuffer()))
-  return sharp({ create: { width: 960, height: 540, channels: 3, background: '#000' } })
-    .composite(tiles.map((input, i) => ({ input, left: (i % 2) * 480, top: Math.floor(i / 2) * 270 })))
+  const first = await sharp(frames[0]!).metadata()
+  const scale = SHEET_TILE / Math.max(first.width ?? SHEET_TILE, first.height ?? SHEET_TILE)
+  const w = Math.max(1, Math.round((first.width ?? SHEET_TILE) * scale))
+  const h = Math.max(1, Math.round((first.height ?? SHEET_TILE) * scale))
+  const tiles = await Promise.all(frames.map((f) => sharp(f).resize(w, h, { fit: 'contain', background: '#000' }).toBuffer()))
+  return sharp({ create: { width: w * 2, height: h * 2, channels: 3, background: '#000' } })
+    .composite(tiles.map((input, i) => ({ input, left: (i % 2) * w, top: Math.floor(i / 2) * h })))
     .webp({ quality: 78, effort: 2 })
     .toBuffer()
 }

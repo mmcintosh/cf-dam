@@ -52,6 +52,9 @@ export const AI_MAX_ATTEMPTS = 3
 /** A photo 'running' for longer than this was left by a run that died. */
 export const AI_RUNNING_STALE_MS = 10 * 60_000
 
+/** Why photos can't be queued for analysis while AI review is switched off. */
+export const AI_OFF = 'AI review is switched off. Turn it on in AI settings first.'
+
 /** Whether AI can run at all here: the binding exists and it is switched on. */
 export async function aiAvailable(env: DamBindings): Promise<boolean> {
   return Boolean(env.AI) && (await getAiSettings(env.DB)).enabled

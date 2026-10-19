@@ -34,7 +34,14 @@
   let message = $state('')
   let error = $state('')
   let busy = $state(false)
+  // Delete asks for a second click, which lapses after a few seconds or when the button loses focus.
   let confirmDelete = $state(false)
+  let lapse: ReturnType<typeof setTimeout> | undefined
+  function arm(on: boolean) {
+    clearTimeout(lapse)
+    confirmDelete = on
+    if (on) lapse = setTimeout(() => (confirmDelete = false), 4000)
+  }
 
   // Edit form for the selected keyword.
   let editName = $state('')
@@ -58,7 +65,7 @@
     editParent = k.parentId ?? ''
     editSynonyms = k.synonyms.join(', ')
     mergeInto = ''
-    confirmDelete = false
+    arm(false)
     error = ''
     message = ''
     // Reveal it in the tree.
@@ -127,11 +134,16 @@
     })
   }
 
-  function setOption(key: 'includeOnExport' | 'exportParents' | 'exportSynonyms', value: boolean) {
+  function setOption(key: 'includeOnExport' | 'exportParents' | 'exportSynonyms', box: HTMLInputElement) {
     const k = selected
     if (!k) return
     void run(async () => {
-      await api(`/api/tags/${k.id}`, { method: 'PATCH', body: JSON.stringify({ [key]: value }) })
+      try {
+        await api(`/api/tags/${k.id}`, { method: 'PATCH', body: JSON.stringify({ [key]: box.checked }) })
+      } catch (e) {
+        box.checked = k[key]
+        throw e
+      }
       return 'Saved.'
     })
   }
@@ -149,10 +161,8 @@
   function remove() {
     const k = selected
     if (!k) return
-    if (!confirmDelete) {
-      confirmDelete = true
-      return
-    }
+    if (!confirmDelete) return arm(true)
+    arm(false)
     void run(async () => {
       const result = await api<{ photos: number }>(`/api/tags/${k.id}`, { method: 'DELETE' })
       return `Deleted ${k.path}. Removed from ${plural(result.photos)}.`
@@ -160,11 +170,21 @@
   }
 
   let labelNames = $state<Record<Label, string>>({ ...props.labelNames })
+  /** The names the server has: what the boxes go back to when a save fails. */
+  let savedLabelNames = { ...props.labelNames }
   let labelsSaved = $state('')
+  let labelsError = $state('')
   async function saveLabels() {
-    labelNames = (await api<{ names: Record<Label, string> }>('/api/labels', { method: 'PUT', body: JSON.stringify(labelNames) })).names
-    labelsSaved = 'Saved'
-    setTimeout(() => (labelsSaved = ''), 1500)
+    labelsError = ''
+    try {
+      labelNames = (await api<{ names: Record<Label, string> }>('/api/labels', { method: 'PUT', body: JSON.stringify(labelNames) })).names
+      savedLabelNames = { ...labelNames }
+      labelsSaved = 'Saved'
+      setTimeout(() => (labelsSaved = ''), 1500)
+    } catch (e) {
+      labelsError = `The names weren't saved: ${e instanceof Error ? e.message : 'try again.'}`
+      labelNames = { ...savedLabelNames }
+    }
   }
 </script>
 
@@ -247,9 +267,9 @@
 
         <fieldset class="options">
           <legend class="label">When exporting (XMP, downloads)</legend>
-          <label><input type="checkbox" checked={selected.includeOnExport} onchange={(e) => setOption('includeOnExport', e.currentTarget.checked)} /> Include this keyword</label>
-          <label><input type="checkbox" checked={selected.exportParents} onchange={(e) => setOption('exportParents', e.currentTarget.checked)} /> Include the keywords above it</label>
-          <label><input type="checkbox" checked={selected.exportSynonyms} onchange={(e) => setOption('exportSynonyms', e.currentTarget.checked)} /> Include its synonyms</label>
+          <label><input type="checkbox" checked={selected.includeOnExport} onchange={(e) => setOption('includeOnExport', e.currentTarget)} /> Include this keyword</label>
+          <label><input type="checkbox" checked={selected.exportParents} onchange={(e) => setOption('exportParents', e.currentTarget)} /> Include the keywords above it</label>
+          <label><input type="checkbox" checked={selected.exportSynonyms} onchange={(e) => setOption('exportSynonyms', e.currentTarget)} /> Include its synonyms</label>
           <p class="muted small">Untick "Include this keyword" for organising keywords such as "Places" or "People". Search always sees every level.</p>
         </fieldset>
 
@@ -260,7 +280,7 @@
           </select>
           <button class="btn btn-sm" type="button" onclick={merge} disabled={busy || !mergeInto}>Merge</button>
           <span class="spacer"></span>
-          <button class="btn btn-sm btn-danger" type="button" onclick={remove} disabled={busy}>
+          <button class="btn btn-sm btn-danger" type="button" onclick={remove} onblur={() => confirmDelete && arm(false)} disabled={busy}>
             {confirmDelete ? `Delete from ${plural(selected.total)}? Click again` : 'Delete'}
           </button>
         </div>
@@ -290,6 +310,7 @@
     {#if props.canManageLabels}
       <div class="row"><button class="btn btn-sm" type="button" onclick={saveLabels}>Save names</button><span class="muted small">{labelsSaved}</span></div>
     {/if}
+    {#if labelsError}<p class="alert alert-error">{labelsError}</p>{/if}
   </section>
 </div>
 

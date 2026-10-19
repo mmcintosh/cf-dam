@@ -35,6 +35,11 @@
   let saved = $state('')
   let error = $state('')
   let queueing = $state(false)
+  let queueError = $state('')
+  // What the server last confirmed. A failed save puts the controls back to it (redrawn, so a checkbox
+  // or radio the browser already flipped doesn't keep showing a setting that wasn't saved).
+  let confirmed = { ...props.initialSettings }
+  let redraw = $state(0)
 
   // Before anything has been analysed here, estimate from the measured default (~41 neurons a photo).
   const perPhoto = $derived(stats.usdPerPhoto ?? (41 / 1000) * props.usdPer1000Neurons)
@@ -47,27 +52,35 @@
     try {
       const result = await api<{ settings: Settings }>('/api/ai/settings', { method: 'PUT', body: JSON.stringify(patch) })
       settings = result.settings
+      confirmed = { ...result.settings }
       saved = 'Saved'
       setTimeout(() => (saved = ''), 1500)
     } catch (e) {
       error = e instanceof Error ? e.message : 'Could not save.'
+      settings = { ...confirmed }
+      redraw++
     }
   }
 
   async function backfill() {
     queueing = true
-    error = ''
+    queueError = ''
     try {
       stats = (await api<{ stats: Stats }>('/api/ai/backfill', { method: 'POST' })).stats
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not queue.'
+      queueError = e instanceof Error ? e.message : 'Could not queue.'
     } finally {
       queueing = false
     }
   }
 
   async function refresh() {
-    stats = (await api<{ stats: Stats }>('/api/ai')).stats
+    queueError = ''
+    try {
+      stats = (await api<{ stats: Stats }>('/api/ai')).stats
+    } catch (e) {
+      queueError = e instanceof Error ? e.message : 'Could not refresh.'
+    }
   }
 </script>
 
@@ -93,19 +106,31 @@
     <section class="card row backlog">
       <div>
         <h2>Analyse the back catalogue</h2>
-        <p class="muted">
-          {backlog.toLocaleString()} photos have no suggestions yet. Analysing them all costs {cost(backlog * perPhoto)} in Workers
-          AI usage (the first 10,000 neurons each day are free). They are worked through in the background, a few at a time.
-        </p>
+        {#if settings.enabled}
+          <p class="muted">
+            {backlog.toLocaleString()} photos have no suggestions yet. Analysing them all costs {cost(backlog * perPhoto)} in Workers
+            AI usage (the first 10,000 neurons each day are free). They are worked through in the background, a few at a time.
+          </p>
+        {:else}
+          <p class="muted">{backlog.toLocaleString()} photos have no suggestions yet. AI review is switched off: turn it on below to analyse them.</p>
+        {/if}
+        {#if queueError}<div class="alert alert-error">{queueError}</div>{/if}
       </div>
-      <button class="btn btn-primary" type="button" onclick={backfill} disabled={queueing}>{queueing ? 'Queueing…' : `Queue ${backlog.toLocaleString()}`}</button>
+      {#if settings.enabled}
+        <button class="btn btn-primary" type="button" onclick={backfill} disabled={queueing}>{queueing ? 'Queueing…' : `Queue ${backlog.toLocaleString()}`}</button>
+      {/if}
     </section>
   {:else if stats.queued > 0}
-    <p class="muted">Working through the queue. <button class="link" type="button" onclick={refresh}>Refresh</button></p>
+    <p class="muted">
+      {settings.enabled ? 'Working through the queue.' : 'AI review is switched off: the queue waits until it is on again.'}
+      <button class="link" type="button" onclick={refresh}>Refresh</button>
+    </p>
+    {#if queueError}<div class="alert alert-error">{queueError}</div>{/if}
   {/if}
 
   <section class="card stack">
     <h2>Settings</h2>
+    {#key redraw}
     <label class="check">
       <input type="checkbox" checked={settings.enabled} disabled={!props.canManage} onchange={(e) => save({ enabled: e.currentTarget.checked })} />
       <span><strong>AI review</strong><br /><span class="muted">Off stops all analysis. Suggestions already made are kept.</span></span>
@@ -138,6 +163,7 @@
       ></textarea>
       <span class="muted small">Given to the model with every photo, so its tags fit your archive.</span>
     </div>
+    {/key}
     {#if saved}<span class="muted small">{saved}</span>{/if}
     {#if error}<div class="alert alert-error">{error}</div>{/if}
     {#if !props.canManage}<p class="muted small">Only administrators can change these settings.</p>{/if}

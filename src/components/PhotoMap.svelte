@@ -30,6 +30,13 @@
   let unplacedTotal = $state(0)
   let selected = $state(new Set<string>())
   let message = $state('')
+  /** The "Place … here" button in an open popup: it acts on the selection as it is when clicked. */
+  let placeButton = $state.raw<HTMLButtonElement | null>(null)
+
+  const photos = (n: number) => `${n} ${n === 1 ? 'photo' : 'photos'}`
+  $effect(() => {
+    if (placeButton) placeButton.textContent = `Place ${photos(selected.size)} here`
+  })
 
   const join = (...parts: string[]) => parts.filter(Boolean).join('&')
 
@@ -49,11 +56,17 @@
     ;(async () => {
       const L = (await import('leaflet')).default
       await import('leaflet.markercluster')
-      const [{ points }, list] = await Promise.all([
-        api<{ points: { id: string; lat: number; lng: number }[] }>(`/api/assets/geo${query ? `?${query}` : ''}`),
-        canEdit ? api<{ assets: Unplaced[]; total: number }>(`/api/assets?${join(query, 'gps=none', 'limit=200')}`) : Promise.resolve({ assets: [], total: 0 }),
-      ])
-      count = points.length
+      let points: { id: string; lat: number; lng: number }[]
+      let list: { assets: Unplaced[]; total: number }
+      try {
+        ;[{ points }, list] = await Promise.all([
+          api<{ points: { id: string; lat: number; lng: number }[] }>(`/api/assets/geo${query ? `?${query}` : ''}`),
+          canEdit ? api<{ assets: Unplaced[]; total: number }>(`/api/assets?${join(query, 'gps=none', 'limit=200')}`) : Promise.resolve({ assets: [], total: 0 }),
+        ])
+      } catch (e) {
+        message = e instanceof Error ? e.message : 'Could not load the map.'
+        return
+      }
       unplaced = list.assets
       unplacedTotal = list.total
       if (placeId && canEdit) {
@@ -71,40 +84,54 @@
       }).addTo(map)
 
       const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 })
+      // One pin per photo: placing a photo that already has one ("Move on the map") moves it.
+      const pins = new Map<string, import('leaflet').Marker>()
       const pin = (id: string, lat: number, lng: number) => {
+        const was = pins.get(id)
+        if (was) cluster.removeLayer(was)
         const icon = L.divIcon({ className: 'photo-pin', html: `<img src="/api/assets/${id}/renditions/thumb" alt="" loading="lazy" />`, iconSize: [44, 44] })
-        cluster.addLayer(L.marker([lat, lng], { icon }).on('click', () => (window.location.href = `/assets/${id}`)))
+        const marker = L.marker([lat, lng], { icon }).on('click', () => (window.location.href = `/assets/${id}`))
+        pins.set(id, marker)
+        cluster.addLayer(marker)
       }
       for (const p of points) pin(p.id, p.lat, p.lng)
+      count = pins.size
       map.addLayer(cluster)
       if (points.length > 0) map.fitBounds(cluster.getBounds(), { padding: [40, 40], maxZoom: 13 })
 
       // Placing: click the map with photos selected.
       map.on('click', (event: import('leaflet').LeafletMouseEvent) => {
         if (!canEdit || selected.size === 0) return
-        const ids = [...selected]
         const button = document.createElement('button')
         button.className = 'btn btn-primary btn-sm'
-        button.textContent = `Place ${ids.length} ${ids.length === 1 ? 'photo' : 'photos'} here`
         const popup = L.popup().setLatLng(event.latlng).setContent(button).openOn(map!)
+        placeButton = button
+        popup.on('remove', () => placeButton === button && (placeButton = null))
         button.onclick = async () => {
+          // The selection now, not when the popup opened: it may have changed since.
+          const ids = [...selected]
+          if (ids.length === 0) return map!.closePopup(popup)
           const { lat, lng } = event.latlng.wrap()
           button.disabled = true
           try {
             await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids, action: 'gps', lat, lng }) })
-            for (const id of ids) pin(id, lat, lng)
-            unplaced = unplaced.filter((a) => !ids.includes(a.id))
-            unplacedTotal = Math.max(0, unplacedTotal - ids.length)
-            selected = new Set()
-            count = (count ?? 0) + ids.length
-            const first = await api<{ iptc: { city: string | null; country: string | null } }>(`/api/assets/${ids[0]}`)
-            const where = [first.iptc.city, first.iptc.country].filter(Boolean).join(', ')
-            message = `Placed ${ids.length} ${ids.length === 1 ? 'photo' : 'photos'}${where ? ` · ${where}` : ''}`
-            map!.closePopup(popup)
           } catch (e) {
+            // Nothing changes on the map: the server didn't save it.
             button.disabled = false
             message = e instanceof Error ? e.message : 'Could not place them.'
+            return
           }
+          // Photos that had no pin were waiting in the strip (and in its total); ones that had one moved.
+          const newlyPlaced = ids.filter((id) => !pins.has(id)).length
+          for (const id of ids) pin(id, lat, lng)
+          unplaced = unplaced.filter((a) => !ids.includes(a.id))
+          unplacedTotal = Math.max(0, unplacedTotal - newlyPlaced)
+          selected = new Set()
+          count = pins.size
+          map!.closePopup(popup)
+          const first = await api<{ iptc: { city: string | null; country: string | null } }>(`/api/assets/${ids[0]}`).catch(() => null)
+          const where = first ? [first.iptc.city, first.iptc.country].filter(Boolean).join(', ') : ''
+          message = `Placed ${photos(ids.length)}${where ? ` · ${where}` : ''}`
         }
       })
     })()
