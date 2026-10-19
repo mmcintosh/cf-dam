@@ -14,6 +14,7 @@ const SIGNED_OUT_PAGES = new Set(['/login'])
 /** Pages that need more than being signed in. First matching prefix wins. */
 const PAGE_PERMISSIONS: [string, string][] = [
   ['/admin', 'users:manage'],
+  ['/galleries', 'shares:manage'],
   ['/settings/storage', 'sources:manage'],
   ['/settings/ai', 'ai:run'],
   ['/sources', 'sources:manage'],
@@ -30,6 +31,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.principal = null
   // Served by the Hono routes in src/fetch.ts; never gated behind sign-in.
   if (pathname.startsWith('/.well-known/')) return next()
+  // Client galleries: the link is the key (packages/api/src/routes/gallery.ts).
+  if (pathname.startsWith('/s/')) return next()
 
   if (await setupNeeded(env.DB)) {
     return pathname === '/setup' ? next() : context.redirect('/setup')

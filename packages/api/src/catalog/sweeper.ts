@@ -7,6 +7,7 @@
  *  3. Run queued AI review (in parallel).
  *  4. Fingerprint photos that have no look-alike hash yet (older uploads).
  *  5. Check archived originals with a restore in progress, and mark them restored when ready.
+ *  6. Drop gallery images nobody will be shown again (made with an old watermark or a replaced preview).
  *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
@@ -21,6 +22,7 @@ import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
 import { indexAssets, unindexed } from './search'
+import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
@@ -31,6 +33,7 @@ export const SLICES = {
   ai: { ms: 25_000, queries: 200 },
   hash: { ms: 8_000, queries: 100 },
   restores: { ms: 5_000, queries: 60 },
+  gallery: { ms: 3_000, queries: 10 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -52,10 +55,11 @@ export interface SweepResult {
   restoresChecked: number
   restored: number
   recovered: number
+  pruned: number
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0 }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0 }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -215,6 +219,14 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       }
     }
     await indexAssets(db, restored)
+  }
+
+  // 6. Gallery images made with an old watermark or from a replaced preview.
+  if (slice('gallery').more()) {
+    result.pruned = await pruneGalleryCache(env).catch((error) => {
+      console.warn('[sweep] gallery prune failed', error)
+      return 0
+    })
   }
 
   return result

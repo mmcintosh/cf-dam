@@ -4,7 +4,6 @@ import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags
 import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
-import { SAFE_INLINE_TYPES } from '../catalog/metadata'
 import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
@@ -15,11 +14,10 @@ import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor, renditionStore } from '../storage/connections'
+import { originalResponse } from '../storage/original'
 import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, StorageError, type RestoreTier } from '../storage/types'
 
 export const assetRoutes = new Hono<DamEnv>()
-
-const PLAYABLE_VIDEO: ReadonlySet<string> = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'])
 
 function storageFailure(c: Context<DamEnv>, error: unknown) {
   if (error instanceof StorageError) {
@@ -252,35 +250,8 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
   if (ARCHIVE_CLASSES.has(location.storage_class) && location.state !== 'restored') {
     return c.json({ error: 'archived', message: 'This original is in deep storage. Request a restore first.', storageClass: location.storage_class }, 409)
   }
-  const connection = await getConnection(c.env.DB, location.connection_id)
-  if (!connection) return c.json({ error: 'not_found' }, 404)
   try {
-    const provider = providerFor(c.env, connection)
-    if (provider.presignGet) {
-      const signed = await provider.presignGet(location.key, { expiresSeconds: 300, downloadName: asset.filename })
-      return c.redirect(signed.url, 302)
-    }
-    // Byte ranges let a <video> seek without downloading the whole file first.
-    const range = /^bytes=(\d+)-(\d*)$/.exec(c.req.header('Range') ?? '')
-    const start = range ? Number(range[1]) : null
-    const end = range?.[2] ? Number(range[2]) : null
-    if (start !== null && (start >= asset.size || (end !== null && end < start))) {
-      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${asset.size}` } })
-    }
-    const object = await provider.get(location.key, start === null ? undefined : { offset: start, length: (end === null ? asset.size - 1 : Math.min(end, asset.size - 1)) - start + 1 })
-    if (!object) return c.json({ error: 'not_found' }, 404)
-    return new Response(object.body, {
-      status: start === null ? 200 : 206,
-      headers: {
-        // Video can't run script, so it gets its real type (for <video>); other unsafe types stay opaque.
-        'Content-Type': SAFE_INLINE_TYPES.has(asset.mime_type) || PLAYABLE_VIDEO.has(asset.mime_type) ? asset.mime_type : 'application/octet-stream',
-        'Content-Length': String(object.size),
-        'Accept-Ranges': 'bytes',
-        ...(start !== null ? { 'Content-Range': `bytes ${start}-${start + object.size - 1}/${asset.size}` } : {}),
-        'Content-Disposition': attachmentDisposition(asset.filename),
-        'Cache-Control': 'private, no-store',
-      },
-    })
+    return (await originalResponse(c.env, c.req.raw, asset, location)) ?? c.json({ error: 'not_found' }, 404)
   } catch (error) {
     return storageFailure(c, error)
   }

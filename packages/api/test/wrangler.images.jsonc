@@ -1,0 +1,10 @@
+// Real Cloudflare Images for test/images.live.test.ts (opt-in: IMAGES_LIVE=1), with local D1 and R2.
+// The local Images emulator ignores draw(), so watermarks can only be checked against the real service.
+{
+  "name": "cf-dam-images-test",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "test", "database_id": "test" }],
+  "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "test-media" }],
+  "images": { "binding": "IMAGES", "remote": true }
+}

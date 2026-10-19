@@ -13,8 +13,10 @@ import { presetRoutes, savedSearchRoutes } from './routes/metadata'
 import { assetRoutes } from './routes/assets'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
+import { galleryRoutes } from './routes/gallery'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
+import { shareRoutes } from './routes/shares'
 import { sourceRoutes } from './routes/sources'
 import { uploadRoutes } from './routes/uploads'
 import { roleRoutes, userRoutes } from './routes/users'
@@ -61,6 +63,8 @@ export function createDamApi() {
   })
 
   api.route('/setup', setupRoutes)
+  // Client galleries: no account, the link is the key (routes/gallery.ts).
+  api.route('/public/galleries', galleryRoutes)
 
   api.use('*', authenticate())
   api.route('/me', meRoutes)
@@ -70,6 +74,7 @@ export function createDamApi() {
   api.route('/uploads', uploadRoutes)
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
+  api.route('/shares', shareRoutes)
   api.route('/tags', tagRoutes)
   api.route('/labels', labelRoutes)
   api.route('/presets', presetRoutes)
@@ -100,5 +105,8 @@ export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
+export { galleryJson } from './routes/gallery'
+export { listShares, getShare, openGallery, recordEvent, shareVisitors, sharePicks, shareDownloads, DOWNLOAD_SIZES, type ShareJson, type VisitorJson, type GalleryItem, type DownloadSize } from './catalog/shares'
+export { getWatermark, WATERMARK_POSITIONS, type WatermarkSettings } from './catalog/watermark'
 export { browserOrigins, getConnection, listConnections, type Connection } from './storage/connections'
 export { ARCHIVE_CLASSES, S3_STORAGE_CLASSES, RESTORE_TIERS } from './storage/types'

@@ -1,0 +1,37 @@
+---
+import { env } from 'cloudflare:workers'
+import { getShare, shareDownloads, sharePicks, shareVisitors } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+import SharePicks from '../../components/SharePicks.svelte'
+
+const id = Astro.params.id!
+const share = await getShare(env.DB, id)
+if (!share) return new Response('Not found', { status: 404 })
+const [visitors, picks, downloads] = await Promise.all([shareVisitors(env.DB, id), sharePicks(env.DB, id), shareDownloads(env.DB, id)])
+const { results: photos } = await env.DB.prepare(
+  `SELECT a.id, a.filename, EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'thumb') AS has_thumb
+   FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
+   WHERE ai.album_id = ? ORDER BY ai.position, ai.added_at LIMIT 2000`,
+)
+  .bind(share.albumId)
+  .all<{ id: string; filename: string; has_thumb: number }>()
+const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', revoked: 'Revoked' }
+const link = `${Astro.url.origin}/s/${share.token}`
+---
+<AppLayout title={share.name} subtitle={`${share.title} · ${STATUS[share.status]} · ${share.stats.opens} opens, ${share.stats.downloads} downloads`}>
+  <section class="card stack">
+    <div class="row">
+      <a class="btn btn-sm" href={`/albums/${share.albumId}`}>← {share.albumName}</a>
+      {share.status !== 'revoked' && <a class="btn btn-sm" href={link} target="_blank" rel="noopener">Open the gallery as a client sees it</a>}
+    </div>
+    <h2>Who picked what</h2>
+    <SharePicks
+      client:load
+      shareId={share.id}
+      photos={photos.map((p) => ({ id: p.id, filename: p.filename, hasThumb: p.has_thumb === 1 }))}
+      visitors={visitors}
+      picks={picks}
+      downloads={downloads}
+    />
+  </section>
+</AppLayout>

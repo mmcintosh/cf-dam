@@ -1,18 +1,32 @@
 ---
 import { env } from 'cloudflare:workers'
-import { listAssets } from '@cf-dam/api'
+import { getWatermark, listAssets } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetGrid from '../../components/AssetGrid.astro'
+import SharePanel from '../../components/SharePanel.svelte'
 
 const id = Astro.params.id!
 const album = await env.DB.prepare('SELECT id, name, description FROM albums WHERE id = ?').bind(id).first<{ id: string; name: string; description: string }>()
 if (!album) return new Response('Not found', { status: 404 })
 const { assets, total } = await listAssets(env.DB, { albumId: id, limit: 200 })
+const canShare = Astro.locals.principal!.permissions.has('shares:manage')
+const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 ---
 <AppLayout title={album.name} subtitle={album.description || `${total} ${total === 1 ? 'item' : 'items'}`}>
+  {canShare && (
+    <div class="share">
+      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} />
+    </div>
+  )}
   {assets.length > 0 ? (
     <AssetGrid assets={assets} />
   ) : (
     <p class="muted">This album is empty. Open a photo and add it from there, or use the API: <code>POST /api/albums/{id}/items</code>.</p>
   )}
 </AppLayout>
+
+<style>
+  .share {
+    margin-bottom: 24px;
+  }
+</style>
