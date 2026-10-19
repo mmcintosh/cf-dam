@@ -11,7 +11,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { getAsset, getLocations, isLabel, primaryLocation, tagStatement } from './assets'
 import { applyUploadPresets, iptcUpdate } from './iptc'
 import { resolveKeywords } from './keywords'
-import { fillPlacesFromGps } from './places'
+import { DROP_GPS_PLACES, fillPlacesFromGps } from './places'
 import { getLabelNames, type LabelNames } from './library'
 import { extractMetadata, METADATA_HEAD_BYTES, RENDERABLE_TYPES, type NormalizedMetadata } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
@@ -54,7 +54,12 @@ export function metadataStatements(db: D1Database, assetId: string, meta: Normal
   // changed (re-exported, cropped), what it says about itself replaces the old values: its size, date,
   // camera and place. What people write (title, caption, rating, IPTC, keywords) still only fills gaps.
   const file = (column: string) => (opts.fileChanged ? `${column} = COALESCE(?, ${column})` : `${column} = COALESCE(${column}, ?)`)
+  const newValue = (column: string) => (opts.fileChanged ? `COALESCE(?, ${column})` : `COALESCE(${column}, ?)`)
   const statements = [
+    // A new position (a file re-sent with other GPS): places looked up from the old one go with it.
+    db
+      .prepare(`UPDATE assets SET ${DROP_GPS_PLACES} WHERE id = ? AND (${newValue('gps_lat')} IS NOT gps_lat OR ${newValue('gps_lng')} IS NOT gps_lng)`)
+      .bind(assetId, meta.gpsLat, meta.gpsLng),
     db
       .prepare(
         `UPDATE assets SET
@@ -82,7 +87,7 @@ export function metadataStatements(db: D1Database, assetId: string, meta: Normal
         .bind(meta.video.duration, meta.video.codec, meta.video.frameRate, assetId),
     )
   }
-  const iptc = iptcUpdate(db, assetId, meta.iptc, { fillOnly: true, locationSource: 'file' })
+  const iptc = iptcUpdate(db, assetId, meta.iptc, { fillOnly: true })
   if (iptc) statements.push(iptc)
   const tags = [...new Set(meta.keywords.slice(0, 200).map((k) => lookups.keywords.get(k)).filter((id): id is string => id !== undefined))]
   if (tags.length > 0) statements.push(tagStatement(db, tags.map((id) => [assetId, id] as const), 'import'))

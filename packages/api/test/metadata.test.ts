@@ -18,7 +18,7 @@ async function upload(filename: string, bytes: Uint8Array<ArrayBuffer>): Promise
 interface AssetBody {
   label: string | null
   iptc: Record<string, string | null>
-  locationSource: string | null
+  placeFromGps: string[]
   tags: { path: string; source: string }[]
 }
 const asset = async (id: string) => (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as AssetBody
@@ -55,7 +55,7 @@ describe('IPTC Core', () => {
       country: 'Norway',
       countryCode: 'NO',
     })
-    expect(a.locationSource).toBe('file')
+    expect(a.placeFromGps).toEqual([])
     expect(a.label).toBe('red')
     // The hierarchical keyword becomes a path; the flat "Bergen" it implies isn't added again at the top.
     expect(a.tags.map((t) => t.path)).toEqual(['Places › Norway › Bergen'])
@@ -74,7 +74,7 @@ describe('IPTC Core', () => {
   it('edits fields, validates them, and writes them to the XMP sidecar', async () => {
     const id = await upload('a.jpg', camera)
     expect((await patch(id, { iptc: { city: 'Ålesund', country: 'Norway', usageTerms: 'All rights reserved', contactEmail: 'a@b.no' } })).status).toBe(200)
-    expect((await asset(id)).locationSource).toBe('user')
+    expect((await asset(id)).placeFromGps).toEqual([])
     expect((await patch(id, { iptc: { countryCode: 'NORWAY' } })).status).toBe(400)
     expect((await patch(id, { iptc: { city: 42 } })).status).toBe(400)
     expect((await patch(id, { iptc: { city: '' } })).status).toBe(200)

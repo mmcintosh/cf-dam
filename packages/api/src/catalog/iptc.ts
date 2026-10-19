@@ -59,7 +59,11 @@ export const IPTC_FIELDS: readonly IptcField[] = [
 
 const BY_KEY = new Map(IPTC_FIELDS.map((f) => [f.key, f]))
 export const isIptcKey = (key: string): key is IptcKey => BY_KEY.has(key as IptcKey)
-const LOCATION_KEYS: readonly IptcKey[] = ['sublocation', 'city', 'state', 'country', 'countryCode']
+/**
+ * The place fields a GPS lookup fills, and each one's bit in assets.place_gps, which marks the ones it
+ * did fill (migration 0023). A marked field is the lookup's: anything else may write over it.
+ */
+export const GPS_PLACE_BITS: Partial<Record<IptcKey, number>> = { city: 1, state: 2, country: 4, countryCode: 8 }
 
 export type IptcValues = Partial<Record<IptcKey, string | null>>
 
@@ -124,26 +128,27 @@ export function parseIptcPatch(body: Record<string, unknown>): IptcValues {
 
 /**
  * SQL to write values to an asset. `fillOnly` sets only fields that are empty (file imports, presets
- * applied gently). Location edits by a person mark the location as theirs.
+ * applied gently); a place filled in from GPS counts as empty. Whatever is written to a place field
+ * is no longer the GPS lookup's.
  */
-export function iptcUpdate(db: D1Database, assetIds: string | string[], values: IptcValues, opts: { fillOnly?: boolean; locationSource?: 'file' | 'user' | 'gps' } = {}): D1PreparedStatement | null {
+export function iptcUpdate(db: D1Database, assetIds: string | string[], values: IptcValues, opts: { fillOnly?: boolean } = {}): D1PreparedStatement | null {
   const sets: string[] = []
   const params: unknown[] = []
+  let notGps = 0
   for (const [key, value] of Object.entries(values) as [IptcKey, string | null][]) {
     const column = BY_KEY.get(key)!.column
+    const bit = GPS_PLACE_BITS[key]
     if (opts.fillOnly) {
       if (value === null) continue
-      sets.push(`${column} = COALESCE(NULLIF(${column}, ''), ?)`)
+      sets.push(bit ? `${column} = CASE WHEN COALESCE(${column}, '') = '' OR place_gps & ${bit} THEN ? ELSE ${column} END` : `${column} = COALESCE(NULLIF(${column}, ''), ?)`)
     } else {
       sets.push(`${column} = ?`)
     }
     params.push(value)
+    notGps |= bit ?? 0
   }
   if (sets.length === 0) return null
-  if (opts.locationSource && LOCATION_KEYS.some((k) => values[k] !== undefined && values[k] !== null)) {
-    sets.push(opts.fillOnly ? 'location_source = COALESCE(location_source, ?)' : 'location_source = ?')
-    params.push(opts.locationSource)
-  }
+  if (notGps) sets.push(`place_gps = place_gps & ~${notGps}`)
   return db
     .prepare(`UPDATE assets SET ${sets.join(', ')}, updated_at = ? WHERE id IN (SELECT value FROM json_each(?))`)
     .bind(...params, nowIso(), JSON.stringify([assetIds].flat()))
@@ -247,7 +252,7 @@ export async function savePreset(db: D1Database, input: { id?: string; name: str
 
 /** Apply a preset's fields to assets. Without `overwrite`, only empty fields are filled. */
 export function presetStatements(db: D1Database, preset: Preset, assetIds: string[], overwrite: boolean): D1PreparedStatement[] {
-  const statement = assetIds.length > 0 ? iptcUpdate(db, assetIds, preset.fields, { fillOnly: !overwrite, locationSource: 'user' }) : null
+  const statement = assetIds.length > 0 ? iptcUpdate(db, assetIds, preset.fields, { fillOnly: !overwrite }) : null
   return statement ? [statement] : []
 }
 

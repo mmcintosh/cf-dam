@@ -6,6 +6,7 @@ import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
 import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAssets, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
 import { getPreset, iptcXmp, presetStatements } from './iptc'
+import { DROP_GPS_PLACES } from './places'
 import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAssets } from './search'
@@ -192,15 +193,7 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
     }
     case 'gps':
       // Places filled in from the old position go with it; the caller looks the new one up.
-      await each(
-        `UPDATE assets SET gps_lat = ?, gps_lng = ?, place_checked_at = NULL, updated_at = ?,
-           city = CASE WHEN location_source = 'gps' THEN NULL ELSE city END,
-           state = CASE WHEN location_source = 'gps' THEN NULL ELSE state END,
-           country = CASE WHEN location_source = 'gps' THEN NULL ELSE country END,
-           country_code = CASE WHEN location_source = 'gps' THEN NULL ELSE country_code END,
-           location_source = CASE WHEN location_source = 'gps' THEN NULL ELSE location_source END`,
-        [bulk.lat, bulk.lng, now],
-      )
+      await each(`UPDATE assets SET gps_lat = ?, gps_lng = ?, updated_at = ?, ${DROP_GPS_PLACES}`, [bulk.lat, bulk.lng, now])
       break
     case 'title':
       await each('UPDATE assets SET title = ?, updated_at = ?', [bulk.title, now])

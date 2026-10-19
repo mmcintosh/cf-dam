@@ -119,7 +119,7 @@ const facts: [string, string][] = [
           assetId={id}
           fields={[...IPTC_FIELDS]}
           values={asset.iptc}
-          locationSource={asset.locationSource}
+          placeFromGps={asset.placeFromGps}
           presets={presets.map((p) => ({ id: p.id, name: p.name }))}
           canEdit={principal.permissions.has('assets:edit')}
         />

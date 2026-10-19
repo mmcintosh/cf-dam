@@ -60,6 +60,9 @@ const item = (root: string, n: number, batch = 0) => ({
   },
 })
 
+/** Places never looked up (a lookup that finds the place it already has changes nothing). */
+const UNPLACED = 'place_checked_at = NULL, city = NULL, state = NULL, country = NULL, country_code = NULL, place_gps = 0'
+
 async function send(key: string, items: unknown[]) {
   const res = await h.fetch('/api/agent/assets/batch', { ...json({ items }), headers: { Authorization: `Bearer ${key}` } })
   expect(res.status).toBe(200)
@@ -127,7 +130,7 @@ describe('queries per request', () => {
     // waiting, photos abandoned in 'processing'.
     await h.env.DB.batch([
       h.env.DB.prepare('DELETE FROM search_index'),
-      h.env.DB.prepare('UPDATE assets SET indexed_at = NULL, place_checked_at = NULL, phash = NULL'),
+      h.env.DB.prepare(`UPDATE assets SET indexed_at = NULL, ${UNPLACED}, phash = NULL`),
       h.env.DB.prepare(
         `UPDATE assets SET status = CASE WHEN rowid % 5 = 0 THEN 'queued' WHEN rowid % 5 = 1 THEN 'processing' ELSE status END, updated_at = '2020-01-01T00:00:00Z'`,
       ),
@@ -149,13 +152,13 @@ describe('the sweep', () => {
     const ids = (await send(key, Array.from({ length: 60 }, (_, n) => item(root, n)))).map((r) => r.assetId)
     await complete(key, ids)
     // A backlog of processing far beyond one run, and an index and places to catch up on.
-    await h.env.DB.prepare("UPDATE assets SET status = 'queued', indexed_at = NULL, place_checked_at = NULL").run()
+    await h.env.DB.prepare(`UPDATE assets SET status = 'queued', indexed_at = NULL, ${UNPLACED}`).run()
     const swept = await runSweep(h.env, { ...SLICES, process: { ms: 300, queries: 350 } })
     expect(swept.processed).toBeLessThan(60)
     expect(swept.indexed).toBeGreaterThan(0)
     expect(swept.placed).toBeGreaterThan(0)
     // The same with the queries the processing stage may make, rather than its time.
-    await h.env.DB.prepare("UPDATE assets SET status = 'queued', indexed_at = NULL, place_checked_at = NULL").run()
+    await h.env.DB.prepare(`UPDATE assets SET status = 'queued', indexed_at = NULL, ${UNPLACED}`).run()
     const counted = await runSweep(h.env, { ...SLICES, process: { ms: 60_000, queries: 20 } })
     expect(counted.processed).toBeLessThan(5)
     expect(counted.indexed).toBeGreaterThan(0)

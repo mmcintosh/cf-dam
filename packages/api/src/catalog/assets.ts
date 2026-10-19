@@ -1,7 +1,7 @@
 /** Asset records, their locations, tags and the list query. */
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
-import { iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
+import { GPS_PLACE_BITS, iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
 import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeywords } from './keywords'
 import { indexAsset, SEARCH_MATCH, toFtsQuery } from './search'
 
@@ -65,7 +65,7 @@ export interface AssetRow {
   state: string | null
   country: string | null
   country_code: string | null
-  location_source: string | null
+  place_gps: number
   duration: number | null
   video_codec: string | null
   frame_rate: number | null
@@ -213,8 +213,8 @@ export interface AssetJson {
   }
   /** IPTC Core: credit, rights, contact, place, job. */
   iptc: Record<IptcKey, string | null>
-  /** Where city/state/country came from: file, user or gps. */
-  locationSource: string | null
+  /** The place fields filled in from GPS (the rest of the place, if any, came from the file or a person). */
+  placeFromGps: IptcKey[]
   /** Videos: length in seconds, codec, frames per second. Null for photos. */
   video: { duration: number | null; codec: string | null; frameRate: number | null } | null
   createdAt: string
@@ -258,7 +258,7 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
       error: row.ai_error ?? null,
     },
     iptc: iptcJson(row as unknown as Record<string, unknown>),
-    locationSource: row.location_source ?? null,
+    placeFromGps: (Object.entries(GPS_PLACE_BITS) as [IptcKey, number][]).filter(([, bit]) => row.place_gps & bit).map(([key]) => key),
     video: row.mime_type.startsWith('video/') ? { duration: row.duration ?? null, codec: row.video_codec ?? null, frameRate: row.frame_rate ?? null } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -480,7 +480,7 @@ export async function updateAsset(
   if (sets.length > 0) {
     await db.prepare(`UPDATE assets SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...params, nowIso(), id).run()
   }
-  const iptc = patch.iptc ? iptcUpdate(db, id, patch.iptc, { locationSource: 'user' }) : null
+  const iptc = patch.iptc ? iptcUpdate(db, id, patch.iptc) : null
   if (iptc) await iptc.run()
   if (patch.tags !== undefined) await setTags(db, id, patch.tags)
   await indexAsset(db, id)

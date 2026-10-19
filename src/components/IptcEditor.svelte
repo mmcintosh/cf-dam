@@ -17,14 +17,15 @@
     assetId: string
     fields: Field[]
     values: Record<string, string | null>
-    locationSource: string | null
+    placeFromGps: string[]
     presets: Preset[]
     canEdit: boolean
   }
   let props: Props = $props()
 
   let values = $state<Record<string, string>>(Object.fromEntries(props.fields.map((f) => [f.key, props.values[f.key] ?? ''])))
-  let locationSource = $state(props.locationSource)
+  let fromGps = $state(props.placeFromGps)
+  const gpsHint = $derived(`${props.fields.filter((f) => fromGps.includes(f.key)).map((f) => f.label.toLowerCase()).join(', ')} from GPS`)
   let status = $state('')
   let error = $state('')
   const groups = [...new Set(props.fields.map((f) => f.group))]
@@ -37,7 +38,7 @@
     status = 'Saving…'
     try {
       await api(`/api/assets/${props.assetId}`, { method: 'PATCH', body: JSON.stringify({ iptc: { [key]: values[key]!.trim() || null } }) })
-      if (['sublocation', 'city', 'state', 'country', 'countryCode'].includes(key)) locationSource = 'user'
+      fromGps = fromGps.filter((k) => k !== key)
       status = 'Saved'
       setTimeout(() => status === 'Saved' && (status = ''), 1500)
     } catch (e) {
@@ -49,9 +50,9 @@
   async function applyPreset(id: string, overwrite: boolean) {
     if (!id) return
     await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids: [props.assetId], action: 'preset', presetId: id, overwrite }) })
-    const fresh = await api<{ iptc: Record<string, string | null>; locationSource: string | null }>(`/api/assets/${props.assetId}`)
+    const fresh = await api<{ iptc: Record<string, string | null>; placeFromGps: string[] }>(`/api/assets/${props.assetId}`)
     values = Object.fromEntries(props.fields.map((f) => [f.key, fresh.iptc[f.key] ?? '']))
-    locationSource = fresh.locationSource
+    fromGps = fresh.placeFromGps
     status = 'Preset applied'
     setTimeout(() => (status = ''), 1500)
   }
@@ -71,7 +72,7 @@
     <details open={initiallyOpen(group)}>
       <summary>
         {group}
-        {#if group === 'Location' && locationSource === 'gps'}<span class="hint">filled in from GPS</span>{/if}
+        {#if group === 'Location' && fromGps.length > 0}<span class="hint">{gpsHint}</span>{/if}
       </summary>
       <div class="grid">
         {#each props.fields.filter((f) => f.group === group) as field (field.key)}

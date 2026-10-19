@@ -258,6 +258,11 @@ describe('folders and files', () => {
     expect(a).toMatchObject({ width: 3000, title: 'Mine', status: 'processing' })
     expect(a.capturedAt).toContain('2019-06-02')
     expect(a.gps?.lat).toBeCloseTo(59.91)
+    // The city looked up from the old position goes with it, and the new one is looked up.
+    await upload(key, id)
+    await agentFetch(key, '/api/agent/assets/complete', json({ items: [{ id }] }))
+    const placed = (await (await h.fetch(`/api/assets/${id}`, { cookie: admin })).json()) as { iptc: Record<string, string | null> }
+    expect(placed.iptc).toMatchObject({ city: 'Oslo', country: 'Norway' })
   })
 
   it('knows a file moved between two folders, and finishes photos an agent left half-sent', async () => {
