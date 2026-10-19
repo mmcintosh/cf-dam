@@ -181,6 +181,35 @@ describe('the agent, end to end', () => {
     expect(newcomer?.renditions).toContain('thumb')
   })
 
+  it('accepts a folder really emptied: after three empty scans over a day, or at once when its patterns changed', async () => {
+    type Sources = { sources: { id: string; roots: { id: string; offlineSince: string | null }[]; photos: { missing: number } }[] }
+    const sources = async () => ((await (await h.fetch('/api/sources', { cookie: admin })).json()) as Sources).sources[0]!
+    for (let i = 0; i < 3; i++) await photo(`2023/IMG_${5000 + i}.jpg`, i + 80)
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    expect((await list()).total).toBe(3)
+
+    // Everything deleted, the folder left bare: just what an unmounted share looks like. Offline,
+    // nothing missing, however many scans, until it has stayed that way for a day.
+    rmSync(join(photos, '2023'), { recursive: true })
+    for (let i = 0; i < 3; i++) await agent.scanAll()
+    expect(await sources()).toMatchObject({ roots: [{ offlineSince: expect.any(String) }], photos: { missing: 0 } })
+    agent.state.db.prepare("UPDATE meta SET value = json_set(value, '$.since', ?) WHERE name LIKE 'empty:%'").run(Date.now() - 25 * 3600_000)
+    await agent.scanAll()
+    expect(await sources()).toMatchObject({ roots: [{ offlineSince: null }], photos: { missing: 3 } })
+    expect(agent.state.counts().done).toBe(0)
+
+    // New photos, then a pattern that leaves none of them in: believable straight away.
+    for (let i = 0; i < 2; i++) await photo(`2024/IMG_${6000 + i}.jpg`, i + 90)
+    await agent.scanAll()
+    expect(await sources()).toMatchObject({ photos: { missing: 3 } })
+    const { id, roots } = await sources()
+    expect((await h.fetch(`/api/sources/${id}/roots/${roots[0]!.id}`, { ...json({ exclude: ['2024'] }), method: 'PATCH', cookie: admin })).status).toBe(200)
+    await agent.scanAll()
+    expect(await sources()).toMatchObject({ roots: [{ offlineSince: null }], photos: { missing: 5 } })
+  })
+
   it('finishes photos a broken scan left half-sent, and keeps one bad file from stopping the rest', async () => {
     for (let i = 0; i < 3; i++) await photo(`2023/IMG_${4000 + i}.jpg`, i + 20)
     writeFileSync(join(photos, '2023', 'broken.jpg'), randomBytes(5000))

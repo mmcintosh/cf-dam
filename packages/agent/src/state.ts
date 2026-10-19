@@ -123,6 +123,28 @@ export class State {
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('agent_version', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(version)
   }
 
+  /**
+   * A folder that was reachable but showed nothing, where files were known: one more such scan in a
+   * row. Returns how many there have been and since when.
+   */
+  sawEmpty(rootId: string, now: number): { scans: number; since: number } {
+    const was = this.metaJson<{ scans: number; since: number }>(`empty:${rootId}`)
+    const next = { scans: (was?.scans ?? 0) + 1, since: was?.since ?? now }
+    this.setMeta(`empty:${rootId}`, JSON.stringify(next))
+    return next
+  }
+
+  /** The folder showed files (or has none to lose): the count of empty scans starts over. */
+  sawFiles(rootId: string, patterns: string): void {
+    this.db.prepare('DELETE FROM meta WHERE name = ?').run(`empty:${rootId}`)
+    this.setMeta(`patterns:${rootId}`, patterns)
+  }
+
+  /** The include and exclude patterns of the folder's last scan that found files (null: none recorded). */
+  patterns(rootId: string): string | null {
+    return (this.db.prepare('SELECT value FROM meta WHERE name = ?').get(`patterns:${rootId}`) as { value: string } | undefined)?.value ?? null
+  }
+
   forget(rootId: string, paths: string[]): void {
     const stmt = this.db.prepare('DELETE FROM files WHERE root_id = ? AND path = ?')
     for (const p of paths) stmt.run(rootId, p)
@@ -132,11 +154,27 @@ export class State {
   keepRoots(rootIds: string[]): void {
     if (rootIds.length === 0) return
     this.db.prepare(`DELETE FROM files WHERE root_id NOT IN (${rootIds.map(() => '?').join(',')})`).run(...rootIds)
+    this.db
+      .prepare(`DELETE FROM meta WHERE (name LIKE 'empty:%' OR name LIKE 'patterns:%') AND substr(name, instr(name, ':') + 1) NOT IN (SELECT value FROM json_each(?))`)
+      .run(JSON.stringify(rootIds))
   }
 
   counts(): { done: number; error: number } {
     const row = this.db.prepare("SELECT SUM(status = 'done') AS done, SUM(status = 'error') AS error FROM files").get() as { done: number | null; error: number | null }
     return { done: row.done ?? 0, error: row.error ?? 0 }
+  }
+
+  private metaJson<T>(name: string): T | null {
+    const row = this.db.prepare('SELECT value FROM meta WHERE name = ?').get(name) as { value: string } | undefined
+    try {
+      return row ? (JSON.parse(row.value) as T) : null
+    } catch {
+      return null
+    }
+  }
+
+  private setMeta(name: string, value: string): void {
+    this.db.prepare('INSERT INTO meta (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value').run(name, value)
   }
 
   private readCredentials(): Partial<Credentials> | null {

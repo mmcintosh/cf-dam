@@ -29,7 +29,7 @@ COPY --from=build /src/packages/agent/dist/agent.mjs ./
 ENV DATA_DIR=/data PHOTOS_DIR=/photos PORT=8790 NODE_NO_WARNINGS=1
 VOLUME /data
 EXPOSE 8790
-HEALTHCHECK --interval=60s --timeout=5s CMD ["node", "-e", "fetch('http://127.0.0.1:8790/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+HEALTHCHECK --interval=60s --timeout=5s CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 8790) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 # Runs as root so it can read shared folders whatever their ACLs. Photo folders are mounted
 # read-only (:ro): the kernel stops any write to them, whoever the user.
 ENTRYPOINT ["tini", "--"]

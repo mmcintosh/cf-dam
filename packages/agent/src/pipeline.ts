@@ -2,7 +2,7 @@
  * A scan: walk the folders, work out what changed, send new and changed photos in batches (metadata
  * and previews; previews are uploaded only where cf-dam asks for them), then report what's gone.
  */
-import { stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ApiError, isLinkError, type Api } from './api.ts'
 import type { AgentMetadata, Extractor } from './extract.ts'
@@ -47,6 +47,13 @@ export interface Ctx {
 
 /** Photos per request. Small enough that previews for a batch fit comfortably in memory. */
 const BATCH = 20
+
+/**
+ * A folder that empties out is taken for a mount gone wrong, not a folder really emptied, until it
+ * has looked empty this many scans in a row, over at least this long.
+ */
+const EMPTY_SCANS = 3
+const EMPTY_FOR_MS = 24 * 60 * 60_000
 
 interface Item {
   file: Found
@@ -176,16 +183,31 @@ async function survey(ctx: Ctx, root: Root, here: string | null): Promise<Survey
   const reachable = here !== null && (await stat(here).then((s) => s.isDirectory()).catch(() => false))
   const { found, unreadable } = reachable ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include) : { found: new Map<string, Found>(), unreadable: [] }
   const known = state.files(root.id)
-  // A folder that suddenly shows nothing at all, when we knew files there, is a mount gone wrong.
-  if (!reachable || (found.size === 0 && known.size > 0)) {
+  const patterns = JSON.stringify([ctx.defaultExcludes, root.exclude, root.include])
+  // A folder that suddenly shows nothing at all, when we knew files there, is most likely a mount gone
+  // wrong (a share's mount point left bare): offline. Unless that's believable at once (the patterns
+  // changed and the folder isn't bare), or it stays that way three scans and a day: really emptied.
+  if (!reachable || (found.size === 0 && known.size > 0 && !(await emptied(ctx, root, here, patterns)))) {
     if (!root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: false })
     return null
   }
+  // Not once emptiness is accepted: if this scan is stopped before it reports the files gone, the
+  // next one accepts it again instead of starting the wait over.
+  if (found.size > 0 || known.size === 0) state.sawFiles(root.id, patterns)
   if (root.offlineSince) await api.call('POST', `/api/agent/roots/${root.id}/status`, { online: true })
   const { work, gone } = plan(found, known, unreadable)
   progress.found += found.size
   progress.queued += work.length
   return { root, here, work, gone }
+}
+
+/** Whether a folder that now shows no files, where files were known, really was emptied. */
+async function emptied(ctx: Ctx, root: Root, here: string, patterns: string): Promise<boolean> {
+  const was = ctx.state.patterns(root.id)
+  if (was !== null && was !== patterns && (await readdir(here).catch(() => [])).length > 0) return true
+  const now = Date.now()
+  const { scans, since } = ctx.state.sawEmpty(root.id, now)
+  return scans >= EMPTY_SCANS && now - since >= EMPTY_FOR_MS
 }
 
 /**
