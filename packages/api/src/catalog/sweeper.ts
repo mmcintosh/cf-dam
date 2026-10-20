@@ -9,6 +9,7 @@
  *  5. Check archived originals with a restore in progress, and mark them restored when ready.
  *  6. Drop gallery images nobody will be shown again (made with an old watermark or a replaced preview).
  *  7. Check originals are still in their stores, unchanged (catalog/checks.ts).
+ *  8. Back up the catalog daily, a part per run, and delete old backups (catalog/backups.ts).
  *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
@@ -19,6 +20,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
+import { backupStep } from './backups'
 import { checkStorage } from './checks'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
@@ -37,6 +39,7 @@ export const SLICES = {
   restores: { ms: 5_000, queries: 60 },
   gallery: { ms: 3_000, queries: 10 },
   checks: { ms: 8_000, queries: 20 },
+  backup: { ms: 10_000, queries: 40 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -61,10 +64,11 @@ export interface SweepResult {
   pruned: number
   checked: number
   checkProblems: number
+  backup: { started: string | null; finished: string | null; pruned: number }
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0 }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 } }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -243,6 +247,16 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     })
     result.checked = checked
     result.checkProblems = problems
+  }
+
+  // 8. The daily catalog backup, carried on a part at a time; old ones deleted when none is running.
+  const backingUp = slice('backup')
+  if (backingUp.more()) {
+    const step = await backupStep(env, backingUp.more).catch((error) => {
+      console.warn('[sweep] backup failed', error)
+      return null
+    })
+    if (step) result.backup = { started: step.started, finished: step.finished, pruned: step.pruned }
   }
 
   return result

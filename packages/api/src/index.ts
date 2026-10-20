@@ -13,6 +13,7 @@ import { checkRoutes } from './routes/checks'
 import { labelRoutes, tagRoutes } from './routes/keywords'
 import { presetRoutes, savedSearchRoutes } from './routes/metadata'
 import { assetRoutes } from './routes/assets'
+import { backupRoutes } from './routes/backups'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { galleryRoutes } from './routes/gallery'
@@ -68,6 +69,7 @@ export function createDamApi() {
   api.route('/roles', roleRoutes)
   api.route('/connections', connectionRoutes)
   api.route('/storage-checks', checkRoutes)
+  api.route('/backups', backupRoutes)
   api.route('/uploads', uploadRoutes)
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)

@@ -142,6 +142,19 @@ export function describeActivity(e: ActivityEntry): string {
       return `${who} changed the AI review settings`
     case 'ai.backfill_queued':
       return `${who} queued AI review for the library`
+    case 'storage.check_problem': {
+      const where = str(d.connection) || 'its store'
+      const what = d.result === 'missing' ? `is missing from ${where}` : d.result === 'changed' ? `has changed in ${where}` : `couldn't be checked in ${where}`
+      return `Storage check: a photo's original ${what}`
+    }
+    case 'backup.started':
+      return `${who} started a catalog backup`
+    case 'backup.done':
+      return `The catalog was backed up${typeof d.rows === 'number' ? ` (${d.rows.toLocaleString()} rows)` : ''}`
+    case 'backup.failed':
+      return `A catalog backup failed${str(d.error) ? `: ${str(d.error)}` : ''}`
+    case 'backup.settings_changed':
+      return d.connectionId ? `${who} changed the backup settings` : `${who} turned catalog backups off`
   }
   if (e.action.startsWith('asset.bulk_')) {
     const verb = BULK[e.action.slice('asset.bulk_'.length)] ?? `changed (${e.action.slice('asset.bulk_'.length)})`

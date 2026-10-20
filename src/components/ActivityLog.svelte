@@ -16,6 +16,7 @@
     ['photos', 'Photos'],
     ['sharing', 'Client galleries'],
     ['agents', 'Agents'],
+    ['backups', 'Backups'],
   ]
 
   let entries = $state<ActivityEntry[]>([])

@@ -1,11 +1,13 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro'
 import Connections from '../../components/Connections.svelte'
+import BackupSettings from '../../components/BackupSettings.svelte'
 import StorageChecks from '../../components/StorageChecks.svelte'
 ---
 <AppLayout title="Storage" subtitle="Where originals live. Thumbnails and previews always stay in the built-in R2 bucket.">
   <div class="stack">
     <Connections client:load origin={Astro.url.origin} />
     <StorageChecks client:load />
+    <BackupSettings client:load />
   </div>
 </AppLayout>

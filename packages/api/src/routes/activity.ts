@@ -16,6 +16,7 @@ export const ACTIVITY_KINDS: Readonly<Record<string, readonly string[]>> = {
   photos: ['asset', 'duplicates', 'keyword', 'storage', 'ai'],
   sharing: ['share', 'watermark'],
   agents: ['source'],
+  backups: ['backup'],
 }
 
 interface EntryRow {
