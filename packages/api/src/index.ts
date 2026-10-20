@@ -94,7 +94,7 @@ export function createDamApi() {
 }
 
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
-export { assetJson, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
+export { assetJson, COUNT_CAP, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
 export { DEFAULT_LABEL_NAMES, facets, geoPoints, getLabelNames, timeline, type Facets, type FacetValue, type KeywordFacet, type LabelNames } from './catalog/library'
 export { keywordTree, type KeywordNode } from './catalog/keywords'
 export { IPTC_FIELDS, listPresets, type IptcField, type IptcKey, type Preset } from './catalog/iptc'
@@ -105,6 +105,7 @@ export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
 export { galleryJson } from './routes/gallery'
+export { getStats, type StatsSnapshot } from './catalog/stats'
 export { listShares, getShare, openGallery, recordEvent, shareVisitors, sharePicks, shareDownloads, DOWNLOAD_SIZES, type ShareJson, type VisitorJson, type GalleryItem, type DownloadSize } from './catalog/shares'
 export { getWatermark, WATERMARK_POSITIONS, type WatermarkSettings } from './catalog/watermark'
 export { browserOrigins, getConnection, listConnections, type Connection } from './storage/connections'

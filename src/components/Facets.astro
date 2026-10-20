@@ -1,6 +1,6 @@
 ---
 /** The filter sidebar: every facet with counts, as plain links, so each view has its own URL. */
-import { normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch } from '@cf-dam/api'
+import { COUNT_CAP, normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch } from '@cf-dam/api'
 import KeywordTree from './KeywordTree.astro'
 import SaveSearch from './SaveSearch.svelte'
 
@@ -40,17 +40,22 @@ const LABELS: Record<string, Record<string, string>> = {
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
 
-// Ratings filter "at least N stars", so show cumulative counts.
+// Ratings filter "at least N stars", so show cumulative counts (or none, when too many match to count).
 const ratingCounts = (() => {
-  const exact = new Map(facets.rating.map((r) => [Number(r.value), r.count]))
+  const uncounted = facets.rating.some((r) => r.count === null)
+  const exact = new Map(facets.rating.map((r) => [Number(r.value), r.count ?? 0]))
   let running = 0
-  const out: { stars: number; count: number }[] = []
+  let seen = false
+  const out: { stars: number; count: number | null }[] = []
   for (let stars = 5; stars >= 1; stars--) {
     running += exact.get(stars) ?? 0
-    if (running > 0) out.push({ stars, count: running })
+    seen ||= exact.has(stars)
+    if (running > 0 || (uncounted && seen)) out.push({ stars, count: uncounted ? null : running })
   }
   return out
 })()
+// Some facets go uncounted when too many photos match to count them quickly (FACET_LIVE_MAX).
+const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
 const active: { key: string; text: string }[] = []
 for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['kw', 'Keyword'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['missing', ''], ['on', 'Stored on'], ['gps', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
@@ -84,13 +89,16 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
       {canSave && current && current !== 'sort=added' && !alreadySaved && <SaveSearch client:idle query={current} />}
     </div>
   )}
+  {uncounted && (
+    <p class="uncounted">Too many photos match to count each choice. Narrow the selection to see counts.</p>
+  )}
 
   {savedSearches.length > 0 && (
     <details open>
       <summary>Saved searches</summary>
       <ul class="values">
         {savedSearches.map((s) => (
-          <li><a href={`/?${s.query}`} class:list={{ on: s.query === current }}><span>{s.name}</span><span class="count">{s.count}</span></a></li>
+          <li><a href={`/?${s.query}`} class:list={{ on: s.query === current }}><span>{s.name}</span><span class="count">{s.count > COUNT_CAP ? `${COUNT_CAP.toLocaleString()}+` : s.count}</span></a></li>
         ))}
       </ul>
     </details>
@@ -214,6 +222,11 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
   .values a.on {
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .uncounted {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
   .count {
     color: var(--text-faint);

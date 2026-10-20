@@ -10,6 +10,8 @@
  *  6. Drop gallery images nobody will be shown again (made with an old watermark or a replaced preview).
  *  7. Check originals are still in their stores, unchanged (catalog/checks.ts).
  *  8. Back up the catalog daily, a part per run, and delete old backups (catalog/backups.ts).
+ *  9. Rebuild the whole-archive numbers (facets, timeline, keyword and duplicate counts) a slice at
+ *     a time, every ten minutes (catalog/stats.ts).
  *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
@@ -22,6 +24,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
 import { backupStep } from './backups'
 import { checkStorage } from './checks'
+import { statsStep } from './stats'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
@@ -30,7 +33,7 @@ import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 290 },
+  process: { ms: 15_000, queries: 260 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -40,6 +43,7 @@ export const SLICES = {
   gallery: { ms: 3_000, queries: 10 },
   checks: { ms: 8_000, queries: 20 },
   backup: { ms: 10_000, queries: 40 },
+  stats: { ms: 10_000, queries: 30 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -65,10 +69,11 @@ export interface SweepResult {
   checked: number
   checkProblems: number
   backup: { started: string | null; finished: string | null; pruned: number }
+  statsPublished: boolean
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 } }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -257,6 +262,15 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       return null
     })
     if (step) result.backup = { started: step.started, finished: step.finished, pruned: step.pruned }
+  }
+
+  // 9. Whole-archive numbers, a slice at a time.
+  const counting = slice('stats')
+  if (counting.more()) {
+    result.statsPublished = await statsStep(env, counting.more).catch((error) => {
+      console.warn('[sweep] stats failed', error)
+      return false
+    })
   }
 
   return result

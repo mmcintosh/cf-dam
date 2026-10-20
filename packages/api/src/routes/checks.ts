@@ -2,6 +2,7 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { CHECK_CYCLE_DAYS, PROBLEMS } from '../catalog/checks'
+import { getStats } from '../catalog/stats'
 import type { DamEnv } from '../env'
 import { BadRequest, readJsonObject, requiredString } from '../lib/http'
 
@@ -13,11 +14,15 @@ checkRoutes.use('*', requirePermission('sources:manage'))
 
 checkRoutes.get('/', async (c) => {
   const db = c.env.DB
+  // Totals from the sweep's snapshot once there is one: grouping every location took 10 s at 1.4 million.
+  const stats = await getStats(db)
   const [totals, problems] = await db.batch([
-    db.prepare(
-      `SELECT COALESCE(check_result, 'unchecked') AS result, COUNT(*) AS n, MAX(checked_at) AS last
-       FROM asset_locations WHERE storage_class != 'NAS' GROUP BY check_result`,
-    ),
+    stats
+      ? db.prepare('SELECT 1 WHERE 0')
+      : db.prepare(
+          `SELECT COALESCE(check_result, 'unchecked') AS result, COUNT(*) AS n, MAX(checked_at) AS last
+           FROM asset_locations WHERE storage_class != 'NAS' GROUP BY check_result`,
+        ),
     db
       .prepare(
         `SELECT l.asset_id, a.filename, l.connection_id, c.name AS connection_name, l.key, l.check_result, l.check_detail, l.checked_at
@@ -29,9 +34,13 @@ checkRoutes.get('/', async (c) => {
   ])
   const counts: Record<string, number> = { ok: 0, missing: 0, changed: 0, unreadable: 0, unchecked: 0 }
   let lastCheckedAt: string | null = null
-  for (const row of totals!.results as { result: string; n: number; last: string | null }[]) {
-    counts[row.result] = row.n
+  for (const row of totals!.results as { result: string | null; n: number; last: string | null }[]) {
+    if (row.result) counts[row.result] = row.n
     if (row.last && (!lastCheckedAt || row.last > lastCheckedAt)) lastCheckedAt = row.last
+  }
+  if (stats) {
+    Object.assign(counts, stats.checks)
+    lastCheckedAt = stats.lastCheckedAt
   }
   return c.json({
     cycleDays: CHECK_CYCLE_DAYS,

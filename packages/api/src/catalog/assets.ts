@@ -382,13 +382,18 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
     where.push('a.captured_at <= ?')
     params.push(filters.to)
   }
+  // Years and months as ranges of captured_at, so its index answers them.
   if (use('year')) {
-    where.push(filters.year === 'undated' ? 'a.captured_at IS NULL' : 'substr(a.captured_at, 1, 4) = ?')
-    if (filters.year !== 'undated') params.push(filters.year)
+    if (filters.year === 'undated') where.push('a.captured_at IS NULL')
+    else {
+      where.push('a.captured_at >= ? AND a.captured_at < ?')
+      params.push(filters.year, String(Number(filters.year) + 1))
+    }
   }
   if (use('month')) {
-    where.push('substr(a.captured_at, 1, 7) = ?')
-    params.push(filters.month)
+    const [y, m] = filters.month!.split('-').map(Number) as [number, number]
+    where.push('a.captured_at >= ? AND a.captured_at < ?')
+    params.push(filters.month, m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`)
   }
   if (use('rating')) {
     where.push('a.rating >= ?')
@@ -404,11 +409,13 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
       params.push(filters[key])
     }
   }
+  // Location filters look up each photo's own locations (by the (asset_id, connection_id) key): an
+  // IN list would be built from millions of locations first.
   if (use('storedOn')) {
-    where.push(`a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state != 'gone')`)
+    where.push(`EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.connection_id = ? AND l.state != 'gone')`)
     params.push(filters.storedOn)
   }
-  if (filters.missing && omit !== 'missing') where.push(`a.id IN (SELECT asset_id FROM asset_locations WHERE state = 'missing')`)
+  if (filters.missing && omit !== 'missing') where.push(`EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state = 'missing')`)
   if (use('gps')) where.push(filters.gps === 'none' ? 'a.gps_lat IS NULL' : 'a.gps_lat IS NOT NULL')
   if (use('label')) {
     where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
@@ -425,14 +432,27 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   if (use('tier')) {
     const classes = TIER_CLASSES[filters.tier!] ?? []
     where.push(
-      `a.id IN (SELECT asset_id FROM asset_locations WHERE state NOT IN ('pending', 'gone') AND storage_class IN (${classes.map(() => '?').join(',')}))`,
+      `EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state NOT IN ('pending', 'gone') AND l.storage_class IN (${classes.map(() => '?').join(',')}))`,
     )
     params.push(...classes)
   }
   return { clause: where.join(' AND '), params }
 }
 
-export async function listAssets(db: D1Database, filters: ListFilters): Promise<{ assets: AssetJson[]; total: number }> {
+/**
+ * Counts stop here: past it a count reads the whole catalog (1.4 million rows for the first
+ * photographer) to say a number nobody pages through. Shown as "10,000+".
+ */
+export const COUNT_CAP = 10_000
+
+/** `COUNT(*)` of the photos matching `clause`, stopping at COUNT_CAP + 1. */
+export const cappedCount = (clause: string) => `SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE ${clause} LIMIT ${COUNT_CAP + 1})`
+
+/**
+ * One page of photos, and how many match: `total` is exact unless `totalExact` is false, when at least
+ * that many match (COUNT_CAP).
+ */
+export async function listAssets(db: D1Database, filters: ListFilters): Promise<{ assets: AssetJson[]; total: number; totalExact: boolean }> {
   const { clause, params } = buildWhere(filters)
   const order =
     filters.sort === 'added' ? 'a.created_at DESC, a.id DESC' : 'COALESCE(a.captured_at, a.created_at) DESC, a.id DESC'
@@ -441,15 +461,17 @@ export async function listAssets(db: D1Database, filters: ListFilters): Promise<
 
   const [rows, count] = await db.batch([
     db.prepare(`SELECT a.* FROM assets a WHERE ${clause} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...params, limit, offset),
-    db.prepare(`SELECT COUNT(*) AS n FROM assets a WHERE ${clause}`).bind(...params),
+    db.prepare(cappedCount(clause)).bind(...params),
   ])
   const assets = (rows!.results ?? []) as AssetRow[]
+  const n = (count!.results?.[0] as { n: number } | undefined)?.n ?? 0
   const ids = assets.map((a) => a.id)
   const renditions = await renditionNames(db, ids)
   const locations = await locationsOf(db, ids)
   return {
     assets: assets.map((row) => assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? []))),
-    total: ((count!.results?.[0] as { n: number } | undefined)?.n) ?? 0,
+    total: Math.min(n, COUNT_CAP),
+    totalExact: n <= COUNT_CAP,
   }
 }
 

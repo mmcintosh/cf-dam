@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { buildWhere, COUNT_CAP, listAssets } from '../src/catalog/assets'
 import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -151,5 +152,28 @@ describe('rename and XMP', () => {
     expect(xmp).toContain('First light &lt;Geiranger&gt;')
     expect(xmp).toContain('<dc:subject><rdf:Bag><rdf:li>fjord</rdf:li><rdf:li>Norway</rdf:li></rdf:Bag></dc:subject>')
     expect(xmp).toContain('photoshop:DateCreated="2024-06-15T18:42:07"')
+  })
+})
+
+describe('filters at scale', () => {
+  it('turns years and months into date ranges an index can answer', () => {
+    expect(buildWhere({ year: '2015' })).toMatchObject({ params: ['2015', '2016'] })
+    expect(buildWhere({ month: '2015-06' })).toMatchObject({ params: ['2015-06', '2015-07'] })
+    expect(buildWhere({ month: '2026-12' })).toMatchObject({ params: ['2026-12', '2027-01'] })
+    expect(buildWhere({ year: 'undated' }).clause).toContain('a.captured_at IS NULL')
+  })
+
+  it(`counts up to ${COUNT_CAP.toLocaleString()} and then says so`, async () => {
+    await h.env.DB.prepare(
+      `INSERT INTO assets (id, filename, mime_type, status, created_at, updated_at)
+       SELECT 'bulk' || value, 'x' || value || '.jpg', 'image/jpeg', 'ready', '2026-01-01', '2026-01-01' FROM json_each(?)`,
+    )
+      .bind(JSON.stringify(Array.from({ length: COUNT_CAP + 5 }, (_, i) => i)))
+      .run()
+    const page = await listAssets(h.env.DB, { limit: 5 })
+    expect(page).toMatchObject({ total: COUNT_CAP, totalExact: false })
+    expect(page.assets).toHaveLength(5)
+    const few = await listAssets(h.env.DB, { q: 'nothing-matches-this' })
+    expect(few).toMatchObject({ total: 0, totalExact: true })
   })
 })

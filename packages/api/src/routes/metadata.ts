@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { buildWhere, parseListFilters, type ListFilters } from '../catalog/assets'
+import { buildWhere, cappedCount, parseListFilters, type ListFilters } from '../catalog/assets'
 import { getPreset, IPTC_FIELDS, listPresets, parseIptcPatch, savePreset } from '../catalog/iptc'
 import type { DamEnv } from '../env'
 import { randomId } from '../lib/crypto'
@@ -100,7 +100,8 @@ export async function listSavedSearches(db: D1Database): Promise<SavedSearch[]> 
       bound += counts[i]!.params.length
       group.push(counts[i++]!)
     }
-    const columns = group.map((w, j) => `(SELECT COUNT(*) FROM assets a WHERE ${w.clause}) AS n${j}`)
+    // Capped like the Library's count: above COUNT_CAP it says "10,000+".
+    const columns = group.map((w, j) => `(${cappedCount(w.clause)}) AS n${j}`)
     statements.push(db.prepare(`SELECT ${columns.join(', ')}`).bind(...group.flatMap((w) => w.params)))
   }
   const rows = statements.length ? (await db.batch<Record<string, number>>(statements)).map((r) => r.results?.[0] ?? {}) : []

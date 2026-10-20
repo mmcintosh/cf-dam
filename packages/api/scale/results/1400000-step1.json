@@ -1,0 +1,829 @@
+{
+  "photos": 1400000,
+  "at": "2026-10-20T15:06:27.756Z",
+  "migrated": {
+    "names": [
+      "0029_library_indexes"
+    ],
+    "ms": 3877
+  },
+  "backup": {
+    "ms": 193813,
+    "rows": 12096729,
+    "bytes": 478887728,
+    "chunks": 2428,
+    "pages": 12120,
+    "puts": 2429,
+    "gzipBytes": 478891994,
+    "sweepMinutesAt40Pages": 337
+  },
+  "size": {
+    "fileBytes": 6323785728,
+    "bytesPerPhoto": 4517,
+    "d1LimitPhotos": 2213863,
+    "tables": [
+      {
+        "name": "assets",
+        "bytes": 796729344
+      },
+      {
+        "name": "asset_locations",
+        "bytes": 718376960
+      },
+      {
+        "name": "asset_tags",
+        "bytes": 541970432
+      },
+      {
+        "name": "renditions",
+        "bytes": 442253312
+      },
+      {
+        "name": "sqlite_autoindex_asset_tags_1",
+        "bytes": 426774528
+      },
+      {
+        "name": "sqlite_autoindex_asset_hash_bands_1",
+        "bytes": 413093888
+      },
+      {
+        "name": "asset_hash_bands",
+        "bytes": 385470464
+      },
+      {
+        "name": "search_index_content",
+        "bytes": 328007680
+      },
+      {
+        "name": "idx_asset_tags_tag",
+        "bytes": 228958208
+      },
+      {
+        "name": "search_index_data",
+        "bytes": 219648000
+      },
+      {
+        "name": "idx_asset_locations_key",
+        "bytes": 214233088
+      },
+      {
+        "name": "sqlite_autoindex_renditions_1",
+        "bytes": 151617536
+      },
+      {
+        "name": "idx_asset_locations_quick",
+        "bytes": 150163456
+      },
+      {
+        "name": "sqlite_autoindex_asset_locations_1",
+        "bytes": 147705856
+      },
+      {
+        "name": "idx_asset_hash_bands_lookup",
+        "bytes": 119250944
+      },
+      {
+        "name": "idx_assets_sha256",
+        "bytes": 116973568
+      },
+      {
+        "name": "idx_assets_library_taken",
+        "bytes": 94056448
+      },
+      {
+        "name": "idx_assets_library_added",
+        "bytes": 94003200
+      },
+      {
+        "name": "idx_asset_locations_nas_present",
+        "bytes": 93159424
+      },
+      {
+        "name": "sqlite_autoindex_assets_1",
+        "bytes": 64331776
+      },
+      {
+        "name": "idx_assets_lens",
+        "bytes": 63025152
+      },
+      {
+        "name": "idx_assets_created_at",
+        "bytes": 53112832
+      },
+      {
+        "name": "idx_asset_locations_check_due",
+        "bytes": 52772864
+      },
+      {
+        "name": "idx_asset_locations_state",
+        "bytes": 51224576
+      },
+      {
+        "name": "idx_assets_captured_at",
+        "bytes": 51134464
+      }
+    ],
+    "counts": {
+      "assets": 1400000,
+      "asset_locations": 2800000,
+      "renditions": 2800000,
+      "asset_tags": 5014986,
+      "asset_hash_bands": 8400000,
+      "album_items": 77774,
+      "tags": 1921,
+      "search_index_data": 54335,
+      "search_index_content": 1400000
+    }
+  },
+  "operations": [
+    {
+      "name": "Library, first page",
+      "ms": 10,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' ORDER BY COALESCE(a.captured_at, a.created_at) DESC, a.id DESC LIMIT ? OFFSET ?",
+          "ms": 2,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_taken"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' LIMIT 10001)",
+          "ms": 1,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SCAN a USING INDEX idx_assets_library_added",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT * FROM asset_locations WHERE asset_id IN (SELECT value FROM json_each(?)) ORDER BY connection_id",
+        "ms": 3
+      }
+    },
+    {
+      "name": "Library, page 100",
+      "ms": 9,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' ORDER BY COALESCE(a.captured_at, a.created_at) DESC, a.id DESC LIMIT ? OFFSET ?",
+          "ms": 3,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_taken"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' LIMIT 10001)",
+          "ms": 1,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SCAN a USING INDEX idx_assets_library_added",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' ORDER BY COALESCE(a.captured_at, a.created_at) DESC, a.id DESC LIMIT ? OFFSET ?",
+        "ms": 3
+      }
+    },
+    {
+      "name": "Library, newest added",
+      "ms": 16,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?",
+          "ms": 3,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' LIMIT 10001)",
+          "ms": 1,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SCAN a USING INDEX idx_assets_library_added",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT * FROM asset_locations WHERE asset_id IN (SELECT value FROM json_each(?)) ORDER BY connection_id",
+        "ms": 10
+      }
+    },
+    {
+      "name": "Library, one year",
+      "ms": 848,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.captured_at >= ? AND a.captured_at < ? LIMIT 1000",
+          "ms": 4,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH a USING INDEX idx_assets_captured_at (captured_at>? AND captured_at<?)",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.captured_at >= ? AND a.captured_at < ? ORDER BY COALESCE(a.captured_at, a.",
+        "ms": 840
+      }
+    },
+    {
+      "name": "Library, one month",
+      "ms": 0,
+      "statements": 2,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.captured_at >= ? AND a.captured_at < ? LIMIT 1000",
+          "ms": 0,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH a USING INDEX idx_assets_captured_at (captured_at>? AND captured_at<?)",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.captured_at >= ? AND a.captured_at < ? ORDER BY COALESCE(a.captured_at, a.",
+        "ms": 0
+      }
+    },
+    {
+      "name": "Library, one species keyword",
+      "ms": 1,
+      "statements": 2,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.id IN (SELECT at.asset_id FROM tags t JOIN asset_",
+          "ms": 0,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SEARCH a USING INDEX sqlite_autoindex_assets_1 (id=?)",
+            "LIST SUBQUERY 1",
+            "MULTI-INDEX OR",
+            "INDEX 1",
+            "SEARCH t USING INDEX sqlite_autoindex_tags_2 (path=?)",
+            "INDEX 2",
+            "SEARCH t USING INDEX sqlite_autoindex_tags_2 (path>? AND path<?)",
+            "SEARCH at USING INDEX idx_asset_tags_tag (tag_id=?)",
+            "CREATE BLOOM FILTER",
+            "SCAN (subquery-2)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.id IN (SELECT at.asset_id FROM tags t JOIN asset_tags at ON at.tag_id = t.",
+        "ms": 0
+      }
+    },
+    {
+      "name": "Library, a country and below",
+      "ms": 1790,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.id IN (SELECT at.asset_id FROM tags f JOIN tags t",
+          "ms": 292,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SEARCH a USING INDEX sqlite_autoindex_assets_1 (id=?)",
+            "LIST SUBQUERY 1",
+            "SEARCH f USING INDEX sqlite_autoindex_tags_1 (id=?)",
+            "MULTI-INDEX OR",
+            "INDEX 1",
+            "SEARCH t USING INDEX sqlite_autoindex_tags_2 (path=?)",
+            "INDEX 2",
+            "SEARCH t USING INDEX sqlite_autoindex_tags_2 (path>? AND path<?)",
+            "SEARCH at USING INDEX idx_asset_tags_tag (tag_id=?)",
+            "CREATE BLOOM FILTER",
+            "SCAN (subquery-2)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.id IN (SELECT at.asset_id FROM tags f JOIN tags t ON (t.path = f.path OR (",
+        "ms": 1484
+      }
+    },
+    {
+      "name": "Library, one camera",
+      "ms": 616,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.camera_model = ? LIMIT 10001)",
+          "ms": 13,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH a USING INDEX idx_assets_camera_model (camera_model=?)",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.camera_model = ? ORDER BY COALESCE(a.captured_at, a.created_at) DESC, a.id",
+        "ms": 597
+      }
+    },
+    {
+      "name": "Library, 4+ stars",
+      "ms": 42,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.rating >= ? LIMIT 10001)",
+          "ms": 31,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH a USING INDEX idx_assets_rating (rating>?)",
+            "SCAN (subquery-1)"
+          ]
+        },
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.rating >= ? ORDER BY COALESCE(a.captured_at, a.created_at) DESC, a.id DESC",
+          "ms": 3,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_taken"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.rating >= ? LIMIT 10001)",
+        "ms": 31
+      }
+    },
+    {
+      "name": "Library, on the NAS",
+      "ms": 550,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND EXISTS (SELECT 1 FROM asset_locations l WHERE l.ass",
+          "ms": 543,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SCAN a USING INDEX idx_assets_library_added",
+            "CORRELATED SCALAR SUBQUERY 1",
+            "SEARCH l USING INDEX sqlite_autoindex_asset_locations_1 (asset_id=? AND connection_id=?)",
+            "SCAN (subquery-2)"
+          ]
+        },
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.connec",
+          "ms": 4,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_taken",
+            "CORRELATED SCALAR SUBQUERY 1",
+            "SEARCH l USING INDEX sqlite_autoindex_asset_locations_1 (asset_id=? AND connection_id=?)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND EXISTS (SELECT 1 FROM asset_locations l WHERE l.ass",
+        "ms": 543
+      }
+    },
+    {
+      "name": "Search \"heron\"",
+      "ms": 16,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) O",
+          "ms": 10,
+          "plan": [
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHER",
+          "ms": 1,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "SCAN (subquery-2)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) O",
+        "ms": 10
+      }
+    },
+    {
+      "name": "Search \"flight norway\"",
+      "ms": 181,
+      "statements": 4,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) O",
+          "ms": 138,
+          "plan": [
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHER",
+          "ms": 35,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "SCAN (subquery-2)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) O",
+        "ms": 138
+      }
+    },
+    {
+      "name": "Search \"heron\" in 2015",
+      "ms": 2,
+      "statements": 2,
+      "scans": [
+        {
+          "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) A",
+          "ms": 1,
+          "plan": [
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHER",
+          "ms": 1,
+          "plan": [
+            "CO-ROUTINE (subquery-2)",
+            "SEARCH a USING INDEX idx_assets_search_id (search_id=?)",
+            "LIST SUBQUERY 1",
+            "SCAN search_index VIRTUAL TABLE INDEX 0:M7",
+            "CREATE BLOOM FILTER",
+            "SCAN (subquery-2)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.* FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.search_id IN (SELECT rowid FROM search_index WHERE search_index MATCH ?) A",
+        "ms": 1
+      }
+    },
+    {
+      "name": "Filters (facets), everything",
+      "ms": 115354,
+      "statements": 13,
+      "scans": [
+        {
+          "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+          "ms": 49007,
+          "plan": [
+            "CO-ROUTINE under",
+            "SETUP",
+            "SCAN tags USING COVERING INDEX sqlite_autoindex_tags_1",
+            "RECURSIVE STEP",
+            "SCAN under",
+            "SEARCH t USING INDEX idx_tags_parent (parent_id=?)",
+            "SCAN a USING INDEX idx_assets_library_added",
+            "SEARCH at USING COVERING INDEX sqlite_autoindex_asset_tags_1 (asset_id=?)",
+            "SEARCH under USING AUTOMATIC COVERING INDEX (id=?)",
+            "SEARCH f USING INDEX sqlite_autoindex_tags_1 (id=?)",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR count(DISTINCT)",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT (SELECT CASE l.storage_class WHEN 'NAS' THEN 'nas' WHEN 'STANDARD' THEN 'hot' WHEN 'DEEP_ARCHIVE' THEN 'deep' WHEN 'GLACIER' THEN 'cold' WHEN 'GLACIER_IR",
+          "ms": 21778,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "CORRELATED SCALAR SUBQUERY 2",
+            "SEARCH l USING INDEX sqlite_autoindex_asset_locations_1 (asset_id=?)",
+            "USE TEMP B-TREE FOR ORDER BY",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "CORRELATED SCALAR SUBQUERY 1",
+            "SEARCH l USING INDEX sqlite_autoindex_asset_locations_1 (asset_id=?)",
+            "USE TEMP B-TREE FOR ORDER BY",
+            "CORRELATED SCALAR SUBQUERY 1",
+            "SEARCH l USING INDEX sqlite_autoindex_asset_locations_1 (asset_id=?)",
+            "USE TEMP B-TREE FOR ORDER BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COALESCE(substr(a.captured_at, 1, 4), 'undated') AS value, COUNT(*) AS count FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND COA",
+          "ms": 7643,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COALESCE(a.flag, 'none') AS value, COUNT(*) AS count FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND COALESCE(a.flag, 'none') IS",
+          "ms": 7261,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT CAST(a.rating AS TEXT) AS value, COUNT(*) AS count FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND CAST(a.rating AS TEXT) IS NOT",
+          "ms": 6698,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT (CASE WHEN a.width IS NULL OR a.height IS NULL THEN NULL WHEN a.width > a.height * 1.05 THEN 'landscape' WHEN a.height > a.width * 1.05 THEN 'portrait' E",
+          "ms": 6635,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT (CASE WHEN a.mime_type LIKE 'video/%' THEN 'video' WHEN a.mime_type LIKE 'image/x-%' THEN 'raw' WHEN a.mime_type LIKE 'image/%' AND a.mime_type != 'image",
+          "ms": 6451,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+        "ms": 49007
+      }
+    },
+    {
+      "name": "Filters (facets), one year",
+      "ms": 20244,
+      "statements": 13,
+      "scans": [
+        {
+          "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+          "ms": 8623,
+          "plan": [
+            "CO-ROUTINE under",
+            "SETUP",
+            "SCAN tags USING COVERING INDEX sqlite_autoindex_tags_1",
+            "RECURSIVE STEP",
+            "SCAN under",
+            "SEARCH t USING INDEX idx_tags_parent (parent_id=?)",
+            "SEARCH a USING INDEX idx_assets_captured_at (captured_at>? AND captured_at<?)",
+            "SEARCH at USING COVERING INDEX sqlite_autoindex_asset_tags_1 (asset_id=?)",
+            "SEARCH under USING AUTOMATIC COVERING INDEX (id=?)",
+            "SEARCH f USING INDEX sqlite_autoindex_tags_1 (id=?)",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR count(DISTINCT)",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        },
+        {
+          "sql": "SELECT COALESCE(substr(a.captured_at, 1, 4), 'undated') AS value, COUNT(*) AS count FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND COA",
+          "ms": 8237,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_library_added",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR ORDER BY"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+        "ms": 8623
+      }
+    },
+    {
+      "name": "Timeline, everything",
+      "ms": 1996,
+      "statements": 1,
+      "scans": [],
+      "slowest": {
+        "sql": "SELECT substr(a.captured_at, 1, 7) AS month, COUNT(*) AS count FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.captured_at IS NOT NUL",
+        "ms": 1996
+      }
+    },
+    {
+      "name": "Map points",
+      "ms": 25,
+      "statements": 1,
+      "scans": [
+        {
+          "sql": "SELECT a.id, a.gps_lat AS lat, a.gps_lng AS lng FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.gps_lat IS NOT NULL AND a.gps_lng IS ",
+          "ms": 25,
+          "plan": [
+            "SCAN a USING INDEX idx_assets_place_check"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT a.id, a.gps_lat AS lat, a.gps_lng AS lng FROM assets a WHERE a.deleted_at IS NULL AND a.status != 'uploading' AND a.gps_lat IS NOT NULL AND a.gps_lng IS ",
+        "ms": 25
+      }
+    },
+    {
+      "name": "Keyword tree",
+      "ms": 35694,
+      "statements": 2,
+      "scans": [
+        {
+          "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+          "ms": 35656,
+          "plan": [
+            "CO-ROUTINE under",
+            "SETUP",
+            "SCAN tags USING COVERING INDEX sqlite_autoindex_tags_1",
+            "RECURSIVE STEP",
+            "SCAN under",
+            "SEARCH t USING INDEX idx_tags_parent (parent_id=?)",
+            "SCAN at USING COVERING INDEX sqlite_autoindex_asset_tags_1",
+            "BLOOM FILTER ON a (id=?)",
+            "SEARCH a USING INDEX sqlite_autoindex_assets_1 (id=?)",
+            "SEARCH under USING AUTOMATIC COVERING INDEX (id=?)",
+            "USE TEMP B-TREE FOR GROUP BY",
+            "USE TEMP B-TREE FOR count(DISTINCT)",
+            "USE TEMP B-TREE FOR count(DISTINCT)"
+          ]
+        },
+        {
+          "sql": "SELECT * FROM tags ORDER BY path",
+          "ms": 14,
+          "plan": [
+            "SCAN tags USING INDEX sqlite_autoindex_tags_2"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "WITH RECURSIVE under(root, id) AS (SELECT id, id FROM (SELECT id FROM tags) UNION ALL SELECT under.root, t.id FROM tags t JOIN under ON t.parent_id = under.id) ",
+        "ms": 35656
+      }
+    },
+    {
+      "name": "Duplicate counts",
+      "ms": 5524,
+      "statements": 3,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1)",
+          "ms": 5522,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH assets USING INDEX idx_assets_sha256 (sha256>?)",
+            "SCAN (subquery-1)"
+          ]
+        },
+        {
+          "sql": "SELECT p.a, p.b FROM similar_pairs p JOIN assets x ON x.id = p.a AND x.deleted_at IS NULL JOIN assets y ON y.id = p.b AND y.deleted_at IS NULL WHERE p.dismissed",
+          "ms": 0,
+          "plan": [
+            "SCAN p",
+            "SEARCH x USING INDEX sqlite_autoindex_assets_1 (id=?)",
+            "SEARCH y USING INDEX sqlite_autoindex_assets_1 (id=?)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1)",
+        "ms": 5522
+      }
+    },
+    {
+      "name": "Exact duplicates, first page",
+      "ms": 10680,
+      "statements": 2,
+      "scans": [
+        {
+          "sql": "SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1)",
+          "ms": 5203,
+          "plan": [
+            "CO-ROUTINE (subquery-1)",
+            "SEARCH assets USING INDEX idx_assets_sha256 (sha256>?)",
+            "SCAN (subquery-1)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC, MIN(created_at) LIMIT ?",
+        "ms": 5477
+      }
+    },
+    {
+      "name": "Look-alikes, first page",
+      "ms": 0,
+      "statements": 1,
+      "scans": [
+        {
+          "sql": "SELECT p.a, p.b FROM similar_pairs p JOIN assets x ON x.id = p.a AND x.deleted_at IS NULL JOIN assets y ON y.id = p.b AND y.deleted_at IS NULL WHERE p.dismissed",
+          "ms": 0,
+          "plan": [
+            "SCAN p",
+            "SEARCH x USING INDEX sqlite_autoindex_assets_1 (id=?)",
+            "SEARCH y USING INDEX sqlite_autoindex_assets_1 (id=?)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT p.a, p.b FROM similar_pairs p JOIN assets x ON x.id = p.a AND x.deleted_at IS NULL JOIN assets y ON y.id = p.b AND y.deleted_at IS NULL WHERE p.dismissed",
+        "ms": 0
+      }
+    },
+    {
+      "name": "One photo (page)",
+      "ms": 4,
+      "statements": 3,
+      "scans": [],
+      "slowest": {
+        "sql": "SELECT t.id, t.name, t.full_path, at.source FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = ? ORDER BY t.path",
+        "ms": 2
+      }
+    },
+    {
+      "name": "Sweep: search index repair (none due)",
+      "ms": 0,
+      "statements": 1,
+      "scans": [
+        {
+          "sql": "SELECT id FROM assets WHERE indexed_at IS NULL AND deleted_at IS NULL AND status != 'uploading' ORDER BY created_at LIMIT ?",
+          "ms": 0,
+          "plan": [
+            "SCAN assets USING INDEX idx_assets_unindexed"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT id FROM assets WHERE indexed_at IS NULL AND deleted_at IS NULL AND status != 'uploading' ORDER BY created_at LIMIT ?",
+        "ms": 0
+      }
+    },
+    {
+      "name": "Sweep: storage checks due",
+      "ms": 1,
+      "statements": 1,
+      "scans": [
+        {
+          "sql": "SELECT l.asset_id, l.connection_id, l.key, l.state, l.size, l.etag, l.storage_class, l.check_result, a.sha256, a.sha256_verified FROM asset_locations l JOIN ass",
+          "ms": 1,
+          "plan": [
+            "SCAN l USING INDEX idx_asset_locations_check_due",
+            "SEARCH a USING INDEX sqlite_autoindex_assets_1 (id=?)"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT l.asset_id, l.connection_id, l.key, l.state, l.size, l.etag, l.storage_class, l.check_result, a.sha256, a.sha256_verified FROM asset_locations l JOIN ass",
+        "ms": 1
+      }
+    },
+    {
+      "name": "Storage page: check totals",
+      "ms": 1161,
+      "statements": 1,
+      "scans": [
+        {
+          "sql": "SELECT COALESCE(check_result, 'unchecked') AS result, COUNT(*) AS n FROM asset_locations WHERE storage_class != 'NAS' GROUP BY check_result",
+          "ms": 1161,
+          "plan": [
+            "SCAN asset_locations USING INDEX idx_asset_locations_check_result"
+          ]
+        }
+      ],
+      "slowest": {
+        "sql": "SELECT COALESCE(check_result, 'unchecked') AS result, COUNT(*) AS n FROM asset_locations WHERE storage_class != 'NAS' GROUP BY check_result",
+        "ms": 1161
+      }
+    }
+  ]
+}

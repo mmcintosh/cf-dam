@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getConnection, getLabelNames, listPresets, listSavedSearches, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
+import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -17,9 +17,9 @@ const PAGE = 100
 
 const canRead = principal.permissions.has('assets:read')
 const canUpload = principal.permissions.has('assets:upload')
-const [{ assets, total }, facets, months] = canRead
+const [{ assets, total, totalExact }, facets, months] = canRead
   ? await Promise.all([listAssets(env.DB, { ...filters, limit: PAGE, offset: 0 }), loadFacets(env.DB, filters), loadTimeline(env.DB, filters)])
-  : [{ assets: [], total: 0 }, null, []]
+  : [{ assets: [], total: 0, totalExact: true }, null, []]
 const connections = canUpload
   ? (await listConnections(env.DB)).map((c) => ({ id: c.id, name: c.name, storageClasses: c.storageClasses, defaultClass: c.defaultClass, isDefault: c.isDefault }))
   : []
@@ -42,7 +42,11 @@ const sortLink = (value: 'captured' | 'added') => {
   const s = next.toString()
   return s ? `/?${s}` : '/'
 }
-const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${filtered ? ' match' : ''}`
+// The whole archive's count comes from the sweep's snapshot once the live count stops at 10,000.
+const archiveTotal = !filtered && !totalExact ? (await getStats(env.DB))?.photos : undefined
+const subtitle = archiveTotal
+  ? `${archiveTotal.toLocaleString()} items`
+  : `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}${filtered ? ' match' : ''}`
 ---
 <AppLayout title="Library" subtitle={subtitle}>
   {total === 0 && !filtered ? (
@@ -76,6 +80,7 @@ const subtitle = `${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}${f
             client:load
             initial={assets}
             initialTotal={total}
+            initialTotalExact={totalExact}
             query={params.toString()}
             pageSize={PAGE}
             canEdit={principal.permissions.has('assets:edit')}

@@ -30,6 +30,8 @@
   interface Props {
     initial: Asset[]
     initialTotal: number
+    /** False when more than `initialTotal` match (the count stops at 10,000). */
+    initialTotalExact: boolean
     /** The current filter query string, without offset/limit. */
     query: string
     pageSize: number
@@ -46,10 +48,11 @@
   const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
   /** The most one bulk edit takes (the server's MAX_BULK). */
   const MAX_BULK = 500
-  let { initial, initialTotal, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets }: Props = $props()
+  let { initial, initialTotal, initialTotalExact, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
+  let totalExact = $state(initialTotalExact)
   let selected = $state<Set<string>>(new Set())
   let focus = $state(0)
   let anchor = $state<number | null>(null)
@@ -97,12 +100,17 @@
 
   // ── Loading more ─────────────────────────────────────────────────────────────
   async function loadMore() {
-    if (loading || assets.length >= total) return
+    if (loading || (totalExact && assets.length >= total)) return
     loading = true
     try {
       const sep = query ? '&' : ''
       const page = await api<{ assets: Asset[] }>(`/api/assets?${query}${sep}offset=${assets.length}&limit=${pageSize}`)
       assets = [...assets, ...page.assets]
+      // Past the count's cap, the end shows itself as a short page.
+      if (!totalExact && page.assets.length < pageSize) {
+        total = assets.length
+        totalExact = true
+      } else if (!totalExact) total = Math.max(total, assets.length)
     } finally {
       loading = false
     }
@@ -414,7 +422,7 @@
   {/each}
 </div>
 <div id="library-end" class="end muted">
-  {#if loading}Loading…{:else if assets.length < total}<button class="btn btn-sm" onclick={loadMore}>Load more</button>{:else if total > 0}All {total} shown{/if}
+  {#if loading}Loading…{:else if assets.length < total || !totalExact}<button class="btn btn-sm" onclick={loadMore}>Load more</button>{:else if total > 0}All {total} shown{/if}
 </div>
 
 {#if selected.size > 0 && loupe === null && !compare}
@@ -487,7 +495,7 @@
         <div class="no-preview"><strong>{ext(current.filename)}</strong><span>No preview</span></div>
       {/if}
       <button class="nav prev" aria-label="Previous (←)" onclick={() => next(-1)} disabled={loupe === 0}>‹</button>
-      <button class="nav next" aria-label="Next (→)" onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total}>›</button>
+      <button class="nav next" aria-label="Next (→)" onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total && totalExact}>›</button>
       <button class="close" aria-label="Close (Esc)" onclick={closeLoupe}>✕</button>
       {#if current.flag}<span class={`loupe-flag ${current.flag}`}>{current.flag === 'pick' ? '⚑ Pick' : '✕ Reject'}</span>{/if}
       {#if current.label}<span class={`loupe-label label-${current.label}`}>{labelNames[current.label]}</span>{/if}
@@ -495,7 +503,7 @@
     {#if showInfo}
       <aside class="info">
         <h2>{current.title ?? current.filename}</h2>
-        <p class="muted">{loupe! + 1} of {total}</p>
+        <p class="muted">{loupe! + 1} of {total.toLocaleString()}{totalExact ? '' : '+'}</p>
         <div class="stars-row" aria-label="Rating">
           {#each [1, 2, 3, 4, 5] as star (star)}
             <button class:on={(current.rating ?? 0) >= star} disabled={!canEdit} onclick={() => rate(current.rating === star ? 0 : star)} aria-label={`${star} stars`}>★</button>

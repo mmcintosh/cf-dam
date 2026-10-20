@@ -261,8 +261,18 @@ export interface KeywordNode extends Keyword {
   total: number
 }
 
-/** The whole tree with counts, for the keyword manager and autocomplete. Ordered by path. */
+/**
+ * The whole tree with counts, for the keyword manager and autocomplete. Ordered by path. Counts come
+ * from the sweep's snapshot (catalog/stats.ts) once there is one: counted live, they read every
+ * keyword of every photo (33 s at 1.4 million photos).
+ */
 export async function keywordTree(db: D1Database): Promise<KeywordNode[]> {
+  const snapshot = await db.prepare("SELECT value FROM settings WHERE key = 'stats'").first<{ value: string }>()
+  if (snapshot) {
+    const { keywords } = JSON.parse(snapshot.value) as { keywords: Record<string, { own: number; total: number }> }
+    const { results } = await db.prepare('SELECT * FROM tags ORDER BY path').all<KeywordRow>()
+    return results.map((row) => ({ ...keywordJson(row), count: keywords[row.id]?.own ?? 0, total: keywords[row.id]?.total ?? 0 }))
+  }
   const [rows, counts] = await db.batch([
     db.prepare('SELECT * FROM tags ORDER BY path'),
     db.prepare(

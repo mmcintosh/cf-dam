@@ -4,16 +4,18 @@
  */
 import { escapeXml } from '../storage/xml'
 import { nowIso } from '../lib/time'
-import { addTags, buildWhere, isLabel, KIND_SQL, LABELS, ORIENTATION_SQL, softDeleteAssets, TIER_SQL, type AssetRow, type Label, type ListFilters } from './assets'
+import { addTags, buildWhere, isLabel, LABELS, softDeleteAssets, type AssetRow, type Label, type ListFilters } from './assets'
 import { getPreset, iptcXmp, presetStatements } from './iptc'
 import { DROP_GPS_PLACES } from './places'
 import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAssets } from './search'
+import { getStats, PLAIN_FACETS, topValues, type PlainFacet } from './stats'
 
 export interface FacetValue {
   value: string
-  count: number
+  /** Null when too many photos match to count them live (see `facets`). */
+  count: number | null
 }
 
 /** A keyword in the facet tree. `count` includes photos tagged anywhere below it. */
@@ -22,7 +24,7 @@ export interface KeywordFacet {
   parentId: string | null
   name: string
   path: string
-  count: number
+  count: number | null
 }
 
 export interface Facets {
@@ -41,59 +43,117 @@ export interface Facets {
   tier: FacetValue[]
 }
 
-/** Each facet's counts ignore that facet's own selection, so you can switch between its values. */
+/**
+ * Facets are counted live while at most this many photos match. A count is a grouped read of every
+ * matching photo, thirteen times over: at 1.4 million photos the unfiltered panel took 78 s.
+ */
+export const FACET_LIVE_MAX = 25_000
+/** The timeline is one grouped read, so it stays live longer. */
+export const TIMELINE_LIVE_MAX = 100_000
+
+/** Each facet's filter, so its counts ignore its own selection (you can switch between its values). */
+const FACET_FILTER: Record<PlainFacet | 'tag', keyof ListFilters> = {
+  year: 'year', camera: 'camera', lens: 'lens', tag: 'tag', rating: 'rating', flag: 'flag', label: 'label',
+  country: 'country', city: 'city', creator: 'creator', orientation: 'orientation', type: 'type', tier: 'tier',
+}
+
+/** Whether a set of filters narrows anything (sort and paging don't). */
+export function isFiltered(filters: ListFilters): boolean {
+  return Object.entries(filters).some(([k, v]) => !['sort', 'limit', 'offset'].includes(k) && v !== undefined && v !== '' && v !== false)
+}
+
+const sortFacet = (name: string, values: FacetValue[]): FacetValue[] =>
+  name === 'year'
+    ? values.sort((a, b) => (a.value === 'undated' ? 1 : b.value === 'undated' ? -1 : b.value.localeCompare(a.value)))
+    : name === 'rating'
+      ? values.sort((a, b) => b.value.localeCompare(a.value))
+      : name === 'label'
+        ? values.sort((a, b) => LABELS.indexOf(a.value as Label) - LABELS.indexOf(b.value as Label))
+        : values
+
+/**
+ * Facet counts for what's on screen. Each facet is answered the cheapest correct way: from the
+ * sweep's whole-archive snapshot when its own selection is the only filter (or there is none), live
+ * when at most FACET_LIVE_MAX photos match, and otherwise with its values but no counts.
+ */
 export async function facets(db: D1Database, filters: ListFilters): Promise<Facets> {
-  const grouped = (expr: string, omit: keyof ListFilters, limit = 30) => {
-    const { clause, params } = buildWhere(filters, omit)
+  const names = Object.keys(FACET_FILTER) as (PlainFacet | 'tag')[]
+  const wheres = new Map(names.map((name) => [name, buildWhere(filters, FACET_FILTER[name])]))
+  const unfiltered = new Map(names.map((name) => [name, !isFiltered({ ...filters, [FACET_FILTER[name]]: undefined, ...(name === 'tag' ? { keyword: undefined } : {}) })]))
+  // The snapshot gives unfiltered counts, and the values to show when counting live would be too slow.
+  const stats = await getStats(db)
+
+  // How many match each distinct filtered clause, stopping just past the live limit.
+  const clauses = [...new Set(names.filter((n) => !unfiltered.get(n) || !stats).map((n) => wheres.get(n)!.clause))]
+  const sized = new Map<string, number>()
+  if (clauses.length > 0) {
+    const counted = await db.batch(
+      clauses.map((clause) => {
+        const params = names.map((n) => wheres.get(n)!).find((w) => w.clause === clause)!.params
+        return db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE ${clause} LIMIT ${FACET_LIVE_MAX + 1})`).bind(...params)
+      }),
+    )
+    clauses.forEach((clause, i) => sized.set(clause, (counted[i]!.results[0] as { n: number }).n))
+  }
+  const live = (name: PlainFacet | 'tag') => (!unfiltered.get(name) || !stats) && (sized.get(wheres.get(name)!.clause) ?? 0) <= FACET_LIVE_MAX
+
+  const liveNames = names.filter(live)
+  const statements = liveNames.map((name) => {
+    const { clause, params } = wheres.get(name)!
+    if (name === 'tag') {
+      // Counts roll up: a photo tagged Bergen counts towards Norway, Europe and Places too.
+      return db
+        .prepare(
+          `${SUBTREE('SELECT id FROM tags')}
+           SELECT f.id, f.parent_id AS parentId, f.name, f.full_path AS path, COUNT(DISTINCT a.id) AS count
+           FROM assets a JOIN asset_tags at ON at.asset_id = a.id JOIN under ON under.id = at.tag_id JOIN tags f ON f.id = under.root
+           WHERE ${clause} GROUP BY f.id ORDER BY f.path LIMIT 1000`,
+        )
+        .bind(...params)
+    }
+    const { expr, limit } = PLAIN_FACETS[name]
     return db
       .prepare(`SELECT ${expr} AS value, COUNT(*) AS count FROM assets a WHERE ${clause} AND ${expr} IS NOT NULL GROUP BY value ORDER BY count DESC, value LIMIT ?`)
       .bind(...params, limit)
+  })
+  const needsTags = !live('tag')
+  const results = await db.batch([...statements, ...(needsTags ? [db.prepare('SELECT id, parent_id AS parentId, name, full_path AS path FROM tags ORDER BY path LIMIT 1000')] : [])])
+  const liveResults = new Map(liveNames.map((name, i) => [name, results[i]!.results]))
+
+  const out = {} as Record<string, unknown>
+  for (const name of names) {
+    if (name === 'tag') continue
+    if (liveResults.has(name)) {
+      out[name] = sortFacet(name, liveResults.get(name) as FacetValue[])
+      continue
+    }
+    // From the snapshot: its counts are right when unfiltered; otherwise only its values are shown.
+    const counted = unfiltered.get(name)
+    out[name] = sortFacet(name, topValues(stats?.facets[name] ?? {}, PLAIN_FACETS[name].limit).map((v) => ({ value: v.value, count: counted ? v.count : null })))
   }
-  const tagWhere = buildWhere(filters, 'tag')
-  const results = await db.batch<FacetValue>([
-    grouped("COALESCE(substr(a.captured_at, 1, 4), 'undated')", 'year', 100),
-    grouped('a.camera_model', 'camera'),
-    grouped('a.lens', 'lens'),
-    // Counts roll up: a photo tagged Bergen counts towards Norway, Europe and Places too.
-    db
-      .prepare(
-        `${SUBTREE('SELECT id FROM tags')}
-         SELECT f.id, f.parent_id AS parentId, f.name, f.full_path AS path, COUNT(DISTINCT a.id) AS count
-         FROM assets a JOIN asset_tags at ON at.asset_id = a.id JOIN under ON under.id = at.tag_id JOIN tags f ON f.id = under.root
-         WHERE ${tagWhere.clause} GROUP BY f.id ORDER BY f.path LIMIT 1000`,
-      )
-      .bind(...tagWhere.params),
-    grouped('CAST(a.rating AS TEXT)', 'rating', 6),
-    grouped("COALESCE(a.flag, 'none')", 'flag', 3),
-    grouped('a.label', 'label', 5),
-    grouped('a.country', 'country', 40),
-    grouped('a.city', 'city', 40),
-    grouped('a.creator', 'creator', 20),
-    grouped(`(${ORIENTATION_SQL})`, 'orientation', 3),
-    grouped(`(${KIND_SQL})`, 'type', 4),
-    grouped(TIER_SQL, 'tier', 4),
-  ])
-  const [year, camera, lens, tag, rating, flag, label, country, city, creator, orientation, type, tier] = results.map((r) => r.results ?? [])
-  return {
-    year: (year ?? []).sort((a, b) => (a.value === 'undated' ? 1 : b.value === 'undated' ? -1 : b.value.localeCompare(a.value))),
-    camera: camera ?? [],
-    lens: lens ?? [],
-    tag: ((tag ?? []) as unknown as KeywordFacet[]).map((k) => ({ ...k, path: displayPath(k.path) })),
-    rating: (rating ?? []).sort((a, b) => b.value.localeCompare(a.value)),
-    flag: flag ?? [],
-    label: (label ?? []).sort((a, b) => LABELS.indexOf(a.value as Label) - LABELS.indexOf(b.value as Label)),
-    country: country ?? [],
-    city: city ?? [],
-    creator: creator ?? [],
-    orientation: orientation ?? [],
-    type: type ?? [],
-    tier: tier ?? [],
+  if (liveResults.has('tag')) {
+    out.tag = (liveResults.get('tag') as unknown as KeywordFacet[]).map((k) => ({ ...k, path: displayPath(k.path) }))
+  } else {
+    const counted = unfiltered.get('tag')
+    out.tag = (results.at(-1)!.results as Omit<KeywordFacet, 'count'>[])
+      .filter((k) => (stats?.keywords[k.id]?.total ?? 0) > 0)
+      .map((k) => ({ ...k, path: displayPath(k.path), count: counted ? stats!.keywords[k.id]!.total : null }))
   }
+  return out as unknown as Facets
 }
 
-/** Photos per month, for the timeline. */
+/**
+ * Photos per month, for the timeline: from the snapshot when nothing but the year is chosen, live
+ * while at most TIMELINE_LIVE_MAX photos match, and otherwise none (the timeline is hidden).
+ */
 export async function timeline(db: D1Database, filters: ListFilters): Promise<{ month: string; count: number }[]> {
+  if (!isFiltered({ ...filters, year: undefined })) {
+    const stats = await getStats(db)
+    if (stats) return Object.entries(stats.months).map(([month, count]) => ({ month, count })).sort((a, b) => a.month.localeCompare(b.month))
+  }
   const { clause, params } = buildWhere(filters, 'year')
+  const sized = await db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE ${clause} LIMIT ${TIMELINE_LIVE_MAX + 1})`).bind(...params).first<{ n: number }>()
+  if ((sized?.n ?? 0) > TIMELINE_LIVE_MAX) return []
   const { results } = await db
     .prepare(
       `SELECT substr(a.captured_at, 1, 7) AS month, COUNT(*) AS count FROM assets a

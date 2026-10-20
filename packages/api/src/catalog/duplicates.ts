@@ -5,6 +5,7 @@
  */
 import { nowIso } from '../lib/time'
 import { assetJson, locationsOf, primaryLocation, renditionNames, softDeleteAssets, type AssetJson, type AssetRow } from './assets'
+import { getStats } from './stats'
 import { indexAsset } from './search'
 
 export interface DuplicateGroup {
@@ -158,7 +159,9 @@ export async function dismissPairs(db: D1Database, ids: string[], only?: string)
   return result.meta.changes
 }
 
+/** Exact groups from the sweep's snapshot when there is one (grouping every SHA-256 took 5.6 s at 1.4 million). */
 export async function duplicateCounts(db: D1Database): Promise<{ exact: number; similar: number }> {
-  const [exact, similar] = await Promise.all([exactGroups(db, 0), similarGroups(db, 0)])
-  return { exact: exact.total, similar: similar.total }
+  const [stats, similar] = await Promise.all([getStats(db), similarGroups(db, 0)])
+  const exact = stats ? stats.exactDuplicateGroups : (await exactGroups(db, 0)).total
+  return { exact, similar: similar.total }
 }
