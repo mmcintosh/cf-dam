@@ -26,7 +26,9 @@
     description: string
   }
 
+  type Scope = 'nobody' | 'admins' | 'everyone'
   let users = $state<User[]>([])
+  let required = $state<Scope>('nobody')
   let roles = $state<Role[]>([])
   let showCreate = $state(false)
   let draft = $state({ name: '', email: '', password: '', role: 'viewer' })
@@ -46,9 +48,29 @@
   const who = (user: User) => user.name || user.email
 
   async function load() {
-    const [u, r] = await Promise.all([api<{ users: User[] }>('/api/users'), api<{ roles: Role[] }>('/api/roles')])
+    const [u, r, p] = await Promise.all([
+      api<{ users: User[] }>('/api/users'),
+      api<{ roles: Role[] }>('/api/roles'),
+      api<{ twoFactorRequiredFor: Scope }>('/api/users/policy'),
+    ])
     users = u.users
     roles = r.roles
+    required = p.twoFactorRequiredFor
+  }
+
+  async function setRequired(scope: Scope) {
+    error = ''
+    notice = ''
+    try {
+      await api('/api/users/policy', { method: 'PUT', body: JSON.stringify({ twoFactorRequiredFor: scope }) })
+      notice =
+        scope === 'nobody'
+          ? 'Two-factor sign-in is optional.'
+          : `From their next page, ${scope === 'everyone' ? 'everyone' : 'administrators'} without a code or passkey will be asked to set one up before anything else.`
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Could not change the setting.'
+    }
+    await load()
   }
   onMount(load)
 
@@ -131,6 +153,21 @@
 </script>
 
 <div class="stack">
+  <div class="card policy">
+    <div>
+      <strong>Two-factor sign-in</strong>
+      <p class="muted small">A code from an authenticator app, or a passkey. Required people without one are asked to set it up before anything else.</p>
+    </div>
+    <label class="row">
+      <span class="muted">Required for</span>
+      <select value={required} onchange={(e) => setRequired(e.currentTarget.value as Scope)}>
+        <option value="nobody">Nobody</option>
+        <option value="admins">Administrators</option>
+        <option value="everyone">Everyone</option>
+      </select>
+    </label>
+  </div>
+
   <div class="row between">
     <span class="muted">{users.length} {users.length === 1 ? 'person' : 'people'}</span>
     <button class="btn btn-primary" onclick={() => (showCreate = !showCreate)}>{showCreate ? 'Cancel' : 'Add person'}</button>
@@ -309,6 +346,20 @@
 <style>
   .between {
     justify-content: space-between;
+  }
+  .policy {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px 20px;
+  }
+  .policy > div {
+    flex: 1 1 280px;
+    min-width: 0;
+  }
+  .policy p {
+    margin: 2px 0 0;
   }
   .grid {
     display: grid;

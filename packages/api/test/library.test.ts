@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
 
@@ -118,8 +118,8 @@ describe('bulk actions', () => {
   })
 
   it('checks the permission each action needs', async () => {
-    await h.fetch('/api/users', { ...json({ name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] }), cookie: admin })
-    await h.fetch('/api/users', { ...json({ name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] }), cookie: admin })
+    await createUser(h, admin, { name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] })
+    await createUser(h, admin, { name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] })
     const viewer = cookiesFrom(await signIn(h, 'v@example.com', 'viewer password 1'))
     expect((await bulk({ ids, action: 'rating', rating: 5 }, viewer)).status).toBe(403)
     expect((await bulk({ ids, action: 'nonsense' })).status).toBe(400)

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { AwsClient } from 'aws4fetch'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 // Copied into plain Uint8Arrays: Node hands back Buffers, which don't deep-equal fetched bytes.
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -166,7 +166,7 @@ describe('uploading into the built-in R2 bucket', () => {
 describe('permissions', () => {
   it('lets a viewer browse but not upload', async () => {
     const id = await upload(camera, 'shared.jpg')
-    await h.fetch('/api/users', { ...json({ name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] }), cookie: admin })
+    await createUser(h, admin, { name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] })
     const viewer = cookiesFrom(await signIn(h, 'v@example.com', 'viewer password 1'))
     expect((await h.fetch(`/api/assets/${id}`, { cookie: viewer })).status).toBe(200)
     expect((await h.fetch('/api/uploads', { ...json({ filename: 'x.jpg', size: 10 }), cookie: viewer })).status).toBe(403)
@@ -174,7 +174,7 @@ describe('permissions', () => {
   })
 
   it('keeps an upload private to whoever started it', async () => {
-    await h.fetch('/api/users', { ...json({ name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] }), cookie: admin })
+    await createUser(h, admin, { name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] })
     const editor = cookiesFrom(await signIn(h, 'e@example.com', 'editor password 1'))
     const created = (await (await h.fetch('/api/uploads', { ...json({ filename: 'x.jpg', size: 10 }), cookie: admin })).json()) as CreatedUpload
     expect((await h.fetch(`/api/uploads/${created.uploadId}/part-urls`, { ...json({ partNumbers: [1] }), cookie: editor })).status).toBe(404)

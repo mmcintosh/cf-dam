@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 let h: Harness
 let admin: string
@@ -16,6 +16,7 @@ async function createViewer(): Promise<{ id: string; cookie: string }> {
   const res = await h.fetch('/api/users', { ...json(VIEWER), cookie: admin })
   expect(res.status).toBe(201)
   const { user } = (await res.json()) as { user: { id: string } }
+  await h.env.DB.prepare('UPDATE users SET must_change_password = 0 WHERE id = ?').bind(user.id).run()
   return { id: user.id, cookie: cookiesFrom(await signIn(h, VIEWER.email, VIEWER.password)) }
 }
 
@@ -89,7 +90,7 @@ describe('API keys', () => {
 
   it('refuses scopes the user does not hold', async () => {
     const editor = { name: 'Ed Editor', email: 'ed@example.com', password: 'editor password 123', roles: ['editor'] }
-    expect((await h.fetch('/api/users', { ...json(editor), cookie: admin })).status).toBe(201)
+    await createUser(h, admin, editor)
     const cookie = cookiesFrom(await signIn(h, editor.email, editor.password))
     const res = await h.fetch('/api/me/api-keys', { ...json({ name: 'escalate', scopes: ['users:manage'] }), cookie })
     expect(res.status).toBe(400)

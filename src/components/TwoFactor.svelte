@@ -4,8 +4,10 @@
 
   interface Props {
     enabled: boolean
+    /** Where to go once codes are on and the backup codes saved (two-factor being required). */
+    next?: string
   }
-  let { enabled: initiallyEnabled }: Props = $props()
+  let { enabled: initiallyEnabled, next }: Props = $props()
 
   let enabled = $state(initiallyEnabled)
   let stage = $state<'idle' | 'password' | 'scan' | 'codes' | 'disable'>('idle')
@@ -111,7 +113,7 @@
       <div class="codes mono">
         {#each backupCodes as backupCode (backupCode)}<span>{backupCode}</span>{/each}
       </div>
-      <div><button class="btn" onclick={() => (stage = 'idle')}>I've saved them</button></div>
+      <div><button class="btn" onclick={() => (next ? location.assign(next) : (stage = 'idle'))}>I've saved them</button></div>
     </div>
   {/if}
 

@@ -2,6 +2,12 @@
   import { onMount } from 'svelte'
   import { api, authClient } from '../lib/auth-client'
 
+  interface Props {
+    /** Where to go once a passkey is added (two-factor being required). */
+    next?: string
+  }
+  let { next }: Props = $props()
+
   interface PasskeyRecord {
     id: string
     name: string | null
@@ -40,6 +46,7 @@
       else error = result.error.status === 429 ? 'Too many attempts. Wait a minute.' : 'No passkey was saved. Try again; if your password manager asked, let it save the passkey.'
       return
     }
+    if (next) return location.assign(next)
     added = 'Passkey saved. Next time, choose "Sign in with a passkey".'
     name = ''
     await load()

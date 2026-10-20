@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanAgentPath, keyOf } from '../src/catalog/agents'
 import { decodePng, hashPixels } from '../src/catalog/phash'
 import { runSweep } from '../src/catalog/sweeper'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const placesGz = readFileSync(new URL('../../../public/places/cities1000.tsv.gz', import.meta.url))
 const ASSETS = { fetch: async () => new Response(placesGz) } as unknown as Fetcher
@@ -91,7 +91,7 @@ describe('pairing', () => {
     expect(start.userCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
     expect(start.verificationUrl).toBe('http://localhost/sources')
     expect((await h.fetch('/api/sources/pair', { ...json({ code: 'AAAA-BBBB' }), cookie: admin })).status).toBe(404)
-    await h.fetch('/api/users', { ...json({ name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] }), cookie: admin })
+    await createUser(h, admin, { name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] })
     const editor = cookiesFrom(await signIn(h, 'e@example.com', 'editor password 1'))
     expect((await h.fetch('/api/sources/pair', { ...json({ code: start.userCode }), cookie: editor })).status).toBe(403)
     expect((await h.fetch('/api/agent/pair/poll', json({ deviceCode: 'nope' }))).status).toBe(410)

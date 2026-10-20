@@ -24,6 +24,7 @@
       error =
         failure.status === 429 ? 'Too many attempts. Wait a minute and try again.'
         : failure.code === 'ACCOUNT_LOCKED' ? (failure.message ?? 'Too many wrong passwords. Try again later, or sign in with a passkey.')
+        : failure.code === 'USE_PASSKEY' ? (failure.message ?? 'This account signs in with a passkey.')
         : 'Wrong email or password.'
       return
     }

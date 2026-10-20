@@ -2,7 +2,7 @@
 import { Hono, type Context } from 'hono'
 import { createAuth } from '../auth/auth'
 import { hashPassword } from '../auth/password'
-import { requirePermission } from '../auth/principal'
+import { REQUIRE_2FA_KEY, requirePermission, TWO_FACTOR_SCOPES, twoFactorRequired, type TwoFactorScope } from '../auth/principal'
 import { isLastActiveAdmin, listRoles, setUserRoles } from '../auth/roles'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -68,6 +68,37 @@ export const roleRoutes = new Hono<DamEnv>()
 roleRoutes.get('/', requirePermission('users:manage'), async (c) => c.json({ roles: await listRoles(c.env.DB) }))
 
 userRoutes.use('*', requirePermission('users:manage'))
+
+/** Who must sign in with two factors (a code or a passkey). */
+userRoutes.get('/policy', async (c) => {
+  const row = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(REQUIRE_2FA_KEY).first<{ value: string }>()
+  return c.json({ twoFactorRequiredFor: (row?.value ?? 'nobody') as TwoFactorScope })
+})
+
+userRoutes.put('/policy', async (c) => {
+  const actor = c.get('principal')!
+  try {
+    const scope = (await readJsonObject(c)).twoFactorRequiredFor
+    if (typeof scope !== 'string' || !TWO_FACTOR_SCOPES.includes(scope as TwoFactorScope)) {
+      throw new BadRequest(`twoFactorRequiredFor must be one of: ${TWO_FACTOR_SCOPES.join(', ')}.`)
+    }
+    // Whoever turns it on must already meet it, or the next request would lock them into setup.
+    if (twoFactorRequired(scope, actor.roles)) {
+      const me = await getUser(c.env.DB, actor.userId)
+      if (me && !me.twoFactorEnabled && me.passkeys === 0) {
+        return c.json({ error: 'set_up_yourself', message: 'Set up a code or a passkey for yourself on Account first.' }, 409)
+      }
+    }
+    await c.env.DB.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+      .bind(REQUIRE_2FA_KEY, scope, nowIso())
+      .run()
+    await logActivity(c.env.DB, { userId: actor.userId, action: 'policy.two_factor', details: { requiredFor: scope }, ipAddress: c.req.header('cf-connecting-ip') })
+    return c.json({ twoFactorRequiredFor: scope })
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+    throw error
+  }
+})
 
 userRoutes.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(`${USER_SELECT} GROUP BY u.id ORDER BY u.created_at`).all<UserRow>()

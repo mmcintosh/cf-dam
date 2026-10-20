@@ -4,6 +4,7 @@ import AppLayout from '../layouts/AppLayout.astro'
 import ApiKeys from '../components/ApiKeys.svelte'
 import ChangePassword from '../components/ChangePassword.svelte'
 import Passkeys from '../components/Passkeys.svelte'
+import Sessions from '../components/Sessions.svelte'
 import TwoFactor from '../components/TwoFactor.svelte'
 
 const principal = Astro.locals.principal!
@@ -11,26 +12,54 @@ const row = await env.DB.prepare('SELECT two_factor_enabled, created_at FROM use
   .bind(principal.userId)
   .first<{ two_factor_enabled: number; created_at: string }>()
 const grantable = [...principal.permissions].sort()
-const canManageKeys = principal.permissions.has('apikeys:manage')
+const setup = principal.setup
+const canManageKeys = principal.permissions.has('apikeys:manage') && !setup
+// After a setup step, on to wherever the middleware sends them next (the Library, or the next step).
+const next = setup ? '/' : undefined
 const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dateStyle: 'long' }) : ''
 ---
 <AppLayout title="Account" subtitle={`${principal.email} · member since ${since}`}>
+  {setup === 'password' && (
+    <div class="alert setup" role="status">
+      <strong>Choose your own password.</strong> You signed in with a temporary one. Type it as the current password, then
+      your own new one, to continue.
+    </div>
+  )}
+  {setup === 'two_factor' && (
+    <div class="alert setup" role="status">
+      <strong>This archive needs a second step at sign-in.</strong> Add a passkey (1Password, your phone or computer), or turn on
+      codes from an authenticator app, to continue.
+    </div>
+  )}
   <div class="grid">
-    <section class="card">
-      <h2>Passkeys</h2>
-      <p class="lead">Sign in with 1Password, your phone or computer's passkey, or a security key: no password, no code.</p>
-      <Passkeys client:load />
-    </section>
-    <section class="card">
-      <h2>Two-factor sign-in</h2>
-      <p class="lead">A code from an authenticator app, on top of your password. Not needed when you sign in with a passkey.</p>
-      <TwoFactor client:load enabled={row?.two_factor_enabled === 1} />
-    </section>
-    <section class="card">
-      <h2>Password</h2>
-      <p class="lead">At least 12 characters.</p>
-      <ChangePassword client:load />
-    </section>
+    {setup !== 'password' && (
+      <section class="card">
+        <h2>Passkeys</h2>
+        <p class="lead">Sign in with 1Password, your phone or computer's passkey, or a security key: no password, no code.</p>
+        <Passkeys client:load next={next} />
+      </section>
+    )}
+    {setup !== 'password' && (
+      <section class="card">
+        <h2>Two-factor sign-in</h2>
+        <p class="lead">A code from an authenticator app, on top of your password. Not needed when you sign in with a passkey.</p>
+        <TwoFactor client:load enabled={row?.two_factor_enabled === 1} next={next} />
+      </section>
+    )}
+    {setup !== 'two_factor' && (
+      <section class="card">
+        <h2>Password</h2>
+        <p class="lead">At least 12 characters.</p>
+        <ChangePassword client:load next={next} />
+      </section>
+    )}
+    {!setup && (
+      <section class="card">
+        <h2>Where you're signed in</h2>
+        <p class="lead">Each browser stays signed in for a week of not being used. Sign out any you don't recognise, then change your password.</p>
+        <Sessions client:load />
+      </section>
+    )}
     {canManageKeys && (
       <section class="card wide">
         <h2>API keys</h2>
@@ -50,5 +79,11 @@ const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dat
   }
   .wide {
     grid-column: 1 / -1;
+  }
+  .setup {
+    margin-bottom: 20px;
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 </style>

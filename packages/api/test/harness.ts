@@ -138,6 +138,18 @@ export async function setUpAdmin(h: Harness): Promise<string> {
   return cookiesFrom(response)
 }
 
+/**
+ * Create a person as an admin would, as if they had already replaced the temporary password (which
+ * otherwise keeps them on Account: see setup-steps.test.ts). Returns their id.
+ */
+export async function createUser(h: Harness, adminCookie: string, user: { name: string; email: string; password: string; roles: string[] }): Promise<string> {
+  const response = await h.fetch('/api/users', { ...json(user), cookie: adminCookie })
+  if (response.status !== 201) throw new Error(`creating ${user.email} failed: ${response.status} ${await response.text()}`)
+  const { user: created } = (await response.json()) as { user: { id: string } }
+  await h.env.DB.prepare('UPDATE users SET must_change_password = 0 WHERE id = ?').bind(created.id).run()
+  return created.id
+}
+
 export async function signIn(h: Harness, email: string, password: string, ip?: string): Promise<Response> {
   return h.fetch('/api/auth/sign-in/email', { ...json({ email, password }), ip })
 }

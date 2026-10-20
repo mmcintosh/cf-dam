@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runSweep } from '../src/catalog/sweeper'
 import { extractJson, normalizeResult } from '../src/catalog/vision'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
 
@@ -174,8 +174,8 @@ describe('AI review', () => {
     expect((await h.fetch(`/api/assets/${id}/ai/analyze`, { method: 'POST', cookie: admin })).status).toBe(409)
     expect((await h.fetch('/api/ai/settings', { method: 'PUT', body: JSON.stringify({ model: '@cf/nope' }), cookie: admin })).status).toBe(400)
 
-    await h.fetch('/api/users', { ...json({ name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] }), cookie: admin })
-    await h.fetch('/api/users', { ...json({ name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] }), cookie: admin })
+    await createUser(h, admin, { name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] })
+    await createUser(h, admin, { name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] })
     const viewer = cookiesFrom(await signIn(h, 'v@example.com', 'viewer password 1'))
     const editor = cookiesFrom(await signIn(h, 'e@example.com', 'editor password 1'))
     expect((await h.fetch('/api/ai', { cookie: viewer })).status).toBe(403)

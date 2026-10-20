@@ -3,6 +3,7 @@
  *
  *  - No users yet → everything goes to /setup.
  *  - Signed out → /login, remembering where they were headed.
+ *  - Someone with setup to do (a temporary password, a second factor) → /account.
  *  - Some pages need a permission (PAGE_PERMISSIONS).
  */
 import { defineMiddleware } from 'astro:middleware'
@@ -47,6 +48,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)
   }
   if (SIGNED_OUT_PAGES.has(pathname)) return context.redirect('/')
+  // A temporary password to replace, or a second factor to set up: Account until it's done.
+  if (principal.setup) return pathname === '/account' ? next() : context.redirect('/account')
   const needed = PAGE_PERMISSIONS.find(([prefix]) => pathname.startsWith(prefix))?.[1]
   if (needed && !principal.permissions.has(needed)) {
     return new Response('Forbidden', { status: 403 })

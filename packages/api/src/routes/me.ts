@@ -4,6 +4,7 @@ import { principalJson, requireAuth, requirePermission } from '../auth/principal
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredString, stringArray } from '../lib/http'
+import { nowIso } from '../lib/time'
 
 export const meRoutes = new Hono<DamEnv>()
 
@@ -78,4 +79,63 @@ meRoutes.delete('/api-keys/:id', requirePermission('apikeys:manage'), async (c) 
     ipAddress: c.req.header('cf-connecting-ip'),
   })
   return c.body(null, 204)
+})
+
+interface SessionRow {
+  id: string
+  user_agent: string | null
+  ip_address: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Where you're signed in. Our own list, by session id: Better Auth's list-sessions hands every
+ * session's token to page JavaScript, which would undo keeping the cookie out of its reach.
+ */
+meRoutes.get('/sessions', async (c) => {
+  const principal = c.get('principal')!
+  if (principal.via !== 'session') return c.json({ error: 'sessions_need_a_session' }, 400)
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, user_agent, ip_address, created_at, updated_at FROM session WHERE user_id = ? AND expires_at > ? ORDER BY updated_at DESC',
+  )
+    .bind(principal.userId, nowIso())
+    .all<SessionRow>()
+  return c.json({
+    sessions: results.map((s) => ({
+      id: s.id,
+      userAgent: s.user_agent,
+      ipAddress: s.ip_address,
+      signedInAt: s.created_at,
+      lastActiveAt: s.updated_at,
+      current: s.id === principal.sessionId,
+    })),
+  })
+})
+
+/** Sign out one other browser. This one signs out with the Sign out button. */
+meRoutes.delete('/sessions/:id', async (c) => {
+  const principal = c.get('principal')!
+  const id = c.req.param('id')
+  if (principal.via !== 'session') return c.json({ error: 'sessions_need_a_session' }, 400)
+  if (id === principal.sessionId) return c.json({ error: 'current_session', message: 'Use Sign out for this browser.' }, 409)
+  const result = await c.env.DB.prepare('DELETE FROM session WHERE id = ? AND user_id = ?').bind(id, principal.userId).run()
+  if (result.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
+  await logActivity(c.env.DB, { userId: principal.userId, action: 'account.session_ended', targetType: 'session', targetId: id, ipAddress: c.req.header('cf-connecting-ip') })
+  return c.body(null, 204)
+})
+
+meRoutes.post('/sessions/sign-out-others', async (c) => {
+  const principal = c.get('principal')!
+  if (principal.via !== 'session') return c.json({ error: 'sessions_need_a_session' }, 400)
+  const result = await c.env.DB.prepare('DELETE FROM session WHERE user_id = ? AND id != ?').bind(principal.userId, principal.sessionId!).run()
+  await logActivity(c.env.DB, {
+    userId: principal.userId,
+    action: 'account.signed_out_elsewhere',
+    targetType: 'user',
+    targetId: principal.userId,
+    details: { sessions: result.meta.changes },
+    ipAddress: c.req.header('cf-connecting-ip'),
+  })
+  return c.json({ ended: result.meta.changes })
 })

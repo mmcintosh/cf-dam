@@ -5,6 +5,7 @@ import { createAuth } from './auth/auth'
 import { authenticate } from './auth/principal'
 import { handleAuthRequest } from './auth/guard'
 import type { DamEnv } from './env'
+import { activityRoutes } from './routes/activity'
 import { agentRoutes } from './routes/agent'
 import { aiRoutes } from './routes/ai'
 import { albumRoutes } from './routes/albums'
@@ -62,6 +63,7 @@ export function createDamApi() {
   api.use('*', authenticate())
   api.route('/me', meRoutes)
   api.route('/users', userRoutes)
+  api.route('/activity', activityRoutes)
   api.route('/roles', roleRoutes)
   api.route('/connections', connectionRoutes)
   api.route('/uploads', uploadRoutes)

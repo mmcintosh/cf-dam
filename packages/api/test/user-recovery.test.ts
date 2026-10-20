@@ -30,6 +30,8 @@ async function createEditor(): Promise<{ id: string; cookie: string }> {
   expect(res.status).toBe(201)
   const { user } = (await res.json()) as { user: UserJson }
   expect(user.mustChangePassword).toBe(true)
+  // As if they'd already chosen their own (setup-steps.test.ts covers that step).
+  await h.env.DB.prepare('UPDATE users SET must_change_password = 0 WHERE id = ?').bind(user.id).run()
   return { id: user.id, cookie: cookiesFrom(await signIn(h, EDITOR.email, EDITOR.password)) }
 }
 

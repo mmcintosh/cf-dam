@@ -1,6 +1,12 @@
 <script lang="ts">
   import { authClient } from '../lib/auth-client'
 
+  interface Props {
+    /** Where to go once the password is changed (a temporary password being replaced). */
+    next?: string
+  }
+  let { next }: Props = $props()
+
   let currentPassword = $state('')
   let newPassword = $state('')
   let message = $state<{ kind: 'ok' | 'error'; text: string } | null>(null)
@@ -17,6 +23,7 @@
       return
     }
     currentPassword = newPassword = ''
+    if (next) return location.assign(next)
     message = { kind: 'ok', text: 'Password changed. Your other sessions were signed out.' }
   }
 </script>

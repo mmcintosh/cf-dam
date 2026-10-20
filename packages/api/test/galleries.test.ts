@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runSweep, SLICES } from '../src/catalog/sweeper'
-import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
+import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
 const gradient = new Uint8Array(readFileSync(new URL('./fixtures/gradient.png', import.meta.url)))
@@ -55,7 +55,7 @@ afterEach(async () => h.dispose())
 
 describe('making links', () => {
   it('needs shares:manage', async () => {
-    await h.fetch('/api/users', { ...json({ name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] }), cookie: admin })
+    await createUser(h, admin, { name: 'V', email: 'v@example.com', password: 'viewer password 1', roles: ['viewer'] })
     const viewer = cookiesFrom(await signIn(h, 'v@example.com', 'viewer password 1'))
     expect((await h.fetch('/api/shares', { ...json({ albumId, name: 'x' }), cookie: viewer })).status).toBe(403)
     expect((await h.fetch('/api/shares', { cookie: viewer })).status).toBe(403)
