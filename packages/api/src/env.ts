@@ -20,6 +20,8 @@ export interface DamBindings {
   AI?: Ai
   /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
   ASSETS?: Fetcher
+  /** Tests only: a smaller archive part size (bytes; S3 takes parts down to 5 MiB) than the 64 MiB used. */
+  ARCHIVE_PART_BYTES?: string
 }
 
 export interface DamVariables {

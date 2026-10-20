@@ -22,6 +22,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
+import { abandonStaleArchiveUploads } from './archive'
 import { backupStep } from './backups'
 import { checkStorage } from './checks'
 import { statsStep } from './stats'
@@ -125,6 +126,8 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     }
     result.recovered++
   }
+  // Archive uploads an agent never finished: given up after a week (the bucket's own rule backs this up).
+  if (recovering.more()) await abandonStaleArchiveUploads(env).catch((error) => console.warn('[sweep] archive clean-up failed', error))
 
   // 2. Repair the search index (after a rebuild, a keyword change, or a write that failed): three
   // round trips per 50 assets.

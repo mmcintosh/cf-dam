@@ -17,6 +17,7 @@ import { nowIso } from '../lib/time'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
 import { finishAssets, metadataLookups, metadataStatements } from './process'
+import { archiveConfig } from './archive'
 import { mimeTypeFor, safeFilename } from './uploads'
 
 export class AgentError extends Error {
@@ -154,6 +155,8 @@ export interface SourceRow {
   rescan: number
   revoked_at: string | null
   created_at: string
+  /** Archive settings, JSON (catalog/archive.ts). */
+  archive: string
 }
 
 export interface RootRow {
@@ -373,6 +376,7 @@ export async function agentConfig(db: D1Database, source: SourceRow) {
     knownRoots: all.map((r) => r.id),
     scanIntervalMinutes: SCAN_INTERVAL_MINUTES,
     defaultExcludes: DEFAULT_EXCLUDES,
+    archive: archiveConfig(source),
   }
 }
 

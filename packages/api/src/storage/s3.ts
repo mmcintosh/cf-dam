@@ -135,6 +135,7 @@ export class S3Provider implements StorageProvider {
       }
       headers['x-amz-storage-class'] = options.storageClass
     }
+    if (options?.checksumSha256) headers['x-amz-checksum-algorithm'] = 'SHA256'
     return headers
   }
 
@@ -233,7 +234,12 @@ export class S3Provider implements StorageProvider {
       '<CompleteMultipartUpload>' +
       [...parts]
         .sort((a, b) => a.partNumber - b.partNumber)
-        .map((p) => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>"${escapeXml(stripQuotes(p.etag))}"</ETag></Part>`)
+        .map(
+          (p) =>
+            `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>"${escapeXml(stripQuotes(p.etag))}"</ETag>` +
+            (p.checksumSha256 ? `<ChecksumSHA256>${escapeXml(p.checksumSha256)}</ChecksumSHA256>` : '') +
+            '</Part>',
+        )
         .join('') +
       '</CompleteMultipartUpload>'
     const response = await this.send('POST', this.url(key, { uploadId }), { headers: { 'Content-Type': 'application/xml' }, body })
@@ -258,8 +264,9 @@ export class S3Provider implements StorageProvider {
     return { method, url: signed.url, headers, expiresAt: new Date(Date.now() + expiresSeconds * 1000).toISOString() }
   }
 
-  presignPart(key: string, uploadId: string, partNumber: number, expiresSeconds: number) {
-    return this.presign('PUT', this.url(key, { partNumber: String(partNumber), uploadId }), expiresSeconds)
+  presignPart(key: string, uploadId: string, partNumber: number, expiresSeconds: number, options?: { checksumSha256?: string }) {
+    const headers: Record<string, string> = options?.checksumSha256 ? { 'x-amz-checksum-sha256': options.checksumSha256 } : {}
+    return this.presign('PUT', this.url(key, { partNumber: String(partNumber), uploadId }), expiresSeconds, headers)
   }
 
   presignGet(key: string, options: { expiresSeconds: number; downloadName?: string; contentType?: string }) {

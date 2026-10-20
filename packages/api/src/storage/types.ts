@@ -64,6 +64,8 @@ export interface ListedObject {
 export interface PutOptions {
   contentType?: string
   storageClass?: StorageClass
+  /** Multipart only: every part carries its SHA-256, which the store checks on arrival (S3). */
+  checksumSha256?: boolean
 }
 
 /** A request the browser or agent sends straight to storage. Signed headers must be sent as given. */
@@ -77,6 +79,8 @@ export interface PresignedRequest {
 export interface CompletedPart {
   partNumber: number
   etag: string
+  /** The part's SHA-256, base64, for an upload started with `checksumSha256`. */
+  checksumSha256?: string
 }
 
 export type RestoreResult = 'started' | 'in-progress' | 'already-restored'
@@ -108,7 +112,8 @@ export interface StorageProvider {
   completeMultipart(key: string, uploadId: string, parts: CompletedPart[]): Promise<{ etag: string }>
   abortMultipart(key: string, uploadId: string): Promise<void>
 
-  presignPart?(key: string, uploadId: string, partNumber: number, expiresSeconds: number): Promise<PresignedRequest>
+  /** With `checksumSha256` (base64), the signed request carries it and the store refuses other bytes. */
+  presignPart?(key: string, uploadId: string, partNumber: number, expiresSeconds: number, options?: { checksumSha256?: string }): Promise<PresignedRequest>
   presignGet?(key: string, options: { expiresSeconds: number; downloadName?: string; contentType?: string }): Promise<PresignedRequest>
   setStorageClass?(key: string, storageClass: StorageClass): Promise<void>
   restore?(key: string, options: { days: number; tier: RestoreTier }): Promise<RestoreResult>

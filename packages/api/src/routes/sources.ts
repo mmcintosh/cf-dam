@@ -16,6 +16,7 @@ import {
 } from '../catalog/agents'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
+import { parseArchiveSettings, validArchiveSettings } from '../catalog/archive'
 import { BadRequest, readJsonObject } from '../lib/http'
 
 export const sourceRoutes = new Hono<DamEnv>()
@@ -63,6 +64,7 @@ async function sourceJson(db: D1Database, s: SourceRow) {
     folders: parse<string[]>(s.folders, []),
     volumes: parse<{ id: string; label: string | null; path: string; removable: boolean }[]>(s.volumes, []),
     roots: roots.map(rootJson),
+    archive: parseArchiveSettings(s.archive),
     photos: { total: counts?.total ?? 0, missing: counts?.missing ?? 0, processing: counts?.processing ?? 0 },
     createdAt: s.created_at,
   }
@@ -115,6 +117,10 @@ sourceRoutes.patch('/:id', async (c) => {
       if (typeof body.paused !== 'boolean') throw new BadRequest('paused is true or false.')
       sets.push('paused = ?')
       params.push(body.paused ? 1 : 0)
+    }
+    if (body.archive !== undefined) {
+      sets.push('archive = ?')
+      params.push(JSON.stringify(await validArchiveSettings(c.env.DB, body.archive)))
     }
     if (sets.length > 0) await c.env.DB.prepare(`UPDATE sources SET ${sets.join(', ')} WHERE id = ?`).bind(...params, source.id).run()
     return c.json({ source: await sourceJson(c.env.DB, (await loadSource(c))!) })

@@ -20,6 +20,7 @@ import {
   setRootOnline,
   startPairing,
 } from '../catalog/agents'
+import { abortArchive, completeArchive, linkArchive, signArchivePart, startArchive } from '../catalog/archive'
 import { isRenditionName, MAX_CLIENT_RENDITION_BYTES, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { BadRequest, readJsonObject } from '../lib/http'
@@ -48,6 +49,8 @@ agentRoutes.use('/assets/batch', limit(8 * 1024 * KIB))
 agentRoutes.use('/assets/complete', limit(256 * KIB))
 agentRoutes.use('/assets/:id/renditions/:name', limit(MAX_CLIENT_RENDITION_BYTES))
 agentRoutes.use('/scans/*', limit(8 * 1024 * KIB))
+// A completion lists up to 10,000 parts.
+agentRoutes.use('/archive/*', limit(2 * 1024 * KIB))
 
 agentRoutes.post('/pair/start', async (c) => {
   const limited = await consumeRateLimit(c, { max: 10, windowMs: 10 * 60_000, keyPrefix: 'agent-pair' })
@@ -96,6 +99,7 @@ agentRoutes.use('/folders', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/roots/*', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/assets/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/scans/*', requirePermission('agent:sync'), asAgent, notPaused)
+agentRoutes.use('/archive/*', requirePermission('agent:sync'), asAgent, notPaused)
 
 agentRoutes.get('/config', async (c) => c.json(await agentConfig(c.env.DB, c.get('source')!)))
 
@@ -162,3 +166,18 @@ agentRoutes.post('/scans/complete', async (c) => {
     return failure(c, error)
   }
 })
+
+// Archiving originals (catalog/archive.ts): the agent sends the bytes straight to the bucket.
+const archiveRoute = (path: string, run: typeof startArchive | typeof signArchivePart | typeof completeArchive | typeof linkArchive | typeof abortArchive) =>
+  agentRoutes.post(path, async (c) => {
+    try {
+      return c.json(await run(c.env, c.get('source')!, await readJsonObject(c)))
+    } catch (error) {
+      return failure(c, error)
+    }
+  })
+archiveRoute('/archive/start', startArchive)
+archiveRoute('/archive/part', signArchivePart)
+archiveRoute('/archive/complete', completeArchive)
+archiveRoute('/archive/link', linkArchive)
+archiveRoute('/archive/abort', abortArchive)
