@@ -69,6 +69,7 @@ jobs:
         run: cat ~/Library/Logs/cf-dam-agent.log || true
       - name: Remove it all, as the tester will, and check nothing is left
         run: |
+          launchctl print "gui/$(id -u)/com.cf-dam.agent" | grep -E '^\s*(state|pid|domain) =' || true
           sh packages/agent/dist/desktop/uninstall-macos.sh --node
           left=0
           if launchctl print "gui/$(id -u)/com.cf-dam.agent" >/dev/null 2>&1; then echo "still running"; left=1; fi

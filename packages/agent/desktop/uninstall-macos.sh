@@ -4,7 +4,21 @@
 # /usr/local (for a Mac that had Node only for the agent).
 #   sh uninstall-macos.sh [--node]
 set -u
-launchctl bootout "gui/$(id -u)/com.cf-dam.agent" 2>/dev/null || true
+SERVICE="gui/$(id -u)/com.cf-dam.agent"
+if launchctl print "$SERVICE" >/dev/null 2>&1; then
+  launchctl bootout "$SERVICE" 2>/dev/null || launchctl remove com.cf-dam.agent 2>/dev/null || true
+  # bootout returns before the helper has exited; wait up to ten seconds for it to go.
+  i=0
+  while launchctl print "$SERVICE" >/dev/null 2>&1 && [ $i -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+fi
+# A helper started by hand, or one launchd let go of without stopping.
+pkill -f 'cf-dam-agent/app/agent.mjs' 2>/dev/null || true
+i=0
+while pgrep -f 'cf-dam-agent/app/agent.mjs' >/dev/null 2>&1 && [ $i -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+if pgrep -f 'cf-dam-agent/app/agent.mjs' >/dev/null 2>&1 || launchctl print "$SERVICE" >/dev/null 2>&1; then
+  echo "The helper is still running. Restart your Mac, then run this again." >&2
+  exit 1
+fi
 rm -f "$HOME/Library/LaunchAgents/com.cf-dam.agent.plist" "$HOME/Library/Logs/cf-dam-agent.log"
 rm -rf "$HOME/Library/Application Support/cf-dam-agent"
 echo "The cf-dam agent is removed. Your photos weren't touched."
