@@ -13,6 +13,10 @@
     email: string
     isActive: boolean
     twoFactorEnabled: boolean
+    passkeys: number
+    sessions: number
+    mustChangePassword: boolean
+    lockedUntil: string | null
     lastLoginAt: string | null
     roles: string[]
   }
@@ -27,10 +31,19 @@
   let showCreate = $state(false)
   let draft = $state({ name: '', email: '', password: '', role: 'viewer' })
   let error = $state('')
+  let notice = $state('')
   let busy = $state(false)
+  /** The person whose recovery actions are open. */
+  let open = $state<string | null>(null)
+  let temporary = $state('')
+  /** An action waiting for its second click, as `<action>:<user id>`. */
+  let confirming = $state<string | null>(null)
+  let lapse: ReturnType<typeof setTimeout> | undefined
 
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never'
+  const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { timeStyle: 'short' })
+  const who = (user: User) => user.name || user.email
 
   async function load() {
     const [u, r] = await Promise.all([api<{ users: User[] }>('/api/users'), api<{ roles: Role[] }>('/api/roles')])
@@ -48,6 +61,7 @@
         method: 'POST',
         body: JSON.stringify({ name: draft.name, email: draft.email, password: draft.password, roles: [draft.role] }),
       })
+      notice = `${draft.name || draft.email} can now sign in with the temporary password, and will be asked to choose their own.`
       draft = { name: '', email: '', password: '', role: 'viewer' }
       showCreate = false
       await load()
@@ -67,6 +81,53 @@
     }
     await load()
   }
+
+  function toggle(user: User) {
+    open = open === user.id ? null : user.id
+    temporary = ''
+    arm(null)
+  }
+
+  function arm(key: string | null) {
+    clearTimeout(lapse)
+    confirming = key
+    if (key) lapse = setTimeout(() => (confirming = null), 4000)
+  }
+
+  /** Run a recovery action; `confirm` ones need a second click within four seconds. */
+  async function run(user: User, action: string, request: () => Promise<unknown>, done: string, confirm = false) {
+    const key = `${action}:${user.id}`
+    if (confirm && confirming !== key) return arm(key)
+    arm(null)
+    error = ''
+    notice = ''
+    busy = true
+    try {
+      await request()
+      notice = done
+      if (action === 'delete') open = null
+      await load()
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'That did not work.'
+    } finally {
+      busy = false
+    }
+  }
+
+  const post = (user: User, path: string, body: unknown = {}) => () =>
+    api(`/api/users/${user.id}/${path}`, { method: 'POST', body: JSON.stringify(body) })
+
+  function setPassword(event: SubmitEvent, user: User) {
+    event.preventDefault()
+    const password = temporary
+    void run(user, 'password', post(user, 'password', { password }), `${who(user)} is signed out. Give them the temporary password; they'll choose their own when they sign in.`).then(
+      () => (temporary = ''),
+    )
+  }
+
+  const signInLabel = (user: User) =>
+    [user.twoFactorEnabled ? 'Code' : null, user.passkeys > 0 ? (user.passkeys === 1 ? 'Passkey' : `${user.passkeys} passkeys`) : null].filter(Boolean).join(' · ') ||
+    'Password only'
 </script>
 
 <div class="stack">
@@ -91,22 +152,29 @@
           </select>
         </div>
       </div>
+      <p class="muted small">They'll be asked to choose their own password the first time they sign in.</p>
       <div><button class="btn btn-primary" type="submit" disabled={busy}>Create</button></div>
     </form>
   {/if}
 
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
+  {#if notice}<div class="alert alert-success" role="status">{notice}</div>{/if}
 
   <div class="card table-card">
     <table class="table">
-      <thead><tr><th>Person</th><th>Role</th><th>Two-factor</th><th>Last sign-in</th><th>Status</th></tr></thead>
+      <thead><tr><th>Person</th><th>Role</th><th>Signs in with</th><th>Last sign-in</th><th></th></tr></thead>
       <tbody>
         {#each users as user (user.id)}
           <tr class:inactive={!user.isActive}>
             <td>
               <div class="person">
-                <strong>{user.name || user.email}</strong>
+                <strong>{who(user)}</strong>
                 <span class="muted">{user.email}{user.id === selfId ? ' · you' : ''}</span>
+                <span class="flags">
+                  {#if !user.isActive}<span class="badge">Deactivated</span>{/if}
+                  {#if user.lockedUntil}<span class="badge badge-warn">Password locked until {time(user.lockedUntil)}</span>{/if}
+                  {#if user.mustChangePassword}<span class="badge">Temporary password</span>{/if}
+                </span>
               </div>
             </td>
             <td>
@@ -118,14 +186,120 @@
                 {#each roles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
               </select>
             </td>
-            <td><span class="badge" class:badge-ok={user.twoFactorEnabled} class:badge-off={!user.twoFactorEnabled}>{user.twoFactorEnabled ? 'On' : 'Off'}</span></td>
-            <td class="muted">{fmt(user.lastLoginAt)}</td>
             <td>
-              <button class="btn btn-sm" class:btn-danger={user.isActive} onclick={() => update(user, { isActive: !user.isActive })}>
-                {user.isActive ? 'Deactivate' : 'Reactivate'}
-              </button>
+              <span class="badge" class:badge-ok={user.twoFactorEnabled || user.passkeys > 0} class:badge-off={!user.twoFactorEnabled && user.passkeys === 0}>
+                {signInLabel(user)}
+              </span>
+            </td>
+            <td class="muted">{fmt(user.lastLoginAt)}</td>
+            <td class="end">
+              <button class="btn btn-sm" aria-expanded={open === user.id} onclick={() => toggle(user)}>{open === user.id ? 'Close' : 'Manage'}</button>
             </td>
           </tr>
+          {#if open === user.id}
+            <tr class="manage">
+              <td colspan="5">
+                {#if user.id === selfId}
+                  <p class="muted">Your own password, codes, passkeys and sign-ins are on <a href="/account">Account</a>.</p>
+                {:else}
+                  <div class="actions">
+                    <form class="action" onsubmit={(e) => setPassword(e, user)}>
+                      <div>
+                        <strong>Temporary password</strong>
+                        <p class="muted small">Signs them out. They choose their own at the next sign-in. Also lifts a password lock.</p>
+                      </div>
+                      <div class="row">
+                        <input
+                          type="password"
+                          minlength="12"
+                          required
+                          autocomplete="new-password"
+                          placeholder="At least 12 characters"
+                          aria-label={`Temporary password for ${user.email}`}
+                          bind:value={temporary}
+                        />
+                        <button class="btn btn-sm" type="submit" disabled={busy}>Set</button>
+                      </div>
+                    </form>
+
+                    <div class="action">
+                      <div>
+                        <strong>Lost phone or passkey</strong>
+                        <p class="muted small">Turns their codes off{user.passkeys > 0 ? ', and optionally removes their passkeys' : ''}, and signs them out. They can set them up again on Account.</p>
+                      </div>
+                      <div class="row">
+                        <button
+                          class="btn btn-sm"
+                          disabled={busy || !user.twoFactorEnabled}
+                          onclick={() => run(user, 'codes', post(user, 'two-factor/reset'), `${who(user)}'s codes are off.`, true)}
+                        >
+                          {confirming === `codes:${user.id}` ? 'Click again to confirm' : 'Reset codes'}
+                        </button>
+                        {#if user.passkeys > 0}
+                          <button
+                            class="btn btn-sm"
+                            disabled={busy}
+                            onclick={() => run(user, 'passkeys', post(user, 'two-factor/reset', { passkeys: true }), `${who(user)}'s codes and passkeys are removed.`, true)}
+                          >
+                            {confirming === `passkeys:${user.id}` ? 'Click again to confirm' : 'Reset codes and passkeys'}
+                          </button>
+                        {/if}
+                      </div>
+                    </div>
+
+                    {#if user.lockedUntil}
+                      <div class="action">
+                        <div>
+                          <strong>Locked out</strong>
+                          <p class="muted small">Too many wrong passwords. It lifts by itself at {time(user.lockedUntil)}.</p>
+                        </div>
+                        <div class="row"><button class="btn btn-sm" disabled={busy} onclick={() => run(user, 'unlock', post(user, 'unlock'), `${who(user)} can sign in again.`)}>Unlock now</button></div>
+                      </div>
+                    {/if}
+
+                    <div class="action">
+                      <div>
+                        <strong>Sign out everywhere</strong>
+                        <p class="muted small">{user.sessions === 0 ? 'Not signed in anywhere right now.' : `Signed in on ${user.sessions} ${user.sessions === 1 ? 'browser' : 'browsers'}.`}</p>
+                      </div>
+                      <div class="row">
+                        <button class="btn btn-sm" disabled={busy || user.sessions === 0} onclick={() => run(user, 'sign-out', post(user, 'sign-out'), `${who(user)} is signed out everywhere.`)}>Sign out</button>
+                      </div>
+                    </div>
+
+                    <div class="action">
+                      <div>
+                        <strong>{user.isActive ? 'Deactivate' : 'Reactivate'}</strong>
+                        <p class="muted small">{user.isActive ? 'Stops them signing in, and keeps the account for later.' : 'Lets them sign in again.'}</p>
+                      </div>
+                      <div class="row">
+                        <button class="btn btn-sm" class:btn-danger={user.isActive} disabled={busy} onclick={() => update(user, { isActive: !user.isActive })}>
+                          {user.isActive ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="action">
+                      <div>
+                        <strong>Delete</strong>
+                        <p class="muted small">Removes the person and their sign-ins. Photos, albums and galleries they made stay.</p>
+                      </div>
+                      <div class="row">
+                        <button
+                          class="btn btn-sm btn-danger"
+                          disabled={busy}
+                          onblur={() => confirming === `delete:${user.id}` && arm(null)}
+                          onclick={() => run(user, 'delete', () => api(`/api/users/${user.id}`, { method: 'DELETE' }), `${who(user)} is deleted.`, true)}
+                        >
+                          {confirming === `delete:${user.id}` ? "Click again: can't be undone" : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </td>
+            </tr>
+          {/if}
         {/each}
       </tbody>
     </table>
@@ -147,6 +321,19 @@
   }
   .person {
     display: grid;
+    gap: 2px;
+  }
+  .flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .flags:empty {
+    display: none;
+  }
+  .badge-warn {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   }
   select {
     width: auto;
@@ -154,5 +341,41 @@
   }
   tr.inactive td {
     opacity: 0.55;
+  }
+  .end {
+    text-align: right;
+  }
+  tr.manage td {
+    background: color-mix(in srgb, var(--text) 3%, transparent);
+  }
+  .actions {
+    display: grid;
+    gap: 2px;
+  }
+  .action {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .action:last-child {
+    border-bottom: 0;
+  }
+  .action > div:first-child {
+    min-width: 0;
+    flex: 1 1 260px;
+  }
+  .action p {
+    margin: 2px 0 0;
+  }
+  .action input {
+    width: 220px;
+    max-width: 100%;
+  }
+  .small {
+    font-size: 0.8rem;
   }
 </style>

@@ -23,7 +23,7 @@ describe('user administration', () => {
   it('creates a user with roles, who can then sign in', async () => {
     const viewer = await createViewer()
     const me = await h.fetch('/api/me', { cookie: viewer.cookie })
-    expect(await me.json()).toMatchObject({ email: VIEWER.email, roles: ['viewer'], permissions: ['apikeys:manage', 'assets:read'] })
+    expect(await me.json()).toMatchObject({ email: VIEWER.email, roles: ['viewer'], permissions: ['assets:read'] })
   })
 
   it('does not sign the admin in as the user they create', async () => {
@@ -88,9 +88,17 @@ describe('API keys', () => {
   })
 
   it('refuses scopes the user does not hold', async () => {
-    const viewer = await createViewer()
-    const res = await h.fetch('/api/me/api-keys', { ...json({ name: 'escalate', scopes: ['users:manage'] }), cookie: viewer.cookie })
+    const editor = { name: 'Ed Editor', email: 'ed@example.com', password: 'editor password 123', roles: ['editor'] }
+    expect((await h.fetch('/api/users', { ...json(editor), cookie: admin })).status).toBe(201)
+    const cookie = cookiesFrom(await signIn(h, editor.email, editor.password))
+    const res = await h.fetch('/api/me/api-keys', { ...json({ name: 'escalate', scopes: ['users:manage'] }), cookie })
     expect(res.status).toBe(400)
+  })
+
+  it("doesn't let a viewer make keys", async () => {
+    const viewer = await createViewer()
+    const res = await h.fetch('/api/me/api-keys', { ...json({ name: 'k', scopes: ['assets:read'] }), cookie: viewer.cookie })
+    expect(res.status).toBe(403)
   })
 
   it('refuses to mint a key with a key', async () => {

@@ -13,11 +13,21 @@ import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { twoFactor } from 'better-auth/plugins'
 import type { DamBindings } from '../env'
+import { logActivity } from '../lib/activity'
 import { nowIso } from '../lib/time'
 import { hashPassword, verifyPassword } from './password'
 import { assignRole } from './roles'
 
 export const AUTH_BASE_PATH = '/api/auth'
+
+/** How a session came about, by the Better Auth endpoint that made it (for the activity log). */
+const SIGN_IN_METHODS: Readonly<Record<string, string>> = {
+  '/sign-in/email': 'password',
+  '/two-factor/verify-totp': 'password+code',
+  '/two-factor/verify-backup-code': 'password+backup_code',
+  '/passkey/verify-authentication': 'passkey',
+  '/sign-up/email': 'setup',
+}
 
 export interface CreateAuthOptions {
   /**
@@ -216,11 +226,26 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
               .first<{ is_active: number }>()
             return row?.is_active === 0 ? false : undefined
           },
-          after: async (session) => {
+          after: async (session, ctx) => {
             await db
               .prepare('UPDATE users SET last_login_at = ? WHERE id = ?')
               .bind(nowIso(), session.userId)
               .run()
+            const method = SIGN_IN_METHODS[ctx?.path ?? ''] ?? ctx?.path ?? 'other'
+            // With codes on, the password step makes a session that the two-factor plugin deletes at
+            // once; the sign-in is logged when the code is checked.
+            if (method === 'password') {
+              const row = await db.prepare('SELECT two_factor_enabled FROM users WHERE id = ?').bind(session.userId).first<{ two_factor_enabled: number }>()
+              if (row?.two_factor_enabled === 1) return
+            }
+            await logActivity(db, {
+              userId: session.userId,
+              action: 'auth.signed_in',
+              targetType: 'user',
+              targetId: session.userId,
+              details: { method, userAgent: session.userAgent?.slice(0, 300) ?? null },
+              ipAddress: session.ipAddress,
+            })
           },
         },
       },

@@ -21,7 +21,10 @@
     const { data, error: failure } = await authClient.signIn.email({ email, password })
     busy = false
     if (failure) {
-      error = failure.status === 429 ? 'Too many attempts. Wait a minute and try again.' : 'Wrong email or password.'
+      error =
+        failure.status === 429 ? 'Too many attempts. Wait a minute and try again.'
+        : failure.code === 'ACCOUNT_LOCKED' ? (failure.message ?? 'Too many wrong passwords. Try again later, or sign in with a passkey.')
+        : 'Wrong email or password.'
       return
     }
     if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) {

@@ -3,7 +3,7 @@ import { csrf } from 'hono/csrf'
 import { HTTPException } from 'hono/http-exception'
 import { createAuth } from './auth/auth'
 import { authenticate } from './auth/principal'
-import { authRateLimitRule, consumeRateLimit } from './auth/rate-limit'
+import { handleAuthRequest } from './auth/guard'
 import type { DamEnv } from './env'
 import { agentRoutes } from './routes/agent'
 import { aiRoutes } from './routes/ai'
@@ -52,15 +52,8 @@ export function createDamApi() {
     }),
   )
 
-  // Better Auth's endpoints, metered by our limiter first.
-  api.on(['GET', 'POST'], '/auth/*', async (c) => {
-    const rule = authRateLimitRule(c.req.path)
-    if (rule) {
-      const limited = await consumeRateLimit(c, rule)
-      if (limited) return limited
-    }
-    return createAuth(c.env, c.req.raw).handler(c.req.raw)
-  })
+  // Better Auth's endpoints, behind our limiter, password lockout and activity log (auth/guard.ts).
+  api.on(['GET', 'POST'], '/auth/*', handleAuthRequest)
 
   api.route('/setup', setupRoutes)
   // Client galleries: no account, the link is the key (routes/gallery.ts).

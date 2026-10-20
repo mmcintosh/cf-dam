@@ -88,12 +88,17 @@ const AUTH_RULES: ReadonlyMap<string, RateLimitRule> = new Map([
   ['/passkey/verify-registration', ACCOUNT_CHANGE],
 ])
 
-/** The rule for a path under `/api/auth`, or null when unmetered. One trailing slash is tolerated. */
-export function authRateLimitRule(path: string, basePath = '/api/auth'): RateLimitRule | null {
+/** The path under `/api/auth` (e.g. `/sign-in/email`), or null outside it. One trailing slash is tolerated. */
+export function authSubPath(path: string, basePath = '/api/auth'): string | null {
   if (!path.startsWith(basePath)) return null
-  let sub = path.slice(basePath.length)
-  if (sub.length > 1 && sub.endsWith('/')) sub = sub.slice(0, -1)
-  return AUTH_RULES.get(sub) ?? null
+  const sub = path.slice(basePath.length)
+  return sub.length > 1 && sub.endsWith('/') ? sub.slice(0, -1) : sub
+}
+
+/** The rule for a path under `/api/auth`, or null when unmetered. */
+export function authRateLimitRule(path: string, basePath = '/api/auth'): RateLimitRule | null {
+  const sub = authSubPath(path, basePath)
+  return sub === null ? null : (AUTH_RULES.get(sub) ?? null)
 }
 
 export const SETUP_RULE: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'setup' }
