@@ -40,8 +40,9 @@ the pairing code to type into cf-dam → NAS agents. The status page is http://l
 macOS asks before an app reads external drives, network volumes or your Pictures folder. Allow it, or
 add `node` under System Settings → Privacy & Security → Files and Folders (or Full Disk Access).
 
-To remove it: `launchctl bootout gui/$(id -u)/com.cf-dam.agent`, then delete the LaunchAgent plist
-and the `cf-dam-agent` folder.
+To remove it, with its key, file list and log: `sh uninstall-macos.sh`. `sh uninstall-macos.sh --node`
+also removes Node.js as nodejs.org's installer put it, for a Mac that had Node only for the agent.
+Photos are never touched. Then disconnect the agent in cf-dam.
 
 ## Windows
 

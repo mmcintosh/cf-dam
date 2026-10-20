@@ -29,11 +29,28 @@ jobs:
       - run: npm ci
       - run: npm test -w @cf-dam/agent
       - run: npm run build:desktop -w @cf-dam/agent
+      # As the guide tells a tester: Node.js 24 from nodejs.org's own installer, into /usr/local.
+      - name: Install Node.js from nodejs.org's installer
+        run: |
+          pkg=$(curl -fsS https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt | awk '/\.pkg$/ { print $2 }')
+          curl -fsSO "https://nodejs.org/dist/latest-v24.x/$pkg"
+          curl -fsS https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt | grep " $pkg\$" | shasum -a 256 -c
+          sudo installer -pkg "$pkg" -target /
+          pkgutil --pkgs | grep '^org\.nodejs\.' | tee "$RUNNER_TEMP/node-pkgs.txt"
+          for p in $(cat "$RUNNER_TEMP/node-pkgs.txt"); do
+            loc=$(pkgutil --pkg-info "$p" | awk -F': ' '/^location:/ { print $2 }')
+            pkgutil --files "$p" | sed "s|^|/${loc:+$loc/}|; s|//*|/|g"
+          done > "$RUNNER_TEMP/node-files.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/node-files.txt") paths installed, e.g.:"; grep -E 'bin/(node|npm)$' "$RUNNER_TEMP/node-files.txt"
+          /usr/local/bin/node --version
       - name: Install it as a Mac user would, and pair it
         run: |
+          export PATH="/usr/local/bin:$PATH"
+          [ "$(command -v node)" = /usr/local/bin/node ]
           node .github/scripts/agent-stub.mjs "$RUNNER_TEMP/seen.json" &
           cd packages/agent/dist/desktop
           sh install-macos.sh http://localhost:8799 "Mac check"
+          grep -q /usr/local/bin/node ~/Library/LaunchAgents/com.cf-dam.agent.plist
           for i in $(seq 90); do curl -fs http://localhost:8790 | grep -q TEST-CODE && break; sleep 1; done
           curl -fs http://localhost:8790 | grep -q TEST-CODE
           echo "The status page shows the pairing code."
@@ -47,7 +64,24 @@ jobs:
             if (!seen.folders.includes(require("os").homedir() + "/Pictures")) throw new Error("Pictures not offered")
             console.log(`Paired as ${seen.platform}; offers ${seen.folders.length} folders and ${seen.volumes.length} drives.`)
           ' "$RUNNER_TEMP/seen.json"
-      - if: always()
+      - name: The helper's log
+        if: always()
+        run: cat ~/Library/Logs/cf-dam-agent.log || true
+      - name: Remove it all, as the tester will, and check nothing is left
         run: |
-          cat ~/Library/Logs/cf-dam-agent.log || true
-          launchctl bootout "gui/$(id -u)/com.cf-dam.agent" || true
+          sh packages/agent/dist/desktop/uninstall-macos.sh --node
+          left=0
+          if launchctl print "gui/$(id -u)/com.cf-dam.agent" >/dev/null 2>&1; then echo "still running"; left=1; fi
+          for f in ~/Library/LaunchAgents/com.cf-dam.agent.plist ~/Library/Logs/cf-dam-agent.log ~/"Library/Application Support/cf-dam-agent" ~/.npm; do
+            if [ -e "$f" ]; then echo "left: $f"; left=1; fi
+          done
+          if curl -fs http://localhost:8790 >/dev/null; then echo "status page still answers"; left=1; fi
+          if pkgutil --pkgs | grep -q '^org\.nodejs\.'; then echo "Node.js package receipt left"; left=1; fi
+          while IFS= read -r f; do
+            if [ -e "$f" ] || [ -L "$f" ]; then [ -d "$f" ] && [ ! -L "$f" ] || { echo "left: $f"; left=1; }; fi
+          done < "$RUNNER_TEMP/node-files.txt"
+          for d in /usr/local/bin/node /usr/local/lib/node_modules/npm /usr/local/include/node /usr/local/share/doc/node; do
+            if [ -e "$d" ]; then echo "left: $d"; left=1; fi
+          done
+          [ "$left" = 0 ] && echo "Nothing left behind."
+          exit $left
