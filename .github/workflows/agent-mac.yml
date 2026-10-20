@@ -1,0 +1,53 @@
+# The desktop agent on real Macs, Intel and Apple silicon: its tests (the end-to-end one pairs with the
+# real API and indexes a folder; HEIC goes through macOS's sips), then the real installer, started by
+# launchd against a stand-in cf-dam, which checks the pairing code and the folders it offers.
+name: Agent on macOS
+
+on:
+  push:
+    branches: [main]
+    paths: ['packages/agent/**', '.github/workflows/agent-mac.yml', '.github/scripts/agent-stub.mjs']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: sw_vers && uname -m && node --version
+      - run: npm ci
+      - run: npm test -w @cf-dam/agent
+      - run: npm run build:desktop -w @cf-dam/agent
+      - name: Install it as a Mac user would, and pair it
+        run: |
+          node .github/scripts/agent-stub.mjs "$RUNNER_TEMP/seen.json" &
+          cd packages/agent/dist/desktop
+          sh install-macos.sh http://localhost:8799 "Mac check"
+          for i in $(seq 90); do curl -fs http://localhost:8790 | grep -q TEST-CODE && break; sleep 1; done
+          curl -fs http://localhost:8790 | grep -q TEST-CODE
+          echo "The status page shows the pairing code."
+          for i in $(seq 120); do [ -f "$RUNNER_TEMP/seen.json" ] && break; sleep 1; done
+          cat "$RUNNER_TEMP/seen.json"
+          node -e '
+            const seen = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
+            const want = `darwin/${process.arch}`
+            if (!seen.paired) throw new Error("never paired")
+            if (seen.platform !== want) throw new Error(`platform ${seen.platform}, expected ${want}`)
+            if (!seen.folders.includes(require("os").homedir() + "/Pictures")) throw new Error("Pictures not offered")
+            console.log(`Paired as ${seen.platform}; offers ${seen.folders.length} folders and ${seen.volumes.length} drives.`)
+          ' "$RUNNER_TEMP/seen.json"
+      - if: always()
+        run: |
+          cat ~/Library/Logs/cf-dam-agent.log || true
+          launchctl bootout "gui/$(id -u)/com.cf-dam.agent" || true
