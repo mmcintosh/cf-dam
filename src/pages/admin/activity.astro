@@ -1,0 +1,7 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro'
+import ActivityLog from '../../components/ActivityLog.svelte'
+---
+<AppLayout title="Activity" subtitle="Who signed in, and who changed what, newest first.">
+  <ActivityLog client:load />
+</AppLayout>
