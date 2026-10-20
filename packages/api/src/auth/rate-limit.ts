@@ -62,6 +62,8 @@ const ACCOUNT_CREATION: RateLimitRule = { max: 3, windowMs: MINUTE, keyPrefix: '
 const EMAIL_SEND: RateLimitRule = { max: 3, windowMs: MINUTE, keyPrefix: 'email-send' }
 const CODE_VERIFY: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'code-verify' }
 const ACCOUNT_CHANGE: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'account-change' }
+// Each passkey challenge writes a row; the sign-in page asks for one on load (for autofill).
+const PASSKEY_CHALLENGE: RateLimitRule = { max: 20, windowMs: MINUTE, keyPrefix: 'passkey-challenge' }
 
 /**
  * Metered Better Auth paths, matched EXACTLY: `/sign-in/email-otp` starts with `/sign-in/email`,
@@ -80,6 +82,10 @@ const AUTH_RULES: ReadonlyMap<string, RateLimitRule> = new Map([
   ['/two-factor/verify-backup-code', CODE_VERIFY],
   ['/change-password', ACCOUNT_CHANGE],
   ['/change-email', ACCOUNT_CHANGE],
+  ['/passkey/generate-authenticate-options', PASSKEY_CHALLENGE],
+  ['/passkey/verify-authentication', CREDENTIAL_SIGN_IN],
+  ['/passkey/generate-register-options', ACCOUNT_CHANGE],
+  ['/passkey/verify-registration', ACCOUNT_CHANGE],
 ])
 
 /** The rule for a path under `/api/auth`, or null when unmetered. One trailing slash is tolerated. */

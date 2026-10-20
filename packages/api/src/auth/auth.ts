@@ -8,7 +8,9 @@
  * set. Build a fresh instance per request (`createAuth`): the Workers isolate model shares module
  * state between unrelated requests, and the instance closes over request-scoped options.
  */
+import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
 import { twoFactor } from 'better-auth/plugins'
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
@@ -90,6 +92,9 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
       modelName: 'session',
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
+      // Adding a passkey (and listing or unlinking sign-ins) needs a sign-in from the last 15 minutes,
+      // so a stolen session cookie can't be turned into a lasting way in. Better Auth's default is a day.
+      freshAge: 15 * 60,
       fields: {
         userId: 'user_id',
         expiresAt: 'expires_at',
@@ -133,6 +138,37 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
     },
 
     plugins: [
+      // Passkeys (1Password, iCloud Keychain, Windows Hello, a security key). One signs in on its own, so
+      // it must prove the person is there (a fingerprint, face or the password manager's unlock), and
+      // must be discoverable so "Sign in with a passkey" needs no email first. The relying party is
+      // this host: a passkey made on one address doesn't work on another.
+      passkey({
+        rpID: new URL(origin).hostname,
+        rpName: 'cf-dam',
+        origin,
+        authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+        schema: {
+          passkey: {
+            fields: {
+              publicKey: 'public_key',
+              userId: 'user_id',
+              credentialID: 'credential_id',
+              deviceType: 'device_type',
+              backedUp: 'backed_up',
+              createdAt: 'created_at',
+            },
+          },
+        },
+        authentication: {
+          // The plugin accepts a passkey use without user verification; a sign-in that replaces the
+          // password and the second factor must not.
+          afterVerification: ({ verification }) => {
+            if (!verification.authenticationInfo.userVerified) {
+              throw new APIError('UNAUTHORIZED', { message: 'Your passkey must confirm it is you (fingerprint, face or unlock).' })
+            }
+          },
+        },
+      }),
       twoFactor({
         issuer: 'cf-dam',
         twoFactorTable: 'two_factor',

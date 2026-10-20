@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { authClient, safeNext } from '../lib/auth-client'
 
   let email = $state('')
@@ -30,6 +31,30 @@
     done()
   }
 
+  /** A passkey (1Password, iCloud Keychain, Windows Hello…) signs in on its own: no password, no code. */
+  async function passkey() {
+    error = ''
+    busy = true
+    const { data, error: failure } = await authClient.signIn.passkey()
+    busy = false
+    if (data) return done()
+    if (failure) {
+      error =
+        failure.status === 429 ? 'Too many attempts. Wait a minute and try again.'
+        : failure.status === 401 ? (failure.message ?? 'That passkey is not one this archive knows.')
+        : 'No passkey was used. Try again, or sign in with your password.'
+    }
+  }
+
+  // Offer saved passkeys in the email field's autofill, where the browser and password manager support it.
+  onMount(() => {
+    void (async () => {
+      if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.())) return
+      const { data } = await authClient.signIn.passkey({ autoFill: true })
+      if (data) done()
+    })()
+  })
+
   async function verify(event: SubmitEvent) {
     event.preventDefault()
     error = ''
@@ -54,7 +79,7 @@
     </div>
     <div class="field">
       <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="username" required bind:value={email} />
+      <input id="email" type="email" autocomplete="username webauthn" required bind:value={email} />
     </div>
     <div class="field">
       <label for="password">Password</label>
@@ -62,6 +87,8 @@
     </div>
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
     <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    <div class="or" aria-hidden="true"><span>or</span></div>
+    <button class="btn" type="button" onclick={passkey} disabled={busy}>Sign in with a passkey</button>
   </form>
 {:else}
   <form class="stack" onsubmit={verify}>
@@ -89,3 +116,19 @@
     </button>
   </form>
 {/if}
+
+<style>
+  .or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-faint);
+    font-size: 0.8rem;
+  }
+  .or::before,
+  .or::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--border);
+  }
+</style>

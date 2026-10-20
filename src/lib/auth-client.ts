@@ -1,10 +1,11 @@
+import { passkeyClient } from '@better-auth/passkey/client'
 import { createAuthClient } from 'better-auth/client'
 import { twoFactorClient } from 'better-auth/client/plugins'
 
 /** Browser-side Better Auth client for the islands. Same origin, so no baseURL is needed. */
 export const authClient = createAuthClient({
   basePath: '/api/auth',
-  plugins: [twoFactorClient()],
+  plugins: [twoFactorClient(), passkeyClient()],
 })
 
 /** A safe post-login destination: a same-origin path, never an absolute or protocol-relative URL. */
