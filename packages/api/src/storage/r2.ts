@@ -4,6 +4,7 @@
  * The binding can't presign, so large uploads stream through the Worker part by part. R2 has two
  * classes, Standard and Infrequent Access, which map to STANDARD and STANDARD_IA.
  */
+import { toHex } from '../lib/crypto'
 import {
   StorageError,
   type CompletedPart,
@@ -57,6 +58,7 @@ export class R2Provider implements StorageProvider {
       storageClass: fromR2(object.storageClass),
       lastModified: object.uploaded.toISOString(),
       restore: null,
+      sha256: object.checksums.sha256 ? toHex(object.checksums.sha256) : null,
     }
   }
 

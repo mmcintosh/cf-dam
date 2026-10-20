@@ -6,6 +6,7 @@
  * straight to S3; the Worker only signs and records.
  */
 import { AwsClient } from 'aws4fetch'
+import { toHex } from '../lib/crypto'
 import {
   ARCHIVE_CLASSES,
   attachmentDisposition,
@@ -144,10 +145,15 @@ export class S3Provider implements StorageProvider {
   }
 
   async head(key: string): Promise<ObjectHead | null> {
-    const response = await this.send('HEAD', this.url(key))
+    // Checksum mode asks S3 for the checksum it verified at upload, if there was one. Services
+    // that don't know the header ignore it.
+    const response = await this.send('HEAD', this.url(key), { headers: { 'x-amz-checksum-mode': 'ENABLED' } })
     if (response.status === 404) return null
     if (!response.ok) await this.fail(response, 'Head')
     const modified = response.headers.get('Last-Modified')
+    const checksum = response.headers.get('x-amz-checksum-sha256')
+    // A multipart object's checksum is of its parts' checksums ("…-N"), not of the whole file.
+    const whole = checksum && response.headers.get('x-amz-checksum-type') !== 'COMPOSITE' && !checksum.includes('-')
     return {
       size: Number(response.headers.get('Content-Length') ?? 0),
       etag: stripQuotes(response.headers.get('ETag')),
@@ -156,6 +162,7 @@ export class S3Provider implements StorageProvider {
       storageClass: response.headers.get('x-amz-storage-class') ?? 'STANDARD',
       lastModified: modified ? new Date(modified).toISOString() : null,
       restore: parseRestoreHeader(response.headers.get('x-amz-restore')),
+      sha256: whole ? toHex(Uint8Array.from(atob(checksum), (c) => c.charCodeAt(0))) : null,
     }
   }
 

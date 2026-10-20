@@ -8,6 +8,7 @@
  *  4. Fingerprint photos that have no look-alike hash yet (older uploads).
  *  5. Check archived originals with a restore in progress, and mark them restored when ready.
  *  6. Drop gallery images nobody will be shown again (made with an old watermark or a replaced preview).
+ *  7. Check originals are still in their stores, unchanged (catalog/checks.ts).
  *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
@@ -18,6 +19,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
+import { checkStorage } from './checks'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
@@ -26,7 +28,7 @@ import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 350 },
+  process: { ms: 15_000, queries: 290 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -34,6 +36,7 @@ export const SLICES = {
   hash: { ms: 8_000, queries: 100 },
   restores: { ms: 5_000, queries: 60 },
   gallery: { ms: 3_000, queries: 10 },
+  checks: { ms: 8_000, queries: 20 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -56,10 +59,12 @@ export interface SweepResult {
   restored: number
   recovered: number
   pruned: number
+  checked: number
+  checkProblems: number
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0 }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0 }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -227,6 +232,17 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       console.warn('[sweep] gallery prune failed', error)
       return 0
     })
+  }
+
+  // 7. Originals still there and unchanged: a few each run, oldest check first.
+  const checking = slice('checks')
+  if (checking.more()) {
+    const { checked, problems } = await checkStorage(env, checking.more).catch((error) => {
+      console.warn('[sweep] storage checks failed', error)
+      return { checked: 0, problems: 0 }
+    })
+    result.checked = checked
+    result.checkProblems = problems
   }
 
   return result

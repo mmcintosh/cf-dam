@@ -43,6 +43,8 @@ export interface ObjectHead {
   lastModified: string | null
   /** Only for archived objects that have had a restore requested. */
   restore: RestoreStatus | null
+  /** The whole object's SHA-256 (hex), where the store keeps one (given at upload). */
+  sha256?: string | null
 }
 
 export interface ObjectBody {
