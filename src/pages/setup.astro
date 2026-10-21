@@ -1,11 +1,13 @@
 ---
 import { env } from 'cloudflare:workers'
 import AuthLayout from '../layouts/AuthLayout.astro'
+import { currentRestoreView } from '@cf-dam/api'
 import SetupForm from '../components/SetupForm.svelte'
 
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(Astro.url.hostname)
 const tokenConfigured = Boolean(env.SETUP_TOKEN)
+const restore = await currentRestoreView(env.DB)
 ---
 <AuthLayout title="Set up">
-  <SetupForm client:load tokenRequired={tokenConfigured || !local} blocked={!tokenConfigured && !local} />
+  <SetupForm client:load tokenRequired={tokenConfigured || !local} blocked={!tokenConfigured && !local} {restore} />
 </AuthLayout>

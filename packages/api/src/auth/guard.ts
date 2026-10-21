@@ -15,6 +15,7 @@ import { nowIso } from '../lib/time'
 import { createAuth } from './auth'
 import { REQUIRE_2FA_KEY, resolvePrincipal, twoFactorRequired } from './principal'
 import { authRateLimitRule, authSubPath, consumeRateLimit } from './rate-limit'
+import { setupNeeded } from './setup-state'
 
 export const LOCKOUT = { maxFailures: 10, minutes: 15 }
 
@@ -39,6 +40,8 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
     const limited = await consumeRateLimit(c, rule)
     if (limited) return limited
   }
+  // Mid-restore, people from the backup exist but nobody may sign in until the restore is finished.
+  if (await setupNeeded(c.env.DB)) return c.json({ code: 'SETUP_NEEDED', message: 'This install is still being set up.' }, 403)
   const auth = createAuth(c.env, c.req.raw)
   const sub = authSubPath(c.req.path)
   if (sub === '/sign-in/email' && c.req.method === 'POST') return passwordSignIn(c, auth)

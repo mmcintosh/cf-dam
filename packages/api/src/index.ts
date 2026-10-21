@@ -32,6 +32,7 @@ export { resolvePrincipal, principalJson, type Principal } from './auth/principa
 export { setupNeeded } from './routes/setup'
 export { runSweep, type SweepResult } from './catalog/sweeper'
 export { alertCount } from './catalog/alerts'
+export { currentRestore as currentRestoreView } from './catalog/restore'
 export { securityHeaders } from './lib/security-headers'
 export { wellKnownRoutes } from './routes/well-known'
 

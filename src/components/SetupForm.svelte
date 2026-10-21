@@ -1,9 +1,14 @@
 <script lang="ts">
+  import RestoreForm, { type RestoreView } from './RestoreForm.svelte'
+
   interface Props {
     tokenRequired: boolean
     blocked: boolean
+    /** A restore from a backup under way, waiting for a sign-in, or failed. */
+    restore: RestoreView | null
   }
-  let { tokenRequired, blocked }: Props = $props()
+  let { tokenRequired, blocked, restore }: Props = $props()
+  let mode = $state<'new' | 'restore'>(restore ? 'restore' : 'new')
 
   let name = $state('')
   let email = $state('')
@@ -45,11 +50,26 @@
   }
 </script>
 
-<form class="stack" onsubmit={submit}>
+<div class="stack">
   <div>
     <h2>Set up your archive</h2>
-    <p class="lead">Create the first administrator. You can invite everyone else afterwards.</p>
+    {#if mode === 'new'}
+      <p class="lead">Create the first administrator. You can invite everyone else afterwards.</p>
+    {:else}
+      <p class="lead">Bring your catalog back from a backup: its photos’ details, keywords, albums, galleries and people.</p>
+    {/if}
   </div>
+  {#if !restore}
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected={mode === 'new'} class:active={mode === 'new'} onclick={() => (mode = 'new')}>Start a new archive</button>
+      <button type="button" role="tab" aria-selected={mode === 'restore'} class:active={mode === 'restore'} onclick={() => (mode = 'restore')}>Restore from a backup</button>
+    </div>
+  {/if}
+
+{#if mode === 'restore'}
+  <RestoreForm {tokenRequired} {blocked} {restore} />
+{:else}
+<form class="stack" onsubmit={submit}>
 
   {#if blocked}
     <div class="alert alert-error">
@@ -87,3 +107,25 @@
     {busy ? 'Creating…' : 'Create administrator'}
   </button>
 </form>
+{/if}
+</div>
+
+<style>
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tabs button {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 6px 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .tabs button.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+</style>

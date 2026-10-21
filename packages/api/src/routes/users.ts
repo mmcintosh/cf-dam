@@ -6,6 +6,7 @@ import { REQUIRE_2FA_KEY, requirePermission, TWO_FACTOR_SCOPES, twoFactorRequire
 import { isLastActiveAdmin, listRoles, setUserRoles } from '../auth/roles'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
+import { randomId } from '../lib/crypto'
 import { BadRequest, optionalString, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 
@@ -234,7 +235,11 @@ userRoutes.post('/:id/password', async (c) => {
     const now = nowIso()
     const db = c.env.DB
     await db.batch([
-      db.prepare("UPDATE account SET password = ?, updated_at = ? WHERE user_id = ? AND provider_id = 'credential'").bind(await hashPassword(password), now, user.id),
+      // Replaced, not updated: someone restored from a backup has no password yet.
+      db.prepare("DELETE FROM account WHERE user_id = ? AND provider_id = 'credential'").bind(user.id),
+      db
+        .prepare("INSERT INTO account (id, user_id, account_id, provider_id, password, created_at, updated_at) VALUES (?, ?, ?, 'credential', ?, ?, ?)")
+        .bind(randomId(), user.id, user.id, await hashPassword(password), now, now),
       db.prepare('UPDATE users SET must_change_password = 1, failed_sign_ins = 0, locked_until = NULL, updated_at = ? WHERE id = ?').bind(now, user.id),
       endSessions(db, user.id),
     ])

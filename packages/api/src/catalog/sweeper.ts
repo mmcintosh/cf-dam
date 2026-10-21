@@ -15,9 +15,13 @@
  * 10. Every five minutes, look for problems that need a person, and open or resolve alerts
  *     (catalog/alerts.ts). A stage that fails opens its own alert as it happens.
  *
+ * While a backup is being restored into a fresh install (catalog/restore.ts), the sweep does only
+ * that, with the whole run; before anyone has an account, it makes no backups.
+ *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
  */
+import { setupNeeded } from '../auth/setup-state'
 import type { DamBindings } from '../env'
 import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
@@ -27,6 +31,7 @@ import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from 
 import { alertsDue, checkAlerts, noteSweepFailure } from './alerts'
 import { abandonStaleArchiveUploads } from './archive'
 import { backupStep } from './backups'
+import { currentRestore, restoreStep, type RestoreStatus } from './restore'
 import { checkStorage } from './checks'
 import { statsStep } from './stats'
 import { hashFromThumbnail, recordHashes } from './phash'
@@ -54,6 +59,8 @@ export const SLICES = {
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
 if (SLICED > QUERIES_PER_INVOCATION * 0.9) throw new Error('The sweep\'s query slices leave no headroom.')
 
+/** A restore's share of a run, which it has to itself. */
+const RESTORE_SLICE = { ms: 25_000, queries: 800 }
 /** Assets a run may process: each takes a few dozen queries. */
 const MAX_PER_RUN = 25
 const AI_CONCURRENCY = 4
@@ -76,10 +83,11 @@ export interface SweepResult {
   backup: { started: string | null; finished: string | null; pruned: number }
   statsPublished: boolean
   alerts: { opened: number; resolved: number } | null
+  restore: { rows: number; status: RestoreStatus } | null
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -89,6 +97,21 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     const until = Date.now() + ms
     const before = budget.used()
     return { more: () => Date.now() < until && budget.used() - before < queries, queriesLeft: () => queries - (budget.used() - before) }
+  }
+
+  // A restore under way has the run to itself: the rest would work on half a catalog. (Set up, which
+  // is almost always, costs no query: it's remembered.)
+  const settingUp = await setupNeeded(db)
+  if (settingUp) {
+    const restoring = await currentRestore(db)
+    if (restoring) {
+      if (restoring.status === 'running') {
+        const until = Date.now() + RESTORE_SLICE.ms
+        const before = budget.used()
+        result.restore = await restoreStep(env, () => Date.now() < until && budget.used() - before < RESTORE_SLICE.queries)
+      }
+      return result
+    }
   }
 
   // 1. Queued assets, oldest first, each claimed as it is taken so an overlapping run doesn't take it too.
@@ -274,7 +297,7 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
 
   // 8. The daily catalog backup, carried on a part at a time; old ones deleted when none is running.
   const backingUp = slice('backup')
-  if (backingUp.more()) {
+  if (!settingUp && backingUp.more()) {
     const step = await backupStep(env, backingUp.more).catch(async (error) => {
       console.warn('[sweep] backup failed', error)
       await noteSweepFailure(db, 'backup', error)

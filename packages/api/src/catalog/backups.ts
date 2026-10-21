@@ -40,6 +40,7 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   asset_hash_bands: 'rebuilt from assets',
   backups: 'the list of backups itself',
   alerts: 'found again by the sweep',
+  restore_jobs: 'restores into this install',
   _migrations: 'listed in the manifest instead',
 }
 /** Secret columns left out of tables that are backed up. Columns pointing into an omitted table are left out too (found from the foreign keys). */
@@ -363,10 +364,34 @@ export async function readManifest(provider: StorageProvider, id: string): Promi
   return manifest.format === BACKUP_FORMAT ? manifest : null
 }
 
+/** One chunk of a backup, as rows (each with its `_rowid_`). */
+export async function readChunk(provider: StorageProvider, id: string, table: string, seq: number): Promise<Record<string, unknown>[]> {
+  const object = await provider.get(chunkKey(id, table, seq))
+  if (!object) throw new Error(`Backup ${id} is missing ${table} chunk ${seq}.`)
+  // The stream types disagree on chunk types (BufferSource vs Uint8Array); the bytes are the same.
+  const gunzip = new DecompressionStream('gzip') as unknown as ReadableWritablePair<Uint8Array, Uint8Array>
+  const text = await new Response(object.body.pipeThrough(gunzip)).text()
+  return text.split('\n').filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
+}
+
+/** Rows per statement: through json_each, because D1 binds at most 100 values per statement. */
+export const INSERT_ROWS = 200
+
 /**
- * Load a finished backup into a database, replacing rows with the same rowid. For restoring into a fresh
- * install (slice S3) and for checking backups in the tests. Rows go in through json_each, a few hundred
- * per statement, because D1 binds at most 100 values per statement.
+ * Put rows back, replacing any with the same rowid. `columns`, when given, are the table's columns now:
+ * a column the backup has and this schema doesn't is left out. `overrides` set a column to an SQL
+ * expression instead of its backed-up value.
+ */
+export function insertRows(db: D1Database, table: string, rows: Record<string, unknown>[], options: { columns?: readonly string[]; overrides?: Readonly<Record<string, string>> } = {}): D1PreparedStatement {
+  const columns = Object.keys(rows[0]!).filter((c) => c !== '_rowid_' && (!options.columns || options.columns.includes(c)))
+  for (const c of Object.keys(options.overrides ?? {})) if (!columns.includes(c) && (!options.columns || options.columns.includes(c))) columns.push(c)
+  const values = ['_rowid_', ...columns].map((c) => options.overrides?.[c] ?? `json_extract(value, '$."${c.replace(/"/g, '\\"')}"')`).join(', ')
+  return db.prepare(`INSERT OR REPLACE INTO ${quote(table)} (rowid, ${columns.map(quote).join(', ')}) SELECT ${values} FROM json_each(?)`).bind(JSON.stringify(rows))
+}
+
+/**
+ * Load a finished backup into a database in one go, replacing rows with the same rowid. For checking
+ * backups in the tests; a real restore goes a part at a time (catalog/restore.ts).
  */
 export async function importBackup(db: D1Database, provider: StorageProvider, id: string): Promise<{ rows: number }> {
   const manifest = await readManifest(provider, id)
@@ -374,20 +399,10 @@ export async function importBackup(db: D1Database, provider: StorageProvider, id
   let total = 0
   for (const table of manifest.tables) {
     for (let seq = 0; seq < table.chunks; seq++) {
-      const object = await provider.get(chunkKey(id, table.name, seq))
-      if (!object) throw new Error(`Backup ${id} is missing ${table.name} chunk ${seq}.`)
-      // The stream types disagree on chunk types (BufferSource vs Uint8Array); the bytes are the same.
-      const gunzip = new DecompressionStream('gzip') as unknown as ReadableWritablePair<Uint8Array, Uint8Array>
-      const text = await new Response(object.body.pipeThrough(gunzip)).text()
-      const rows = text.split('\n').filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
-      for (let i = 0; i < rows.length; i += 200) {
-        const group = rows.slice(i, i + 200)
-        const columns = Object.keys(group[0]!).filter((c) => c !== '_rowid_')
-        const values = ['_rowid_', ...columns].map((c) => `json_extract(value, '$."${c.replace(/"/g, '\\"')}"')`).join(', ')
-        await db
-          .prepare(`INSERT OR REPLACE INTO ${quote(table.name)} (rowid, ${columns.map(quote).join(', ')}) SELECT ${values} FROM json_each(?)`)
-          .bind(JSON.stringify(group))
-          .run()
+      const rows = await readChunk(provider, id, table.name, seq)
+      for (let i = 0; i < rows.length; i += INSERT_ROWS) {
+        const group = rows.slice(i, i + INSERT_ROWS)
+        await insertRows(db, table.name, group).run()
         total += group.length
       }
     }

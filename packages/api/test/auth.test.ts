@@ -11,7 +11,7 @@ describe('first-run setup', () => {
 
   it('reports setup as needed on an empty database', async () => {
     const res = await h.fetch('/api/setup')
-    expect(await res.json()).toEqual({ needed: true, tokenRequired: false, blocked: false })
+    expect(await res.json()).toEqual({ needed: true, tokenRequired: false, blocked: false, restore: null })
   })
 
   it('creates the first admin, signs them in, and closes', async () => {
