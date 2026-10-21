@@ -317,6 +317,11 @@ export class State {
     chmodSync(this.credentialsPath, 0o600)
   }
 
+  /** The entry this agent last had in cf-dam, if any: offered back when it pairs again. */
+  previousSourceId(): string | null {
+    return (this.db.prepare("SELECT value FROM meta WHERE name = 'source_id'").get() as { value: string } | undefined)?.value ?? null
+  }
+
   /** The key no longer works. The file list stays until a new pairing says whose it is. */
   clearCredentials(): void {
     writeFileSync(this.credentialsPath, '{}', { mode: 0o600 })

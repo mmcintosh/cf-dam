@@ -169,6 +169,39 @@ describe('restoring a backup into a fresh install', () => {
     expect(await count(h, 'SELECT COUNT(*) AS n FROM assets')).toBe(2)
   }, 180_000)
 
+  it('gives agents their own entries back when they pair again', async () => {
+    // An agent on the old install, with a folder.
+    const start = (await (await old.fetch('/api/agent/pair/start', json({ name: 'Studio NAS', platform: 'linux/x64', version: '1.0.0' }))).json()) as { deviceCode: string; userCode: string }
+    await old.fetch('/api/sources/pair', { ...json({ code: start.userCode }), cookie: admin })
+    const { sourceId } = (await (await old.fetch('/api/agent/pair/poll', json({ deviceCode: start.deviceCode }))).json()) as { sourceId: string }
+    const { id } = await backedUpCatalog()
+    const h = await freshInstall()
+    await h.fetch('/api/setup/restore', json({ source: R2, backupId: id }))
+    await loadAll(h)
+    const cookie = cookiesFrom(await h.fetch('/api/setup/restore/finish', json({ name: 'Ada', email: ADMIN.email, password: 'a brand new password' })))
+    const before = (await (await h.fetch('/api/sources', { cookie })).json()) as { sources: { id: string; waiting: boolean }[] }
+    expect(before.sources).toEqual([expect.objectContaining({ id: sourceId, waiting: true })])
+
+    // The agent, refused, pairs again saying which entry it had.
+    const again = (await (await h.fetch('/api/agent/pair/start', json({ name: 'Studio NAS', platform: 'linux/x64', version: '1.1.0', previousSourceId: sourceId }))).json()) as { deviceCode: string; userCode: string }
+    const preview = (await (await h.fetch(`/api/sources/pair/${again.userCode}`, { cookie })).json()) as { previous: { id: string } | null; reconnectable: { id: string }[] }
+    expect(preview.previous?.id).toBe(sourceId)
+    expect(preview.reconnectable.map((s) => s.id)).toEqual([sourceId])
+    expect((await h.fetch('/api/sources/pair', { ...json({ code: again.userCode, sourceId }), cookie })).status).toBe(201)
+    const polled = (await (await h.fetch('/api/agent/pair/poll', json({ deviceCode: again.deviceCode }))).json()) as { status: string; apiKey: string; sourceId: string }
+    expect(polled).toMatchObject({ status: 'approved', sourceId })
+    const beat = await h.fetch('/api/agent/heartbeat', { ...json({ version: '1.1.0', status: {} }), headers: { Authorization: `Bearer ${polled.apiKey}` } })
+    expect(beat.status).toBe(200)
+    const after = (await (await h.fetch('/api/sources', { cookie })).json()) as { sources: { id: string; waiting: boolean; version: string }[] }
+    expect(after.sources).toEqual([expect.objectContaining({ id: sourceId, waiting: false, version: '1.1.0' })])
+    expect(await count(h, "SELECT COUNT(*) AS n FROM activity_log WHERE action = 'source.reconnected'")).toBe(1)
+
+    // Taken: a second agent can't claim it.
+    const third = (await (await h.fetch('/api/agent/pair/start', json({ name: 'Imposter', previousSourceId: sourceId }))).json()) as { userCode: string }
+    expect(((await (await h.fetch(`/api/sources/pair/${third.userCode}`, { cookie })).json()) as { previous: unknown }).previous).toBeNull()
+    expect((await h.fetch('/api/sources/pair', { ...json({ code: third.userCode, sourceId }), cookie })).status).toBe(409)
+  }, 180_000)
+
   it('refuses a backup from a newer version, and an install that already has accounts', async () => {
     const { id } = await backedUpCatalog()
     const manifest = JSON.parse(await (await old.env.MEDIA_BUCKET!.get(`cf-dam-backups/${id}/manifest.json`))!.text()) as { migrations: string[] }

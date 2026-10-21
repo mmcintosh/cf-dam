@@ -24,6 +24,8 @@
     online: boolean
     paused: boolean
     revoked: boolean
+    /** Back from a backup without its key: waiting for its agent to pair again. */
+    waiting: boolean
     status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null; archive?: ArchiveProgress }
     archive: ArchiveSettings
     folders: string[]
@@ -41,8 +43,15 @@
   let compose = $state('')
   let copied = $state(false)
   let code = $state(initialCode ?? '')
-  let pending = $state<{ name: string; platform: string | null } | null>(null)
+  interface Waiting {
+    id: string
+    name: string
+    platform: string | null
+  }
+  let pending = $state<{ name: string; platform: string | null; previous: Waiting | null; reconnectable: Waiting[] } | null>(null)
   let agentName = $state('')
+  /** '' for a new agent, else the entry it gets back. */
+  let reconnectTo = $state('')
   let error = $state('')
   let newFolder = $state<Record<string, string>>({})
   // Disconnect and Remove ask for a second click, which lapses after a few seconds or when the button
@@ -95,8 +104,9 @@
     const clean = code.trim()
     if (clean.replace(/[^A-Za-z0-9]/g, '').length !== 8) return
     try {
-      pending = await api<{ name: string; platform: string | null }>(`/api/sources/pair/${encodeURIComponent(clean)}`)
+      pending = await api<NonNullable<typeof pending>>(`/api/sources/pair/${encodeURIComponent(clean)}`)
       agentName = pending.name
+      reconnectTo = pending.previous?.id ?? ''
     } catch (e) {
       error = e instanceof Error ? e.message : 'That code is unknown or has expired.'
     }
@@ -105,7 +115,7 @@
   async function approve() {
     error = ''
     try {
-      await api('/api/sources/pair', { method: 'POST', body: JSON.stringify({ code, name: agentName }) })
+      await api('/api/sources/pair', { method: 'POST', body: JSON.stringify({ code, name: agentName, sourceId: reconnectTo || undefined }) })
       adding = false
       pending = null
       code = ''
@@ -225,10 +235,19 @@
           <div class="row code-row">
             <input type="text" bind:value={code} placeholder="ABCD-EFGH" maxlength="9" oninput={lookUp} aria-label="Pairing code" class="code" />
             {#if pending}
-              <input type="text" bind:value={agentName} maxlength="80" aria-label="Agent name" />
+              {#if pending.reconnectable.length > 0}
+                <select bind:value={reconnectTo} aria-label="Connect as">
+                  <option value="">As a new agent</option>
+                  {#each pending.reconnectable as w (w.id)}<option value={w.id}>As “{w.name}” again{w.platform ? ` (${w.platform})` : ''}</option>{/each}
+                </select>
+              {/if}
+              {#if !reconnectTo}<input type="text" bind:value={agentName} maxlength="80" aria-label="Agent name" />{/if}
               <button class="btn btn-primary" type="button" onclick={approve}>Connect</button>
             {/if}
           </div>
+          {#if pending && reconnectTo}
+            <p class="muted small">It gets back its entry, folders and photos, and carries on from its own list of files{pending.previous?.id === reconnectTo ? ' (it says this was its entry)' : ''}.</p>
+          {/if}
           {#if pending}<p class="muted small">Agent “{pending.name}”{pending.platform ? ` on ${pending.platform}` : ''} is waiting. Connecting gives it a key that can only send photos to this archive.</p>{/if}
         </li>
       </ol>
@@ -272,6 +291,12 @@
         {/if}
       </div>
       {#if s.status.phase === 'scanning' && s.status.current}<p class="muted small current">Now: {s.status.current}</p>{/if}
+      {#if s.waiting}
+        <p class="alert">
+          Brought back from a backup, without its key. Once refused a few times, the agent pairs again by itself and shows a new code (in its log and on
+          its status page). Enter it under <em>Add a NAS agent</em> and connect it as “{s.name}” again.
+        </p>
+      {/if}
       {#if s.status.lastError}<p class="muted small">Last problem: {s.status.lastError}</p>{/if}
 
       {#if !s.revoked}

@@ -50,7 +50,7 @@ export const normalizeUserCode = (code: string) => code.toUpperCase().replace(/[
 
 const shortText = (value: unknown, max: number): string | null => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null)
 
-export async function startPairing(db: D1Database, input: { name: unknown; platform: unknown; version: unknown }) {
+export async function startPairing(db: D1Database, input: { name: unknown; platform: unknown; version: unknown; previousSourceId?: unknown }) {
   const name = shortText(input.name, 80) ?? 'NAS agent'
   const deviceCode = randomBase62(40)
   const code = userCode()
@@ -58,8 +58,8 @@ export async function startPairing(db: D1Database, input: { name: unknown; platf
   await db.batch([
     db.prepare('DELETE FROM pairing_requests WHERE expires_at < ?').bind(nowIso()),
     db
-      .prepare('INSERT INTO pairing_requests (device_hash, user_code, name, platform, version, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(await sha256Hex(deviceCode), code, name, shortText(input.platform, 40), shortText(input.version, 40), expiresAt, nowIso()),
+      .prepare('INSERT INTO pairing_requests (device_hash, user_code, name, platform, version, previous_source_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(await sha256Hex(deviceCode), code, name, shortText(input.platform, 40), shortText(input.version, 40), shortText(input.previousSourceId, 64), expiresAt, nowIso()),
   ])
   return { deviceCode, userCode: code, expiresIn: PAIRING_TTL_SECONDS, interval: POLL_INTERVAL_SECONDS }
 }
@@ -70,6 +70,8 @@ interface PairingRow {
   name: string
   platform: string | null
   version: string | null
+  /** The entry the agent says it had before, if any. */
+  previous_source_id: string | null
   source_id: string | null
   sealed_key: string | null
   claimed_at: string | null
@@ -83,10 +85,23 @@ export async function pendingPairing(db: D1Database, code: string): Promise<Pair
 }
 
 /**
- * A person approves a code: the agent gets a source, its own 'nas' storage connection, and an API
- * key that can only sync. The key waits, sealed, for the agent's next poll.
+ * Agents that have an entry but no key: brought back from a backup, which leaves keys out. Each can be
+ * given back to the agent that pairs again (`approvePairing` with `sourceId`).
  */
-export async function approvePairing(env: DamBindings, code: string, input: { name?: string | null; userId: string }) {
+export async function reconnectableSources(db: D1Database): Promise<{ id: string; name: string; platform: string | null; lastSeenAt: string | null }[]> {
+  const { results } = await db
+    .prepare('SELECT id, name, platform, last_seen_at FROM sources WHERE key_hash IS NULL AND revoked_at IS NULL ORDER BY name')
+    .all<{ id: string; name: string; platform: string | null; last_seen_at: string | null }>()
+  return results.map((s) => ({ id: s.id, name: s.name, platform: s.platform, lastSeenAt: s.last_seen_at }))
+}
+
+/**
+ * A person approves a code: the agent gets a source, its own 'nas' storage connection, and an API
+ * key that can only sync. The key waits, sealed, for the agent's next poll. With `sourceId`, the agent
+ * gets that entry back instead (one with no key: see `reconnectableSources`), its folders and photos
+ * as they were.
+ */
+export async function approvePairing(env: DamBindings, code: string, input: { name?: string | null; userId: string; sourceId?: string | null }) {
   const db = env.DB
   const row = await pendingPairing(db, code)
   if (!row) throw new AgentError('That code is unknown or has expired. Restart the agent for a new one.', 404)
@@ -103,6 +118,7 @@ export async function approvePairing(env: DamBindings, code: string, input: { na
     .bind(now, collectBy, row.device_hash, now)
     .run()
   if (claimed.meta.changes !== 1) throw new AgentError('That code has just been approved, or has expired.', 409)
+  if (input.sourceId) return reconnect(env, row, input.sourceId)
   // The key is the source's own (only its hash is kept), not an API key of the approver's: the agent
   // outlives their account, and only disconnecting it revokes it.
   const key = API_KEY_PREFIX + randomBase62(40)
@@ -120,6 +136,26 @@ export async function approvePairing(env: DamBindings, code: string, input: { na
     db.prepare('UPDATE pairing_requests SET source_id = ?, sealed_key = ? WHERE device_hash = ?').bind(sourceId, sealed, row.device_hash),
   ])
   return { id: sourceId, name }
+}
+
+/** The rest of `approvePairing` when the agent gets its old entry back. */
+async function reconnect(env: DamBindings, row: PairingRow, sourceId: string) {
+  const db = env.DB
+  const key = API_KEY_PREFIX + randomBase62(40)
+  const sealed = await seal(await deriveKey(storageSecret(env)), key)
+  const hash = await sha256Hex(key)
+  // The key goes to the agent only if the entry took it (it had none, and still exists).
+  const [taken] = await db.batch([
+    db
+      .prepare('UPDATE sources SET key_hash = ?, platform = COALESCE(?, platform), version = COALESCE(?, version) WHERE id = ? AND key_hash IS NULL AND revoked_at IS NULL RETURNING name')
+      .bind(hash, row.platform, row.version, sourceId),
+    db
+      .prepare('UPDATE pairing_requests SET source_id = ?, sealed_key = ? WHERE device_hash = ? AND EXISTS (SELECT 1 FROM sources WHERE id = ? AND key_hash = ?)')
+      .bind(sourceId, sealed, row.device_hash, sourceId, hash),
+  ])
+  const source = taken!.results[0] as { name: string } | undefined
+  if (!source) throw new AgentError('That agent is already connected, or no longer here. Connect this one as a new agent instead.', 409)
+  return { id: sourceId, name: source.name, reconnected: true }
 }
 
 /** The agent's poll: pending, or (exactly once) its API key. */
@@ -145,6 +181,8 @@ export interface SourceRow {
   name: string
   connection_id: string
   api_key_id: string | null
+  /** The agent's key, hashed; none after a restore until it pairs again. */
+  key_hash: string | null
   platform: string | null
   version: string | null
   last_seen_at: string | null

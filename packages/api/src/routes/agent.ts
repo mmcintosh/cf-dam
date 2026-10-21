@@ -57,7 +57,7 @@ agentRoutes.post('/pair/start', async (c) => {
   if (limited) return limited
   try {
     const body = await readJsonObject(c)
-    const pairing = await startPairing(c.env.DB, { name: body.name, platform: body.platform, version: body.version })
+    const pairing = await startPairing(c.env.DB, { name: body.name, platform: body.platform, version: body.version, previousSourceId: body.previousSourceId })
     return c.json({ ...pairing, verificationUrl: new URL('/sources', c.req.url).toString() }, 201)
   } catch (error) {
     return failure(c, error)

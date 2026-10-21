@@ -8,6 +8,7 @@ import {
   getSource,
   listRoots,
   pendingPairing,
+  reconnectableSources,
   removeRoot,
   revokeSource,
   rootJson,
@@ -60,6 +61,8 @@ async function sourceJson(db: D1Database, s: SourceRow) {
     online: !!s.last_seen_at && Date.now() - Date.parse(s.last_seen_at) < ONLINE_MS,
     paused: s.paused === 1,
     revoked: s.revoked_at !== null,
+    // Back from a backup without its key: waiting for its agent to pair again.
+    waiting: s.revoked_at === null && !s.key_hash,
     status: parse<Record<string, unknown>>(s.status, {}),
     folders: parse<string[]>(s.folders, []),
     volumes: parse<{ id: string; label: string | null; path: string; removable: boolean }[]>(s.volumes, []),
@@ -79,7 +82,10 @@ sourceRoutes.get('/', async (c) => {
 sourceRoutes.get('/pair/:code', async (c) => {
   const row = await pendingPairing(c.env.DB, c.req.param('code'))
   if (!row) return c.json({ error: 'not_found', message: 'That code is unknown or has expired.' }, 404)
-  return c.json({ name: row.name, platform: row.platform, version: row.version, expiresAt: row.expires_at })
+  // Entries waiting for their agent (after a restore); the one this agent says it had first.
+  const waiting = await reconnectableSources(c.env.DB)
+  const previous = waiting.find((s) => s.id === row.previous_source_id) ?? null
+  return c.json({ name: row.name, platform: row.platform, version: row.version, expiresAt: row.expires_at, previous, reconnectable: waiting })
 })
 
 sourceRoutes.post('/pair', async (c) => {
@@ -87,8 +93,9 @@ sourceRoutes.post('/pair', async (c) => {
     const body = await readJsonObject(c)
     if (typeof body.code !== 'string') throw new BadRequest('code is required.')
     const principal = c.get('principal')!
-    const source = await approvePairing(c.env, body.code, { name: typeof body.name === 'string' ? body.name : null, userId: principal.userId })
-    await logActivity(c.env.DB, { userId: principal.userId, action: 'source.paired', targetType: 'source', targetId: source.id, details: { name: source.name } })
+    const sourceId = typeof body.sourceId === 'string' && body.sourceId ? body.sourceId : null
+    const source = await approvePairing(c.env, body.code, { name: typeof body.name === 'string' ? body.name : null, userId: principal.userId, sourceId })
+    await logActivity(c.env.DB, { userId: principal.userId, action: sourceId ? 'source.reconnected' : 'source.paired', targetType: 'source', targetId: source.id, details: { name: source.name } })
     return c.json({ source: await sourceJson(c.env.DB, (await getSource(c.env.DB, source.id))!) }, 201)
   } catch (error) {
     return failure(c, error)

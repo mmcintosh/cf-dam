@@ -82,6 +82,8 @@ export class Agent {
         name: this.config.name,
         platform: `${process.platform}/${process.arch}`,
         version: VERSION,
+        // After a restore from a backup, cf-dam can give this agent its old entry back.
+        previousSourceId: this.state.previousSourceId(),
       })
       const { deviceCode, userCode, interval, verificationUrl } = start.body
       this.view.phase = 'pairing'
