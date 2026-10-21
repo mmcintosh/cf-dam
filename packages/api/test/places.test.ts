@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_BACKUP_CONFIG, setBackupConfig } from '../src/catalog/backups'
 import { nearestPlace, parsePlaces, resetPlacesForTests } from '../src/catalog/places'
 import { runSweep } from '../src/catalog/sweeper'
@@ -118,7 +118,10 @@ describe('filling in places from GPS', () => {
     // this is about places.
     await setBackupConfig(h.env.DB, { ...DEFAULT_BACKUP_CONFIG, connectionId: null })
     await h.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('stats', '{}', ?)").bind(new Date().toISOString()).run()
-    const quiet = await h.count(() => runSweep(h.env))
+    // Half past: on the hour the sweep also tidies abandoned archive uploads.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-20T10:30:00Z'))
+    const quiet = await h.count(() => runSweep(h.env)).finally(() => vi.useRealTimers())
     expect(quiet.roundTrips).toBeLessThan(15)
     expect((await h.env.DB.prepare('SELECT place_checked_at FROM assets WHERE id = ?').bind(a).first<{ place_checked_at: string | null }>())?.place_checked_at).toBeNull()
   })

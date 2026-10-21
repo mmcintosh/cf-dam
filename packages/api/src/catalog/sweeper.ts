@@ -126,8 +126,11 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     }
     result.recovered++
   }
-  // Archive uploads an agent never finished: given up after a week (the bucket's own rule backs this up).
-  if (recovering.more()) await abandonStaleArchiveUploads(env).catch((error) => console.warn('[sweep] archive clean-up failed', error))
+  // Archive uploads an agent never finished: given up after a week (the bucket's own rule backs this
+  // up). Once an hour is plenty, and keeps a quiet minute's queries down.
+  if (recovering.more() && new Date().getUTCMinutes() === 0) {
+    await abandonStaleArchiveUploads(env).catch((error) => console.warn('[sweep] archive clean-up failed', error))
+  }
 
   // 2. Repair the search index (after a rebuild, a keyword change, or a write that failed): three
   // round trips per 50 assets.
