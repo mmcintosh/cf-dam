@@ -9,6 +9,7 @@ import { activityRoutes } from './routes/activity'
 import { agentRoutes } from './routes/agent'
 import { aiRoutes } from './routes/ai'
 import { alertRoutes } from './routes/alerts'
+import { previewRoutes } from './routes/previews'
 import { albumRoutes } from './routes/albums'
 import { checkRoutes } from './routes/checks'
 import { labelRoutes, tagRoutes } from './routes/keywords'
@@ -73,6 +74,7 @@ export function createDamApi() {
   api.route('/roles', roleRoutes)
   api.route('/connections', connectionRoutes)
   api.route('/storage-checks', checkRoutes)
+  api.route('/previews', previewRoutes)
   api.route('/backups', backupRoutes)
   api.route('/uploads', uploadRoutes)
   api.route('/assets', assetRoutes)

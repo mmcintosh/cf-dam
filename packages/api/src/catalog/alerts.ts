@@ -59,7 +59,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
 
 /** What's wrong now, from what the catalog holds. */
 export async function findProblems(db: D1Database, now = new Date()): Promise<{ findings: Finding[]; open: OpenRow[] }> {
-  const [sources, checks, backup, install, open] = await db.batch([
+  const [sources, checks, backup, install, open, previews] = await db.batch([
     db.prepare('SELECT id, name, platform, last_seen_at, created_at, status, archive FROM sources WHERE revoked_at IS NULL'),
     // The problem results only, through their index: fast however many originals are fine.
     db.prepare("SELECT check_result AS result, COUNT(*) AS n FROM asset_locations WHERE check_result IN ('missing', 'changed', 'unreadable') GROUP BY check_result"),
@@ -71,6 +71,7 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     ),
     db.prepare('SELECT MIN(created_at) AS at FROM users'),
     db.prepare('SELECT id, key, message FROM alerts WHERE resolved_at IS NULL'),
+    db.prepare("SELECT COUNT(*) AS n FROM preview_requests WHERE route IN ('archived', 'unreadable')"),
   ])
   const findings: Finding[] = []
 
@@ -119,6 +120,11 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     if (since && now.getTime() - Date.parse(since) > BACKUP_OVERDUE_MS) {
       findings.push({ key: 'backup.overdue', kind: 'backup.overdue', message: b.last_done ? 'No catalog backup has finished in over two days.' : 'No catalog backup has finished yet.', link: '/settings/storage' })
     }
+  }
+
+  const noPreview = (previews!.results[0] as { n: number }).n
+  if (noPreview > 0) {
+    findings.push({ key: 'previews.stuck', kind: 'previews.stuck', message: `${plural(noPreview, 'photo')} ${noPreview === 1 ? 'has' : 'have'} no preview, and cf-dam can’t make ${noPreview === 1 ? 'one' : 'them'} yet.`, link: '/settings/storage' })
   }
 
   return { findings, open: open!.results as unknown as OpenRow[] }
@@ -175,6 +181,7 @@ const SWEEP_STAGE_NAMES: Record<string, string> = {
   checks: 'storage checks',
   backup: 'catalog backups',
   stats: 'archive totals',
+  previews: 'making missing previews',
   alerts: 'looking for problems',
 }
 

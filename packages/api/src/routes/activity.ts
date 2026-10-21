@@ -13,7 +13,7 @@ export const PAGE_SIZE = 50
 export const ACTIVITY_KINDS: Readonly<Record<string, readonly string[]>> = {
   'sign-ins': ['auth'],
   accounts: ['account', 'user', 'policy', 'api_key', 'setup'],
-  photos: ['asset', 'duplicates', 'keyword', 'storage', 'ai'],
+  photos: ['asset', 'duplicates', 'keyword', 'storage', 'ai', 'previews'],
   sharing: ['share', 'watermark'],
   agents: ['source'],
   backups: ['backup'],

@@ -8,6 +8,7 @@ import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, remov
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
+import { noteMissing } from '../catalog/previews'
 import { isRenditionName, renditionKey } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -230,7 +231,11 @@ assetRoutes.get('/:id/renditions/:name', requirePermission('assets:read'), async
   if (!isRenditionName(name)) return c.json({ error: 'not_found' }, 404)
   if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
   const object = await renditionStore(c.env).get(renditionKey(id, name))
-  if (!object) return c.json({ error: 'not_found' }, 404)
+  if (!object) {
+    // Listed but not in R2 (after a restore into a new account, say): have it made again.
+    c.executionCtx.waitUntil(noteMissing(c.env.DB, id, name).catch((error) => console.warn('[previews] could not note a missing one', id, error)))
+    return c.json({ error: 'not_found' }, 404)
+  }
   return new Response(object.body, {
     headers: {
       'Content-Type': 'image/webp',

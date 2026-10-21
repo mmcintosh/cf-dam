@@ -136,7 +136,7 @@ export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | nu
   }
 
   const goneByHash = new Map<string, { rootId: string; path: string }>()
-  for (const s of surveyed) for (const g of s.gone) if (g.quick_hash && g.status === 'done') goneByHash.set(g.quick_hash, { rootId: s.root.id, path: g.path })
+  for (const s of surveyed) for (const g of s.gone) if (g.quick_hash && g.status !== 'error') goneByHash.set(g.quick_hash, { rootId: s.root.id, path: g.path })
 
   for (const { root, here, work } of surveyed) {
     progress.root = root.path

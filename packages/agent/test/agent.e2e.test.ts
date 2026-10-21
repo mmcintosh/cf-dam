@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, json, setUpAdmin, type Harness } from '../../api/test/harness.ts'
 import { Api, ApiError, LinkError, Unpaired } from '../src/api.ts'
 import { Agent } from '../src/main.ts'
+import { checkStep, remakeStep, startPreviewCheck } from '../../api/src/catalog/previews.ts'
 import type { Volume } from '../src/volumes.ts'
 
 const placesGz = readFileSync(new URL('../../../public/places/cities1000.tsv.gz', import.meta.url))
@@ -81,6 +82,36 @@ async function pairAndAddRoot(agent: Agent): Promise<void> {
 }
 
 describe('the agent, end to end', () => {
+  it('sends a photo again when cf-dam has lost its previews', async () => {
+    for (let i = 0; i < 3; i++) await photo(`2023/IMG_${1000 + i}.jpg`, i)
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    const [lost, ...rest] = (await list()).assets
+    // Gone from R2 (a restore into a new account, say); found by the check.
+    await h.env.MEDIA_BUCKET!.delete([`renditions/${lost!.id}/thumb.webp`, `renditions/${lost!.id}/preview.webp`])
+    await startPreviewCheck(h.env.DB)
+    await checkStep(h.env, () => true)
+    expect((await list()).assets.find((a) => a.id === lost!.id)!.renditions).toEqual([])
+
+    // The heartbeat hands it to the agent, whose next scan sends that one file again, and nothing else.
+    calls.length = 0
+    await agent.heartbeat()
+    await agent.scanAll()
+    const puts = calls.filter((c) => c.startsWith('PUT') && c.includes('/renditions/'))
+    expect(puts.sort()).toEqual([`PUT /api/agent/assets/${lost!.id}/renditions/preview`, `PUT /api/agent/assets/${lost!.id}/renditions/thumb`])
+    expect((await list()).assets.find((a) => a.id === lost!.id)!.renditions.sort()).toEqual(['preview', 'thumb'])
+    expect((await h.env.MEDIA_BUCKET!.list({ prefix: `renditions/${lost!.id}/` })).objects).toHaveLength(2)
+    expect(rest.length).toBe(2)
+    // Tidied: nothing left to make, and a further scan sends nothing.
+    await remakeStep(h.env, () => true)
+    expect((await h.env.DB.prepare('SELECT COUNT(*) AS n FROM preview_requests').first<{ n: number }>())!.n).toBe(0)
+    calls.length = 0
+    await agent.heartbeat()
+    await agent.scanAll()
+    expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
+  }, 120_000)
+
   it('indexes a folder in place, resumes after being stopped, and recognises renames and deletions', async () => {
     for (let i = 0; i < 4; i++) await photo(`2023/IMG_${1000 + i}.jpg`, i)
     copyFileSync(new URL('../../api/test/fixtures/iptc.jpg', import.meta.url).pathname, join(photos, '2023', 'bergen.jpg'))

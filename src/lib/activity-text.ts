@@ -155,6 +155,10 @@ export function describeActivity(e: ActivityEntry): string {
       return `A catalog backup failed${str(d.error) ? `: ${str(d.error)}` : ''}`
     case 'backup.settings_changed':
       return d.connectionId ? `${who} changed the backup settings` : `${who} turned catalog backups off`
+    case 'previews.check_started':
+      return `${who} started a check of every preview`
+    case 'previews.checked':
+      return `Previews checked: ${typeof d.checked === 'number' ? d.checked.toLocaleString() : '?'}, of which ${typeof d.missing === 'number' ? d.missing.toLocaleString() : '?'} were missing and are being made again`
     case 'alert.dismissed':
       return `${who} dismissed an alert${str(d.message) ? `: ${str(d.message)}` : ''}`
   }

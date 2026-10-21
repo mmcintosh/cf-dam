@@ -107,13 +107,15 @@ export class Agent {
 
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
-    const res = await this.api.call<{ paused: boolean; rescan: boolean }>('POST', '/api/agent/heartbeat', {
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[] }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
       status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), denied: this.denied, archive: this.archiveProgress },
     })
     this.paused = res.body.paused
     if (res.body.rescan) this.rescan = true
+    // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
+    if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
     this.refusals = 0
   }
 

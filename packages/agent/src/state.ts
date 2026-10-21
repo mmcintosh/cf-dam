@@ -13,7 +13,8 @@ export interface FileRow {
   mtime_ms: number
   quick_hash: string | null
   asset_id: string | null
-  status: 'done' | 'error'
+  /** 'resend': cf-dam lost its previews, so the next scan sends it again. */
+  status: 'done' | 'error' | 'resend'
   error: string | null
   attempts: number
 }
@@ -315,6 +316,12 @@ export class State {
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('source_id', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(c.sourceId)
     writeFileSync(this.credentialsPath, JSON.stringify(c), { mode: 0o600 })
     chmodSync(this.credentialsPath, 0o600)
+  }
+
+  /** cf-dam has lost these photos' previews: the next scan sends their files again. Returns how many it knows. */
+  resend(assetIds: string[]): number {
+    if (assetIds.length === 0) return 0
+    return Number(this.db.prepare("UPDATE files SET status = 'resend' WHERE status = 'done' AND asset_id IN (SELECT value FROM json_each(?))").run(JSON.stringify(assetIds)).changes)
   }
 
   /** The entry this agent last had in cf-dam, if any: offered back when it pairs again. */

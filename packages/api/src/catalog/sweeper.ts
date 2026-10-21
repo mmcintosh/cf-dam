@@ -12,7 +12,9 @@
  *  8. Back up the catalog daily, a part per run, and delete old backups (catalog/backups.ts).
  *  9. Rebuild the whole-archive numbers (facets, timeline, keyword and duplicate counts) a slice at
  *     a time, every ten minutes (catalog/stats.ts).
- * 10. Every five minutes, look for problems that need a person, and open or resolve alerts
+ * 10. Make missing previews again: check R2 for them when asked to, and remake the Worker's share
+ *     (catalog/previews.ts).
+ * 11. Every five minutes, look for problems that need a person, and open or resolve alerts
  *     (catalog/alerts.ts). A stage that fails opens its own alert as it happens.
  *
  * While a backup is being restored into a fresh install (catalog/restore.ts), the sweep does only
@@ -30,6 +32,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
 import { alertsDue, checkAlerts, noteSweepFailure } from './alerts'
 import { abandonStaleArchiveUploads } from './archive'
+import { checkStep, remakeStep } from './previews'
 import { backupStep } from './backups'
 import { currentRestore, restoreStep, type RestoreStatus } from './restore'
 import { checkStorage } from './checks'
@@ -53,6 +56,7 @@ export const SLICES = {
   checks: { ms: 8_000, queries: 20 },
   backup: { ms: 10_000, queries: 40 },
   stats: { ms: 10_000, queries: 30 },
+  previews: { ms: 10_000, queries: 40 },
   alerts: { ms: 3_000, queries: 10 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
@@ -84,10 +88,11 @@ export interface SweepResult {
   statsPublished: boolean
   alerts: { opened: number; resolved: number } | null
   restore: { rows: number; status: RestoreStatus } | null
+  previews: { checking: boolean; remade: number }
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null, previews: { checking: false, remade: 0 } }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -316,7 +321,22 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     })
   }
 
-  // 10. Problems that need a person.
+  // 10. Missing previews: one look to see whether there's anything to do.
+  const remaking = slice('previews')
+  if (remaking.more()) {
+    const todo = await db
+      .prepare("SELECT EXISTS (SELECT 1 FROM settings WHERE key = 'previews.check') AS checking, EXISTS (SELECT 1 FROM preview_requests WHERE route IN ('agent', 'worker')) AS waiting")
+      .first<{ checking: number; waiting: number }>()
+    try {
+      if (todo?.checking) result.previews.checking = await checkStep(env, remaking.more)
+      if (todo?.waiting && remaking.more()) result.previews.remade = await remakeStep(env, remaking.more)
+    } catch (error) {
+      console.warn('[sweep] previews failed', error)
+      await noteSweepFailure(db, 'previews', error)
+    }
+  }
+
+  // 11. Problems that need a person.
   if (slice('alerts').more() && alertsDue()) {
     result.alerts = await checkAlerts(env).catch(async (error) => {
       console.warn('[sweep] alerts failed', error)

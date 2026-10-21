@@ -9,6 +9,7 @@ import { Hono, type Context } from 'hono'
 import { createAuth } from '../auth/auth'
 import { consumeRateLimit, SETUP_RULE } from '../auth/rate-limit'
 import { hashPassword } from '../auth/password'
+import { startPreviewCheck } from '../catalog/previews'
 import { currentRestore, finishRestore, listBackups, parseSource, sourceProvider, startRestore } from '../catalog/restore'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -124,6 +125,8 @@ setupRoutes.post('/restore/finish', async (c) => {
     if (password.length < 12) throw new BadRequest('password must be at least 12 characters.')
     const { userId, existing } = await finishRestore(c.env.DB, hashPassword, { name, email, password })
     markSetupDone()
+    // Previews aren't in backups: into a new account, they're all to make again.
+    await startPreviewCheck(c.env.DB)
     const response = existing
       ? await createAuth(c.env, c.req.raw).api.signInEmail({ body: { email, password }, headers: c.req.raw.headers, asResponse: true })
       : await signUpAdmin(c, name, email, password)

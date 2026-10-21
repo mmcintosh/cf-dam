@@ -41,6 +41,7 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   backups: 'the list of backups itself',
   alerts: 'found again by the sweep',
   restore_jobs: 'restores into this install',
+  preview_requests: 'found again by a preview check',
   _migrations: 'listed in the manifest instead',
 }
 /** Secret columns left out of tables that are backed up. Columns pointing into an omitted table are left out too (found from the foreign keys). */

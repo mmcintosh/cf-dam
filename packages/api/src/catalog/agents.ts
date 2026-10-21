@@ -18,6 +18,7 @@ import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
 import { finishAssets, metadataLookups, metadataStatements } from './process'
 import { archiveConfig } from './archive'
+import { askAgent } from './previews'
 import { mimeTypeFor, safeFilename } from './uploads'
 
 export class AgentError extends Error {
@@ -374,11 +375,15 @@ export async function revokeSource(db: D1Database, id: string): Promise<boolean>
 /** The heartbeat: what the agent is doing. The reply tells it to pause or rescan. */
 export async function heartbeat(db: D1Database, source: SourceRow, input: { version?: unknown; platform?: unknown; status?: unknown }) {
   const status = typeof input.status === 'object' && input.status !== null ? JSON.stringify(input.status).slice(0, 8000) : source.status
-  await db
-    .prepare('UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0 WHERE id = ?')
-    .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status.startsWith('{') ? status : '{}', source.id)
-    .run()
-  return { paused: source.paused === 1, rescan: source.rescan === 1 }
+  const [, asked] = await db.batch([
+    db
+      .prepare('UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0 WHERE id = ?')
+      .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status.startsWith('{') ? status : '{}', source.id),
+    // Photos whose previews went missing (catalog/previews.ts): the agent sends those files again.
+    askAgent(db, source.id),
+  ])
+  const resend = (asked!.results as { asset_id: string }[]).map((r) => r.asset_id)
+  return { paused: source.paused === 1, rescan: source.rescan === 1 || resend.length > 0, ...(resend.length > 0 ? { resend } : {}) }
 }
 
 export async function reportFolders(db: D1Database, source: SourceRow, folders: unknown, volumes: unknown = []): Promise<number> {
