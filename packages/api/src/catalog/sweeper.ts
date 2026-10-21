@@ -12,6 +12,8 @@
  *  8. Back up the catalog daily, a part per run, and delete old backups (catalog/backups.ts).
  *  9. Rebuild the whole-archive numbers (facets, timeline, keyword and duplicate counts) a slice at
  *     a time, every ten minutes (catalog/stats.ts).
+ * 10. Every five minutes, look for problems that need a person, and open or resolve alerts
+ *     (catalog/alerts.ts). A stage that fails opens its own alert as it happens.
  *
  * Each stage has its own slice of time and of the invocation's D1 queries, so a busy one (an AI
  * backlog, a large import) can't starve the others; what a stage doesn't reach waits for the next run.
@@ -22,6 +24,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
+import { alertsDue, checkAlerts, noteSweepFailure } from './alerts'
 import { abandonStaleArchiveUploads } from './archive'
 import { backupStep } from './backups'
 import { checkStorage } from './checks'
@@ -38,13 +41,14 @@ export const SLICES = {
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
-  ai: { ms: 25_000, queries: 200 },
+  ai: { ms: 25_000, queries: 190 },
   hash: { ms: 8_000, queries: 100 },
   restores: { ms: 5_000, queries: 60 },
   gallery: { ms: 3_000, queries: 10 },
   checks: { ms: 8_000, queries: 20 },
   backup: { ms: 10_000, queries: 40 },
   stats: { ms: 10_000, queries: 30 },
+  alerts: { ms: 3_000, queries: 10 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -71,10 +75,11 @@ export interface SweepResult {
   checkProblems: number
   backup: { started: string | null; finished: string | null; pruned: number }
   statsPublished: boolean
+  alerts: { opened: number; resolved: number } | null
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false }
+  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -118,6 +123,7 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     if (nas) {
       await finishAsset(env, id, { queueAi: false }).catch(async (error) => {
         console.warn('[sweep] could not finish', id, error)
+        await noteSweepFailure(db, 'recover', error)
         // Try again in an hour, not every minute.
         await db.prepare('UPDATE assets SET updated_at = ? WHERE id = ?').bind(nowIso(), id).run()
       })
@@ -129,7 +135,10 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // Archive uploads an agent never finished: given up after a week (the bucket's own rule backs this
   // up). Once an hour is plenty, and keeps a quiet minute's queries down.
   if (recovering.more() && new Date().getUTCMinutes() === 0) {
-    await abandonStaleArchiveUploads(env).catch((error) => console.warn('[sweep] archive clean-up failed', error))
+    await abandonStaleArchiveUploads(env).catch(async (error) => {
+      console.warn('[sweep] archive clean-up failed', error)
+      await noteSweepFailure(db, 'archive', error)
+    })
   }
 
   // 2. Repair the search index (after a rebuild, a keyword change, or a write that failed): three
@@ -236,6 +245,7 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
         }
       } catch (error) {
         console.warn('[sweep] restore check failed', location.asset_id, error)
+        await noteSweepFailure(db, 'restores', error)
       }
     }
     await indexAssets(db, restored)
@@ -243,8 +253,9 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
 
   // 6. Gallery images made with an old watermark or from a replaced preview.
   if (slice('gallery').more()) {
-    result.pruned = await pruneGalleryCache(env).catch((error) => {
+    result.pruned = await pruneGalleryCache(env).catch(async (error) => {
       console.warn('[sweep] gallery prune failed', error)
+      await noteSweepFailure(db, 'gallery', error)
       return 0
     })
   }
@@ -252,8 +263,9 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // 7. Originals still there and unchanged: a few each run, oldest check first.
   const checking = slice('checks')
   if (checking.more()) {
-    const { checked, problems } = await checkStorage(env, checking.more).catch((error) => {
+    const { checked, problems } = await checkStorage(env, checking.more).catch(async (error) => {
       console.warn('[sweep] storage checks failed', error)
+      await noteSweepFailure(db, 'checks', error)
       return { checked: 0, problems: 0 }
     })
     result.checked = checked
@@ -263,8 +275,9 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // 8. The daily catalog backup, carried on a part at a time; old ones deleted when none is running.
   const backingUp = slice('backup')
   if (backingUp.more()) {
-    const step = await backupStep(env, backingUp.more).catch((error) => {
+    const step = await backupStep(env, backingUp.more).catch(async (error) => {
       console.warn('[sweep] backup failed', error)
+      await noteSweepFailure(db, 'backup', error)
       return null
     })
     if (step) result.backup = { started: step.started, finished: step.finished, pruned: step.pruned }
@@ -273,9 +286,19 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // 9. Whole-archive numbers, a slice at a time.
   const counting = slice('stats')
   if (counting.more()) {
-    result.statsPublished = await statsStep(env, counting.more).catch((error) => {
+    result.statsPublished = await statsStep(env, counting.more).catch(async (error) => {
       console.warn('[sweep] stats failed', error)
+      await noteSweepFailure(db, 'stats', error)
       return false
+    })
+  }
+
+  // 10. Problems that need a person.
+  if (slice('alerts').more() && alertsDue()) {
+    result.alerts = await checkAlerts(env).catch(async (error) => {
+      console.warn('[sweep] alerts failed', error)
+      await noteSweepFailure(db, 'alerts', error)
+      return null
     })
   }
 

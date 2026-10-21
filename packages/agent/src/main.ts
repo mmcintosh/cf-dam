@@ -40,6 +40,8 @@ export class Agent {
   /** cf-dam's refusals of the key in a row; only a few in a row mean it is really gone. */
   private refusals = 0
   private archiveProgress = newArchiveProgress()
+  /** Folders the last whole scan couldn't read: kept between scans, so cf-dam's alert doesn't flicker. */
+  private denied: string[] = []
   /** The config of the last scan: its folders and archive settings. */
   private lastConfig: Config | null = null
 
@@ -106,7 +108,7 @@ export class Agent {
     const res = await this.api.call<{ paused: boolean; rescan: boolean }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
-      status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), archive: this.archiveProgress },
+      status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), denied: this.denied, archive: this.archiveProgress },
     })
     this.paused = res.body.paused
     if (res.body.rescan) this.rescan = true
@@ -204,6 +206,7 @@ export class Agent {
       clearInterval(beat)
     }
     const p = this.view.progress
+    if (!this.stopping && !this.paused) this.denied = p.denied.slice(0, 20)
     log(`Scan done: ${p.found} found, ${p.sent} sent, ${p.failed} failed, ${p.missing} missing`)
     this.view.lastScanAt = new Date().toISOString()
     this.view.phase = this.paused ? 'paused' : 'idle'

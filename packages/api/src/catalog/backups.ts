@@ -39,6 +39,7 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   uploads: 'uploads in progress',
   asset_hash_bands: 'rebuilt from assets',
   backups: 'the list of backups itself',
+  alerts: 'found again by the sweep',
   _migrations: 'listed in the manifest instead',
 }
 /** Secret columns left out of tables that are backed up. Columns pointing into an omitted table are left out too (found from the foreign keys). */

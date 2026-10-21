@@ -153,6 +153,8 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
   progress.startedAt = now().toISOString()
   progress.filesDone = 0
   progress.bytesSent = 0
+  // A failure from an earlier pass is history: this pass reports its own.
+  progress.lastError = null
   const awake = stayAwake()
   const keepGoing = () => !ctx.shouldStop() && inWindow(ctx.settings, now()) && now().getTime() - startedMs < ctx.budgetMs
   try {

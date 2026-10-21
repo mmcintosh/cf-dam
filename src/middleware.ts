@@ -15,6 +15,7 @@ const SIGNED_OUT_PAGES = new Set(['/login'])
 /** Pages that need more than being signed in. First matching prefix wins. */
 const PAGE_PERMISSIONS: [string, string][] = [
   ['/admin/activity', 'activity:read'],
+  ['/admin/alerts', 'alerts:read'],
   ['/admin', 'users:manage'],
   ['/galleries', 'shares:manage'],
   ['/settings/storage', 'sources:manage'],

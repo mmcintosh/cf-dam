@@ -8,6 +8,7 @@ import type { DamEnv } from './env'
 import { activityRoutes } from './routes/activity'
 import { agentRoutes } from './routes/agent'
 import { aiRoutes } from './routes/ai'
+import { alertRoutes } from './routes/alerts'
 import { albumRoutes } from './routes/albums'
 import { checkRoutes } from './routes/checks'
 import { labelRoutes, tagRoutes } from './routes/keywords'
@@ -30,6 +31,7 @@ export { createAuth } from './auth/auth'
 export { resolvePrincipal, principalJson, type Principal } from './auth/principal'
 export { setupNeeded } from './routes/setup'
 export { runSweep, type SweepResult } from './catalog/sweeper'
+export { alertCount } from './catalog/alerts'
 export { securityHeaders } from './lib/security-headers'
 export { wellKnownRoutes } from './routes/well-known'
 
@@ -66,6 +68,7 @@ export function createDamApi() {
   api.route('/me', meRoutes)
   api.route('/users', userRoutes)
   api.route('/activity', activityRoutes)
+  api.route('/alerts', alertRoutes)
   api.route('/roles', roleRoutes)
   api.route('/connections', connectionRoutes)
   api.route('/storage-checks', checkRoutes)

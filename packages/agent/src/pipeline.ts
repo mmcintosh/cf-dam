@@ -30,9 +30,11 @@ export interface Progress {
   missing: number
   startedAt: string | null
   lastError: string | null
+  /** Folders the system wouldn't let the agent read, this scan. */
+  denied: string[]
 }
 
-export const newProgress = (): Progress => ({ root: null, current: null, found: 0, queued: 0, sent: 0, failed: 0, missing: 0, startedAt: null, lastError: null })
+export const newProgress = (): Progress => ({ root: null, current: null, found: 0, queued: 0, sent: 0, failed: 0, missing: 0, startedAt: null, lastError: null, denied: [] })
 
 export interface Ctx {
   api: Api
@@ -187,6 +189,7 @@ async function survey(ctx: Ctx, root: Root, here: string | null): Promise<Survey
   // Refused by the system: said plainly, as it otherwise looks like an empty folder.
   if (denied.length > 0) {
     const where = denied[0] === '' ? root.path : `${root.path}/${denied[0]}`
+    progress.denied.push(...denied.map((d) => (d === '' ? root.path : `${root.path}/${d}`)))
     progress.lastError =
       process.platform === 'darwin'
         ? `macOS won't let the agent read ${where}. In System Settings → Privacy & Security, allow it under Files and Folders, or add node to Full Disk Access, then restart the agent.`

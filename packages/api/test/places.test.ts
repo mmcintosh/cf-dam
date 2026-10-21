@@ -118,9 +118,10 @@ describe('filling in places from GPS', () => {
     // this is about places.
     await setBackupConfig(h.env.DB, { ...DEFAULT_BACKUP_CONFIG, connectionId: null })
     await h.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('stats', '{}', ?)").bind(new Date().toISOString()).run()
-    // Half past: on the hour the sweep also tidies abandoned archive uploads.
+    // A quiet minute: on the hour the sweep also tidies abandoned archive uploads, and every five
+    // minutes it looks for problems.
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-10-20T10:30:00Z'))
+    vi.setSystemTime(new Date('2026-10-20T10:31:00Z'))
     const quiet = await h.count(() => runSweep(h.env)).finally(() => vi.useRealTimers())
     expect(quiet.roundTrips).toBeLessThan(15)
     expect((await h.env.DB.prepare('SELECT place_checked_at FROM assets WHERE id = ?').bind(a).first<{ place_checked_at: string | null }>())?.place_checked_at).toBeNull()

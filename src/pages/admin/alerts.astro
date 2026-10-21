@@ -1,0 +1,7 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro'
+import AlertList from '../../components/AlertList.svelte'
+---
+<AppLayout title="Alerts" subtitle="Problems that need someone: agents, archiving, storage, backups and background work.">
+  <AlertList client:load />
+</AppLayout>

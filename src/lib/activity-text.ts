@@ -155,6 +155,8 @@ export function describeActivity(e: ActivityEntry): string {
       return `A catalog backup failed${str(d.error) ? `: ${str(d.error)}` : ''}`
     case 'backup.settings_changed':
       return d.connectionId ? `${who} changed the backup settings` : `${who} turned catalog backups off`
+    case 'alert.dismissed':
+      return `${who} dismissed an alert${str(d.message) ? `: ${str(d.message)}` : ''}`
   }
   if (e.action.startsWith('asset.bulk_')) {
     const verb = BULK[e.action.slice('asset.bulk_'.length)] ?? `changed (${e.action.slice('asset.bulk_'.length)})`
