@@ -2,6 +2,7 @@
   /** NAS agents: add one (compose file + pairing code), see what each is doing, choose its folders. */
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
+  import ArchivePanel, { type ArchiveProgress, type ArchiveSettings } from './ArchivePanel.svelte'
 
   interface Root {
     id: string
@@ -23,7 +24,8 @@
     online: boolean
     paused: boolean
     revoked: boolean
-    status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null }
+    status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null; archive?: ArchiveProgress }
+    archive: ArchiveSettings
     folders: string[]
     volumes: { id: string; label: string | null; path: string; removable: boolean }[]
     roots: Root[]
@@ -33,6 +35,7 @@
   let { initialCode = null }: { initialCode?: string | null } = $props()
 
   let sources = $state<Source[]>([])
+  let connections = $state<{ id: string; name: string; provider: string; storageClasses: string[]; defaultClass: string }[]>([])
   let loaded = $state(false)
   let adding = $state(false)
   let compose = $state('')
@@ -62,6 +65,7 @@
 
   onMount(() => {
     load().catch((e) => failed(e, 'Could not load the agents'))
+    api<{ connections: typeof connections }>('/api/connections').then((r) => (connections = r.connections)).catch(() => {})
     if (initialCode) void startAdding().then(lookUp)
     const timer = setInterval(() => void load().catch(() => {}), 10_000)
     return () => clearInterval(timer)
@@ -309,6 +313,7 @@
           </div>
           <p class="muted small">Synology's own folders (@eaDir, #recycle), Mac and Windows clutter and Lightroom caches are always skipped. Removing a folder keeps its photos here, marked missing.</p>
         </div>
+        <ArchivePanel sourceId={s.id} settings={s.archive ?? {}} progress={s.status.archive} {connections} onchange={() => void load()} />
       {/if}
     </section>
   {/each}
