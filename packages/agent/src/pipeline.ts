@@ -181,7 +181,17 @@ async function survey(ctx: Ctx, root: Root, here: string | null): Promise<Survey
   const { api, state, progress } = ctx
   // Offline, not empty: never report its photos missing for that.
   const reachable = here !== null && (await stat(here).then((s) => s.isDirectory()).catch(() => false))
-  const { found, unreadable } = reachable ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include) : { found: new Map<string, Found>(), unreadable: [] }
+  const { found, unreadable, denied } = reachable
+    ? await walk(here, [...ctx.defaultExcludes, ...root.exclude], root.include)
+    : { found: new Map<string, Found>(), unreadable: [], denied: [] }
+  // Refused by the system: said plainly, as it otherwise looks like an empty folder.
+  if (denied.length > 0) {
+    const where = denied[0] === '' ? root.path : `${root.path}/${denied[0]}`
+    progress.lastError =
+      process.platform === 'darwin'
+        ? `macOS won't let the agent read ${where}. In System Settings → Privacy & Security, allow it under Files and Folders, or add node to Full Disk Access, then restart the agent.`
+        : `Not allowed to read ${where}: check the agent's permissions on this folder.`
+  }
   const known = state.files(root.id)
   const patterns = JSON.stringify([ctx.defaultExcludes, root.exclude, root.include])
   // A folder that suddenly shows nothing at all, when we knew files there, is most likely a mount gone

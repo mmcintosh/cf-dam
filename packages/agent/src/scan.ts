@@ -57,6 +57,8 @@ export interface Walked {
   found: Map<string, Found>
   /** Folders that couldn't be read, or not to the end (relative; '' is the root). Files known under them aren't gone. */
   unreadable: string[]
+  /** Of those, the ones the system refused outright (macOS without Full Disk Access, say). */
+  denied: string[]
 }
 
 /** Every photo under `root` (relative paths with '/'), skipping excluded folders and files. Symlinks are not followed. */
@@ -64,6 +66,7 @@ export async function walk(root: string, exclude: string[], include: string[] = 
   const match = matcher(exclude, include)
   const found = new Map<string, Found>()
   const unreadable: string[] = []
+  const denied: string[] = []
   const visit = async (dir: string): Promise<void> => {
     const relDir = relative(root, dir).split(sep).join('/')
     try {
@@ -83,12 +86,14 @@ export async function walk(root: string, exclude: string[], include: string[] = 
           }
         }
       }
-    } catch {
+    } catch (error) {
       unreadable.push(relDir)
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'EPERM' || code === 'EACCES') denied.push(relDir)
     }
   }
   await visit(root)
-  return { found, unreadable }
+  return { found, unreadable, denied }
 }
 
 export interface Plan {

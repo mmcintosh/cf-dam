@@ -56,9 +56,11 @@ describe('walking and planning', () => {
     writeFileSync(join(root, '2020', 'b.jpg'), 'bbbb')
     chmodSync(join(root, '2020'), 0o000)
     try {
-      const { found, unreadable } = await walk(root, [])
+      const { found, unreadable, denied } = await walk(root, [])
       expect([...found.keys()]).toEqual(['2019/a.jpg'])
       expect(unreadable).toEqual(['2020'])
+      // Refused by the system, so the agent can say what to allow.
+      expect(denied).toEqual(['2020'])
       const row = (path: string): FileRow => ({ root_id: 'r', path, size: 4, mtime_ms: 1, quick_hash: 'q', asset_id: 'x', status: 'done', error: null, attempts: 0 })
       const known = new Map(['2019/gone.jpg', '2020/b.jpg', '2020x/c.jpg'].map((p) => [p, row(p)]))
       expect(plan(found, known, unreadable).gone.map((g) => g.path)).toEqual(['2019/gone.jpg', '2020x/c.jpg'])
