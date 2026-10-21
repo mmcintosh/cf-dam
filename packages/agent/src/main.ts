@@ -5,6 +5,7 @@
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { Api, Paused, Unpaired } from './api.ts'
+import { archivePass, newArchiveProgress, type ArchiveSettings } from './archive.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
 import { newProgress, scanRoots, type Root } from './pipeline.ts'
@@ -23,6 +24,8 @@ interface Config {
   knownRoots?: string[]
   scanIntervalMinutes: number
   defaultExcludes: string[]
+  /** Where originals are archived and when; null: not archiving. Older cf-dams don't send it. */
+  archive?: ArchiveSettings | null
 }
 
 export class Agent {
@@ -36,6 +39,9 @@ export class Agent {
   private view: StatusView
   /** cf-dam's refusals of the key in a row; only a few in a row mean it is really gone. */
   private refusals = 0
+  private archiveProgress = newArchiveProgress()
+  /** The config of the last scan: its folders and archive settings. */
+  private lastConfig: Config | null = null
 
   constructor(
     readonly config: AgentConfig,
@@ -100,7 +106,7 @@ export class Agent {
     const res = await this.api.call<{ paused: boolean; rescan: boolean }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
-      status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts() },
+      status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), archive: this.archiveProgress },
     })
     this.paused = res.body.paused
     if (res.body.rescan) this.rescan = true
@@ -161,6 +167,7 @@ export class Agent {
   async scanAll(): Promise<void> {
     this.volumes = await this.volumeLister().catch(() => this.volumes)
     const { body: config } = await this.api.call<Config>('GET', '/api/agent/config')
+    this.lastConfig = config
     this.scanIntervalMs = Math.max(1, config.scanIntervalMinutes) * 60_000
     this.state.keepRoots(config.knownRoots ?? config.roots.map((r) => r.id))
     if (config.source.paused) {
@@ -202,6 +209,37 @@ export class Agent {
     this.view.phase = this.paused ? 'paused' : 'idle'
   }
 
+  /** An archiving pass, with cf-dam kept posted as during a scan. */
+  async archiveAll(): Promise<void> {
+    const config = this.lastConfig
+    if (!config?.archive) {
+      this.archiveProgress = newArchiveProgress()
+      return
+    }
+    let beating = false
+    const beat = setInterval(() => {
+      if (beating) return
+      beating = true
+      this.heartbeat()
+        .catch(() => {})
+        .finally(() => (beating = false))
+    }, this.heartbeatMs)
+    try {
+      await archivePass({
+        api: this.api,
+        state: this.state,
+        settings: config.archive,
+        roots: new Map(config.roots.map((root) => [root.id, locate(root, this.volumes)])),
+        progress: this.archiveProgress,
+        shouldStop: () => this.stopping || this.paused,
+        budgetMs: this.scanIntervalMs,
+        log,
+      })
+    } finally {
+      clearInterval(beat)
+    }
+  }
+
   async run(): Promise<void> {
     serveStatus(this.config.port, this.config.host, this.status, (message) => log(message))
     log(`cf-dam agent ${VERSION} for ${this.config.url}, ${this.config.workers} at a time; status on ${this.config.host}:${this.config.port}`)
@@ -230,6 +268,8 @@ export class Agent {
           } else {
             this.view.phase = 'idle'
           }
+          // Between scans: archive, for at most a scan interval at a time.
+          if (!this.paused && !this.stopping) await this.archiveAll()
           await sleep(60_000)
         }
       } catch (error) {

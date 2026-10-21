@@ -21,6 +21,37 @@ export interface FileRow {
 /** Recorded against a file the agent was reading when it died (killed for memory, most likely). */
 export const STOPPED_READING = 'The agent stopped while reading this file (out of memory?).'
 
+/** Archiving gives up on a file after this many failed tries (until the next agent version). */
+export const MAX_ARCHIVE_ATTEMPTS = 3
+
+export interface ArchiveCandidate {
+  root_id: string
+  path: string
+  size: number
+  mtime_ms: number
+  quick_hash: string
+  asset_id: string
+}
+
+export interface ArchivePart {
+  partNumber: number
+  etag: string
+  checksum: string
+}
+
+export interface ArchiveUpload {
+  asset_id: string
+  root_id: string
+  path: string
+  upload_id: string
+  size: number
+  quick_hash: string
+  part_size: number
+  part_count: number
+  parts: ArchivePart[]
+  started_at: string
+}
+
 export interface Credentials {
   url: string
   apiKey: string
@@ -52,6 +83,19 @@ export class State {
       );
       CREATE INDEX IF NOT EXISTS files_hash ON files (root_id, quick_hash);
       CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+      -- Archiving (archive.ts): uploads under way, part by part, so a stop resumes mid-file.
+      CREATE TABLE IF NOT EXISTS archive_uploads (
+        asset_id   TEXT PRIMARY KEY,
+        root_id    TEXT NOT NULL,
+        path       TEXT NOT NULL,
+        upload_id  TEXT NOT NULL,
+        size       INTEGER NOT NULL,
+        quick_hash TEXT NOT NULL,
+        part_size  INTEGER NOT NULL,
+        part_count INTEGER NOT NULL,
+        parts      TEXT NOT NULL DEFAULT '[]',
+        started_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS reading (
         root_id    TEXT NOT NULL,
         path       TEXT NOT NULL,
@@ -61,6 +105,12 @@ export class State {
         PRIMARY KEY (root_id, path)
       );
     `)
+    // Archiving: the fingerprint of the file as last archived (none: never), and failed tries.
+    const columns = (this.db.prepare('PRAGMA table_info(files)').all() as { name: string }[]).map((c) => c.name)
+    if (!columns.includes('archived_hash')) this.db.exec('ALTER TABLE files ADD COLUMN archived_hash TEXT')
+    if (!columns.includes('archive_attempts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_attempts INTEGER NOT NULL DEFAULT 0')
+    // What's left to archive, without reading every file's row (a million, for a big archive).
+    this.db.exec('CREATE INDEX IF NOT EXISTS files_to_archive ON files (root_id, path) WHERE archived_hash IS NOT quick_hash')
     // Files still marked as being read: the agent died reading them. Each counts as a failed try, so
     // a file that kills it every time is left alone after three, instead of the same batch forever.
     const stopped = this.db.prepare('SELECT * FROM reading').all() as unknown as { root_id: string; path: string; size: number; mtime_ms: number; quick_hash: string | null }[]
@@ -120,6 +170,7 @@ export class State {
     const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'agent_version'").get() as { value: string } | undefined)?.value
     if (was === version) return
     this.db.exec("UPDATE files SET attempts = 0 WHERE status = 'error'")
+    this.db.exec('UPDATE files SET archive_attempts = 0')
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('agent_version', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(version)
   }
 
@@ -157,6 +208,68 @@ export class State {
     this.db
       .prepare(`DELETE FROM meta WHERE (name LIKE 'empty:%' OR name LIKE 'patterns:%') AND substr(name, instr(name, ':') + 1) NOT IN (SELECT value FROM json_each(?))`)
       .run(JSON.stringify(rootIds))
+  }
+
+  // ── Archiving ──────────────────────────────────────────────────────────────
+
+  /**
+   * Files to archive, after `after` (root, path order: oldest folders first in a dated archive): sent to
+   * cf-dam, unchanged since `stableBefore` (ms), not archived as they are now, and not given up on.
+   */
+  archiveCandidates(after: { rootId: string; path: string } | null, stableBefore: number, limit: number): ArchiveCandidate[] {
+    return this.db
+      .prepare(
+        `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id FROM files
+         WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
+           AND archive_attempts < ? AND mtime_ms < ? AND (root_id, path) > (?, ?)
+         ORDER BY root_id, path LIMIT ?`,
+      )
+      .all(MAX_ARCHIVE_ATTEMPTS, stableBefore, after?.rootId ?? '', after?.path ?? '', limit) as unknown as ArchiveCandidate[]
+  }
+
+  /** How much is left to archive (for progress and the estimated finish). */
+  archiveLeft(stableBefore: number): { files: number; bytes: number } {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes FROM files
+         WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
+           AND archive_attempts < ? AND mtime_ms < ?`,
+      )
+      .get(MAX_ARCHIVE_ATTEMPTS, stableBefore) as { files: number; bytes: number }
+    return { files: row.files, bytes: Number(row.bytes) }
+  }
+
+  archived(rootId: string, path: string, quickHash: string): void {
+    this.db.prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0 WHERE root_id = ? AND path = ?').run(quickHash, rootId, path)
+  }
+
+  archiveFailed(rootId: string, path: string): void {
+    this.db.prepare('UPDATE files SET archive_attempts = archive_attempts + 1 WHERE root_id = ? AND path = ?').run(rootId, path)
+  }
+
+  upload(assetId: string): ArchiveUpload | null {
+    const row = this.db.prepare('SELECT * FROM archive_uploads WHERE asset_id = ?').get(assetId) as (Omit<ArchiveUpload, 'parts'> & { parts: string }) | undefined
+    return row ? { ...row, parts: JSON.parse(row.parts) as ArchivePart[] } : null
+  }
+
+  saveUpload(u: Omit<ArchiveUpload, 'parts'>): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO archive_uploads (asset_id, root_id, path, upload_id, size, quick_hash, part_size, part_count, parts, started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', ?)`,
+      )
+      .run(u.asset_id, u.root_id, u.path, u.upload_id, u.size, u.quick_hash, u.part_size, u.part_count, u.started_at)
+  }
+
+  /** One part safely in the bucket. */
+  savePart(assetId: string, part: ArchivePart): void {
+    this.db
+      .prepare("UPDATE archive_uploads SET parts = json_insert(parts, '$[#]', json(?)) WHERE asset_id = ?")
+      .run(JSON.stringify(part), assetId)
+  }
+
+  dropUpload(assetId: string): void {
+    this.db.prepare('DELETE FROM archive_uploads WHERE asset_id = ?').run(assetId)
   }
 
   counts(): { done: number; error: number } {

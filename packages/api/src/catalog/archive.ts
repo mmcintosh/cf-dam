@@ -142,8 +142,9 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
     .first<{ size: number | null; quick_hash: string | null }>()
   if (mine && mine.size === size && mine.quick_hash === quickHash) return { result: 'archived' }
 
-  // The same file archived for another photo: the agent proves it with the whole SHA-256.
-  const twin = await db
+  // The same file archived for another photo: the agent proves it with the whole SHA-256. After a
+  // proof that failed (same size and fingerprint, different bytes), it says skipTwin.
+  const twin = body.skipTwin === true ? null : await db
     .prepare(
       `SELECT l.asset_id, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id
        WHERE l.connection_id = ? AND l.quick_hash = ? AND l.size = ? AND l.storage_class != 'NAS' AND l.state != 'gone'
