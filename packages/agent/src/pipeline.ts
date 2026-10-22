@@ -41,6 +41,8 @@ export interface Ctx {
   state: State
   extractor: Extractor
   workers: number
+  /** Thumbs first above this many photos to send (THUMBS_FIRST unless a test says otherwise). */
+  thumbsFirstOver?: number
   defaultExcludes: string[]
   progress: Progress
   /** Checked between files and batches, so pausing or shutting down takes effect within a batch. */
@@ -49,6 +51,14 @@ export interface Ctx {
 
 /** Photos per request. Small enough that previews for a batch fit comfortably in memory. */
 const BATCH = 20
+
+/**
+ * A scan with more than this many photos to send sends their thumbs first, so the whole lot shows in
+ * cf-dam in a fraction of the time (a JPEG's thumb decodes at an eighth of its size, and is a tenth
+ * of the upload), then goes back for the previews. Fewer than this go in one pass: reading each file
+ * twice isn't worth it.
+ */
+export const THUMBS_FIRST = 200
 
 /**
  * A folder that empties out is taken for a mount gone wrong, not a folder really emptied, until it
@@ -138,6 +148,7 @@ export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | nu
   const goneByHash = new Map<string, { rootId: string; path: string }>()
   for (const s of surveyed) for (const g of s.gone) if (g.quick_hash && g.status !== 'error') goneByHash.set(g.quick_hash, { rootId: s.root.id, path: g.path })
 
+  const thumbsFirst = surveyed.reduce((n, s) => n + s.work.length, 0) > (ctx.thumbsFirstOver ?? THUMBS_FIRST)
   for (const { root, here, work } of surveyed) {
     progress.root = root.path
     const items: Item[] = []
@@ -156,7 +167,7 @@ export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | nu
     }
     for (let i = 0; i < items.length; i += BATCH) {
       if (ctx.shouldStop()) return
-      await sendBatch(ctx, root, here, items.slice(i, i + BATCH))
+      await sendBatch(ctx, root, here, items.slice(i, i + BATCH), thumbsFirst)
     }
   }
 
@@ -174,6 +185,9 @@ export async function scanRoots(ctx: Ctx, roots: { root: Root; here: string | nu
     }
     state.forget(root.id, missing)
   }
+
+  // The previews of photos sent with their thumbs only, this scan or an earlier one cut short.
+  for (const { root, here } of surveyed) await sendPreviewsLater(ctx, root, here)
   progress.root = null
   progress.current = null
 }
@@ -227,7 +241,7 @@ async function emptied(ctx: Ctx, root: Root, here: string, patterns: string): Pr
  * Read, render and send one batch. A file is recorded as done only once cf-dam has finished it, so a
  * scan stopped part-way (paused, network gone, the agent killed) sends it again next time.
  */
-async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Promise<void> {
+async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[], thumbsFirst = false): Promise<void> {
   const { api, state, extractor, progress } = ctx
   const abs = (rel: string) => join(here, rel)
   const failed = (item: Item, error: unknown) => {
@@ -235,19 +249,8 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
     progress.lastError = `${item.file.path}: ${message(error)}`
     state.failed(root.id, item.file.path, { size: item.file.size, mtimeMs: item.file.mtimeMs, quickHash: item.quickHash }, message(error))
   }
-  const preview = async (item: Item) => {
-    const { path, size, mtimeMs } = item.file
-    // Marked while it's being read: if the agent dies here, the next start knows which file it was on.
-    state.reading(root.id, path, { size, mtimeMs, quickHash: item.quickHash })
-    try {
-      const x = await extractor.extract(abs(path))
-      const rendered = x.source ? await render(x.source, x.orientation, x.ownOrientation ?? true) : null
-      if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
-      return { meta: x.meta, rendered }
-    } finally {
-      state.read(root.id, path)
-    }
-  }
+  // Videos always go whole: their preview is a frame already decoded for the contact sheet.
+  const preview = (item: Item, thumbOnly = thumbsFirst && !isVideo(item.file.path)) => readAndRender(ctx, root.id, abs(item.file.path), item.file, item.quickHash, thumbOnly)
 
   // Read and render everything except moves (their previews are usually already in cf-dam). Files
   // the agent died on last time go one at a time after the rest, so a second death is pinned on the
@@ -273,7 +276,7 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
   if (toSend.length === 0) return
 
   const results = await ingest(ctx, root, toSend)
-  const pending: { p: Prepared; assetId: string; phash?: string }[] = []
+  const pending: { p: Prepared; assetId: string; phash?: string; previewLater?: boolean }[] = []
   await inParallel(results, ctx.workers, async ({ r, p }) => {
     const file = p.item.file
     if (r.result === 'rejected' || !r.assetId) return failed(p.item, r.error ?? 'rejected')
@@ -283,13 +286,17 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
         const rendered = p.rendered ?? (p.item.previous ? (await preview(p.item)).rendered : null)
         if (!rendered && !isVideo(file.path)) throw new Error('No preview could be made from this file.')
         if (rendered) {
-          const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = r.needs.map((name) => [name, name === 'thumb' ? rendered.thumb : rendered.preview])
+          const uploads: ['thumb' | 'preview' | 'sheet', Buffer][] = []
+          for (const name of r.needs) {
+            const bytes = name === 'thumb' ? rendered.thumb : rendered.preview
+            if (bytes) uploads.push([name, bytes])
+          }
           if (rendered.sheet) uploads.push(['sheet', rendered.sheet])
           for (const [name, bytes] of uploads) {
             await api.call('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, { raw: new Uint8Array(bytes), contentType: 'image/webp' })
           }
         }
-        pending.push({ p, assetId: r.assetId, phash: rendered?.phash })
+        pending.push({ p, assetId: r.assetId, phash: rendered?.phash, previewLater: Boolean(rendered && !rendered.preview && r.needs.includes('preview')) })
       } else if (r.result === 'unchanged' && r.ready !== false) {
         // Already in cf-dam and finished: nothing to do but remember it.
         state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId: r.assetId })
@@ -313,15 +320,61 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[]): Pro
     return
   }
   const byId = new Map(finished.map((f) => [f.id, f]))
-  for (const { p, assetId } of pending) {
+  for (const { p, assetId, previewLater } of pending) {
     const f = byId.get(assetId)
     if (f?.status !== 'ready') {
       failed(p.item, f?.error ?? 'cf-dam did not finish this photo.')
       continue
     }
     const file = p.item.file
-    state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId })
+    state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId, previewLater })
     progress.sent++
+  }
+}
+
+/** Read a file and make its previews (or its thumb only), marked as being read while it is. */
+async function readAndRender(ctx: Ctx, rootId: string, abs: string, file: { path: string; size: number; mtimeMs: number }, quickHash: string, thumbOnly: boolean) {
+  const { state, extractor } = ctx
+  // Marked while it's being read: if the agent dies here, the next start knows which file it was on.
+  state.reading(rootId, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash })
+  try {
+    const x = await extractor.extract(abs)
+    const rendered = x.source ? await render(x.source, x.orientation, x.ownOrientation ?? true, thumbOnly) : null
+    if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
+    return { meta: x.meta, rendered }
+  } finally {
+    state.read(rootId, file.path)
+  }
+}
+
+/**
+ * The second half of thumbs first: the previews, for the folder's files sent with a thumb only. A file
+ * changed or gone since is left to the next scan, which sends it whole. One whose preview can't be
+ * made isn't tried again until it changes: it keeps its thumb, as a file with no preview would.
+ */
+async function sendPreviewsLater(ctx: Ctx, root: Root, here: string): Promise<void> {
+  const { api, state, progress } = ctx
+  for (;;) {
+    const rows = state.previewsLater(root.id, 100)
+    if (rows.length === 0 || ctx.shouldStop()) return
+    await inParallel(rows, ctx.workers, async (row) => {
+      if (ctx.shouldStop()) return
+      const abs = join(here, row.path)
+      progress.current = row.path
+      try {
+        const now = await stat(abs)
+        if (now.size !== row.size || Math.floor(now.mtimeMs) !== row.mtime_ms || !row.asset_id) return state.previewSent(root.id, row.path)
+        const { rendered } = await readAndRender(ctx, root.id, abs, { path: row.path, size: row.size, mtimeMs: row.mtime_ms }, row.quick_hash ?? '', false)
+        if (rendered?.preview) {
+          await api.call('PUT', `/api/agent/assets/${row.asset_id}/renditions/preview`, undefined, { raw: new Uint8Array(rendered.preview), contentType: 'image/webp' })
+        }
+        state.previewSent(root.id, row.path)
+      } catch (error) {
+        if (isLinkError(error)) throw error
+        progress.lastError = `${row.path}: ${message(error)}`
+        state.previewSent(root.id, row.path)
+      }
+    })
   }
 }
 

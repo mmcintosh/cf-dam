@@ -538,7 +538,7 @@
         {@const asset = assets.find((a) => a.id === id)}
         {#if asset}
           <figure>
-            <img src={`/api/assets/${id}/renditions/preview`} alt={asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
+            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}`} alt={asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
             <figcaption>
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}

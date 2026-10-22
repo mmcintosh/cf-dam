@@ -36,7 +36,7 @@
     GLACIER_IR: 'Glacier Instant Retrieval',
     GLACIER: 'Glacier Flexible Retrieval',
     DEEP_ARCHIVE: 'Glacier Deep Archive',
-    NAS: 'On the NAS (indexed in place)',
+    NAS: 'On a computer or NAS (indexed in place)',
   }
   const TIER_NOTES: Record<string, string> = {
     Expedited: 'minutes (Flexible only; extra cost)',
@@ -106,7 +106,7 @@
         {/if}
       </dd>
     </dl>
-    <p class="muted small">The original stays on the NAS. cf-dam has its metadata and previews; lifecycle rules (Phase 6) will move originals to cloud storage.</p>
+    <p class="muted small">The original stays where it is{location.nasFolder ? `, on ${location.nasFolder.sourceName}` : ''}. cf-dam has its metadata and previews; lifecycle rules (Phase 6) will move originals to cloud storage.</p>
   </div>
 {:else if location}
   <div class="stack">

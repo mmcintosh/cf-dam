@@ -44,7 +44,7 @@ let volumes: Volume[] = []
 /** Trouble on the line: return a response (or throw) instead of reaching cf-dam. */
 let fault: ((path: string) => Response | null) | null = null
 
-function newAgent(): Agent {
+function newAgent(options: { thumbsFirstOver?: number } = {}): Agent {
   const fetchImpl = async (url: string, init?: RequestInit) => {
     const path = url.slice(BASE.length)
     calls.push(`${init?.method ?? 'GET'} ${path}`)
@@ -52,7 +52,7 @@ function newAgent(): Agent {
     if (injected) return injected
     return h.fetch(path, init as RequestInit & { cookie?: string })
   }
-  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Test NAS', extraFolders: [] }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
+  return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Test NAS', extraFolders: [], ...options }, new Api(BASE, null, fetchImpl, 1), async () => volumes)
 }
 
 async function photo(rel: string, seed: number) {
@@ -110,6 +110,39 @@ describe('the agent, end to end', () => {
     await agent.heartbeat()
     await agent.scanAll()
     expect(calls.filter((c) => c.includes('/assets/'))).toEqual([])
+  }, 120_000)
+
+  it('on a big scan, sends every thumb first and the previews after, and finishes them after a cut', async () => {
+    for (let i = 0; i < 4; i++) await photo(`2023/IMG_${2000 + i}.jpg`, i + 40)
+    const agent = newAgent({ thumbsFirstOver: 2 })
+    await pairAndAddRoot(agent)
+    // The link drops when the first preview goes: every photo is in cf-dam by then, with its thumb.
+    fault = (path) => (path.endsWith('/renditions/preview') ? Response.json({ error: 'internal' }, { status: 503 }) : null)
+    await expect(agent.scanAll()).rejects.toBeInstanceOf(ApiError)
+    let all = await list()
+    expect(all.total).toBe(4)
+    expect(all.assets.every((a) => a.status === 'ready' && a.renditions.join() === 'thumb')).toBe(true)
+    expect(agent.status().previewsLater).toBe(4)
+    const thumbs = (await h.env.DB.prepare("SELECT width FROM renditions WHERE name = 'thumb'").all<{ width: number }>()).results
+    expect(thumbs.every((t) => t.width === 480)).toBe(true)
+
+    // The next scan sends nothing but the previews.
+    fault = null
+    calls.length = 0
+    await agent.scanAll()
+    expect(calls.filter((c) => c.includes('/assets/')).every((c) => c.startsWith('PUT') && c.endsWith('/renditions/preview'))).toBe(true)
+    expect(calls.filter((c) => c.endsWith('/renditions/preview'))).toHaveLength(4)
+    all = await list()
+    expect(all.assets.every((a) => a.renditions.sort().join() === 'preview,thumb')).toBe(true)
+    expect(agent.status().previewsLater).toBe(0)
+
+    // A small scan goes in one pass.
+    await photo('2023/IMG_2999.jpg', 77)
+    calls.length = 0
+    await agent.scanAll()
+    const puts = calls.filter((c) => c.startsWith('PUT'))
+    expect(puts.map((c) => c.split('/').pop()).sort()).toEqual(['preview', 'thumb'])
+    expect(agent.status().previewsLater).toBe(0)
   }, 120_000)
 
   it('indexes a folder in place, resumes after being stopped, and recognises renames and deletions', async () => {

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AGENT_IMAGE_TAG } from '../../api/src/routes/sources.ts'
-import { loadConfig, memoryLimit, VERSION } from '../src/config.ts'
+import { defaultWorkers, loadConfig, memoryLimit, VERSION } from '../src/config.ts'
 import { plan } from '../src/scan.ts'
 import { State, STOPPED_READING } from '../src/state.ts'
 import { serveStatus } from '../src/status.ts'
@@ -68,6 +68,15 @@ describe('memory', () => {
     expect(memoryLimit()).toBeLessThan(2 ** 50)
     expect(loadConfig({ CF_DAM_URL: 'https://dam.example.com', WORKERS: '5' }).workers).toBe(5)
   })
+
+  it('lets a Mac or PC work on more photos at once than a NAS, within half its memory', () => {
+    const gib = 1024 ** 3
+    expect(defaultWorkers(true, 10, 16 * gib)).toBe(3)
+    expect(defaultWorkers(false, 10, 16 * gib)).toBe(8)
+    expect(defaultWorkers(false, 10, 8 * gib)).toBe(6)
+    expect(defaultWorkers(false, 4, 16 * gib)).toBe(3)
+    expect(defaultWorkers(false, 2, 2 * gib)).toBe(1)
+  })
 })
 
 describe('the status page', () => {
@@ -78,7 +87,7 @@ describe('the status page', () => {
   const listening = (s: Server) => new Promise<void>((resolve) => (s.listening ? resolve() : s.once('listening', () => resolve())))
 
   it('listens on this computer only unless told otherwise, and survives its port being taken', async () => {
-    const view = () => ({ name: 'x', version: '0', url: 'https://dam.example.com', phase: 'idle' as const, pairingCode: null, progress: {} as never, done: 0, failed: 0, lastScanAt: null, message: null })
+    const view = () => ({ name: 'x', version: '0', url: 'https://dam.example.com', phase: 'idle' as const, pairingCode: null, progress: {} as never, done: 0, failed: 0, previewsLater: 0, lastScanAt: null, message: null })
     const status = serveStatus(0, '127.0.0.1', view)
     servers.push(status)
     await listening(status)

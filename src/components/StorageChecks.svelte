@@ -48,8 +48,8 @@
   <div>
     <h2>Checks</h2>
     <p class="muted">
-      Every original outside a NAS is checked once every {checks?.cycleDays ?? 30} days: still there, the same size, the same file. Originals in the
-      built-in R2 bucket are also read back and compared with what was uploaded. Originals on a NAS are checked by its agent on each scan.
+      Every original in cloud storage is checked once every {checks?.cycleDays ?? 30} days: still there, the same size, the same file. Originals in the
+      built-in R2 bucket are also read back and compared with what was uploaded. Originals on a computer or NAS are checked by its helper on each scan.
     </p>
   </div>
 

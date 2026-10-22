@@ -25,7 +25,7 @@
   const active = $derived(open.filter((a) => !a.dismissedAt))
   const dismissed = $derived(open.filter((a) => a.dismissedAt))
   const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-  const LINKS: Record<string, string> = { '/sources': 'NAS agents', '/settings/storage': 'Storage' }
+  const LINKS: Record<string, string> = { '/sources': 'Computers and NAS', '/settings/storage': 'Storage' }
 
   async function load() {
     error = ''

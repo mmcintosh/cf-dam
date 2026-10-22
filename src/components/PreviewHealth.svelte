@@ -50,7 +50,7 @@
     <h2>Previews</h2>
     <p class="muted">
       Thumbnails and previews are kept in the built-in R2 bucket and aren’t in backups. After a restore into a new account, or if any go missing,
-      they’re made again: by each photo’s agent from the NAS, or here from the original.
+      they’re made again: by each photo’s helper from its computer or NAS, or here from the original.
     </p>
   </div>
 

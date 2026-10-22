@@ -16,7 +16,8 @@ const SHEET_TILE = 480
 const ROTATE: Record<number, number> = { 3: 180, 6: 90, 8: 270 }
 
 export interface Rendered {
-  preview: Buffer
+  /** Null when only the thumb was asked for (a big first scan sends thumbs first, previews after). */
+  preview: Buffer | null
   thumb: Buffer
   phash: string
   width: number
@@ -45,20 +46,24 @@ export async function renderSheet(frames: Buffer[]): Promise<Buffer> {
 /**
  * `source`: a file's path or encoded bytes. `fallbackOrientation`: the RAW's own Orientation, for an
  * embedded preview that has none. `ownOrientation: false` ignores the source's tag and uses the fallback.
+ * `thumbOnly`: just the thumb, straight from the original (a JPEG then decodes at an eighth of its size).
  */
-export async function render(source: Buffer | string, fallbackOrientation: number | null = null, ownOrientation = true): Promise<Rendered> {
+export async function render(source: Buffer | string, fallbackOrientation: number | null = null, ownOrientation = true, thumbOnly = false): Promise<Rendered> {
   let image = sharp(source, { sequentialRead: true, failOn: 'none' })
   const own = ownOrientation ? (await image.metadata()).orientation : undefined
   image = own && own !== 1 ? image.rotate() : fallbackOrientation && ROTATE[fallbackOrientation] ? image.rotate(ROTATE[fallbackOrientation]) : image
-  const preview = await image
+  const size = thumbOnly ? THUMB : PREVIEW
+  const first = await image
     .toColourspace('srgb')
-    .resize(PREVIEW.longEdge, PREVIEW.longEdge, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: PREVIEW.quality, effort: 2 })
+    .resize(size.longEdge, size.longEdge, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: size.quality, effort: 2 })
     .toBuffer({ resolveWithObject: true })
   // The thumb from the preview, not the original: half the decoding, the same result at 480 px.
-  const thumb = await sharp(preview.data).resize(THUMB.longEdge, THUMB.longEdge, { fit: 'inside', withoutEnlargement: true }).webp({ quality: THUMB.quality, effort: 2 }).toBuffer()
+  const thumb = thumbOnly
+    ? first.data
+    : await sharp(first.data).resize(THUMB.longEdge, THUMB.longEdge, { fit: 'inside', withoutEnlargement: true }).webp({ quality: THUMB.quality, effort: 2 }).toBuffer()
   // The hash from the thumb's decoded pixels, through the reducer the Worker uses.
   const { data, info } = await sharp(thumb).removeAlpha().raw().toBuffer({ resolveWithObject: true })
   const phash = hashPixels({ width: info.width, height: info.height, channels: info.channels, pixels: new Uint8Array(data) })
-  return { preview: preview.data, thumb, phash, width: preview.info.width, height: preview.info.height }
+  return { preview: thumbOnly ? null : first.data, thumb, phash, width: first.info.width, height: first.info.height }
 }

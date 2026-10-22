@@ -159,7 +159,7 @@ export async function dismissPairs(db: D1Database, ids: string[], only?: string)
   return result.meta.changes
 }
 
-/** Exact groups from the sweep's snapshot when there is one (grouping every SHA-256 took 5.6 s at 1.4 million). */
+/** Exact groups from the sweep's snapshot when there is one, else counted from idx_assets_live_sha256 (0.3 s at 1.4 million). */
 export async function duplicateCounts(db: D1Database): Promise<{ exact: number; similar: number }> {
   const [stats, similar] = await Promise.all([getStats(db), similarGroups(db, 0)])
   const exact = stats ? stats.exactDuplicateGroups : (await exactGroups(db, 0)).total

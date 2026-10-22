@@ -57,12 +57,12 @@ export class Agent {
     this.state.newVersion(VERSION)
     this.api = api ?? new Api(config.url)
     this.extractor = new Extractor(config.workers)
-    this.view = { name: config.name, version: VERSION, url: config.url, phase: 'starting', pairingCode: null, progress: newProgress(), done: 0, failed: 0, lastScanAt: null, message: null }
+    this.view = { name: config.name, version: VERSION, url: config.url, phase: 'starting', pairingCode: null, progress: newProgress(), done: 0, failed: 0, previewsLater: 0, lastScanAt: null, message: null }
   }
 
   status = (): StatusView => {
     const counts = this.state.counts()
-    return { ...this.view, done: counts.done, failed: counts.error }
+    return { ...this.view, done: counts.done, failed: counts.error, previewsLater: counts.previewsLater }
   }
 
   stop(): void {
@@ -200,6 +200,7 @@ export class Agent {
           state: this.state,
           extractor: this.extractor,
           workers: this.config.workers,
+          thumbsFirstOver: this.config.thumbsFirstOver,
           defaultExcludes: config.defaultExcludes,
           progress: this.view.progress,
           shouldStop: () => this.stopping || this.paused,

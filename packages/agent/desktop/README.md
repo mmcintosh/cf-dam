@@ -35,7 +35,7 @@ your network, set `STATUS_HOST=0.0.0.0` (and `PORT` for another port).
 
 This installs the agent in `~/Library/Application Support/cf-dam-agent/app` and starts it at login
 (a LaunchAgent, `com.cf-dam.agent`). Its log is `~/Library/Logs/cf-dam-agent.log`; the first lines show
-the pairing code to type into cf-dam → NAS agents. The status page is http://localhost:8790.
+the pairing code to type into cf-dam → Computers and NAS. The status page is http://localhost:8790.
 
 macOS asks before an app reads external drives, network volumes or your Pictures folder. Allow it, or
 add `node` under System Settings → Privacy & Security → Files and Folders (or Full Disk Access).

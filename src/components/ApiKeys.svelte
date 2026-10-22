@@ -100,7 +100,7 @@
       </tbody>
     </table>
   {:else}
-    <p class="muted">No keys yet. The NAS agent and scripts use keys to reach your archive.</p>
+    <p class="muted">No keys yet. Scripts and integrations use keys to reach your archive.</p>
   {/if}
 
   <form class="stack new" onsubmit={create}>

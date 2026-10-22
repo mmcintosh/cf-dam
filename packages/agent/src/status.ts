@@ -11,6 +11,8 @@ export interface StatusView {
   progress: Progress
   done: number
   failed: number
+  /** Photos sent with their thumbs only, whose previews are still to go. */
+  previewsLater: number
   lastScanAt: string | null
   message: string | null
 }
@@ -24,7 +26,7 @@ export function page(v: StatusView): string {
       ? `<p>Open <a href="${esc(v.url)}/sources?code=${esc(v.pairingCode)}">${esc(v.url)}/sources</a> and enter this code:</p><p class="code">${esc(v.pairingCode)}</p>`
       : `<dl>
           <dt>State</dt><dd>${esc(v.phase)}${v.phase === 'scanning' && p.root ? ` · ${esc(p.root)}` : ''}</dd>
-          <dt>Indexed</dt><dd>${v.done.toLocaleString()} photos</dd>
+          <dt>Indexed</dt><dd>${v.done.toLocaleString()} photos${v.previewsLater ? ` · ${v.previewsLater.toLocaleString()} still to get their large previews` : ''}</dd>
           <dt>This scan</dt><dd>${p.found.toLocaleString()} found · ${p.queued.toLocaleString()} new or changed · ${p.sent.toLocaleString()} sent · ${p.failed.toLocaleString()} failed · ${p.missing.toLocaleString()} missing</dd>
           ${p.current ? `<dt>Now</dt><dd>${esc(p.current)}</dd>` : ''}
           <dt>Last full scan</dt><dd>${esc(v.lastScanAt ?? 'not yet')}</dd>

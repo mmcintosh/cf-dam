@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** NAS agents: add one (compose file + pairing code), see what each is doing, choose its folders. */
+  /** Computers and NAS: add a helper (compose file or installer, then a pairing code), see what each is doing, choose its folders. */
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
   import ArchivePanel, { type ArchiveProgress, type ArchiveSettings } from './ArchivePanel.svelte'
@@ -26,7 +26,7 @@
     revoked: boolean
     /** Back from a backup without its key: waiting for its agent to pair again. */
     waiting: boolean
-    status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null; archive?: ArchiveProgress }
+    status: { phase?: string; current?: string | null; found?: number; queued?: number; sent?: number; failed?: number; missing?: number; lastError?: string | null; root?: string | null; archive?: ArchiveProgress; previewsLater?: number }
     archive: ArchiveSettings
     folders: string[]
     volumes: { id: string; label: string | null; path: string; removable: boolean }[]
@@ -40,6 +40,9 @@
   let connections = $state<{ id: string; name: string; provider: string; storageClasses: string[]; defaultClass: string }[]>([])
   let loaded = $state(false)
   let adding = $state(false)
+  /** Where the new helper runs: the steps differ, the pairing code doesn't. */
+  let kind = $state<'nas' | 'mac' | 'windows'>('nas')
+  let origin = $state('https://your-cf-dam')
   let compose = $state('')
   let copied = $state(false)
   let code = $state(initialCode ?? '')
@@ -73,6 +76,8 @@
   }
 
   onMount(() => {
+    origin = window.location.origin
+    kind = /Mac/.test(navigator.platform) ? 'mac' : /Win/.test(navigator.platform) ? 'windows' : 'nas'
     load().catch((e) => failed(e, 'Could not load the agents'))
     api<{ connections: typeof connections }>('/api/connections').then((r) => (connections = r.connections)).catch(() => {})
     if (initialCode) void startAdding().then(lookUp)
@@ -210,26 +215,56 @@
 
 <div class="stack sources">
   {#if !adding}
-    <div><button class="btn btn-primary" type="button" onclick={startAdding}>Add a NAS agent</button></div>
+    <div><button class="btn btn-primary" type="button" onclick={startAdding}>Add a computer or NAS</button></div>
   {:else}
     <section class="card stack add">
-      <header class="row"><h2>Add a NAS agent</h2><span class="spacer"></span><button class="btn btn-sm" type="button" onclick={() => (adding = false)}>Close</button></header>
+      <header class="row"><h2>Add a computer or NAS</h2><span class="spacer"></span><button class="btn btn-sm" type="button" onclick={() => (adding = false)}>Close</button></header>
+      <div class="kinds" role="tablist" aria-label="Where it runs">
+        {#each [['nas', 'A NAS (Docker)'], ['mac', 'A Mac'], ['windows', 'A Windows PC']] as [k, label] (k)}
+          <button class="btn btn-sm" class:btn-primary={kind === k} type="button" role="tab" aria-selected={kind === k} onclick={() => (kind = k as typeof kind)}>{label}</button>
+        {/each}
+      </div>
       <ol class="steps">
-        <li>
-          <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>,
-          choose a folder for it (for example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
-          <div class="compose">
-            <pre>{compose}</pre>
-            <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? 'Copied' : 'Copy'}</button>
-          </div>
-          <p class="muted small">
-            Change <code>/volume1/photo</code> to your photo shared folder; add a line for each other folder. Keep <code>:ro</code>: the agent can then only read
-            your photos. It needs about 1 GB of memory. Other NAS models and computers with Docker work the same way.
-          </p>
-        </li>
-        <li>
-          <strong>Start the project.</strong> The agent's log (and its page at <code>http://your-nas:8790</code>) shows an eight-letter code.
-        </li>
+        {#if kind === 'nas'}
+          <li>
+            <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>,
+            choose a folder for it (for example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
+            <div class="compose">
+              <pre>{compose}</pre>
+              <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? 'Copied' : 'Copy'}</button>
+            </div>
+            <p class="muted small">
+              Change <code>/volume1/photo</code> to your photo shared folder; add a line for each other folder. Keep <code>:ro</code>: the agent can then only read
+              your photos. It needs about 1 GB of memory. Other NAS models and computers with Docker work the same way.
+            </p>
+          </li>
+          <li>
+            <strong>Start the project.</strong> The agent's log (and its page at <code>http://your-nas:8790</code>) shows an eight-letter code.
+          </li>
+        {:else}
+          <li>
+            <strong>Install Node.js 24</strong> (the LTS installer) from <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>, if it isn't there already.
+          </li>
+          {#if kind === 'mac'}
+            <li>
+              <strong>Unzip the helper</strong> (<code>cf-dam-agent-mac.zip</code>), open <em>Terminal</em> in its <code>cf-dam-agent</code> folder and run:
+              <div class="compose"><pre>./install-macos.sh {origin}</pre></div>
+              <p class="muted small">
+                It takes this Mac’s name, starts at login and only reads your photos. When macOS asks whether <code>node</code> may read your Pictures folder, drives or network volumes,
+                allow it.
+              </p>
+            </li>
+          {:else}
+            <li>
+              <strong>Unzip the helper</strong>, open <em>PowerShell</em> in its folder and run:
+              <div class="compose"><pre>powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Url {origin}</pre></div>
+              <p class="muted small">It starts when you sign in, as you, so it sees your mapped drives and shares. It only reads your photos.</p>
+            </li>
+          {/if}
+          <li>
+            <strong>Open <code>http://localhost:8790</code></strong> on that computer. It shows an eight-letter code.
+          </li>
+        {/if}
         <li>
           <strong>Enter the code:</strong>
           <div class="row code-row">
@@ -257,7 +292,7 @@
 
   {#if loaded && sources.length === 0 && !adding}
     <section class="card empty">
-      <p>No agents yet. An agent runs on your NAS (or any computer with Docker), reads your photos where they are, and sends their metadata and previews here. Originals never leave the NAS until you decide to move them.</p>
+      <p>Nothing connected yet. A small helper runs on your NAS or computer, reads your photos where they are, and sends their metadata and previews here. Originals stay where they are until you decide to move them.</p>
     </section>
   {/if}
 
@@ -285,16 +320,21 @@
 
       <div class="numbers">
         <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}`}><strong>{n(s.photos.total)}</strong><span class="muted">photos</span></a>
-        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}&missing=1`}><strong>{n(s.photos.missing)}</strong><span class="muted">missing from the NAS</span></a>
+        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}&missing=1`}><strong>{n(s.photos.missing)}</strong><span class="muted">missing</span></a>
         {#if s.status.phase === 'scanning'}
           <div><strong>{n(s.status.sent)} / {n(s.status.queued)}</strong><span class="muted">this scan{s.status.failed ? `, ${n(s.status.failed)} failed` : ''}</span></div>
+        {/if}
+        {#if s.status.previewsLater}
+          <div title="Sent with a thumbnail first, so they show sooner. Their large previews follow once every thumbnail is in.">
+            <strong>{n(s.status.previewsLater)}</strong><span class="muted">large previews to come</span>
+          </div>
         {/if}
       </div>
       {#if s.status.phase === 'scanning' && s.status.current}<p class="muted small current">Now: {s.status.current}</p>{/if}
       {#if s.waiting}
         <p class="alert">
           Brought back from a backup, without its key. Once refused a few times, the agent pairs again by itself and shows a new code (in its log and on
-          its status page). Enter it under <em>Add a NAS agent</em> and connect it as “{s.name}” again.
+          its status page). Enter it under <em>Add a computer or NAS</em> and connect it as “{s.name}” again.
         </p>
       {/if}
       {#if s.status.lastError}<p class="muted small">Last problem: {s.status.lastError}</p>{/if}
@@ -378,6 +418,11 @@
     position: absolute;
     top: 8px;
     right: 8px;
+  }
+  .kinds {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
   }
   .code-row {
     gap: 8px;

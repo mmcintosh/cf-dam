@@ -17,6 +17,8 @@ export interface FileRow {
   status: 'done' | 'error' | 'resend'
   error: string | null
   attempts: number
+  /** 1: sent with its thumb only (a big first scan); its preview follows at the end of a scan. */
+  preview_later: number
 }
 
 /** Recorded against a file the agent was reading when it died (killed for memory, most likely). */
@@ -110,6 +112,8 @@ export class State {
     const columns = (this.db.prepare('PRAGMA table_info(files)').all() as { name: string }[]).map((c) => c.name)
     if (!columns.includes('archived_hash')) this.db.exec('ALTER TABLE files ADD COLUMN archived_hash TEXT')
     if (!columns.includes('archive_attempts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_attempts INTEGER NOT NULL DEFAULT 0')
+    if (!columns.includes('preview_later')) this.db.exec('ALTER TABLE files ADD COLUMN preview_later INTEGER NOT NULL DEFAULT 0')
+    this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
     // What's left to archive, without reading every file's row (a million, for a big archive).
     this.db.exec('CREATE INDEX IF NOT EXISTS files_to_archive ON files (root_id, path) WHERE archived_hash IS NOT quick_hash')
     // Files still marked as being read: the agent died reading them. Each counts as a failed try, so
@@ -127,15 +131,25 @@ export class State {
     return new Map(rows.map((r) => [r.path, r]))
   }
 
-  done(rootId: string, path: string, f: { size: number; mtimeMs: number; quickHash: string; assetId: string }): void {
+  done(rootId: string, path: string, f: { size: number; mtimeMs: number; quickHash: string; assetId: string; previewLater?: boolean }): void {
     this.db
       .prepare(
-        `INSERT INTO files (root_id, path, size, mtime_ms, quick_hash, asset_id, status, error, attempts, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'done', NULL, 0, ?)
+        `INSERT INTO files (root_id, path, size, mtime_ms, quick_hash, asset_id, status, error, attempts, preview_later, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'done', NULL, 0, ?, ?)
          ON CONFLICT (root_id, path) DO UPDATE SET size = excluded.size, mtime_ms = excluded.mtime_ms, quick_hash = excluded.quick_hash,
-           asset_id = excluded.asset_id, status = 'done', error = NULL, attempts = 0, updated_at = excluded.updated_at`,
+           asset_id = excluded.asset_id, status = 'done', error = NULL, attempts = 0, preview_later = excluded.preview_later, updated_at = excluded.updated_at`,
       )
-      .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, new Date().toISOString())
+      .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, f.previewLater ? 1 : 0, new Date().toISOString())
+  }
+
+  /** Files of a folder sent with their thumb only, whose previews are still to go, a page at a time. */
+  previewsLater(rootId: string, limit: number): FileRow[] {
+    return this.db.prepare("SELECT * FROM files WHERE root_id = ? AND preview_later = 1 AND status = 'done' ORDER BY path LIMIT ?").all(rootId, limit) as unknown as FileRow[]
+  }
+
+  /** Its preview went (or can't, and won't be tried again until the file changes). */
+  previewSent(rootId: string, path: string): void {
+    this.db.prepare('UPDATE files SET preview_later = 0 WHERE root_id = ? AND path = ?').run(rootId, path)
   }
 
   failed(rootId: string, path: string, f: { size: number; mtimeMs: number; quickHash: string | null }, error: string): void {
@@ -273,9 +287,13 @@ export class State {
     this.db.prepare('DELETE FROM archive_uploads WHERE asset_id = ?').run(assetId)
   }
 
-  counts(): { done: number; error: number } {
-    const row = this.db.prepare("SELECT SUM(status = 'done') AS done, SUM(status = 'error') AS error FROM files").get() as { done: number | null; error: number | null }
-    return { done: row.done ?? 0, error: row.error ?? 0 }
+  counts(): { done: number; error: number; previewsLater: number } {
+    const row = this.db.prepare("SELECT SUM(status = 'done') AS done, SUM(status = 'error') AS error, SUM(preview_later = 1 AND status = 'done') AS later FROM files").get() as {
+      done: number | null
+      error: number | null
+      later: number | null
+    }
+    return { done: row.done ?? 0, error: row.error ?? 0, previewsLater: row.later ?? 0 }
   }
 
   private metaJson<T>(name: string): T | null {

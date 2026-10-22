@@ -63,7 +63,7 @@ const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dat
     {canManageKeys && (
       <section class="card wide">
         <h2>API keys</h2>
-        <p class="lead">For the NAS agent, scripts and integrations. A key can only do what you can, limited to the scopes you pick.</p>
+        <p class="lead">For scripts and integrations. A key can only do what you can, limited to the scopes you pick.</p>
         <ApiKeys client:load grantable={grantable} />
       </section>
     )}

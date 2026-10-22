@@ -7,7 +7,7 @@ interface Props {
 }
 const { storageClass, state, compact = false } = Astro.props
 const TIERS: Record<string, { label: string; tone: string }> = {
-  NAS: { label: 'On NAS', tone: 'nas' },
+  NAS: { label: 'Local', tone: 'nas' },
   STANDARD: { label: 'Hot', tone: 'hot' },
   INTELLIGENT_TIERING: { label: 'Auto-tiered', tone: 'warm' },
   STANDARD_IA: { label: 'Warm', tone: 'warm' },
