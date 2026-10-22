@@ -1,7 +1,8 @@
 /**
  * Migrations in code, for what SQL can't do. They run in order with the SQL files (see migrate.ts).
  */
-import { bitsSet, MIN_DETAIL_BITS } from '../catalog/dhash'
+import { bitsSet, isPlain, MIN_DETAIL_BITS } from '../catalog/dhash'
+import { recordHashes } from '../catalog/phash'
 import { cleanKeywordName } from '../catalog/keywords'
 import type { Migration } from './migrate'
 
@@ -120,7 +121,27 @@ export async function unpairPlainHashes(db: D1Database): Promise<void> {
   if (statements.length > 0) await db.batch(statements)
 }
 
+/**
+ * Plain photos already hashed get their pairs (same hash, same size: see isPlain). recordHashes writes
+ * the hash back unchanged and only adds pairs (INSERT OR IGNORE, dismissed ones stay dismissed), so a
+ * run cut short, or racing another isolate, is simply run again.
+ */
+export async function pairPlainHashes(db: D1Database): Promise<void> {
+  // A page at a time: at 1.4M photos all the hashes at once are a 70 MB answer.
+  for (let after = 0; ; ) {
+    const { results } = await db
+      .prepare("SELECT rowid AS r, id, phash FROM assets WHERE rowid > ? AND phash IS NOT NULL AND deleted_at IS NULL AND mime_type NOT LIKE 'video/%' ORDER BY rowid LIMIT 20000")
+      .bind(after)
+      .all<{ r: number; id: string; phash: string }>()
+    const plain = results.filter((r) => isPlain(r.phash)).map((r) => ({ id: r.id, hash: r.phash }))
+    for (let i = 0; i < plain.length; i += 1000) await recordHashes(db, plain.slice(i, i + 1000))
+    if (results.length < 20000) return
+    after = results.at(-1)!.r
+  }
+}
+
 export const CODE_MIGRATIONS: Migration[] = [
   { name: '0018_keyword_keys', run: repairKeywordKeys },
   { name: '0022_plain_hashes', run: unpairPlainHashes },
+  { name: '0038_plain_pairs', run: pairPlainHashes },
 ]

@@ -18,10 +18,10 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
-import { bands, bitsSet, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS, type Decoded } from './dhash'
+import { bands, bitsSet, hamming, hashPixels, isPlain, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS, type Decoded } from './dhash'
 import { renditionKey } from './renditions'
 
-export { areaGrey, bands, bitsSet, DEAD_ZONE, dhash, hamming, hashPixels, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS } from './dhash'
+export { areaGrey, bands, bitsSet, DEAD_ZONE, dhash, hamming, hashPixels, isPlain, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS } from './dhash'
 
 // ── PNG (8-bit, non-interlaced: what Images emits) ────────────────────────────
 
@@ -139,8 +139,8 @@ const MAX_CANDIDATES = 2000
 export const MAX_PAIRS_PER_PHOTO = 50
 
 /**
- * Store each asset's hash and record every look-alike within MAX_DISTANCE: three round trips for any
- * number of assets. Returns how many look-alike pairs it found.
+ * Store each asset's hash and record every look-alike within MAX_DISTANCE (plain ones: see isPlain):
+ * three round trips for any number of assets. Returns how many look-alike pairs it found.
  */
 export async function recordHashes(db: D1Database, items: { id: string; hash: string }[]): Promise<number> {
   if (items.length === 0) return 0
@@ -172,6 +172,18 @@ export async function recordHashes(db: D1Database, items: { id: string; hash: st
          ) WHERE n <= ?`,
       )
       .bind(ids, MAX_CANDIDATES),
+    // Plain photos: the same hash and size (idx_assets_phash), the first MAX_PAIRS_PER_PHOTO of each.
+    db
+      .prepare(
+        `SELECT me, id FROM (
+           SELECT me.id AS me, a.id, ROW_NUMBER() OVER (PARTITION BY me.id ORDER BY a.id) AS n
+           FROM json_each(?) j
+           JOIN assets me ON me.id = j.value
+           JOIN assets a ON a.phash = me.phash AND a.width = me.width AND a.height = me.height AND a.id != me.id
+           WHERE a.deleted_at IS NULL AND a.phash IS NOT NULL AND me.mime_type NOT LIKE 'video/%' AND a.mime_type NOT LIKE 'video/%'
+         ) WHERE n <= ?`,
+      )
+      .bind(JSON.stringify(items.filter((i) => isPlain(i.hash)).map((i) => i.id)), MAX_PAIRS_PER_PHOTO),
   ])
   const hashOf = new Map(items.map((i) => [i.id, i.hash]))
   const ratio = (w: number | null, h: number | null) => (w && h ? w / h : null)
@@ -186,6 +198,7 @@ export async function recordHashes(db: D1Database, items: { id: string; hash: st
     if (distance > MAX_DISTANCE) continue
     near.set(r.me, [...(near.get(r.me) ?? []), { other: r.id, distance }])
   }
+  for (const r of candidates[4]!.results as { me: string; id: string }[]) near.set(r.me, [...(near.get(r.me) ?? []), { other: r.id, distance: 0 }])
   const pairs = new Map<string, [string, string, number]>()
   for (const [me, list] of near) {
     for (const { other, distance } of list.sort((x, y) => x.distance - y.distance || x.other.localeCompare(y.other)).slice(0, MAX_PAIRS_PER_PHOTO)) {

@@ -100,6 +100,18 @@ export function hamming(a: string, b: string): number {
   return count
 }
 
+/**
+ * A plain hash (sky, fog: fewer than MIN_DETAIL_BITS set) is still paired, but only with a photo of
+ * the very same hash and the very same pixel size: a re-saved copy of a plain photo keeps both, while
+ * two different plain scenes rarely share all 64 bits and the size too. A blank hash (no bits: a
+ * black frame, a lens cap) says nothing, and videos are left out, since their first frames are often
+ * blank or plain.
+ */
+export const isPlain = (hash: string) => {
+  const bits = bitsSet(hash)
+  return bits > 0 && bits < MIN_DETAIL_BITS
+}
+
 export function bands(hash: string): number[] {
   let bits = BigInt(`0x${hash}`)
   const out: number[] = []

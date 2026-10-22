@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { runSweep } from '../src/catalog/sweeper'
 import { recordHashes, MAX_PAIRS_PER_PHOTO } from '../src/catalog/phash'
 import { analyzeImage, extractJson } from '../src/catalog/vision'
-import { unpairPlainHashes } from '../src/db/repairs'
+import { pairPlainHashes, unpairPlainHashes } from '../src/db/repairs'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -113,10 +113,41 @@ describe('look-alikes', () => {
 
   it('doesn’t pair plain pictures (black frames, blank pages) with each other', async () => {
     h = await createHarness()
-    const ids = await photos(20)
+    const ids = await photos(8)
     // Hashes of 0–3 bits: all within 5 bits of each other.
-    expect(await recordHashes(h.env.DB, ids.map((id, i) => ({ id, hash: (i % 8).toString(16).padStart(16, '0') })))).toBe(0)
+    expect(await recordHashes(h.env.DB, ids.map((id, i) => ({ id, hash: i.toString(16).padStart(16, '0') })))).toBe(0)
     expect(await pairCount()).toBe(0)
+  })
+
+  it('pairs a plain picture only with the same hash at the same size, never blank ones or videos', async () => {
+    h = await createHarness()
+    const ids = await photos(7)
+    await h.env.DB.batch([
+      h.env.DB.prepare("UPDATE assets SET width = 407, height = 407 WHERE id IN ('p0', 'p1', 'p2', 'p4', 'p5', 'p6')"),
+      h.env.DB.prepare("UPDATE assets SET mime_type = 'video/mp4' WHERE id = 'p6'"),
+    ])
+    const sky = '0000003020000000'
+    // p0 and p1: a re-saved sky. p2 a different sky, p3 the same at 3000×2000, p4 and p5 blank, p6 a video.
+    const hashes = [sky, sky, '0000003020000001', sky, '0'.repeat(16), '0'.repeat(16), sky]
+    expect(await recordHashes(h.env.DB, ids.map((id, i) => ({ id, hash: hashes[i]! })))).toBe(1)
+    expect((await h.env.DB.prepare('SELECT a, b, distance FROM similar_pairs').all()).results).toEqual([{ a: 'p0', b: 'p1', distance: 0 }])
+  })
+
+  it('pairs the plain pictures hashed before (0038), leaving dismissed pairs dismissed', async () => {
+    h = await createHarness()
+    await photos(4, 'old')
+    await h.env.DB.batch([
+      h.env.DB.prepare("UPDATE assets SET phash = '0000003020000000' WHERE id IN ('old0', 'old1', 'old2')"),
+      h.env.DB.prepare("UPDATE assets SET phash = 'f0f0f0f0f0f0f0f0' WHERE id = 'old3'"),
+      h.env.DB.prepare("INSERT INTO similar_pairs (a, b, distance, dismissed, created_at) VALUES ('old0', 'old2', 0, 1, '2026-01-01')"),
+    ])
+    await pairPlainHashes(h.env.DB)
+    await pairPlainHashes(h.env.DB)
+    expect((await h.env.DB.prepare('SELECT a, b, dismissed FROM similar_pairs ORDER BY a, b').all()).results).toEqual([
+      { a: 'old0', b: 'old1', dismissed: 0 },
+      { a: 'old0', b: 'old2', dismissed: 1 },
+      { a: 'old1', b: 'old2', dismissed: 0 },
+    ])
   })
 
   it('keeps the nearest look-alikes of a photo, not every frame of a burst', async () => {
