@@ -93,7 +93,7 @@ const facts: [string, string][] = [
       )}
       {primary && <span class="badge-slot"><TierBadge storageClass={primary.storage_class} state={primary.state} /></span>}
       {!playable && (hasPreview || hasThumb) && (
-        <ImageTools client:idle assetId={id} edit={asset.edit} canEdit={principal.permissions.has('assets:edit') && !asset.mimeType.startsWith('video/')} />
+        <ImageTools client:load assetId={id} edit={asset.edit} canEdit={principal.permissions.has('assets:edit') && !asset.mimeType.startsWith('video/')} />
       )}
     </section>
 

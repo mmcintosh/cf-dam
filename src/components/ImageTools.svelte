@@ -161,8 +161,9 @@
     draw()
   }
 
-  function chooseRatio() {
-    crop = ratio ? fitRatio(frame, ratio, crop) : crop
+  function chooseRatio(value: string) {
+    ratioChoice = value
+    if (ratio) crop = fitRatio(frame, ratio, crop)
   }
 
   function reset() {
@@ -258,7 +259,7 @@
         <button class="btn btn-sm" type="button" onclick={() => turn(false)} title="Turn left">⟲ Left</button>
         <button class="btn btn-sm" type="button" onclick={() => turn(true)} title="Turn right">⟳ Right</button>
         <button class="btn btn-sm" type="button" onclick={flip} class:btn-primary={mirrored}>Mirror</button>
-        <select bind:value={ratioChoice} onchange={chooseRatio} aria-label="Crop shape">
+        <select value={ratioChoice} onchange={(e) => chooseRatio(e.currentTarget.value)} aria-label="Crop shape">
           {#each RATIOS as [value, label] (value)}<option {value}>{label}</option>{/each}
         </select>
         <button class="btn btn-sm" type="button" onclick={reset}>Reset</button>
