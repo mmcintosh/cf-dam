@@ -60,6 +60,32 @@
     void run()
   }
 
+  /**
+   * What was dropped: files as they are, and folders opened up (and the folders inside them), as the
+   * browser otherwise hands over a folder as one unreadable "file". Hidden files (.DS_Store) are left out.
+   */
+  async function dropped(data: DataTransfer): Promise<File[]> {
+    const entries = [...data.items].map((item) => item.webkitGetAsEntry?.() ?? null)
+    if (entries.some((e) => e === null)) return [...data.files]
+    const files: File[] = []
+    const walk = async (entry: FileSystemEntry): Promise<void> => {
+      if (entry.name.startsWith('.')) return
+      if (entry.isFile) {
+        files.push(await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject)))
+        return
+      }
+      const reader = (entry as FileSystemDirectoryEntry).createReader()
+      // A folder's entries come a hundred or so at a time, until an empty batch.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject))
+        if (batch.length === 0) break
+        for (const child of batch) await walk(child)
+      }
+    }
+    for (const entry of entries) await walk(entry!)
+    return files.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
   async function run() {
     if (running) return
     running = true
@@ -142,7 +168,11 @@
       ondrop={(e) => {
         e.preventDefault()
         dragging = false
-        if (e.dataTransfer?.files.length) add(e.dataTransfer.files)
+        const data = e.dataTransfer
+        if (data?.items.length)
+          void dropped(data)
+            .then((files) => files.length > 0 && add(files))
+            .catch(() => add(data.files))
       }}
     >
       <input type="file" multiple class="sr-only" onchange={(e) => e.currentTarget.files && add(e.currentTarget.files)} />
