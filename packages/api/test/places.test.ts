@@ -118,6 +118,8 @@ describe('filling in places from GPS', () => {
     // this is about places.
     await setBackupConfig(h.env.DB, { ...DEFAULT_BACKUP_CONFIG, connectionId: null })
     await h.env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('stats', '{}', ?)").bind(new Date().toISOString()).run()
+    // …and fills in the quick fingerprints of photos from before 0036 (there are none).
+    await h.env.DB.prepare("DELETE FROM settings WHERE key = 'quick_hash.fill'").run()
     // A quiet minute: on the hour the sweep also tidies abandoned archive uploads, and every five
     // minutes it looks for problems.
     vi.useFakeTimers({ toFake: ['Date'] })

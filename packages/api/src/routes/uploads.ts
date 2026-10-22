@@ -29,6 +29,7 @@ uploadRoutes.post('/', async (c) => {
       size,
       contentType: optionalString(body, 'contentType', 100),
       sha256: optionalString(body, 'sha256', 64),
+      quickHash: optionalString(body, 'quickHash', 64),
       connectionId: optionalString(body, 'connectionId', 64),
       storageClass: optionalString(body, 'storageClass', 32),
       allowDuplicate: body.allowDuplicate === true,

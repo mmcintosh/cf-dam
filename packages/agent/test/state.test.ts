@@ -1,11 +1,13 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AGENT_IMAGE_TAG } from '../../api/src/routes/sources.ts'
 import { defaultWorkers, loadConfig, memoryLimit, VERSION } from '../src/config.ts'
-import { plan } from '../src/scan.ts'
+import { quickHash as browserQuickHash } from '../../../src/lib/uploader.ts'
+import { plan, quickHash } from '../src/scan.ts'
 import { State, STOPPED_READING } from '../src/state.ts'
 import { serveStatus } from '../src/status.ts'
 
@@ -101,6 +103,18 @@ describe('the status page', () => {
     expect(second.listening).toBe(false)
     expect(loadConfig({ CF_DAM_URL: 'https://dam.example.com', PHOTOS_DIR: '/photos' }).host).toBe('0.0.0.0')
     expect(loadConfig({ CF_DAM_URL: 'https://dam.example.com', DATA_DIR: dataDir() }).host).toBe(existsSync('/photos') ? '0.0.0.0' : '127.0.0.1')
+  })
+})
+
+describe('the quick fingerprint', () => {
+  it('is the same from the browser as from the helper, small or large', async () => {
+    const dir = dataDir()
+    for (const size of [10, 1024 * 1024, 1024 * 1024 + 1, 1.5 * 1024 * 1024, 5 * 1024 * 1024]) {
+      const bytes = randomBytes(size)
+      const path = join(dir, `f${size}`)
+      writeFileSync(path, bytes)
+      expect(await browserQuickHash(new Blob([bytes]))).toBe(await quickHash(path, size))
+    }
   })
 })
 

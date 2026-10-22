@@ -16,6 +16,8 @@ export interface AssetRow {
   size: number
   sha256: string | null
   sha256_verified: number
+  /** The quick fingerprint (size, first and last MiB): a helper's, or an upload's since 0036. */
+  quick_hash: string | null
   width: number | null
   height: number | null
   orientation: number | null
@@ -326,6 +328,11 @@ export const ORIENTATION_SQL = `CASE WHEN a.width IS NULL OR a.height IS NULL TH
   WHEN a.width > a.height * 1.05 THEN 'landscape' WHEN a.height > a.width * 1.05 THEN 'portrait' ELSE 'square' END`
 export const KIND_SQL = `CASE WHEN a.mime_type LIKE 'video/%' THEN 'video' WHEN a.mime_type LIKE 'image/x-%' THEN 'raw'
   WHEN a.mime_type LIKE 'image/%' AND a.mime_type != 'image/svg+xml' THEN 'photo' ELSE 'other' END`
+/**
+ * What makes two photos the same file: the quick fingerprint, which every helper photo and every
+ * upload since 0036 has, else (older uploads) the SHA-256. idx_assets_live_content is on exactly this.
+ */
+export const CONTENT_KEY = 'COALESCE(quick_hash, sha256)'
 export const TIER_CLASSES: Record<Tier, string[]> = {
   nas: ['NAS'],
   hot: ['STANDARD'],

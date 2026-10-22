@@ -5,7 +5,8 @@
  *     in 'processing' by a request or run that died part-way.
  *  2. Repair the search index, and fill in places from GPS.
  *  3. Run queued AI review (in parallel).
- *  4. Fingerprint photos that have no look-alike hash yet (older uploads).
+ *  4. Fingerprint photos that have no look-alike hash yet (older uploads), and give photos a helper
+ *     indexed before 0036 their quick fingerprint for exact duplicates.
  *  5. Check archived originals with a restore in progress, and mark them restored when ready.
  *  6. Drop gallery images nobody will be shown again (made with an old watermark or a replaced preview).
  *  7. Check originals are still in their stores, unchanged (catalog/checks.ts).
@@ -38,6 +39,7 @@ import { currentRestore, restoreStep, type RestoreStatus } from './restore'
 import { checkStorage } from './checks'
 import { statsStep } from './stats'
 import { hashFromThumbnail, recordHashes } from './phash'
+import { fillQuickHashes } from './duplicates'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
 import { indexAssets, unindexed } from './search'
@@ -222,15 +224,18 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // 4. Look-alike fingerprints for assets that have a thumbnail but no hash yet.
   const hashing = slice('hash')
   if (hashing.more()) {
-    const { results: unhashed } = await db
-      .prepare(
-        `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
-         WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' AND (a.phash_tried_at IS NULL OR a.phash_tried_at < ?)
-         ORDER BY a.phash_tried_at IS NOT NULL, a.phash_tried_at LIMIT 50`,
-      )
-      // A thumbnail that couldn't be hashed is tried again a day later, not every minute.
-      .bind(new Date(Date.now() - 86_400_000).toISOString())
-      .all<{ id: string }>()
+    const [toHash, fill] = await db.batch([
+      db
+        .prepare(
+          `SELECT a.id FROM assets a JOIN renditions r ON r.asset_id = a.id AND r.name = 'thumb'
+           WHERE a.phash IS NULL AND a.deleted_at IS NULL AND a.status = 'ready' AND (a.phash_tried_at IS NULL OR a.phash_tried_at < ?)
+           ORDER BY a.phash_tried_at IS NOT NULL, a.phash_tried_at LIMIT 50`,
+        )
+        // A thumbnail that couldn't be hashed is tried again a day later, not every minute.
+        .bind(new Date(Date.now() - 86_400_000).toISOString()),
+      db.prepare("SELECT value FROM settings WHERE key = 'quick_hash.fill'"),
+    ])
+    const unhashed = toHash!.results as { id: string }[]
     const hashes: { id: string; hash: string }[] = []
     const failed: string[] = []
     for (const { id } of unhashed) {
@@ -245,6 +250,9 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     if (failed.length > 0) await db.prepare('UPDATE assets SET phash_tried_at = ? WHERE id IN (SELECT value FROM json_each(?))').bind(nowIso(), JSON.stringify(failed)).run()
     await recordHashes(db, hashes)
     result.hashed = hashes.length
+    // Exact-duplicate fingerprints for photos a helper indexed before 0036 (until they're all done).
+    const filling = (fill!.results[0] as { value: string } | undefined)?.value
+    if (filling !== undefined && hashing.more()) await fillQuickHashes(db, hashing.more, filling)
   }
 
   // 5. Archived originals being restored: ready yet?

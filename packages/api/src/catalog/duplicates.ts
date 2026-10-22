@@ -4,15 +4,49 @@
  * best rating and any pick into the one kept, so nothing anyone added is lost.
  */
 import { nowIso } from '../lib/time'
-import { assetJson, locationsOf, primaryLocation, renditionNames, softDeleteAssets, type AssetJson, type AssetRow } from './assets'
+import { assetJson, CONTENT_KEY, locationsOf, primaryLocation, renditionNames, softDeleteAssets, type AssetJson, type AssetRow } from './assets'
 import { getStats } from './stats'
 import { indexAsset } from './search'
+
+type Member = AssetJson & { albums: number; tags: number }
 
 export interface DuplicateGroup {
   key: string
   kind: 'exact' | 'similar'
   /** Members, best first: the one cf-dam suggests keeping. */
-  assets: (AssetJson & { albums: number; tags: number })[]
+  assets: Member[]
+  /** Why the first is suggested, in a few words. */
+  reason: string
+}
+
+/** RAW originals over lossless TIFF and PNG over compressed formats (JPEG, HEIC, WebP). */
+const formatRank = (mime: string) => (mime.startsWith('image/x-') ? 2 : mime === 'image/tiff' || mime === 'image/png' ? 1 : 0)
+const pixels = (a: Member) => (a.width ?? 0) * (a.height ?? 0)
+/** Within 2%: a pixel or two cropped off isn't a better photo. */
+const samePixels = (x: Member, y: Member) => Math.abs(pixels(x) - pixels(y)) <= 0.02 * Math.max(pixels(x), pixels(y))
+const bytes = (b: number) => (b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+
+/**
+ * What decides between two members, best first, with the reason as people would put it. Quality
+ * first (the others' keywords, albums, rating and pick move to the one kept): more pixels; then the
+ * original format; then, the same size in the same format, the bigger file, which is the less
+ * compressed one. Only then a pick, a higher rating, and the one that came in first.
+ */
+function decide(x: Member, y: Member): { order: number; reason: string } {
+  if (!samePixels(x, y)) {
+    return { order: pixels(y) - pixels(x), reason: 'More pixels' }
+  }
+  if (formatRank(x.mimeType) !== formatRank(y.mimeType)) {
+    return { order: formatRank(y.mimeType) - formatRank(x.mimeType), reason: Math.max(formatRank(x.mimeType), formatRank(y.mimeType)) === 2 ? 'The RAW original' : 'Lossless, not compressed' }
+  }
+  if (x.size !== y.size && !x.mimeType.startsWith('video/')) {
+    const [big, small] = x.size > y.size ? [x, y] : [y, x]
+    // Less than 5% apart: re-saved with other metadata, not a different quality.
+    if (big.size > small.size * 1.05) return { order: y.size - x.size, reason: `The same size, but less compressed (${bytes(big.size)} against ${bytes(small.size)})` }
+  }
+  if ((x.flag === 'pick') !== (y.flag === 'pick')) return { order: Number(y.flag === 'pick') - Number(x.flag === 'pick'), reason: 'Your pick' }
+  if ((x.rating ?? 0) !== (y.rating ?? 0)) return { order: (y.rating ?? 0) - (x.rating ?? 0), reason: 'Rated higher' }
+  return { order: x.createdAt.localeCompare(y.createdAt), reason: 'Otherwise alike: the one that came in first' }
 }
 
 /**
@@ -33,40 +67,75 @@ async function withDetails(db: D1Database, groups: { key: string; kind: Duplicat
     for (const r of albums!.results) counts.get(r.id)!.albums = r.n
     for (const r of tags!.results) counts.get(r.id)!.tags = r.n
   }
-  return groups.map(({ key, kind, rows }) => ({
-    key,
-    kind,
-    assets: rows
+  return groups.map(({ key, kind, rows }) => {
+    const assets = rows
       .map((row) => ({ ...assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? [])), ...counts.get(row.id)! }))
-      // Best first: most pixels, then a pick, then the higher rating, then the earliest upload.
-      .sort(
-        (x, y) =>
-          (y.width ?? 0) * (y.height ?? 0) - (x.width ?? 0) * (x.height ?? 0) ||
-          Number(y.flag === 'pick') - Number(x.flag === 'pick') ||
-          (y.rating ?? 0) - (x.rating ?? 0) ||
-          x.createdAt.localeCompare(y.createdAt),
-      ),
-  }))
+      .sort((x, y) => decide(x, y).order)
+    const reason = assets.length > 1 ? decide(assets[0]!, assets[1]!).reason : ''
+    return { key, kind, assets, reason: kind === 'exact' && reason.startsWith('Otherwise') ? 'Identical files: the one that came in first' : reason }
+  })
 }
 
+/** The same file more than once: same quick fingerprint (helpers, uploads since 0036) or, before that, SHA-256. */
 export async function exactGroups(db: D1Database, limit = 50): Promise<{ groups: DuplicateGroup[]; total: number }> {
-  const [hashes, total] = await db.batch([
+  // One photo's rowid stands for each group: the index has the key, but returning the key itself
+  // would read every row to work it out (5.2 s at 1.4 million, against 0.5 s).
+  const [samples, total] = await db.batch([
     db
       .prepare(
-        `SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL
-         GROUP BY sha256 HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC, MIN(created_at) LIMIT ?`,
+        `SELECT MIN(rowid) AS sample FROM assets WHERE deleted_at IS NULL AND ${CONTENT_KEY} IS NOT NULL
+         GROUP BY ${CONTENT_KEY} HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC, MIN(created_at) LIMIT ?`,
       )
       .bind(limit),
     db.prepare(
-      `SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 IS NOT NULL GROUP BY sha256 HAVING COUNT(*) > 1)`,
+      `SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets WHERE deleted_at IS NULL AND ${CONTENT_KEY} IS NOT NULL GROUP BY ${CONTENT_KEY} HAVING COUNT(*) > 1)`,
     ),
   ])
-  const shas = (hashes!.results as { sha256: string }[]).map((r) => r.sha256)
-  const { results: rows } = shas.length
-    ? await db.prepare('SELECT * FROM assets WHERE deleted_at IS NULL AND sha256 IN (SELECT value FROM json_each(?))').bind(JSON.stringify(shas)).all<AssetRow>()
-    : { results: [] as AssetRow[] }
-  const groups = await withDetails(db, shas.map((sha256) => ({ key: sha256, kind: 'exact' as const, rows: rows.filter((r) => r.sha256 === sha256) })))
+  const order = (samples!.results as { sample: number }[]).map((r) => r.sample)
+  const { results: rows } = order.length
+    ? await db
+        .prepare(
+          `SELECT a.*, COALESCE(a.quick_hash, a.sha256) AS content, s.rowid AS sample FROM assets s JOIN assets a ON COALESCE(a.quick_hash, a.sha256) = COALESCE(s.quick_hash, s.sha256)
+           WHERE s.rowid IN (SELECT value FROM json_each(?)) AND a.deleted_at IS NULL`,
+        )
+        .bind(JSON.stringify(order))
+        .all<AssetRow & { content: string; sample: number }>()
+    : { results: [] as (AssetRow & { content: string; sample: number })[] }
+  const groups = await withDetails(
+    db,
+    order.map((sample) => {
+      const members = rows.filter((r) => r.sample === sample)
+      return { key: members[0]?.content ?? String(sample), kind: 'exact' as const, rows: members }
+    }),
+  )
   return { groups, total: ((total!.results[0] as { n: number } | undefined)?.n) ?? 0 }
+}
+
+/** Locations per step of the quick-fingerprint fill: about 0.4 s at 1.4 million photos. */
+const FILL_STEP = 5000
+
+/**
+ * Photos a helper indexed before 0036 get their quick fingerprint from their location, a step at a
+ * time, while `more()`. Returns how many photos were filled; the setting goes when it's all done.
+ */
+export async function fillQuickHashes(db: D1Database, more: () => boolean, from?: string): Promise<number> {
+  let filled = 0
+  let at = from
+  while (more()) {
+    at ??= (await db.prepare("SELECT value FROM settings WHERE key = 'quick_hash.fill'").first<{ value: string }>())?.value
+    if (at === undefined) break
+    const window = `SELECT rowid AS rid, asset_id, quick_hash FROM asset_locations WHERE rowid > ? ORDER BY rowid LIMIT ${FILL_STEP}`
+    const cursor = Number(at) || 0
+    const [updated, moved, finished] = await db.batch([
+      db.prepare(`UPDATE assets SET quick_hash = l.quick_hash FROM (${window}) l WHERE assets.id = l.asset_id AND l.quick_hash IS NOT NULL AND assets.quick_hash IS NULL`).bind(cursor),
+      db.prepare(`UPDATE settings SET value = COALESCE((SELECT MAX(rid) FROM (${window})), 'done'), updated_at = ? WHERE key = 'quick_hash.fill' RETURNING value`).bind(cursor, nowIso()),
+      db.prepare("DELETE FROM settings WHERE key = 'quick_hash.fill' AND value = 'done'"),
+    ])
+    filled += updated!.meta.changes ?? 0
+    if ((finished!.meta.changes ?? 0) > 0) break
+    at = (moved!.results[0] as { value: string } | undefined)?.value
+  }
+  return filled
 }
 
 /** Look-alike groups from undismissed pairs (exact copies are left to the exact tab). */
@@ -76,7 +145,7 @@ export async function similarGroups(db: D1Database, limit = 50): Promise<{ group
       `SELECT p.a, p.b FROM similar_pairs p
        JOIN assets x ON x.id = p.a AND x.deleted_at IS NULL
        JOIN assets y ON y.id = p.b AND y.deleted_at IS NULL
-       WHERE p.dismissed = 0 AND NOT (x.sha256 IS NOT NULL AND x.sha256 = y.sha256)
+       WHERE p.dismissed = 0 AND NOT (COALESCE(x.quick_hash, x.sha256) IS NOT NULL AND COALESCE(x.quick_hash, x.sha256) = COALESCE(y.quick_hash, y.sha256))
        LIMIT 20000`,
     )
     .all<{ a: string; b: string }>()
@@ -159,7 +228,7 @@ export async function dismissPairs(db: D1Database, ids: string[], only?: string)
   return result.meta.changes
 }
 
-/** Exact groups from the sweep's snapshot when there is one, else counted from idx_assets_live_sha256 (0.3 s at 1.4 million). */
+/** Exact groups from the sweep's snapshot when there is one, else counted from idx_assets_live_content (0.3 s at 1.4 million). */
 export async function duplicateCounts(db: D1Database): Promise<{ exact: number; similar: number }> {
   const [stats, similar] = await Promise.all([getStats(db), similarGroups(db, 0)])
   const exact = stats ? stats.exactDuplicateGroups : (await exactGroups(db, 0)).total

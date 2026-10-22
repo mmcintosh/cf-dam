@@ -10,6 +10,7 @@
  * an original uploaded straight into Glacier still gets a picture: the Worker can't read it back.
  */
 import type { Principal } from '../auth/principal'
+import { CONTENT_KEY } from './assets'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
@@ -92,6 +93,8 @@ export interface CreateUploadInput {
   size: number
   contentType?: string
   sha256?: string
+  /** The helper's quick fingerprint (size, first and last MiB): matches photos a helper indexed. */
+  quickHash?: string
   connectionId?: string
   storageClass?: string
   allowDuplicate?: boolean
@@ -107,10 +110,17 @@ export async function createUpload(env: DamBindings, principal: Principal, input
   }
   const sha256 = input.sha256?.toLowerCase()
   if (sha256 !== undefined && !/^[0-9a-f]{64}$/.test(sha256)) throw new UploadError('sha256 must be 64 hex characters.')
+  const quickHash = input.quickHash?.toLowerCase()
+  if (quickHash !== undefined && !/^[0-9a-f]{64}$/.test(quickHash)) throw new UploadError('quickHash must be 64 hex characters.')
 
-  if (sha256 && !input.allowDuplicate) {
-    const existing = await env.DB.prepare("SELECT id FROM assets WHERE sha256 = ? AND deleted_at IS NULL AND status != 'uploading' LIMIT 1")
-      .bind(sha256).first<{ id: string }>()
+  if ((sha256 || quickHash) && !input.allowDuplicate) {
+    // The same file uploaded before (SHA-256), or indexed by a helper or uploaded since 0036 (quick fingerprint).
+    const existing = await env.DB.prepare(
+      `SELECT id FROM assets WHERE sha256 = ? AND deleted_at IS NULL AND status != 'uploading'
+       UNION ALL SELECT id FROM assets WHERE ${CONTENT_KEY} = ? AND deleted_at IS NULL AND status != 'uploading' LIMIT 1`,
+    )
+      .bind(sha256 ?? null, quickHash ?? null)
+      .first<{ id: string }>()
     if (existing) return { duplicateOf: existing.id }
   }
 
@@ -142,9 +152,9 @@ export async function createUpload(env: DamBindings, principal: Principal, input
 
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO assets (id, owner_id, filename, mime_type, size, sha256, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'uploading', ?, ?)`,
-    ).bind(assetId, principal.userId, filename, mimeType, input.size, sha256 ?? null, iso, iso),
+      `INSERT INTO assets (id, owner_id, filename, mime_type, size, sha256, quick_hash, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?)`,
+    ).bind(assetId, principal.userId, filename, mimeType, input.size, sha256 ?? null, quickHash ?? null, iso, iso),
     env.DB.prepare(
       `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, updated_at)
        VALUES (?, ?, ?, ?, 'pending', ?)`,

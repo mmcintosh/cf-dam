@@ -9,7 +9,7 @@
  */
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
-import { buildWhere, KIND_SQL, ORIENTATION_SQL, TIER_SQL } from './assets'
+import { buildWhere, CONTENT_KEY, KIND_SQL, ORIENTATION_SQL, TIER_SQL } from './assets'
 import { SUBTREE } from './keywords'
 
 /** Assets (or locations) per slice: each slice's queries read this many rows. */
@@ -132,14 +132,14 @@ async function assetSlice(db: D1Database, after: number, partial: Build['partial
 
 const HEX = '0123456789abcdef'
 
-/** Exact-duplicate groups whose SHA-256 starts with one hex digit (groups never cross prefixes). */
+/** Exact-duplicate groups whose content key starts with one hex digit (groups never cross prefixes). */
 async function shaSlice(db: D1Database, index: number, partial: Build['partial']): Promise<number | null> {
   if (index >= HEX.length) return null
   const from = HEX[index]!
   const to = index + 1 < HEX.length ? HEX[index + 1]! : 'g'
   const row = await db
     .prepare(
-      `SELECT COUNT(*) AS n FROM (SELECT sha256 FROM assets WHERE deleted_at IS NULL AND sha256 >= ? AND sha256 < ? GROUP BY sha256 HAVING COUNT(*) > 1)`,
+      `SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets WHERE deleted_at IS NULL AND ${CONTENT_KEY} >= ? AND ${CONTENT_KEY} < ? GROUP BY ${CONTENT_KEY} HAVING COUNT(*) > 1)`,
     )
     .bind(from, to)
     .first<{ n: number }>()

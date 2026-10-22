@@ -4,6 +4,7 @@
     id: string
     filename: string
     title: string | null
+    mimeType: string
     width: number | null
     height: number | null
     size: number
@@ -21,6 +22,8 @@
     key: string
     kind: 'exact' | 'similar'
     assets: Member[]
+    /** Why the first is suggested. */
+    reason: string
   }
   interface Props {
     kind: 'exact' | 'similar'
@@ -36,6 +39,11 @@
   let message = $state('')
 
   const size = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+  /** The file type in a word: JPEG, RAW (NEF), TIFF… */
+  const format = (a: Member) => {
+    const ext = a.filename.includes('.') ? a.filename.split('.').pop()!.toUpperCase() : ''
+    return a.mimeType.startsWith('image/x-') ? `RAW${ext ? ` (${ext})` : ''}` : ext === 'JPG' ? 'JPEG' : ext || a.mimeType
+  }
   const date = (iso: string | null) => (iso ? new Date(`${iso}Z`).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone: 'UTC' }) : 'Undated')
 
   async function post(path: string, body: unknown) {
@@ -104,6 +112,7 @@
         <strong>{group.assets.length} {kind === 'exact' ? 'identical files' : 'look-alikes'}</strong>
         <span class="muted">Choose the one to keep. The others' tags, albums, rating and pick move to it.</span>
       </header>
+      {#if group.reason}<p class="why small"><strong>Suggested</strong> ({group.assets[0]!.filename}): {group.reason}.</p>{/if}
       <div class="members">
         {#each group.assets as asset, i (asset.id)}
           <label class="member" class:kept={keep[group.key] === asset.id}>
@@ -114,7 +123,7 @@
             </span>
             <span class="facts">
               <a href={`/assets/${asset.id}`} class="name">{asset.title ?? asset.filename}</a>
-              <span>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'unknown size'} · {size(asset.size)}</span>
+              <span>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'unknown size'} · {size(asset.size)} · {format(asset)}</span>
               <span>{date(asset.capturedAt)}{asset.camera.model ? ` · ${asset.camera.model}` : ''}</span>
               <span>
                 {asset.rating ? '★'.repeat(asset.rating) : ''}{asset.flag === 'pick' ? ' ⚑' : ''}
@@ -140,6 +149,13 @@
 </div>
 
 <style>
+  .why {
+    margin: 0;
+    color: var(--text-muted);
+  }
+  .small {
+    font-size: 0.85rem;
+  }
   .groups {
     display: grid;
     gap: 18px;

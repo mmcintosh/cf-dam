@@ -49,9 +49,24 @@ async function json<T>(response: Response): Promise<T> {
 const post = (url: string, body: unknown) =>
   fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
+const hex = (digest: ArrayBuffer) => [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+
 async function sha256Hex(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return hex(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))
+}
+
+const MIB = 1024 * 1024
+
+/**
+ * The helper's quick fingerprint (packages/agent/src/scan.ts): SHA-256 of the size, the first MiB and
+ * the last MiB. Uploads carry it too, so a file is known as the same whether a helper indexed it or
+ * someone uploaded it. Reads 2 MiB whatever the size.
+ */
+export async function quickHash(file: Blob): Promise<string> {
+  const head = file.slice(0, Math.min(MIB, file.size))
+  const parts: BlobPart[] = [`cf-dam-qh1:${file.size}:`, head]
+  if (file.size > MIB) parts.push(file.slice(file.size - Math.min(MIB, file.size - MIB)))
+  return hex(await crypto.subtle.digest('SHA-256', await new Blob(parts).arrayBuffer()))
 }
 
 /** A WebP no larger than `longEdge` on its longest side, made in the browser. */
@@ -200,12 +215,14 @@ export async function uploadFile(
 ): Promise<UploadOutcome> {
   onProgress({ phase: 'hashing', sent: 0, total: file.size })
   const sha256 = file.size <= MAX_HASH_BYTES ? await sha256Hex(file) : undefined
+  const quick = await quickHash(file)
 
   const createdResponse = await post('/api/uploads', {
     filename: file.name,
     size: file.size,
     contentType: file.type,
     sha256,
+    quickHash: quick,
     connectionId: target.connectionId,
     storageClass: target.storageClass,
   })

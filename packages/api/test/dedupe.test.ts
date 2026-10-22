@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { bands, hamming, MAX_DISTANCE } from '../src/catalog/phash'
+import { fillQuickHashes } from '../src/catalog/duplicates'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -45,8 +46,8 @@ async function upload(filename: string, bytes: Uint8Array<ArrayBuffer>, sha256?:
   return ((await done.json()) as { assetId: string }).assetId
 }
 
-async function variant(transform: Record<string, unknown>): Promise<Uint8Array<ArrayBuffer>> {
-  const out = await h.env.IMAGES!.input(new Blob([camera]).stream()).transform(transform).output({ format: 'image/jpeg', quality: 70 })
+async function variant(transform: Record<string, unknown>, quality = 70): Promise<Uint8Array<ArrayBuffer>> {
+  const out = await h.env.IMAGES!.input(new Blob([camera]).stream()).transform(transform).output({ format: 'image/jpeg', quality })
   return new Uint8Array(await out.response().arrayBuffer())
 }
 
@@ -62,6 +63,57 @@ describe('duplicates', () => {
     expect(groups[0]!.assets.map((x) => x.id).sort()).toEqual([a, b].sort())
   })
 
+  it('knows a helper’s photo and an upload of the same file as one, at upload and on the page', async () => {
+    // A helper indexed it: no SHA-256, only its quick fingerprint (as the browser computes it too).
+    const quick = 'ab'.repeat(32)
+    await h.env.DB.prepare("INSERT INTO assets (id, filename, mime_type, size, quick_hash, status, created_at, updated_at) VALUES ('nas', 'IMG_1.jpg', 'image/jpeg', ?, ?, 'ready', '2020-01-01', '2020-01-01')")
+      .bind(camera.byteLength, quick)
+      .run()
+    const again = await h.fetch('/api/uploads', { ...json({ filename: 'IMG_1.jpg', size: camera.byteLength, sha256: await sha(camera), quickHash: quick }), cookie: admin })
+    expect(again.status).toBe(409)
+    expect(await again.json()).toMatchObject({ error: 'duplicate', duplicateOf: 'nas' })
+
+    // Uploaded anyway: one exact group, the helper's copy suggested as it came first.
+    const res = await h.fetch('/api/uploads', { ...json({ filename: 'IMG_1 copy.jpg', size: camera.byteLength, quickHash: quick, allowDuplicate: true }), cookie: admin })
+    const created = (await res.json()) as { assetId: string }
+    await h.env.DB.prepare("UPDATE assets SET status = 'ready' WHERE id = ?").bind(created.assetId).run()
+    const { groups, total } = (await (await h.fetch('/api/duplicates/exact', { cookie: admin })).json()) as { groups: { assets: { id: string }[]; reason: string }[]; total: number }
+    expect(total).toBe(1)
+    expect(groups[0]!.assets.map((x) => x.id)).toEqual(['nas', created.assetId])
+    expect(groups[0]!.reason).toBe('Identical files: the one that came in first')
+  })
+
+  it('fills in the fingerprints of photos a helper indexed before, then stops', async () => {
+    const quick = 'cd'.repeat(32)
+    await h.env.DB.batch([
+      h.env.DB.prepare("INSERT INTO storage_connections (id, name, provider, auth_mode, storage_classes, default_class, is_default, created_at, updated_at) VALUES ('nas-s1', 'NAS', 'nas', 'agent', '[\"NAS\"]', 'NAS', 0, 'x', 'x')"),
+      ...['old-1', 'old-2'].map((id) =>
+        h.env.DB.prepare("INSERT INTO assets (id, filename, mime_type, size, status, created_at, updated_at) VALUES (?, 'IMG_1.jpg', 'image/jpeg', 10, 'ready', 'x', 'x')").bind(id),
+      ),
+      ...['old-1', 'old-2'].map((id) =>
+        h.env.DB.prepare("INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, quick_hash, updated_at) VALUES (?, 'nas-s1', ?, 'NAS', 'present', ?, 'x')").bind(id, `/p/${id}.jpg`, quick),
+      ),
+    ])
+    expect(((await (await h.fetch('/api/duplicates/exact', { cookie: admin })).json()) as { total: number }).total).toBe(0)
+    expect(await fillQuickHashes(h.env.DB, () => true)).toBe(2)
+    expect(await h.env.DB.prepare("SELECT 1 FROM settings WHERE key = 'quick_hash.fill'").first()).toBeNull()
+    const { groups } = (await (await h.fetch('/api/duplicates/exact', { cookie: admin })).json()) as { groups: { assets: { id: string }[] }[] }
+    expect(groups.map((g) => g.assets.map((a) => a.id).sort())).toEqual([['old-1', 'old-2']])
+    expect(await fillQuickHashes(h.env.DB, () => true)).toBe(0)
+  })
+
+  it('suggests the less compressed of two look-alikes the same size, and says why', async () => {
+    const resaved = await variant({})
+    expect(resaved.byteLength).toBeLessThan(camera.byteLength / 1.05)
+    const low = await upload('IMG_1-resaved.jpg', resaved)
+    const high = await upload('IMG_1.jpg', camera)
+    const { groups } = (await (await h.fetch('/api/duplicates/similar', { cookie: admin })).json()) as { groups: { assets: { id: string; width: number }[]; reason: string }[] }
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.assets[0]!.width).toBe(groups[0]!.assets[1]!.width)
+    expect(groups[0]!.assets.map((x) => x.id)).toEqual([high, low])
+    expect(groups[0]!.reason).toMatch(/^The same size, but less compressed \(/)
+  })
+
   it('finds a resized, recompressed copy as a look-alike, but not a rotated photo', async () => {
     const a = await upload('IMG_1.jpg', camera)
     const resized = await upload('IMG_1-web.jpg', await variant({ width: 600 }))
@@ -73,6 +125,7 @@ describe('duplicates', () => {
     expect(groups).toHaveLength(1)
     expect(groups[0]!.assets.map((x) => x.id).sort()).toEqual([a, resized].sort())
     expect(groups[0]!.assets[0]!.id).toBe(a) // the bigger one is suggested first
+    expect((groups[0] as unknown as { reason: string }).reason).toBe('More pixels')
     expect(groups[0]!.assets.map((x) => x.id)).not.toContain(rotated)
   })
 

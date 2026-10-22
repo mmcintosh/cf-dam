@@ -607,8 +607,8 @@ async function ingestParsed(env: DamBindings, source: SourceRow, parsed: (Ingest
     statements.push(
       db
         .prepare(
-          `INSERT INTO assets (id, owner_id, filename, mime_type, size, status, created_at, updated_at)
-           SELECT ${field('id')}, (SELECT created_by FROM sources WHERE id = ?), ${field('filename')}, ${field('mime')}, ${field('size')}, 'processing', ?, ? FROM json_each(?) j`,
+          `INSERT INTO assets (id, owner_id, filename, mime_type, size, quick_hash, status, created_at, updated_at)
+           SELECT ${field('id')}, (SELECT created_by FROM sources WHERE id = ?), ${field('filename')}, ${field('mime')}, ${field('size')}, ${field('hash')}, 'processing', ?, ? FROM json_each(?) j`,
         )
         .bind(source.id, now, now, list),
       db
@@ -634,8 +634,10 @@ async function ingestParsed(env: DamBindings, source: SourceRow, parsed: (Ingest
   if (changed.length > 0) {
     statements.push(
       db
-        .prepare(`UPDATE assets SET size = ${field('size')}, status = 'processing', phash = NULL, updated_at = ? FROM json_each(?) j WHERE assets.id = ${field('id')}`)
-        .bind(now, JSON.stringify(changed.map((c) => ({ id: c.assetId, size: c.item.size })))),
+        .prepare(
+          `UPDATE assets SET size = ${field('size')}, quick_hash = ${field('hash')}, status = 'processing', phash = NULL, updated_at = ? FROM json_each(?) j WHERE assets.id = ${field('id')}`,
+        )
+        .bind(now, JSON.stringify(changed.map((c) => ({ id: c.assetId, size: c.item.size, hash: c.item.quickHash })))),
     )
   }
   if (renamed.length > 0) {
