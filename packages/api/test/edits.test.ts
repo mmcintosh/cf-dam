@@ -15,7 +15,7 @@ let h: Harness
 afterEach(async () => h?.dispose())
 
 /** 1200 × 800: red on the left half, blue on the right, so a turn or a mirror shows where things went. */
-async function halves(): Promise<Uint8Array> {
+async function halves(): Promise<Uint8Array<ArrayBuffer>> {
   const red = await sharp({ create: { width: 600, height: 800, channels: 3, background: '#ff0000' } }).png().toBuffer()
   const png = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#0000ff' } })
     .composite([{ input: red, left: 0, top: 0 }])
@@ -24,7 +24,7 @@ async function halves(): Promise<Uint8Array> {
   return new Uint8Array(png)
 }
 
-async function upload(admin: string, bytes: Uint8Array): Promise<string> {
+async function upload(admin: string, bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const res = await h.fetch('/api/uploads', { ...json({ filename: 'halves.png', size: bytes.byteLength, allowDuplicate: true }), cookie: admin })
   const { uploadId } = (await res.json()) as { uploadId: string }
   const put = await h.fetch(`/api/uploads/${uploadId}/parts/1`, { method: 'PUT', body: bytes, headers: { 'Content-Type': 'application/octet-stream' }, cookie: admin })
