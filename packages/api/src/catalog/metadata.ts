@@ -150,7 +150,10 @@ export async function extractMetadata(head: Uint8Array | ArrayBuffer, mimeType =
   }
 }
 
-/** Formats Cloudflare Images can decode into renditions. */
+/**
+ * Formats Cloudflare Images can decode into renditions. Not TIFF: Images refuses it ("The TIFF format
+ * is not supported", checked 22 Oct 2026), so TIFF previews come from an agent, or the small JPEG some carry.
+ */
 export const RENDERABLE_TYPES: ReadonlySet<string> = new Set([
   'image/jpeg',
   'image/png',
@@ -159,7 +162,6 @@ export const RENDERABLE_TYPES: ReadonlySet<string> = new Set([
   'image/gif',
   'image/heic',
   'image/heif',
-  'image/tiff',
 ])
 
 /** Types served inline when previewed. Everything else (SVG, HTML, PDF…) is always an attachment. */
