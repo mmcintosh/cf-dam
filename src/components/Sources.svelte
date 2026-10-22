@@ -43,7 +43,22 @@
   /** Where the new helper runs: the steps differ, the pairing code doesn't. */
   let kind = $state<'nas' | 'mac' | 'windows'>('nas')
   let origin = $state('https://your-cf-dam')
-  let compose = $state('')
+  /** Which NAS: the compose file's example paths and where it's pasted differ. */
+  const NAS = [
+    ['synology', 'Synology'],
+    ['qnap', 'QNAP'],
+    ['ugreen', 'UGREEN'],
+    ['terramaster', 'TerraMaster'],
+    ['asustor', 'Asustor'],
+    ['truenas', 'TrueNAS'],
+    ['unraid', 'Unraid'],
+    ['omv', 'OpenMediaVault'],
+    ['linux', 'Another Linux computer with Docker'],
+  ] as const
+  let nas = $state<(typeof NAS)[number][0]>('synology')
+  let composes = $state<Record<string, string>>({})
+  const compose = $derived(composes[nas] ?? '')
+  const image = $derived(compose.match(/image: (\S+)/)?.[1] ?? 'ghcr.io/mmcintosh/cf-dam-agent')
   let copied = $state(false)
   let code = $state(initialCode ?? '')
   interface Waiting {
@@ -85,12 +100,16 @@
     return () => clearInterval(timer)
   })
 
+  async function loadCompose(which: string) {
+    if (composes[which]) return
+    const res = await fetch(`/api/sources/compose?nas=${which}`)
+    if (res.ok) composes[which] = await res.text()
+    else error = `Could not load the compose file (${res.status}).`
+  }
+
   async function startAdding() {
     adding = true
-    if (compose) return
-    const res = await fetch('/api/sources/compose')
-    if (res.ok) compose = await res.text()
-    else error = `Could not load the compose file (${res.status}).`
+    await loadCompose(nas)
   }
 
   async function copyCompose() {
@@ -227,19 +246,54 @@
       <ol class="steps">
         {#if kind === 'nas'}
           <li>
-            <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>,
-            choose a folder for it (for example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
+            <strong>Which NAS?</strong>
+            <select bind:value={nas} onchange={() => loadCompose(nas)} aria-label="Which NAS">
+              {#each NAS as [k, label] (k)}<option value={k}>{label}</option>{/each}
+            </select>
+            <p class="muted small">
+              Any NAS that runs Docker containers works, on Intel, AMD or ARM. A WD My Cloud or Buffalo can't run them: use the Mac or Windows steps on a computer that sees its
+              shared folders instead.
+            </p>
+          </li>
+          <li>
+            {#if nas === 'synology'}
+              <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>, choose a folder for it (for
+              example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
+            {:else if nas === 'qnap'}
+              <strong>On your QNAP</strong>, install <em>Container Station</em> from the App Center, then open <em>Applications</em> → <em>Create</em>, name it
+              <code>cf-dam-agent</code> and paste this:
+            {:else if nas === 'ugreen'}
+              <strong>On your UGREEN</strong>, install the <em>Docker</em> app from the App Center, create a project named <code>cf-dam-agent</code> and paste this:
+            {:else if nas === 'terramaster'}
+              <strong>On your TerraMaster</strong>, install <em>Docker Manager</em> from the App Center, create a project (compose) named <code>cf-dam-agent</code> and paste this:
+            {:else if nas === 'asustor'}
+              <strong>On your Asustor</strong>, install <em>Portainer CE</em> from App Central (it brings Docker), open it, go to <em>Stacks</em> → <em>Add stack</em>, name it
+              <code>cf-dam-agent</code> and paste this:
+            {:else if nas === 'truenas'}
+              <strong>On TrueNAS</strong> (24.10 or later), open <em>Apps</em> → <em>Discover Apps</em> → the <em>⋮</em> menu → <em>Install via YAML</em>, name it
+              <code>cf-dam-agent</code> and paste this:
+            {:else if nas === 'unraid'}
+              <strong>On Unraid</strong>, open <em>Docker</em> → <em>Add Container</em> and fill in: Name <code>cf-dam-agent</code>; Repository
+              <code>{image}</code>; a <em>Port</em> 8790 to 8790; a <em>Variable</em> <code>CF_DAM_URL</code> = <code>{origin}</code>; a
+              <em>Path</em> from your photo share (<code>/mnt/user/photos</code>) to <code>/photos/photos</code>, access <em>Read Only</em>; and a <em>Path</em> from
+              <code>/mnt/user/appdata/cf-dam-agent</code> to <code>/data</code>. With the Compose Manager plugin, paste this into a new stack instead:
+            {:else if nas === 'omv'}
+              <strong>In OpenMediaVault</strong>, install the <em>compose</em> plugin (from omv-extras), then open <em>Services</em> → <em>Compose</em> → <em>Files</em> →
+              <em>Add</em>, name it <code>cf-dam-agent</code> and paste this:
+            {:else}
+              <strong>On the computer</strong>, save this as <code>docker-compose.yml</code> in a folder of its own and run <code>docker compose up -d</code> there:
+            {/if}
             <div class="compose">
               <pre>{compose}</pre>
               <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? 'Copied' : 'Copy'}</button>
             </div>
             <p class="muted small">
-              Change <code>/volume1/photo</code> to your photo shared folder; add a line for each other folder. Keep <code>:ro</code>: the agent can then only read
-              your photos. It needs about 1 GB of memory. Other NAS models and computers with Docker work the same way.
+              Change the folder on the left of <code>:/photos/…</code> to your photo shared folder's real path (your NAS shows it in the shared folder's properties); add a line for
+              each other folder. Keep <code>:ro</code>: the agent can then only read your photos. It needs about 1 GB of memory.
             </p>
           </li>
           <li>
-            <strong>Start the project.</strong> The agent's log (and its page at <code>http://your-nas:8790</code>) shows an eight-letter code.
+            <strong>Start it.</strong> The agent's log (and its page at <code>http://your-nas:8790</code>) shows an eight-letter code.
           </li>
         {:else}
           <li>

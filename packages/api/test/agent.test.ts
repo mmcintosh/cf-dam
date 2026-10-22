@@ -86,6 +86,18 @@ const asset = async (id: string) =>
   }
 
 describe('pairing', () => {
+  it('gives a compose file for each kind of NAS, with its own example folders', async () => {
+    const text = async (q: string) => (await h.fetch(`/api/sources/compose${q}`, { cookie: admin })).text()
+    expect(await text('')).toContain('- /volume1/photo:/photos/photo:ro')
+    const qnap = await text('?nas=qnap')
+    expect(qnap).toContain('Container Station')
+    expect(qnap).toContain('- /share/Multimedia:/photos/multimedia:ro')
+    expect(qnap).toContain('- /share/Container/cf-dam-agent:/data')
+    expect(qnap).toContain('CF_DAM_URL: http://localhost')
+    expect(await text('?nas=truenas')).toContain('- /mnt/tank/photos:/photos/photos:ro')
+    expect(await text('?nas=nonsense')).toContain('Synology')
+  })
+
   it('pairs only with a person’s approval, and refuses unknown codes and people without the right', async () => {
     const start = (await (await h.fetch('/api/agent/pair/start', json({ name: 'NAS' }))).json()) as { userCode: string; verificationUrl: string }
     expect(start.userCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)

@@ -183,10 +183,30 @@ sourceRoutes.delete('/:id/roots/:rootId', async (c) => {
  */
 export const AGENT_IMAGE_TAG = '0.1'
 
-/** The Container Manager project file for this deployment: paste into Synology, add your folders. */
+/**
+ * Where each kind of NAS keeps shared folders and container data, and where the compose file goes. The
+ * paths are examples the page tells people to change; the folders end up under /photos either way.
+ */
+export const NAS_KINDS = {
+  synology: { photos: '/volume1/photo', data: '/volume1/docker/cf-dam-agent', where: 'In Synology Container Manager: Project → Create → paste this.' },
+  qnap: { photos: '/share/Multimedia', data: '/share/Container/cf-dam-agent', where: 'In QNAP Container Station: Applications → Create → paste this.' },
+  ugreen: { photos: '/volume1/Photos', data: '/volume1/docker/cf-dam-agent', where: 'In the UGREEN Docker app: create a project and paste this.' },
+  terramaster: { photos: '/Volume1/Photos', data: '/Volume1/docker/cf-dam-agent', where: 'In TerraMaster Docker Manager: create a project (compose) and paste this.' },
+  asustor: { photos: '/volume1/Photos', data: '/volume1/Docker/cf-dam-agent', where: 'In Portainer (from App Central): Stacks → Add stack → paste this.' },
+  truenas: { photos: '/mnt/tank/photos', data: '/mnt/tank/apps/cf-dam-agent', where: 'In TrueNAS (24.10 or later): Apps → Discover Apps → ⋮ → Install via YAML → paste this.' },
+  unraid: { photos: '/mnt/user/photos', data: '/mnt/user/appdata/cf-dam-agent', where: 'On Unraid with the Compose Manager plugin: Add New Stack → paste this.' },
+  omv: { photos: '/srv/dev-disk-by-uuid-1234/photos', data: '/srv/dev-disk-by-uuid-1234/appdata/cf-dam-agent', where: 'In OpenMediaVault (with omv-extras): Services → Compose → Files → Add → paste this.' },
+  linux: { photos: '/home/me/Pictures', data: './data', where: 'Save as docker-compose.yml, then run: docker compose up -d' },
+} as const
+export type NasKind = keyof typeof NAS_KINDS
+
+/** The compose file for this deployment and that kind of NAS (`?nas=`, Synology when absent). */
 sourceRoutes.get('/compose', (c) => {
   const url = new URL(c.req.url).origin
-  const yaml = `# cf-dam NAS agent. In Synology Container Manager: Project → Create → paste this.
+  const asked = c.req.query('nas') ?? 'synology'
+  const nas = NAS_KINDS[(asked in NAS_KINDS ? asked : 'synology') as NasKind]
+  const folder = nas.photos.slice(nas.photos.lastIndexOf('/') + 1).toLowerCase()
+  const yaml = `# cf-dam NAS agent. ${nas.where}
 # Add one line under volumes for each shared folder to index, always ending in :ro (read-only).
 services:
   cf-dam-agent:
@@ -196,8 +216,8 @@ services:
     environment:
       CF_DAM_URL: ${url}
     volumes:
-      - /volume1/photo:/photos/photo:ro
-      - /volume1/docker/cf-dam-agent:/data
+      - ${nas.photos}:/photos/${folder}:ro
+      - ${nas.data}:/data
     ports:
       - "8790:8790"
     cpu_shares: 256
