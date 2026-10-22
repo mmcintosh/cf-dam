@@ -17,7 +17,7 @@
   let hasWatermark = $state(false)
   let watermark = $state(false)
   let downloading = $state(false)
-  const SIZE_LABELS: Record<string, string> = { small: 'Small (1024 px)', large: 'Large (2048 px)', full: 'Full size' }
+  const SIZE_LABELS: Record<string, string> = { small: 'Small (1024 px)', large: 'Large (2048 px)', full: 'Full size', cutout: 'Background removed (PNG)' }
 
   onMount(() => {
     api<{ sizes: string[]; watermark: boolean }>(`/api/assets/${assetId}/download`)
@@ -27,7 +27,7 @@
       })
       .catch(() => {})
   })
-  const href = (size: string) => `/api/assets/${assetId}/download/${size}${watermark && size !== 'full' ? '?watermark=1' : ''}`
+  const href = (size: string) => `/api/assets/${assetId}/download/${size}${watermark && (size === 'small' || size === 'large') ? '?watermark=1' : ''}`
 
   // ── Rotate and crop ────────────────────────────────────────────────────────────
   let editing = $state(false)
@@ -246,7 +246,7 @@
         {#if hasWatermark}
           <label class="small"><input type="checkbox" bind:checked={watermark} /> With the watermark (small and large)</label>
         {/if}
-        <p class="muted small">JPEG, {edit ? 'rotated and cropped as shown' : 'as shown'}.</p>
+        <p class="muted small">{edit ? 'Rotated and cropped as shown' : 'As shown'}. Removing the background is done by Cloudflare’s AI and works best on a clear subject.</p>
       </div>
     </details>
   {/if}

@@ -92,6 +92,10 @@ describe.skipIf(!process.env.IMAGES_LIVE)('edits on real Images', () => {
       const info = await images.info(new Blob([new Uint8Array(sideways)]).stream())
       const upright = await run(sideways, { rotate: 0, mirror: false, crop: null })
       expect({ info: 'width' in info ? [info.width, info.height] : null, output: [upright.width, upright.height] }).toEqual({ info: [800, 1200], output: [800, 1200] })
+
+      // Background removal ("Background removed (PNG)" downloads): the corners go transparent.
+      const cut = await (await images.input(new Blob([new Uint8Array(halves)]).stream()).transform({ segment: 'foreground' }).output({ format: 'image/png' })).response().arrayBuffer()
+      expect((await sharp(Buffer.from(cut)).metadata()).hasAlpha).toBe(true)
     } finally {
       await proxy.dispose()
     }

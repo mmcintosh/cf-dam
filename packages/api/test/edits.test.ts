@@ -126,7 +126,7 @@ describe('rotate and crop', () => {
     h = await createHarness({ IMAGES: sharpImages() })
     const admin = await setUpAdmin(h)
     const id = await upload(admin, await halves())
-    expect(await (await h.fetch(`/api/assets/${id}/download`, { cookie: admin })).json()).toEqual({ sizes: ['small', 'large', 'full'], watermark: false })
+    expect(await (await h.fetch(`/api/assets/${id}/download`, { cookie: admin })).json()).toEqual({ sizes: ['small', 'large', 'full', 'cutout'], watermark: false })
 
     const size = async (path: string) => {
       const res = await h.fetch(path, { cookie: admin })
@@ -145,10 +145,15 @@ describe('rotate and crop', () => {
     expect(small).toMatchObject({ width: 800, height: 600, colour: 'blue' })
     expect(small.name).toContain('halves-small.jpg')
     expect((await h.fetch(`/api/assets/${id}/download/huge`, { cookie: admin })).status).toBe(409)
+    // The cut-out is a PNG (the stand-in for Images ignores the background removal itself).
+    const cutout = await h.fetch(`/api/assets/${id}/download/cutout`, { cookie: admin })
+    expect(cutout.headers.get('Content-Type')).toBe('image/png')
+    expect(cutout.headers.get('Content-Disposition')).toContain('halves-cutout.png')
+    expect((await sharp(Buffer.from(await cutout.arrayBuffer())).metadata()).format).toBe('png')
 
     // An original the Worker can't read (on a NAS, say) offers the preview sizes only.
     await h.env.DB.prepare("UPDATE asset_locations SET storage_class = 'NAS' WHERE asset_id = ?").bind(id).run()
-    expect(((await (await h.fetch(`/api/assets/${id}/download`, { cookie: admin })).json()) as { sizes: string[] }).sizes).toEqual(['small', 'large'])
+    expect(((await (await h.fetch(`/api/assets/${id}/download`, { cookie: admin })).json()) as { sizes: string[] }).sizes).toEqual(['small', 'large', 'cutout'])
     expect((await h.fetch(`/api/assets/${id}/download/full`, { cookie: admin })).status).toBe(409)
   })
 })

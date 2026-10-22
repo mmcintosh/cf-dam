@@ -300,12 +300,13 @@ assetRoutes.get('/:id/download', requirePermission('assets:read'), async (c) => 
 const copySizes = (asset: NonNullable<Awaited<ReturnType<typeof getAsset>>>, locations: Awaited<ReturnType<typeof getLocations>>) => {
   if (asset.mime_type.startsWith('video/')) return []
   const full = RENDERABLE_TYPES.has(asset.mime_type) && asset.size <= MAX_TRANSFORM_BYTES && readableLocation(locations) !== null
-  return full ? ['small', 'large', 'full'] : ['small', 'large']
+  return full ? ['small', 'large', 'full', 'cutout'] : ['small', 'large', 'cutout']
 }
 
 /**
  * A JPEG copy, edit applied: `small` (1024 px) or `large` (2048 px) from the preview, watermarked with
  * `?watermark=1`; `full` from the original, when the Worker can read it and Images can decode it.
+ * `cutout`: the preview with its background removed (Images' `segment`), a PNG with transparency.
  */
 assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (c) => {
   const { id, size } = c.req.param()
@@ -313,9 +314,9 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
   if (!asset) return c.json({ error: 'not_found' }, 404)
   const locations = await getLocations(c.env.DB, id)
   if (!copySizes(asset, locations).includes(size)) return c.json({ error: 'unavailable', message: 'This photo can’t be downloaded in that size.' }, 409)
-  const name = `${asset.filename.replace(/\.[^.]*$/, '') || 'photo'}-${size}.jpg`
+  const name = `${asset.filename.replace(/\.[^.]*$/, '') || 'photo'}-${size}.${size === 'cutout' ? 'png' : 'jpg'}`
   const headers = (length: number) => ({
-    'Content-Type': 'image/jpeg',
+    'Content-Type': size === 'cutout' ? 'image/png' : 'image/jpeg',
     'Content-Length': String(length),
     'Content-Disposition': attachmentDisposition(name),
     'Cache-Control': 'private, no-store',
@@ -326,6 +327,17 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
     return new Response(image.body, { headers: headers(image.size) })
   }
   const images = c.env.IMAGES
+  if (size === 'cutout') {
+    const preview = (await renditionStore(c.env).get(renditionKey(id, 'preview'))) ?? (await renditionStore(c.env).get(renditionKey(id, 'thumb')))
+    if (!images || !preview) return c.json({ error: 'unavailable', message: 'This photo has no preview to cut out yet.' }, 409)
+    try {
+      const png = await (await images.input(preview.body).transform({ segment: 'foreground' }).output({ format: 'image/png' })).response().arrayBuffer()
+      return new Response(png, { headers: headers(png.byteLength) })
+    } catch (error) {
+      console.warn('[download] cut-out failed', id, error)
+      return c.json({ error: 'download_failed', message: 'The background couldn’t be removed from this photo.' }, 502)
+    }
+  }
   const location = readableLocation(locations)
   const connection = location && (await getConnection(c.env.DB, location.connection_id))
   if (!images || !location || !connection) return c.json({ error: 'unavailable', message: 'The original can’t be read here.' }, 409)
