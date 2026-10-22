@@ -20,8 +20,12 @@ export function isRenditionName(value: string): value is RenditionName {
   return value in RENDITIONS
 }
 
-/** Originals larger than this are not transformed in the Worker; the client or agent supplies previews. */
-export const MAX_TRANSFORM_BYTES = 70 * 1024 * 1024
+/**
+ * Originals larger than this are not transformed in the Worker; the client or agent supplies previews.
+ * The Images binding refuses inputs over 20 MB ("file too large", error 9402): measured on 22 Oct 2026,
+ * 19,849,032 bytes went through and 20,174,671 didn't. A little under, to be safe.
+ */
+export const MAX_TRANSFORM_BYTES = 19_800_000
 /** A client-supplied rendition may be at most this large. */
 export const MAX_CLIENT_RENDITION_BYTES = 4 * 1024 * 1024
 

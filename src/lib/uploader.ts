@@ -33,8 +33,8 @@ const CONCURRENCY = 3
 const RETRIES = 4
 /** Hashing reads the whole file into memory; above this we skip duplicate detection. */
 const MAX_HASH_BYTES = 512 * 1024 * 1024
-/** The Worker transforms originals up to 70 MB; above that the browser makes the preview. */
-const WORKER_TRANSFORM_LIMIT = 70 * 1024 * 1024
+/** The Worker transforms originals up to about 20 MB (Images' limit: MAX_TRANSFORM_BYTES); above that the browser makes the preview. */
+const WORKER_TRANSFORM_LIMIT = 19_800_000
 const ARCHIVE_CLASSES = new Set(['GLACIER', 'DEEP_ARCHIVE'])
 const BROWSER_DECODABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'])
 
