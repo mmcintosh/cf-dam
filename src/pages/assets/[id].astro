@@ -3,6 +3,7 @@ import { env } from 'cloudflare:workers'
 import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
+import ImageTools from '../../components/ImageTools.svelte'
 import IptcEditor from '../../components/IptcEditor.svelte'
 import StoragePanel from '../../components/StoragePanel.svelte'
 import TierBadge from '../../components/TierBadge.astro'
@@ -80,9 +81,9 @@ const facts: [string, string][] = [
       ) : hasPreview || hasThumb ? (
         <img
           class="hero"
-          src={`/api/assets/${id}/renditions/${hasPreview ? 'preview' : 'thumb'}`}
+          src={`/api/assets/${id}/renditions/${hasPreview ? 'preview' : 'thumb'}?v=${asset.imageVersion}`}
           alt={asset.alt ?? asset.title ?? asset.filename}
-          style={hasThumb ? `background-image: url(/api/assets/${id}/renditions/thumb)` : undefined}
+          style={hasThumb ? `background-image: url(/api/assets/${id}/renditions/thumb?v=${asset.imageVersion})` : undefined}
         />
       ) : (
         <div class="no-preview">
@@ -91,6 +92,9 @@ const facts: [string, string][] = [
         </div>
       )}
       {primary && <span class="badge-slot"><TierBadge storageClass={primary.storage_class} state={primary.state} /></span>}
+      {!playable && (hasPreview || hasThumb) && (
+        <ImageTools client:idle assetId={id} edit={asset.edit} canEdit={principal.permissions.has('assets:edit') && !asset.mimeType.startsWith('video/')} />
+      )}
     </section>
 
     <aside class="side stack">

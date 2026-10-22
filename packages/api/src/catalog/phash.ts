@@ -19,6 +19,7 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
 import { bands, bitsSet, hamming, hashPixels, isPlain, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS, type Decoded } from './dhash'
+import { baseKey } from './edits'
 import { renditionKey } from './renditions'
 
 export { areaGrey, bands, bitsSet, DEAD_ZONE, dhash, hamming, hashPixels, isPlain, MAX_ASPECT_DIFFERENCE, MAX_DISTANCE, MIN_DETAIL_BITS } from './dhash'
@@ -124,10 +125,12 @@ export async function decodePng(bytes: Uint8Array): Promise<Decoded> {
 /**
  * The look-alike hash of an asset, from its stored thumbnail. Null when it has none or Images is
  * absent. Images only changes the format (WebP → PNG, same size), so the pixels are the thumbnail's.
+ * An edited photo is hashed as it was before the edit (as agents hash it), so a crop doesn't hide copies.
  */
 export async function hashFromThumbnail(env: DamBindings, assetId: string): Promise<string | null> {
   if (!env.IMAGES) return null
-  const thumb = await renditionStore(env).get(renditionKey(assetId, 'thumb'))
+  const store = renditionStore(env)
+  const thumb = (await store.get(baseKey(assetId, 'thumb'))) ?? (await store.get(renditionKey(assetId, 'thumb')))
   if (!thumb) return null
   const png = await env.IMAGES.input(thumb.body).output({ format: 'image/png' })
   return hashPixels(await decodePng(new Uint8Array(await png.response().arrayBuffer())))

@@ -6,6 +6,7 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
+import { baseKey, editImage, getEdit } from './edits'
 
 export const RENDITIONS = {
   thumb: { longEdge: 480, quality: 78 },
@@ -26,6 +27,12 @@ export const MAX_CLIENT_RENDITION_BYTES = 4 * 1024 * 1024
 
 export const renditionKey = (assetId: string, name: RenditionName) => `renditions/${assetId}/${name}.webp`
 
+type RenditionSource = 'worker' | 'client' | 'embedded' | 'agent'
+
+/**
+ * Keep a thumbnail or preview. When the photo has an edit (edits.ts), this one is kept as the
+ * unedited base and what is served is made from it, edited.
+ */
 async function store(
   env: DamBindings,
   assetId: string,
@@ -33,8 +40,16 @@ async function store(
   bytes: ArrayBuffer,
   mimeType: string,
   dims: { width: number | null; height: number | null },
-  source: 'worker' | 'client' | 'embedded' | 'agent',
+  source: RenditionSource,
 ): Promise<void> {
+  const edit = name === 'sheet' ? null : await getEdit(env.DB, assetId)
+  if (edit && env.IMAGES && dims.width && dims.height) {
+    await renditionStore(env).put(baseKey(assetId, name), bytes, { contentType: mimeType })
+    const edited = editImage(env.IMAGES, new Blob([bytes]).stream(), { width: dims.width, height: dims.height }, edit)
+    bytes = await (await edited.image.output({ format: 'image/webp', quality: RENDITIONS[name].quality })).response().arrayBuffer()
+    mimeType = 'image/webp'
+    dims = { width: edited.width, height: edited.height }
+  }
   await renditionStore(env).put(renditionKey(assetId, name), bytes, { contentType: mimeType })
   await env.DB.prepare(
     `INSERT INTO renditions (asset_id, name, key, mime_type, width, height, size, source, created_at)
@@ -159,4 +174,27 @@ export async function storeAgentRendition(env: DamBindings, assetId: string, nam
 
 export async function hasRendition(db: D1Database, assetId: string, name: RenditionName): Promise<boolean> {
   return (await db.prepare('SELECT 1 AS present FROM renditions WHERE asset_id = ? AND name = ?').bind(assetId, name).first()) !== null
+}
+
+/**
+ * Make the photo's thumbnail and preview again for its current edit (or none): from the unedited
+ * bases, kept since its first edit, or from what's there when this is the first. Undoing an edit puts
+ * the bases back and drops them.
+ */
+export async function applyEdit(env: DamBindings, assetId: string): Promise<void> {
+  const r2 = renditionStore(env)
+  const edited = (await getEdit(env.DB, assetId)) !== null
+  const { results } = await env.DB.prepare("SELECT name, source FROM renditions WHERE asset_id = ? AND name IN ('thumb', 'preview')")
+    .bind(assetId)
+    .all<{ name: 'thumb' | 'preview'; source: RenditionSource }>()
+  for (const { name, source } of results) {
+    const base = await r2.get(baseKey(assetId, name))
+    if (!base && !edited) continue
+    const object = base ?? (await r2.get(renditionKey(assetId, name)))
+    if (!object) continue
+    const bytes = await new Response(object.body).arrayBuffer()
+    const size = webpSize(new Uint8Array(bytes))
+    await store(env, assetId, name, bytes, 'image/webp', size ?? { width: null, height: null }, source)
+    if (!edited) await r2.delete(baseKey(assetId, name))
+  }
 }

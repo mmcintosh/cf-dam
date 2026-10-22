@@ -156,7 +156,7 @@ export async function checkStep(env: DamBindings, more: () => boolean): Promise<
 }
 
 /** A location the Worker can read the original from: the built-in R2 first (no egress), not archived. */
-function readableLocation(locations: LocationRow[]): LocationRow | null {
+export function readableLocation(locations: LocationRow[]): LocationRow | null {
   const usable = locations.filter(
     (l) => l.storage_class !== 'NAS' && ((l.state === 'present' && !ARCHIVE_CLASSES.has(l.storage_class)) || l.state === 'restored'),
   )

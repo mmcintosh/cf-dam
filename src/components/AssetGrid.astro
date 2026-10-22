@@ -12,7 +12,7 @@ interface Props {
   assets: AssetJson[]
 }
 const { assets } = Astro.props
-const ratio = (a: AssetJson) => (a.width && a.height ? Math.min(Math.max(a.width / a.height, 0.4), 3) : 1.5)
+const ratio = (a: AssetJson) => (a.displayWidth && a.displayHeight ? Math.min(Math.max(a.displayWidth / a.displayHeight, 0.4), 3) : 1.5)
 const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?? 'FILE'
 ---
 <div class="justified">
@@ -26,7 +26,7 @@ const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {asset.renditions.includes('thumb') ? (
         <img
-          src={`/api/assets/${asset.id}/renditions/thumb`}
+          src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`}
           alt={asset.alt ?? asset.title ?? asset.filename}
           loading="lazy"
           decoding="async"

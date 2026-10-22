@@ -1,6 +1,7 @@
 /** Asset records, their locations, tags and the list query. */
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { editedSize, imageVersion, readEdit, type ImageEdit } from './edits'
 import { GPS_PLACE_BITS, iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
 import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeywords } from './keywords'
 import { indexAsset, SEARCH_MATCH, toFtsQuery } from './search'
@@ -18,6 +19,8 @@ export interface AssetRow {
   sha256_verified: number
   /** The quick fingerprint (size, first and last MiB): a helper's, or an upload's since 0036. */
   quick_hash: string | null
+  edit?: string | null
+  edited_at?: string | null
   width: number | null
   height: number | null
   orientation: number | null
@@ -197,6 +200,13 @@ export interface AssetJson {
   status: string
   error: string | null
   renditions: string[]
+  /** Rotate, mirror and crop shown in place of the original's own framing (edits.ts); null when none. */
+  edit: ImageEdit | null
+  /** The size of the picture people see: the original's, or the edited one's. */
+  displayWidth: number | null
+  displayHeight: number | null
+  /** Add to thumbnail and preview addresses (`?v=`): it changes with every edit. */
+  imageVersion: string
   /** Where the original lives (the primary location), when known. */
   storage: { connectionId: string; storageClass: string; state: string } | null
   /** AI review: suggestions kept apart from what people wrote. */
@@ -224,6 +234,8 @@ export interface AssetJson {
 }
 
 export function assetJson(row: AssetRow, renditions: string[], location: LocationRow | null = null): AssetJson {
+  const edit = readEdit(row.edit)
+  const display = row.width && row.height ? editedSize(row.width, row.height, edit) : null
   return {
     id: row.id,
     filename: row.filename,
@@ -246,6 +258,10 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
     status: row.status,
     error: row.error,
     renditions,
+    edit,
+    displayWidth: display?.width ?? row.width,
+    displayHeight: display?.height ?? row.height,
+    imageVersion: imageVersion(row.edited_at),
     storage: location ? { connectionId: location.connection_id, storageClass: location.storage_class, state: location.state } : null,
     ai: {
       status: row.ai_status ?? null,

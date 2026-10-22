@@ -6,6 +6,7 @@
  * favourites give a name and get a visitor id (random, so it needs no signature). What a client sees
  * is limited to the album's photos, their sizes, title, caption and (if allowed) filename.
  */
+import { editedSize, imageVersion, readEdit } from './edits'
 import { hashPassword } from '../auth/password'
 import { randomBase62, randomId, timingSafeEqual, toHex } from '../lib/crypto'
 import { BadRequest, optionalString, requiredString } from '../lib/http'
@@ -356,6 +357,8 @@ export interface GalleryItem {
   video: boolean
   hasThumb: boolean
   hasPreview: boolean
+  /** Changes with each edit: part of the image addresses. */
+  imageVersion: string
   /** Whether the original can be downloaded from here (not on a NAS, not in deep storage). */
   originalReachable: boolean
 }
@@ -364,7 +367,7 @@ export interface GalleryItem {
 export async function galleryItems(db: D1Database, share: Pick<ShareRow, 'album_id' | 'show_filenames'>): Promise<GalleryItem[]> {
   const { results } = await db
     .prepare(
-      `SELECT a.id, a.width, a.height, a.filename, a.title, a.caption, a.alt, a.mime_type,
+      `SELECT a.id, a.width, a.height, a.filename, a.title, a.caption, a.alt, a.mime_type, a.edit, a.edited_at,
          EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'thumb') AS has_thumb,
          EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'preview') AS has_preview,
          EXISTS (SELECT 1 FROM asset_locations l JOIN storage_connections c ON c.id = l.connection_id
@@ -374,20 +377,25 @@ export async function galleryItems(db: D1Database, share: Pick<ShareRow, 'album_
        WHERE ai.album_id = ? ORDER BY ai.position, ai.added_at LIMIT ?`,
     )
     .bind(share.album_id, MAX_GALLERY_ITEMS)
-    .all<{ id: string; width: number | null; height: number | null; filename: string; title: string | null; caption: string | null; alt: string | null; mime_type: string; has_thumb: number; has_preview: number; reachable: number }>()
-  return results.map((r) => ({
-    id: r.id,
-    width: r.width,
-    height: r.height,
-    filename: share.show_filenames ? r.filename : null,
-    title: r.title,
-    caption: r.caption,
-    alt: r.alt,
-    video: r.mime_type.startsWith('video/'),
-    hasThumb: r.has_thumb === 1,
-    hasPreview: r.has_preview === 1,
-    originalReachable: r.reachable === 1,
-  }))
+    .all<{ id: string; width: number | null; height: number | null; filename: string; title: string | null; caption: string | null; alt: string | null; mime_type: string; edit: string | null; edited_at: string | null; has_thumb: number; has_preview: number; reachable: number }>()
+  return results.map((r) => {
+    // The size of the picture shown: an edit may turn or crop it.
+    const shown = r.width && r.height ? editedSize(r.width, r.height, readEdit(r.edit)) : null
+    return {
+      id: r.id,
+      width: shown?.width ?? r.width,
+      height: shown?.height ?? r.height,
+      imageVersion: imageVersion(r.edited_at),
+      filename: share.show_filenames ? r.filename : null,
+      title: r.title,
+      caption: r.caption,
+      alt: r.alt,
+      video: r.mime_type.startsWith('video/'),
+      hasThumb: r.has_thumb === 1,
+      hasPreview: r.has_preview === 1,
+      originalReachable: r.reachable === 1,
+    }
+  })
 }
 
 /** Whether an asset is shown by this gallery (in its album and not deleted). */

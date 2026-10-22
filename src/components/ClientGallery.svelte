@@ -34,7 +34,7 @@
 
   const shown = $derived(data ? (onlyPicks ? data.items.filter((i) => picks.has(i.id)) : data.items) : [])
   const current = $derived(open === null ? null : (shown[open] ?? null))
-  const image = (id: string, name: 'thumb' | 'preview') => `${base}/assets/${id}/${name}?v=${data?.gallery.imageVersion ?? ''}`
+  const image = (item: GalleryItem, name: 'thumb' | 'preview') => `${base}/assets/${item.id}/${name}?v=${data?.gallery.imageVersion ?? ''}-${item.imageVersion}`
   const ratio = (i: GalleryItem) => (i.width && i.height ? Math.min(Math.max(i.width / i.height, 0.4), 3) : 1.5)
   const label = (i: GalleryItem) => i.title || i.filename || ''
   const sizesFor = (i: GalleryItem) => (data?.gallery.downloadSizes ?? []).filter((s) => (s === 'original' ? i.originalReachable : !i.video))
@@ -153,7 +153,7 @@
   $effect(() => {
     if (open === null || shown.length < 2) return
     const next = shown[(open + 1) % shown.length]
-    if (next?.hasPreview) new Image().src = image(next.id, 'preview')
+    if (next?.hasPreview) new Image().src = image(next, 'preview')
   })
 
   onMount(() => {
@@ -216,7 +216,7 @@
             <i class="spacer" style={`padding-bottom:${(100 / ratio(item)).toFixed(4)}%`}></i>
             <button class="open" onclick={() => (open = i)} aria-label={`Open ${label(item) || `photo ${i + 1}`}`}>
               {#if item.hasThumb}
-                <img src={image(item.id, 'thumb')} alt={item.alt ?? label(item)} loading="lazy" decoding="async" draggable="false" oncontextmenu={(e) => e.preventDefault()} />
+                <img src={image(item, 'thumb')} alt={item.alt ?? label(item)} loading="lazy" decoding="async" draggable="false" oncontextmenu={(e) => e.preventDefault()} />
               {:else}
                 <span class="placeholder">No preview yet</span>
               {/if}
@@ -255,7 +255,7 @@
       <div class="stage">
         <button class="nav prev" onclick={() => step(-1)} aria-label="Previous photo">‹</button>
         {#if current.hasPreview}
-          <img src={image(current.id, 'preview')} alt={current.alt ?? label(current)} draggable="false" oncontextmenu={(e) => e.preventDefault()} />
+          <img src={image(current, 'preview')} alt={current.alt ?? label(current)} draggable="false" oncontextmenu={(e) => e.preventDefault()} />
         {:else}
           <span class="placeholder">No preview yet</span>
         {/if}

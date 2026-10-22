@@ -16,6 +16,11 @@
     title: string | null
     width: number | null
     height: number | null
+    /** The size shown, after any rotate or crop. */
+    displayWidth: number | null
+    displayHeight: number | null
+    /** Part of image addresses: changes with each edit. */
+    imageVersion: string
     rating: number | null
     flag: 'pick' | 'reject' | null
     label: Label | null
@@ -70,7 +75,7 @@
   const current = $derived(loupe !== null ? assets[loupe] : null)
   const selectedList = $derived(assets.filter((a) => selected.has(a.id)))
 
-  const ratio = (a: Asset) => (a.width && a.height ? Math.min(Math.max(a.width / a.height, 0.4), 3) : 1.5)
+  const ratio = (a: Asset) => (a.displayWidth && a.displayHeight ? Math.min(Math.max(a.displayWidth / a.displayHeight, 0.4), 3) : 1.5)
   const ext = (name: string) => name.split('.').pop()?.toUpperCase().slice(0, 5) ?? 'FILE'
   const shutter = (t: number | null) => (t === null ? '' : t >= 1 ? `${t}s` : `1/${Math.round(1 / t)}`)
   const TIER: Record<string, string> = { NAS: 'nas', STANDARD: 'hot', STANDARD_IA: 'warm', ONEZONE_IA: 'warm', INTELLIGENT_TIERING: 'warm', GLACIER_IR: 'cold', GLACIER: 'cold', DEEP_ARCHIVE: 'deep' }
@@ -393,7 +398,7 @@
     >
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {#if asset.renditions.includes('thumb')}
-        <img src={`/api/assets/${asset.id}/renditions/thumb`} alt={asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
+        <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
         <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? 'No preview' : asset.status === 'queued' ? 'Queued' : 'Processing…'}</span></span>
       {/if}
@@ -485,9 +490,9 @@
       {#if current.renditions.includes('preview') || current.renditions.includes('thumb')}
         {#key current.id}
           <img
-            src={`/api/assets/${current.id}/renditions/${current.renditions.includes('preview') ? 'preview' : 'thumb'}`}
+            src={`/api/assets/${current.id}/renditions/${current.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${current.imageVersion}`}
             alt={current.title ?? current.filename}
-            style={current.renditions.includes('thumb') ? `background-image:url(/api/assets/${current.id}/renditions/thumb)` : ''}
+            style={current.renditions.includes('thumb') ? `background-image:url(/api/assets/${current.id}/renditions/thumb?v=${current.imageVersion})` : ''}
             onclick={() => (zoom = !zoom)}
           />
         {/key}
@@ -538,7 +543,7 @@
         {@const asset = assets.find((a) => a.id === id)}
         {#if asset}
           <figure>
-            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}`} alt={asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
+            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${asset.imageVersion}`} alt={asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
             <figcaption>
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}

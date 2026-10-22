@@ -8,8 +8,12 @@ import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, remov
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
-import { noteMissing } from '../catalog/previews'
-import { isRenditionName, renditionKey } from '../catalog/renditions'
+import { baseKey, editImage, parseEdit, readEdit } from '../catalog/edits'
+import { RENDERABLE_TYPES } from '../catalog/metadata'
+import { noteMissing, readableLocation } from '../catalog/previews'
+import { applyEdit, isRenditionName, MAX_TRANSFORM_BYTES, renditionKey } from '../catalog/renditions'
+import { isDownloadSize, JPEG_LONG_EDGE } from '../catalog/shares'
+import { galleryImage, getWatermark } from '../catalog/watermark'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, stringArray } from '../lib/http'
@@ -230,7 +234,9 @@ assetRoutes.get('/:id/renditions/:name', requirePermission('assets:read'), async
   const { id, name } = c.req.param()
   if (!isRenditionName(name)) return c.json({ error: 'not_found' }, 404)
   if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
-  const object = await renditionStore(c.env).get(renditionKey(id, name))
+  // `?base=1`: the picture before its edit, for drawing a new one (the rendition itself when unedited).
+  const base = c.req.query('base') === '1' && name !== 'sheet' ? await renditionStore(c.env).get(baseKey(id, name)) : null
+  const object = base ?? (await renditionStore(c.env).get(renditionKey(id, name)))
   if (!object) {
     // Listed but not in R2 (after a restore into a new account, say): have it made again.
     c.executionCtx.waitUntil(noteMissing(c.env.DB, id, name).catch((error) => console.warn('[previews] could not note a missing one', id, error)))
@@ -240,10 +246,113 @@ assetRoutes.get('/:id/renditions/:name', requirePermission('assets:read'), async
     headers: {
       'Content-Type': 'image/webp',
       'Content-Length': String(object.size),
-      'Cache-Control': 'private, max-age=86400',
+      // Addresses with `?v=` (the photo's imageVersion) change with each edit; the rest are checked again
+      // after ten minutes, so an edited photo shows everywhere soon.
+      'Cache-Control': c.req.query('v') && !base ? 'private, max-age=86400' : base ? 'private, no-store' : 'private, max-age=600, stale-while-revalidate=86400',
       'Content-Disposition': 'inline',
     },
   })
+})
+
+/**
+ * Rotate, mirror and crop (catalog/edits.ts), or `{ "edit": null }` to undo. The original is never
+ * touched: the thumbnail and preview are made again from the unedited ones.
+ */
+assetRoutes.put('/:id/edit', requirePermission('assets:edit'), async (c) => {
+  const id = c.req.param('id')
+  const asset = await getAsset(c.env.DB, id)
+  if (!asset) return c.json({ error: 'not_found' }, 404)
+  if (asset.mime_type.startsWith('video/')) return c.json({ error: 'unsupported', message: 'Videos can’t be rotated or cropped here.' }, 409)
+  if (!c.env.IMAGES) return c.json({ error: 'unsupported', message: 'This deployment has no Images binding to make edited previews with.' }, 409)
+  let edit
+  try {
+    edit = parseEdit((await readJsonObject(c)).edit)
+  } catch (error) {
+    return c.json({ error: 'invalid_request', message: error instanceof Error ? error.message : 'Not an edit.' }, 400)
+  }
+  const before = asset.edit ?? null
+  const save = (value: string | null) =>
+    c.env.DB.prepare('UPDATE assets SET edit = ?, edited_at = ?, updated_at = ? WHERE id = ?').bind(value, nowIso(), nowIso(), id).run()
+  await save(edit && JSON.stringify(edit))
+  try {
+    await applyEdit(c.env, id)
+  } catch (error) {
+    console.warn('[edits] could not apply', id, error)
+    await save(before)
+    await applyEdit(c.env, id).catch(() => {})
+    return c.json({ error: 'edit_failed', message: 'The edited preview couldn’t be made. Nothing was changed; try again.' }, 502)
+  }
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: edit ? 'asset.edited' : 'asset.edit_undone', targetType: 'asset', targetId: id, details: { edit } })
+  const updated = (await getAsset(c.env.DB, id))!
+  const json = assetJson(updated, [])
+  return c.json({ edit: json.edit, imageVersion: json.imageVersion, displayWidth: json.displayWidth, displayHeight: json.displayHeight })
+})
+
+/** The sizes a copy can be downloaded in, for the page to offer. */
+assetRoutes.get('/:id/download', requirePermission('assets:read'), async (c) => {
+  const id = c.req.param('id')
+  const asset = await getAsset(c.env.DB, id)
+  if (!asset) return c.json({ error: 'not_found' }, 404)
+  const watermark = await getWatermark(c.env.DB)
+  return c.json({ sizes: copySizes(asset, await getLocations(c.env.DB, id)), watermark: watermark.version !== null })
+})
+
+const copySizes = (asset: NonNullable<Awaited<ReturnType<typeof getAsset>>>, locations: Awaited<ReturnType<typeof getLocations>>) => {
+  if (asset.mime_type.startsWith('video/')) return []
+  const full = RENDERABLE_TYPES.has(asset.mime_type) && asset.size <= MAX_TRANSFORM_BYTES && readableLocation(locations) !== null
+  return full ? ['small', 'large', 'full'] : ['small', 'large']
+}
+
+/**
+ * A JPEG copy, edit applied: `small` (1024 px) or `large` (2048 px) from the preview, watermarked with
+ * `?watermark=1`; `full` from the original, when the Worker can read it and Images can decode it.
+ */
+assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (c) => {
+  const { id, size } = c.req.param()
+  const asset = await getAsset(c.env.DB, id)
+  if (!asset) return c.json({ error: 'not_found' }, 404)
+  const locations = await getLocations(c.env.DB, id)
+  if (!copySizes(asset, locations).includes(size)) return c.json({ error: 'unavailable', message: 'This photo can’t be downloaded in that size.' }, 409)
+  const name = `${asset.filename.replace(/\.[^.]*$/, '') || 'photo'}-${size}.jpg`
+  const headers = (length: number) => ({
+    'Content-Type': 'image/jpeg',
+    'Content-Length': String(length),
+    'Content-Disposition': attachmentDisposition(name),
+    'Cache-Control': 'private, no-store',
+  })
+  if (isDownloadSize(size) && size !== 'original') {
+    const image = await galleryImage(c.env, id, size, { watermark: c.req.query('watermark') === '1', longEdge: JPEG_LONG_EDGE[size] })
+    if (!image) return c.json({ error: 'unavailable', message: 'This photo has no preview to make a copy from yet.' }, 409)
+    return new Response(image.body, { headers: headers(image.size) })
+  }
+  const images = c.env.IMAGES
+  const location = readableLocation(locations)
+  const connection = location && (await getConnection(c.env.DB, location.connection_id))
+  if (!images || !location || !connection) return c.json({ error: 'unavailable', message: 'The original can’t be read here.' }, 409)
+  try {
+    const original = await providerFor(c.env, connection).get(location.key)
+    if (!original) return c.json({ error: 'not_found', message: 'The original isn’t where the catalog says.' }, 404)
+    const edit = readEdit(asset.edit)
+    let bytes: ArrayBuffer
+    if (!edit) {
+      bytes = await (await images.input(original.body).output({ format: 'image/jpeg', quality: 92 })).response().arrayBuffer()
+    } else {
+      // Rotated and mirrored first, to learn the exact size the crop is drawn on (EXIF orientation applied).
+      let turned = await (await editImage(images, original.body, { width: 1, height: 1 }, { ...edit, crop: null }).image.output({ format: 'image/jpeg', quality: 95 })).response().arrayBuffer()
+      if (edit.crop) {
+        const info = await images.info(new Blob([turned]).stream())
+        if (!('width' in info)) throw new Error('Images could not read the turned original.')
+        const cropped = editImage(images, new Blob([turned]).stream(), { width: info.width, height: info.height }, { rotate: 0, mirror: false, crop: edit.crop })
+        turned = await (await cropped.image.output({ format: 'image/jpeg', quality: 92 })).response().arrayBuffer()
+      }
+      bytes = turned
+    }
+    return new Response(bytes, { headers: headers(bytes.byteLength) })
+  } catch (error) {
+    if (error instanceof StorageError) return storageFailure(c, error)
+    console.warn('[download] full size failed', id, error)
+    return c.json({ error: 'download_failed', message: 'The full-size copy couldn’t be made. Try the large one.' }, 502)
+  }
 })
 
 /** The original file, always as a download. Archived originals must be restored first. */
