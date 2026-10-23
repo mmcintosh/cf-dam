@@ -6,6 +6,7 @@ import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
 import { resolveNear } from '../catalog/meaning'
+import { nudge } from '../catalog/work'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
@@ -126,6 +127,7 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
     if (!principal.permissions.has(needed)) return c.json({ error: 'forbidden', permission: needed }, 403)
     if (bulk.action === 'ai-queue' && !(await aiAvailable(c.env))) return c.json({ error: 'ai_off', message: c.env.AI ? AI_OFF : 'This deployment has no Workers AI binding.' }, 409)
     const changed = await applyBulk(c.env.DB, ids, bulk)
+    if (bulk.action === 'ai-queue') await nudge(c.env, 'ai', changed)
     if (bulk.action === 'gps') {
       if (bulk.lat !== null) await fillPlacesFromGps(c.env, ids.slice(0, MAX_BULK))
       await indexAssets(c.env.DB, ids.slice(0, MAX_BULK))

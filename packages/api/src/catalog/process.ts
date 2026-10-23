@@ -18,6 +18,7 @@ import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThu
 import { getAiSettings } from './ai'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { indexAsset, indexAssets } from './search'
+import { nudge } from './work'
 import exifr from 'exifr'
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
@@ -140,13 +141,14 @@ export async function finishAssets(env: DamBindings, items: { id: string; hash?:
   if (forAi.length > 0 && env.AI) {
     const settings = await getAiSettings(db)
     if (settings.enabled && settings.auto) {
-      await db
+      const queued = await db
         .prepare(
           `UPDATE assets SET ai_status = 'queued' WHERE id IN (SELECT value FROM json_each(?)) AND ai_status IS NULL
              AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id AND r.name IN ('preview', 'thumb'))`,
         )
         .bind(JSON.stringify(forAi))
         .run()
+      await nudge(env, 'ai', queued.meta.changes)
     }
   }
 

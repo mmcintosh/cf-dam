@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cf } from '@astrojs/cloudflare/hono'
 import { actions, i18n, middleware, notFound, pages, sessions } from 'astro/hono'
-import { browserOrigins, createDamApi, ensureMigrated, runSweep, securityHeaders, wellKnownRoutes, type DamBindings } from '@cf-dam/api'
+import { browserOrigins, createDamApi, ensureMigrated, handleWork, runSweep, securityHeaders, wellKnownRoutes, type DamBindings, type WorkMessage } from '@cf-dam/api'
 
 // The Worker entry (wrangler `main`). One Worker serves both halves: the JSON API under /api,
 // with real env and executionCtx, then Astro for every other path.
@@ -42,4 +42,9 @@ export default {
         }),
     )
   },
-} satisfies ExportedHandler<Env & DamBindings>
+  // The fast lane for background work (wrangler.jsonc `queues`): the sweep remains the safety net.
+  async queue(batch: MessageBatch<WorkMessage>, env: Env & DamBindings) {
+    await ensureMigrated(env.DB)
+    await handleWork(env, batch)
+  },
+} satisfies ExportedHandler<Env & DamBindings, WorkMessage>

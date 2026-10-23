@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { AI_OFF, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
+import { nudge } from '../catalog/work'
 import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -46,6 +47,7 @@ aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
   // Queued while switched off, photos would wait with nothing to analyse them.
   if (!(await getAiSettings(c.env.DB)).enabled) return c.json({ error: 'ai_off', message: AI_OFF }, 409)
   const queued = await queueForAi(c.env.DB, 'unanalysed')
+  await nudge(c.env, 'ai', queued)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.backfill_queued', details: { queued } })
   return c.json({ queued, stats: await aiStats(c.env.DB) })
 })

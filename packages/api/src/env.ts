@@ -23,6 +23,11 @@ export interface DamBindings {
    * search is absent.
    */
   VECTORS?: Vectorize
+  /**
+   * Cloudflare Queues, the fast lane for background work (catalog/work.ts). Without it, the sweep does
+   * all of it, once a minute.
+   */
+  WORK?: Queue<import('./catalog/work').WorkMessage>
   /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
   ASSETS?: Fetcher
   /** Tests only: a smaller archive part size (bytes; S3 takes parts down to 5 MiB) than the 64 MiB used. */

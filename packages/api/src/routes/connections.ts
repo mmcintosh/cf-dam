@@ -2,6 +2,7 @@
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { importPage } from '../catalog/importer'
+import { nudge } from '../catalog/work'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, optionalString, readJsonObject, requiredString, stringArray } from '../lib/http'
@@ -149,6 +150,7 @@ connectionRoutes.post('/:id/import', requirePermission('sources:manage'), async 
       userId: c.get('principal')!.userId,
     })
     if (result.imported > 0) {
+      await nudge(c.env, 'process', result.imported)
       await logActivity(c.env.DB, {
         userId: c.get('principal')!.userId,
         action: 'storage.imported',
