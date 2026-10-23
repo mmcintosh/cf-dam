@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
   import type { VisitorJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
 
@@ -40,7 +41,7 @@
       .map((part) => part[0]?.toUpperCase() ?? '')
       .slice(0, 2)
       .join('')
-  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '')
+  const fmt = (iso: string | null) => (iso ? format().dateTime(iso) : '')
 
   async function makeAlbum(event: SubmitEvent) {
     event.preventDefault()
@@ -52,7 +53,7 @@
         body: JSON.stringify({ name: albumName, visitorIds: chosen, mode: mode === 'all' ? 'all' : 'any' }),
       })
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not make the album.'
+      error = e instanceof Error ? e.message : t('picks.makeFailed')
     } finally {
       busy = false
     }
@@ -61,18 +62,18 @@
 
 <div class="stack">
   {#if visitors.length === 0}
-    <p class="muted">Nobody has picked favourites on this link yet.</p>
+    <p class="muted">{t('picks.none')}</p>
   {:else}
     <table class="table">
-      <thead><tr><th></th><th>Name</th><th>Favourites</th><th>Downloads</th><th>Status</th><th>Last seen</th></tr></thead>
+      <thead><tr><th></th><th>{t('common.name')}</th><th>{t('common.favourites')}</th><th>{t('common.downloads')}</th><th>{t('common.status')}</th><th>{t('common.lastSeen')}</th></tr></thead>
       <tbody>
         {#each visitors as v (v.id)}
           <tr>
-            <td><input type="checkbox" value={v.id} bind:group={chosen} aria-label={`Include ${v.name}`} /></td>
+            <td><input type="checkbox" value={v.id} bind:group={chosen} aria-label={t('picks.include', { name: v.name })} /></td>
             <td><span class="who">{initials(v.name)}</span> {v.name}{#if v.email} <span class="muted">· {v.email}</span>{/if}</td>
             <td>{v.picks}</td>
             <td>{v.downloads}</td>
-            <td>{#if v.submittedAt}<span class="badge badge-ok">Done {fmt(v.submittedAt)}</span>{:else}<span class="badge">Still picking</span>{/if}</td>
+            <td>{#if v.submittedAt}<span class="badge badge-ok">{t('picks.doneOn', { date: fmt(v.submittedAt) })}</span>{:else}<span class="badge">{t('picks.stillPicking')}</span>{/if}</td>
             <td class="muted">{fmt(v.lastSeenAt)}</td>
           </tr>
         {/each}
@@ -80,18 +81,18 @@
     </table>
   {/if}
 
-  <div class="row filters" role="radiogroup" aria-label="Which photos">
-    <label class="check"><input type="radio" value="any" bind:group={mode} disabled={visitors.length === 0} /> Picked by any of the ticked people</label>
-    <label class="check"><input type="radio" value="all" bind:group={mode} disabled={visitors.length === 0} /> Picked by all of them</label>
-    <label class="check"><input type="radio" value="everything" bind:group={mode} /> Every photo in the gallery</label>
+  <div class="row filters" role="radiogroup" aria-label={t('picks.which')}>
+    <label class="check"><input type="radio" value="any" bind:group={mode} disabled={visitors.length === 0} /> {t('picks.any')}</label>
+    <label class="check"><input type="radio" value="all" bind:group={mode} disabled={visitors.length === 0} /> {t('picks.all')}</label>
+    <label class="check"><input type="radio" value="everything" bind:group={mode} /> {t('picks.everything')}</label>
     <span class="muted">{shown.length} {shown.length === 1 ? 'photo' : 'photos'}</span>
   </div>
 
   {#if mode !== 'everything' && shown.length > 0}
     <form class="row" onsubmit={makeAlbum}>
-      <input type="text" required maxlength="200" placeholder="Name for a new album of these" bind:value={albumName} style="max-width: 320px" aria-label="New album name" />
-      <button class="btn btn-primary" type="submit" disabled={busy}>Make an album of these</button>
-      {#if made}<span class="muted">Made, with {made.count} {made.count === 1 ? 'photo' : 'photos'}: <a href={`/albums/${made.albumId}`}>open it</a></span>{/if}
+      <input type="text" required maxlength="200" placeholder={t('picks.albumPlaceholder')} bind:value={albumName} style="max-width: 320px" aria-label={t('albums.newName')} />
+      <button class="btn btn-primary" type="submit" disabled={busy}>{t('picks.makeAlbum')}</button>
+      {#if made}<span class="muted">{t('picks.made', { photos: t('common.photos', { count: made.count }) })} <a href={`/albums/${made.albumId}`}>{t('picks.openIt')}</a></span>{/if}
     </form>
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
   {/if}

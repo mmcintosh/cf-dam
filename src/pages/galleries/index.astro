@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { createFormat, getT } from '@cf-dam/i18n'
 import { getWatermark, listShares } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import WatermarkSettings from '../../components/WatermarkSettings.svelte'
@@ -10,17 +11,18 @@ const sample = await env.DB.prepare(
   "SELECT r.asset_id FROM renditions r JOIN assets a ON a.id = r.asset_id AND a.deleted_at IS NULL WHERE r.name = 'preview' AND a.width >= a.height ORDER BY a.created_at DESC LIMIT 1",
 ).first<{ asset_id: string }>()
 const live = shares.filter((s) => s.status !== 'revoked')
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en', { dateStyle: 'medium' }) : '—')
-const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', revoked: 'Revoked' }
+const t = getT(Astro.locals.lang)
+const fmt = (iso: string | null) => (iso ? createFormat(Astro.locals.lang).date(iso) : '—')
+const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 ---
-<AppLayout help="client-galleries" title="Client galleries" subtitle="Albums shared with clients by link. Make a link from an album's page.">
+<AppLayout help="client-galleries" title={t('nav.galleries')} subtitle={t('galleries.subtitle')}>
   <section class="card">
     {live.length === 0 ? (
-      <p class="muted">No links yet. Open an <a href="/albums">album</a> and use <strong>New link</strong> to share it with a client.</p>
+      <p class="muted">{t('galleries.none')} <a href="/albums">{t('albums.title')}</a></p>
     ) : (
       <div class="scroll">
         <table class="table">
-          <thead><tr><th>Link</th><th>Album</th><th>Status</th><th>Opens</th><th>Picking</th><th>Favourites</th><th>Downloads</th><th>Last opened</th></tr></thead>
+          <thead><tr><th>{t('galleries.link')}</th><th>{t('galleries.album')}</th><th>{t('common.status')}</th><th>{t('galleries.opens')}</th><th>{t('galleries.picking')}</th><th>{t('common.favourites')}</th><th>{t('common.downloads')}</th><th>{t('galleries.lastOpened')}</th></tr></thead>
           <tbody>
             {live.map((s) => (
               <tr>
@@ -41,8 +43,8 @@ const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', rev
   </section>
 
   <section class="card">
-    <h2>Watermark</h2>
-    <p class="lead">Used by every link that has the watermark turned on, for what clients see and the JPEGs they download. Originals are never watermarked.</p>
+    <h2>{t('share.watermark')}</h2>
+    <p class="lead">{t('galleries.watermarkLead')}</p>
     <WatermarkSettings client:load initial={watermark} sampleAssetId={sample?.asset_id ?? null} />
   </section>
 </AppLayout>

@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import { getWatermark, listAssets } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetGrid from '../../components/AssetGrid.astro'
@@ -19,10 +20,11 @@ if (!album) return new Response('Not found', { status: 404 })
 const { assets, total, totalExact } = await listAssets(env.DB, { albumId: id, limit: 200 })
 const canShare = Astro.locals.principal!.permissions.has('shares:manage')
 const canEdit = Astro.locals.principal!.permissions.has('assets:edit')
+const t = getT(Astro.locals.lang)
 const items = assets.map((a) => ({ id: a.id, name: a.title ?? a.filename, alt: a.alt ?? a.title ?? a.filename, thumb: a.renditions.includes('thumb'), version: a.imageVersion }))
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 ---
-<AppLayout help="albums" wide title={album.name} subtitle={album.description || `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}`}>
+<AppLayout help="albums" wide title={album.name} subtitle={album.description || (totalExact ? t('common.items', { count: total }) : t('libpage.itemsMore', { count: total }))}>
   {canEdit && <AlbumTools client:load albumId={album.id} name={album.name} description={album.description} links={album.links} items={items} coverId={album.cover} />}
   {canShare && (
     <div class="share">
@@ -32,7 +34,7 @@ const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
   {assets.length > 0 ? (
     <AssetGrid assets={assets} />
   ) : (
-    <p class="muted">This album is empty. Select photos in the <a href="/">library</a> and choose <strong>Add to album…</strong>, or add one from its own page.</p>
+    <p class="muted">{t('album.emptyLead')}</p>
   )}
 </AppLayout>
 

@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import { getShare, shareDownloads, sharePicks, shareVisitors } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import SharePicks from '../../components/SharePicks.svelte'
@@ -15,16 +16,17 @@ const { results: photos } = await env.DB.prepare(
 )
   .bind(share.albumId)
   .all<{ id: string; filename: string; has_thumb: number }>()
-const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', revoked: 'Revoked' }
+const t = getT(Astro.locals.lang)
+const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 const link = `${Astro.url.origin}/s/${share.token}`
 ---
-<AppLayout help="client-galleries" title={share.name} subtitle={`${share.title} · ${STATUS[share.status]} · ${share.stats.opens} opens, ${share.stats.downloads} downloads`}>
+<AppLayout help="client-galleries" title={share.name} subtitle={t('galleries.detailSubtitle', { title: share.title, status: STATUS[share.status] ?? share.status, opens: t('share.opens', { count: share.stats.opens }), downloads: share.stats.downloads })}>
   <section class="card stack">
     <div class="row">
       <a class="btn btn-sm" href={`/albums/${share.albumId}`}>← {share.albumName}</a>
-      {share.status !== 'revoked' && <a class="btn btn-sm" href={link} target="_blank" rel="noopener">Open the gallery as a client sees it</a>}
+      {share.status !== 'revoked' && <a class="btn btn-sm" href={link} target="_blank" rel="noopener">{t('galleries.asClient')}</a>}
     </div>
-    <h2>Who picked what</h2>
+    <h2>{t('galleries.whoPicked')}</h2>
     <SharePicks
       client:load
       shareId={share.id}

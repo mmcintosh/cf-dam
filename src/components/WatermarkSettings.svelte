@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import type { WatermarkSettings } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
 
@@ -16,11 +18,11 @@
   let saved = $state('')
   let busy = $state(false)
 
-  const POSITIONS: [WatermarkSettings['position'], string][] = [
-    ['center', 'Centre'],
-    ['bottom-right', 'Bottom right'],
-    ['bottom-left', 'Bottom left'],
-    ['tiled', 'Repeated across the photo'],
+  const POSITIONS: [WatermarkSettings['position'], MessageKey][] = [
+    ['center', 'wm.position.center'],
+    ['bottom-right', 'wm.position.bottomRight'],
+    ['bottom-left', 'wm.position.bottomLeft'],
+    ['tiled', 'wm.position.tiled'],
   ]
   const imageUrl = $derived(settings.version ? `/api/shares/watermark/image?v=${settings.version}` : null)
 
@@ -31,11 +33,11 @@
     try {
       const response = await fetch('/api/shares/watermark/image', { method: 'PUT', body, headers: { 'Content-Type': body.type || 'image/png' } })
       const result = (await response.json()) as { watermark?: WatermarkSettings; message?: string }
-      if (!response.ok || !result.watermark) throw new Error(result.message ?? 'Could not save the watermark.')
+      if (!response.ok || !result.watermark) throw new Error(result.message ?? t('wm.saveFailed'))
       settings = result.watermark
-      saved = 'Watermark saved. Galleries with the watermark on use it from now on.'
+      saved = t('wm.saved')
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save the watermark.'
+      error = e instanceof Error ? e.message : t('wm.saveFailed')
     } finally {
       busy = false
     }
@@ -74,13 +76,13 @@
     try {
       settings = (await api<{ watermark: WatermarkSettings }>('/api/shares/watermark', { method: 'PATCH', body: JSON.stringify(patch) })).watermark
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
     }
   }
 
   async function remove() {
     settings = (await api<{ watermark: WatermarkSettings }>('/api/shares/watermark/image', { method: 'DELETE' })).watermark
-    saved = 'Watermark removed. Galleries show photos without one.'
+    saved = t('wm.removed')
   }
 </script>
 
@@ -88,37 +90,37 @@
   <div class="stack">
     <form class="stack" onsubmit={fromText}>
       <div class="field">
-        <label for="wm-text">Make one from text</label>
+        <label for="wm-text">{t('wm.fromText')}</label>
         <div class="row">
-          <input id="wm-text" type="text" maxlength="80" required bind:value={text} placeholder="© Your Studio" />
-          <select bind:value={colour} aria-label="Text colour" style="max-width: 120px">
-            <option value="white">White</option>
-            <option value="black">Black</option>
+          <input id="wm-text" type="text" maxlength="80" required bind:value={text} placeholder={t('wm.textPlaceholder')} />
+          <select bind:value={colour} aria-label={t('wm.textColour')} style="max-width: 120px">
+            <option value="white">{t('wm.white')}</option>
+            <option value="black">{t('wm.black')}</option>
           </select>
-          <button class="btn" type="submit" disabled={busy}>Use this text</button>
+          <button class="btn" type="submit" disabled={busy}>{t('wm.useText')}</button>
         </div>
       </div>
     </form>
     <div class="field">
-      <label for="wm-file">Or upload your logo (a PNG with a transparent background works best)</label>
+      <label for="wm-file">{t('wm.upload')}</label>
       <input id="wm-file" type="file" accept="image/png,image/webp,image/jpeg" onchange={fromFile} disabled={busy} />
     </div>
     {#if settings.version}
       <div class="field">
-        <label for="wm-position">Where</label>
+        <label for="wm-position">{t('wm.where')}</label>
         <select id="wm-position" value={settings.position} onchange={(e) => update({ position: e.currentTarget.value as WatermarkSettings['position'] })}>
-          {#each POSITIONS as [value, text] (value)}<option {value}>{text}</option>{/each}
+          {#each POSITIONS as [value, text] (value)}<option {value}>{t(text)}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="wm-scale">Size: {Math.round(settings.scale * 100)}% of the photo's width</label>
+        <label for="wm-scale">{t('wm.size', { percent: format().number(settings.scale, { style: 'percent' }) })}</label>
         <input id="wm-scale" type="range" min="0.05" max="1" step="0.05" value={settings.scale} onchange={(e) => update({ scale: Number(e.currentTarget.value) })} />
       </div>
       <div class="field">
-        <label for="wm-opacity">Strength: {Math.round(settings.opacity * 100)}%</label>
+        <label for="wm-opacity">{t('wm.strength', { percent: format().number(settings.opacity, { style: 'percent' }) })}</label>
         <input id="wm-opacity" type="range" min="0.05" max="1" step="0.05" value={settings.opacity} onchange={(e) => update({ opacity: Number(e.currentTarget.value) })} />
       </div>
-      <div><button class="btn btn-sm btn-danger" onclick={remove}>Remove the watermark</button></div>
+      <div><button class="btn btn-sm btn-danger" onclick={remove}>{t('wm.remove')}</button></div>
     {/if}
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
     {#if saved}<div class="alert alert-success" role="status">{saved}</div>{/if}
@@ -134,10 +136,10 @@
       {#if settings.position === 'tiled'}
         <div class="tiles" style={`background-image:url(${imageUrl});background-size:${Math.min(settings.scale, 0.5) * 100}% auto;opacity:${settings.opacity}`}></div>
       {:else}
-        <img class={`mark ${settings.position}`} src={imageUrl} alt="Watermark" style={`width:${settings.scale * 100}%;opacity:${settings.opacity}`} />
+        <img class={`mark ${settings.position}`} src={imageUrl} alt={t('wm.alt')} style={`width:${settings.scale * 100}%;opacity:${settings.opacity}`} />
       {/if}
     {/if}
-    <figcaption class="muted">{imageUrl ? 'Roughly how clients will see it' : 'No watermark yet'}</figcaption>
+    <figcaption class="muted">{imageUrl ? t('wm.roughly') : t('wm.none')}</figcaption>
   </figure>
 </div>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   /** On an album's page: rename it, take photos out, choose its cover, or delete it (its photos stay in the library). */
   import { api } from '../lib/auth-client'
 
@@ -44,7 +45,7 @@
       await work()
       after()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'That did not work. Try again.'
+      error = e instanceof Error ? e.message : t('invite.failed')
       busy = false
     }
   }
@@ -72,40 +73,39 @@
       () => (location.href = '/albums'),
     )
 
-  const count = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 </script>
 
 <div class="tools stack">
   <div class="row">
-    <button class="btn btn-sm" type="button" aria-expanded={mode === 'rename'} onclick={() => show('rename')}>Rename</button>
+    <button class="btn btn-sm" type="button" aria-expanded={mode === 'rename'} onclick={() => show('rename')}>{t('albumTools.rename')}</button>
     {#if items.length > 0}
-      <button class="btn btn-sm" type="button" aria-expanded={mode === 'photos'} onclick={() => show('photos')}>Remove photos or choose the cover…</button>
+      <button class="btn btn-sm" type="button" aria-expanded={mode === 'photos'} onclick={() => show('photos')}>{t('albumTools.photos')}</button>
     {/if}
-    <button class="btn btn-sm" type="button" aria-expanded={mode === 'delete'} onclick={() => show('delete')}>Delete album</button>
+    <button class="btn btn-sm" type="button" aria-expanded={mode === 'delete'} onclick={() => show('delete')}>{t('albumTools.delete')}</button>
   </div>
 
   {#if mode === 'rename'}
     <form class="card stack panel" onsubmit={rename}>
       <div class="field">
-        <label class="label" for="album-name">Name</label>
+        <label class="label" for="album-name">{t('albumTools.name')}</label>
         <input id="album-name" type="text" required maxlength="200" bind:value={newName} />
       </div>
       <div class="field">
-        <label class="label" for="album-description">Description <span class="muted">(optional, shown under the name)</span></label>
+        <label class="label" for="album-description">{t('albumTools.description')} <span class="muted">{t('albumTools.descriptionNote')}</span></label>
         <textarea id="album-description" rows="2" maxlength="2000" bind:value={newDescription}></textarea>
       </div>
       <div class="row">
-        <button class="btn btn-primary btn-sm" type="submit" disabled={busy || !newName.trim()}>Save</button>
-        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>Cancel</button>
+        <button class="btn btn-primary btn-sm" type="submit" disabled={busy || !newName.trim()}>{t('common.save')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>{t('common.cancel')}</button>
       </div>
     </form>
   {:else if mode === 'photos'}
     <div class="card stack panel">
       <p class="small">
-        Tick the photos to take out of this album. They stay in your library and in any other albums. Tick just one to make it the album's cover.
+        {t('albumTools.pickLead')}
       </p>
       <fieldset class="picker">
-        <legend class="sr-only">Photos in this album</legend>
+        <legend class="sr-only">{t('albumTools.inAlbum')}</legend>
         {#each items as item (item.id)}
           <label class="pick" class:on={picked.includes(item.id)}>
             <input type="checkbox" value={item.id} bind:group={picked} />
@@ -114,32 +114,32 @@
             {:else}
               <span class="name">{item.name}</span>
             {/if}
-            {#if item.id === coverId}<span class="cover">Cover</span>{/if}
+            {#if item.id === coverId}<span class="cover">{t('albumTools.cover')}</span>{/if}
           </label>
         {/each}
       </fieldset>
       <div class="row">
         <button class="btn btn-sm btn-danger" type="button" onclick={takeOut} disabled={busy || picked.length === 0}>
-          Take {picked.length ? count(picked.length, 'photo') : 'photos'} out of the album
+          {picked.length ? t('albumTools.takeOutCount', { count: picked.length }) : t('albumTools.takeOut')}
         </button>
-        <button class="btn btn-sm" type="button" onclick={makeCover} disabled={busy || picked.length !== 1 || picked[0] === coverId}>Make it the cover</button>
-        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>Done</button>
-        {#if picked.length}<span class="muted small">{count(picked.length, 'photo')} ticked</span>{/if}
+        <button class="btn btn-sm" type="button" onclick={makeCover} disabled={busy || picked.length !== 1 || picked[0] === coverId}>{t('albumTools.makeCover')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>{t('common.done')}</button>
+        {#if picked.length}<span class="muted small">{t('albumTools.ticked', { photos: t('common.photos', { count: picked.length }) })}</span>{/if}
       </div>
     </div>
   {:else if mode === 'delete'}
     <div class="card stack panel warn" role="alert">
       <p>
-        <strong>Delete the album “{name}”?</strong>
-        Its {count(items.length, 'photo')} stay in your library; only the album goes.
+        <strong>{t('albumTools.deleteQuestion', { name })}</strong>
+        {t('albumTools.photosStay', { photos: t('common.photos', { count: items.length }) })}
         {#if links > 0}
-          <strong>Its {count(links, 'client gallery link')} will stop working</strong>, and clients' favourites in {links === 1 ? 'it' : 'them'} go too.
+          <strong>{t('albumTools.linksStop', { links: t('albumTools.links', { count: links }) })}</strong>
         {/if}
-        This can't be undone.
+        {t('albumTools.cantUndo')}
       </p>
       <div class="row">
-        <button class="btn btn-sm btn-danger" type="button" onclick={remove} disabled={busy}>Delete album</button>
-        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>Keep it</button>
+        <button class="btn btn-sm btn-danger" type="button" onclick={remove} disabled={busy}>{t('albumTools.delete')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>{t('albumTools.keep')}</button>
       </div>
     </div>
   {/if}

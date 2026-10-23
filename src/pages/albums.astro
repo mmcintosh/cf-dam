@@ -1,9 +1,11 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import AppLayout from '../layouts/AppLayout.astro'
 import NewAlbum from '../components/NewAlbum.svelte'
 
 const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
 const { results: albums } = await env.DB.prepare(
   `SELECT al.id, al.name, al.description,
      COALESCE(al.cover_asset_id, (SELECT ai.asset_id FROM album_items ai WHERE ai.album_id = al.id ORDER BY ai.position LIMIT 1)) AS cover,
@@ -11,16 +13,16 @@ const { results: albums } = await env.DB.prepare(
    FROM albums al ORDER BY al.updated_at DESC`,
 ).all<{ id: string; name: string; description: string; cover: string | null; items: number }>()
 ---
-<AppLayout help="albums" title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
+<AppLayout help="albums" title={t('albums.title')} subtitle={t('albums.count', { count: albums.length })}>
   {principal.permissions.has('assets:edit') && <div class="new"><NewAlbum client:idle /></div>}
   <div class="albums">
     {albums.map((album) => (
       <a class="album" href={`/albums/${album.id}`}>
         <span class="cover">
-          {album.cover ? <img src={`/api/assets/${album.cover}/renditions/thumb`} alt="" loading="lazy" /> : <span class="muted">Empty</span>}
+          {album.cover ? <img src={`/api/assets/${album.cover}/renditions/thumb`} alt="" loading="lazy" /> : <span class="muted">{t('albums.empty')}</span>}
         </span>
         <strong>{album.name}</strong>
-        <span class="muted">{album.items} {album.items === 1 ? 'item' : 'items'}</span>
+        <span class="muted">{t('common.items', { count: album.items })}</span>
       </a>
     ))}
   </div>

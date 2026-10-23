@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   import { api } from '../lib/auth-client'
 
   let name = $state('')
@@ -13,6 +14,6 @@
 </script>
 
 <form class="row" onsubmit={create}>
-  <input type="text" placeholder="New album name" required maxlength="200" bind:value={name} style="max-width: 320px" aria-label="New album name" />
-  <button class="btn btn-primary" type="submit" disabled={busy}>Create album</button>
+  <input type="text" placeholder={t('albums.newName')} required maxlength="200" bind:value={name} style="max-width: 320px" aria-label={t('albums.newName')} />
+  <button class="btn btn-primary" type="submit" disabled={busy}>{t('albums.create')}</button>
 </form>

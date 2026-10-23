@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { onMount } from 'svelte'
   import type { ShareJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
@@ -14,11 +16,12 @@
   let { albumId, albumName, hasWatermark }: Props = $props()
 
   type Size = 'small' | 'large' | 'original'
-  const SIZES: [Size, string][] = [
-    ['small', 'Small JPEG (1024 px)'],
-    ['large', 'Large JPEG (2048 px)'],
-    ['original', 'Original files'],
+  const SIZES: [Size, MessageKey][] = [
+    ['small', 'share.sizes.small'],
+    ['large', 'share.sizes.large'],
+    ['original', 'share.sizes.original'],
   ]
+  const SIZE_WORDS: Record<Size, MessageKey> = { small: 'share.size.small', large: 'share.size.large', original: 'share.size.original' }
 
   interface Draft {
     name: string
@@ -47,7 +50,7 @@
 
   const live = $derived(shares.filter((s) => s.status !== 'revoked'))
   const linkFor = (s: ShareJson) => `${location.origin}/s/${s.token}`
-  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '')
+  const fmt = (iso: string | null) => (iso ? format().date(iso) : '')
 
   async function load() {
     shares = (await api<{ shares: ShareJson[] }>(`/api/shares?albumId=${encodeURIComponent(albumId)}`)).shares
@@ -103,7 +106,7 @@
       editing = null
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save the link.'
+      error = e instanceof Error ? e.message : t('share.saveFailed')
     } finally {
       busy = false
     }
@@ -132,10 +135,10 @@
 <section class="card stack">
   <div class="row head">
     <div>
-      <h2>Share with clients</h2>
-      <p class="muted small">A link shows this album to someone without an account. Each link has its own password, expiry and downloads. You can also invite clients to sign in and see it.</p>
+      <h2>{t('share.title')}</h2>
+      <p class="muted small">{t('share.lead')}</p>
     </div>
-    {#if editing === null}<button class="btn btn-primary btn-sm" onclick={() => start(null)}>New link</button>{/if}
+    {#if editing === null}<button class="btn btn-primary btn-sm" onclick={() => start(null)}>{t('share.new')}</button>{/if}
   </div>
 
   {#if live.length > 0}
@@ -145,23 +148,23 @@
           <div class="what">
             <strong>{share.name}</strong>
             <span class="row small">
-              {#if share.status === 'expired'}<span class="badge">Expired {fmt(share.expiresAt)}</span>{:else if share.expiresAt}<span class="badge">Until {fmt(new Date(new Date(share.expiresAt).getTime() - 1).toISOString())}</span>{/if}
-              {#if share.hasPassword}<span class="badge">Password</span>{/if}
-              {#if share.watermark}<span class="badge">Watermark</span>{/if}
-              {#if share.language}<span class="badge">In {LANGUAGES.find((l) => l.code === share.language)?.name}</span>{/if}
-              {#if share.downloadSizes.length > 0}<span class="badge">Downloads: {share.downloadSizes.join(', ')}</span>{/if}
+              {#if share.status === 'expired'}<span class="badge">{t('share.expiredOn', { date: fmt(share.expiresAt) })}</span>{:else if share.expiresAt}<span class="badge">{t('share.until', { date: fmt(new Date(new Date(share.expiresAt).getTime() - 1).toISOString()) })}</span>{/if}
+              {#if share.hasPassword}<span class="badge">{t('share.password')}</span>{/if}
+              {#if share.watermark}<span class="badge">{t('share.watermark')}</span>{/if}
+              {#if share.language}<span class="badge">{t('share.in', { language: LANGUAGES.find((l) => l.code === share.language)?.name ?? share.language })}</span>{/if}
+              {#if share.downloadSizes.length > 0}<span class="badge">{t('share.downloadsBadge', { sizes: format().list(share.downloadSizes.map((s) => t(SIZE_WORDS[s]))) })}</span>{/if}
             </span>
             <span class="muted small">
-              {share.stats.opens} {share.stats.opens === 1 ? 'open' : 'opens'} · {share.stats.visitors} picking · {share.stats.picks} favourites · {share.stats.downloads} downloads
+              {t('share.stats', { opens: t('share.opens', { count: share.stats.opens }), picking: share.stats.visitors, favourites: share.stats.picks, downloads: share.stats.downloads })}
             </span>
           </div>
           <div class="row">
             <code class="url">{linkFor(share)}</code>
-            <button class="btn btn-sm" onclick={() => copy(share)}>{copied === share.id ? 'Copied' : 'Copy link'}</button>
-            <a class="btn btn-sm" href={`/galleries/${share.id}`}>Picks and stats</a>
-            <button class="btn btn-sm" onclick={() => start(share)}>Edit</button>
+            <button class="btn btn-sm" onclick={() => copy(share)}>{copied === share.id ? t('share.copied') : t('share.copy')}</button>
+            <a class="btn btn-sm" href={`/galleries/${share.id}`}>{t('share.picksStats')}</a>
+            <button class="btn btn-sm" onclick={() => start(share)}>{t('common.edit')}</button>
             <button class="btn btn-sm btn-danger" onclick={() => revoke(share)} onblur={() => confirming === share.id && arm(null)}>
-              {confirming === share.id ? 'Click again to revoke' : 'Revoke'}
+              {confirming === share.id ? t('share.clickRevoke') : t('share.revoke')}
             </button>
           </div>
           {#if share.status === 'active'}<ShareClients shareId={share.id} />{/if}
@@ -169,47 +172,47 @@
       {/each}
     </ul>
   {:else if editing === null}
-    <p class="muted">No links yet.</p>
+    <p class="muted">{t('share.none')}</p>
   {/if}
 
   {#if editing !== null}
     <form class="stack form" onsubmit={save}>
       <div class="grid">
         <div class="field">
-          <label for="share-name">Who it's for (only you see this)</label>
-          <input id="share-name" type="text" required maxlength="200" placeholder="e.g. The Smiths" bind:value={draft.name} />
+          <label for="share-name">{t('share.whoFor')}</label>
+          <input id="share-name" type="text" required maxlength="200" placeholder={t('share.whoForPlaceholder')} bind:value={draft.name} />
         </div>
         <div class="field">
-          <label for="share-title">Gallery title</label>
+          <label for="share-title">{t('share.galleryTitle')}</label>
           <input id="share-title" type="text" maxlength="200" bind:value={draft.title} />
         </div>
       </div>
       <div class="field">
-        <label for="share-message">Message to the client</label>
+        <label for="share-message">{t('share.message')}</label>
         <textarea id="share-message" rows="3" maxlength="2000" bind:value={draft.message}></textarea>
       </div>
       <div class="grid">
         <div class="field">
-          <label for="share-password">{editing !== 'new' && shares.find((s) => s.id === editing)?.hasPassword ? 'New password (leave empty to keep it)' : 'Password (optional)'}</label>
+          <label for="share-password">{editing !== 'new' && shares.find((s) => s.id === editing)?.hasPassword ? t('share.newPassword') : t('share.passwordOptional')}</label>
           <input id="share-password" type="text" autocomplete="off" minlength="4" maxlength="200" bind:value={draft.password} disabled={draft.removePassword} />
           {#if editing !== 'new' && shares.find((s) => s.id === editing)?.hasPassword}
-            <label class="check"><input type="checkbox" bind:checked={draft.removePassword} /> Remove the password</label>
+            <label class="check"><input type="checkbox" bind:checked={draft.removePassword} /> {t('share.removePassword')}</label>
           {/if}
         </div>
         <div class="field">
-          <label for="share-expires">Open until (optional)</label>
+          <label for="share-expires">{t('share.openUntil')}</label>
           <input id="share-expires" type="date" bind:value={draft.expires} />
         </div>
         <div class="field">
-          <label for="share-language">Gallery language</label>
+          <label for="share-language">{t('share.language')}</label>
           <select id="share-language" bind:value={draft.language}>
-            <option value="">Each visitor's own (their browser)</option>
+            <option value="">{t('share.languageVisitor')}</option>
             {#each LANGUAGES as language (language.code)}<option value={language.code}>{language.name}</option>{/each}
           </select>
           {#if editing !== 'new'}
             {@const share = shares.find((s) => s.id === editing)}
             {#if share}
-              <span class="muted small">Preview:
+              <span class="muted small">{t('share.preview')}
                 {#each LANGUAGES as language, i (language.code)}{i ? ' · ' : ''}<a href={`/s/${share.token}?lang=${language.code}`} target="_blank" rel="noopener">{language.name}</a>{/each}
               </span>
             {/if}
@@ -217,27 +220,27 @@
         </div>
       </div>
       <fieldset>
-        <legend class="label">Downloads</legend>
+        <legend class="label">{t('share.downloads')}</legend>
         {#each SIZES as [size, text] (size)}
-          <label class="check"><input type="checkbox" value={size} bind:group={draft.downloadSizes} /> {text}</label>
+          <label class="check"><input type="checkbox" value={size} bind:group={draft.downloadSizes} /> {t(text)}</label>
         {/each}
         {#if draft.downloadSizes.includes('original')}
-          <p class="muted small">Originals are never watermarked. Ones on a NAS or in deep storage can't be downloaded from a gallery.</p>
+          <p class="muted small">{t('share.originalsNote')}</p>
         {/if}
       </fieldset>
       <fieldset>
-        <legend class="label">Options</legend>
-        <label class="check"><input type="checkbox" bind:checked={draft.proofing} /> Clients can pick favourites</label>
-        <label class="check"><input type="checkbox" bind:checked={draft.showFilenames} /> Show filenames</label>
+        <legend class="label">{t('share.options')}</legend>
+        <label class="check"><input type="checkbox" bind:checked={draft.proofing} /> {t('share.proofing')}</label>
+        <label class="check"><input type="checkbox" bind:checked={draft.showFilenames} /> {t('share.showFilenames')}</label>
         <label class="check">
-          <input type="checkbox" bind:checked={draft.watermark} /> Watermark what clients see and download
-          {#if !hasWatermark}<span class="muted small">(set one on the <a href="/galleries">Galleries</a> page first)</span>{/if}
+          <input type="checkbox" bind:checked={draft.watermark} /> {t('share.watermarkOption')}
+          {#if !hasWatermark}<a class="muted small" href="/galleries">{t('share.setWatermarkFirst')}</a>{/if}
         </label>
       </fieldset>
       {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
       <div class="row">
-        <button class="btn btn-primary" type="submit" disabled={busy}>{editing === 'new' ? 'Make the link' : 'Save'}</button>
-        <button class="btn" type="button" onclick={() => (editing = null)}>Cancel</button>
+        <button class="btn btn-primary" type="submit" disabled={busy}>{editing === 'new' ? t('share.make') : t('common.save')}</button>
+        <button class="btn" type="button" onclick={() => (editing = null)}>{t('common.cancel')}</button>
       </div>
     </form>
   {/if}

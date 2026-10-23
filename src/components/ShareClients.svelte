@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
   /**
    * Under a gallery link: the clients with an account who see it, and inviting another. An invite is a
    * one-time link shown once, for the photographer to send themselves (cf-dam sends no email).
@@ -20,7 +21,7 @@
   let note = $state('')
   let copied = $state(false)
 
-  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  const day = (iso: string) => format().date(iso)
   const inviteUrl = (token: string) => `${location.origin}/invite/${token}`
 
   async function load() {
@@ -40,13 +41,13 @@
         body: JSON.stringify({ name, email }),
       })
       if (result.invite) fresh = { name: result.member.name, url: inviteUrl(result.invite.token), expires: day(result.invite.expiresAt) }
-      else note = `${result.member.name} already has an account: this gallery is now on their list the next time they sign in.`
+      else note = t('clients.alreadyHas', { name: result.member.name })
       name = ''
       email = ''
       inviting = false
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not invite them.'
+      error = e instanceof Error ? e.message : t('clients.inviteFailed')
     } finally {
       busy = false
     }
@@ -60,7 +61,7 @@
       fresh = { name: member.name, url: inviteUrl(invite.token), expires: day(invite.expiresAt) }
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not make a new invite.'
+      error = e instanceof Error ? e.message : t('clients.reinviteFailed')
     }
   }
 
@@ -68,10 +69,10 @@
     error = ''
     try {
       await api(`/api/shares/${shareId}/members/${member.userId}`, { method: 'DELETE' })
-      note = `${member.name} no longer sees this gallery.`
+      note = t('clients.removed', { name: member.name })
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not take them off.'
+      error = e instanceof Error ? e.message : t('clients.removeFailed')
     }
   }
 
@@ -85,8 +86,8 @@
 
 <div class="clients stack">
   <div class="row head">
-    <span class="small"><strong>Clients with an account</strong> <span class="muted">sign in and see only their galleries; no password needed for this link.</span></span>
-    {#if !inviting}<button class="btn btn-sm" type="button" onclick={() => ((inviting = true), (fresh = null), (note = ''))}>Invite a client</button>{/if}
+    <span class="small"><strong>{t('clients.title')}</strong> <span class="muted">{t('clients.lead')}</span></span>
+    {#if !inviting}<button class="btn btn-sm" type="button" onclick={() => ((inviting = true), (fresh = null), (note = ''))}>{t('clients.invite')}</button>{/if}
   </div>
 
   {#if members.length > 0}
@@ -97,14 +98,14 @@
             <strong>{member.name}</strong> <span class="muted small">{member.email}</span>
           </span>
           <span class="muted small">
-            {#if !member.isActive}Account turned off
-            {:else if member.joined}{member.lastLoginAt ? `Last signed in ${day(member.lastLoginAt)}` : 'Joined'}
-            {:else if member.inviteExpiresAt && member.inviteExpiresAt > new Date().toISOString()}Invited: hasn't chosen a password yet
-            {:else}Invite expired{/if}
+            {#if !member.isActive}{t('clients.off')}
+            {:else if member.joined}{member.lastLoginAt ? t('clients.lastSignedIn', { date: day(member.lastLoginAt) }) : t('clients.joined')}
+            {:else if member.inviteExpiresAt && member.inviteExpiresAt > new Date().toISOString()}{t('clients.invited')}
+            {:else}{t('clients.expired')}{/if}
           </span>
           <span class="row actions">
-            {#if !member.joined}<button class="btn btn-sm" type="button" onclick={() => reinvite(member)}>New invite link</button>{/if}
-            <button class="btn btn-sm" type="button" onclick={() => remove(member)} title="They keep their account for other galleries">Take off this gallery</button>
+            {#if !member.joined}<button class="btn btn-sm" type="button" onclick={() => reinvite(member)}>{t('clients.newInvite')}</button>{/if}
+            <button class="btn btn-sm" type="button" onclick={() => remove(member)} title={t('clients.takeOffTitle')}>{t('clients.takeOff')}</button>
           </span>
         </li>
       {/each}
@@ -113,23 +114,22 @@
 
   {#if inviting}
     <form class="row invite" onsubmit={invite}>
-      <input type="text" aria-label="Their name" placeholder="Their name" required maxlength="100" bind:value={name} />
-      <input type="email" aria-label="Their email" placeholder="Their email" required maxlength="254" bind:value={email} />
-      <button class="btn btn-primary btn-sm" type="submit" disabled={busy}>Invite</button>
-      <button class="btn btn-sm" type="button" onclick={() => (inviting = false)}>Cancel</button>
+      <input type="text" aria-label={t('clients.theirName')} placeholder={t('clients.theirName')} required maxlength="100" bind:value={name} />
+      <input type="email" aria-label={t('clients.theirEmail')} placeholder={t('clients.theirEmail')} required maxlength="254" bind:value={email} />
+      <button class="btn btn-primary btn-sm" type="submit" disabled={busy}>{t('clients.inviteButton')}</button>
+      <button class="btn btn-sm" type="button" onclick={() => (inviting = false)}>{t('common.cancel')}</button>
     </form>
   {/if}
 
   {#if fresh}
     <div class="fresh stack" role="status">
       <p class="small">
-        <strong>Send {fresh.name} this invite.</strong> cf-dam doesn't send email, so copy it into your own message. It works once, until {fresh.expires}:
-        they choose a password and land in this gallery. This is the only time it's shown; you can make a new one later.
+        <strong>{t('clients.send', { name: fresh.name })}</strong> {t('clients.sendLead', { date: fresh.expires })}
       </p>
       <div class="row">
         <code class="url">{fresh.url}</code>
-        <button class="btn btn-sm btn-primary" type="button" onclick={copy}>{copied ? 'Copied' : 'Copy invite'}</button>
-        <button class="btn btn-sm" type="button" onclick={() => (fresh = null)}>Done</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick={copy}>{copied ? t('share.copied') : t('clients.copyInvite')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (fresh = null)}>{t('common.done')}</button>
       </div>
     </div>
   {/if}
