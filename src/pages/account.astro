@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getPreferences } from '@cf-dam/api'
+import { createFormat, getT } from '@cf-dam/i18n'
 import AppLayout from '../layouts/AppLayout.astro'
 import ApiKeys from '../components/ApiKeys.svelte'
 import AppearanceSettings from '../components/AppearanceSettings.svelte'
@@ -19,61 +20,60 @@ const canManageKeys = principal.permissions.has('apikeys:manage') && !setup
 // After a setup step, on to wherever the middleware sends them next (the Library, or the next step).
 const next = setup ? '/' : undefined
 const preferences = await getPreferences(env.DB, principal.userId)
-const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dateStyle: 'long' }) : ''
+const t = getT(Astro.locals.lang)
+const since = row ? createFormat(Astro.locals.lang).date(row.created_at) : ''
 ---
-<AppLayout help="account-security" title="Account" subtitle={`${principal.email} · member since ${since}`}>
+<AppLayout help="account-security" title={t('account.title')} subtitle={t('account.subtitle', { email: principal.email, date: since })}>
   {setup === 'password' && (
     <div class="alert setup" role="status">
-      <strong>Choose your own password.</strong> You signed in with a temporary one. Type it as the current password, then
-      your own new one, to continue.
+      {t('account.setup.password')}
     </div>
   )}
   {setup === 'two_factor' && (
     <div class="alert setup" role="status">
-      <strong>This archive needs a second step at sign-in.</strong> Add a passkey (1Password, your phone or computer), or turn on
-      codes from an authenticator app, to continue.
+      {t('account.setup.twoFactor')}
     </div>
   )}
   <div class="grid">
     {!setup && (
       <section class="card" id="appearance">
-        <h2>Appearance</h2>
-        <p class="lead">Light or dark, text size, contrast and other ways to make cf-dam easier to see and use. They follow you to any computer.</p>
+        <h2>{t('account.appearance.title')}</h2>
+        <p class="lead">{t('account.appearance.lead')}</p>
         <AppearanceSettings client:load initial={preferences} />
       </section>
     )}
     {setup !== 'password' && (
       <section class="card">
-        <h2>Passkeys</h2>
-        <p class="lead">Sign in with 1Password, your phone or computer's passkey, or a security key: no password, no code.</p>
+        <h2>{t('account.passkeys.title')}</h2>
+        <p class="lead">{t('account.passkeys.lead')}</p>
         <Passkeys client:load next={next} />
       </section>
     )}
     {setup !== 'password' && (
       <section class="card">
-        <h2>Two-factor sign-in</h2>
-        <p class="lead">A code from an authenticator app, on top of your password. Not needed when you sign in with a passkey.</p>
+        <h2>{t('account.twoFactor.title')}</h2>
+        <p class="lead">{t('account.twoFactor.lead')}</p>
         <TwoFactor client:load enabled={row?.two_factor_enabled === 1} next={next} />
       </section>
     )}
     {setup !== 'two_factor' && (
       <section class="card">
-        <h2>Password</h2>
-        <p class="lead">At least 12 characters.</p>
+        <h2>{t('account.password.title')}</h2>
+        <p class="lead">{t('account.password.lead')}</p>
         <ChangePassword client:load next={next} />
       </section>
     )}
     {!setup && (
       <section class="card">
-        <h2>Where you're signed in</h2>
-        <p class="lead">Each browser stays signed in for a week of not being used. Sign out any you don't recognise, then change your password.</p>
+        <h2>{t('account.sessions.title')}</h2>
+        <p class="lead">{t('account.sessions.lead')}</p>
         <Sessions client:load />
       </section>
     )}
     {canManageKeys && (
       <section class="card wide">
-        <h2>API keys</h2>
-        <p class="lead">For scripts and integrations. A key can only do what you can, limited to the scopes you pick.</p>
+        <h2>{t('account.apiKeys.title')}</h2>
+        <p class="lead">{t('account.apiKeys.lead')}</p>
         <ApiKeys client:load grantable={grantable} />
       </section>
     )}

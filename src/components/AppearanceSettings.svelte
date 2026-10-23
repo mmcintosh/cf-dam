@@ -6,6 +6,7 @@
   import { api } from '../lib/auth-client'
   import { t } from '@cf-dam/i18n/client'
   import { LANGUAGES } from '@cf-dam/i18n/languages'
+  import type { MessageKey } from '@cf-dam/i18n'
 
   interface Preferences {
     theme: 'system' | 'light' | 'dark'
@@ -50,10 +51,10 @@
     timer = setTimeout(async () => {
       try {
         prefs = await api<Preferences>('/api/me/preferences', { method: 'PUT', body: JSON.stringify(prefs) })
-        saved = 'Saved'
+        saved = t('common.saved')
         error = ''
       } catch (e) {
-        error = e instanceof Error ? e.message : 'Could not save.'
+        error = e instanceof Error ? e.message : t('common.couldNotSave')
       }
     }, 300)
   }
@@ -63,18 +64,28 @@
       await api('/api/me/preferences', { method: 'PUT', body: JSON.stringify({ language }) })
       location.reload()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
     }
   }
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) => apply({ ...prefs, [key]: value })
   // Appearance only: the language stays as chosen.
   const reset = () => apply({ ...USUAL, language: prefs.language })
 
-  const SIZES: [Preferences['textSize'], string][] = [
-    [100, 'Normal'],
-    [112, 'Larger'],
-    [125, 'Large'],
-    [150, 'Largest'],
+  const SIZES: [Preferences['textSize'], MessageKey][] = [
+    [100, 'appearance.size.normal'],
+    [112, 'appearance.size.larger'],
+    [125, 'appearance.size.large'],
+    [150, 'appearance.size.largest'],
+  ]
+  const THEMES: [Preferences['theme'], MessageKey][] = [
+    ['system', 'appearance.theme.system'],
+    ['light', 'appearance.theme.light'],
+    ['dark', 'appearance.theme.dark'],
+  ]
+  const THUMBS: [Preferences['thumbnails'], MessageKey][] = [
+    ['small', 'appearance.thumbs.small'],
+    ['medium', 'appearance.thumbs.medium'],
+    ['large', 'appearance.thumbs.large'],
   ]
 </script>
 
@@ -88,43 +99,43 @@
   </div>
 
   <fieldset>
-    <legend>Theme</legend>
+    <legend>{t('appearance.theme')}</legend>
     <div class="choices" role="radiogroup">
-      {#each [['system', 'Same as this computer'], ['light', 'Light'], ['dark', 'Dark']] as [value, label] (value)}
-        <label class="choice"><input type="radio" name="theme" {value} checked={prefs.theme === value} onchange={() => change('theme', value as Preferences['theme'])} /> {label}</label>
+      {#each THEMES as [value, label] (value)}
+        <label class="choice"><input type="radio" name="theme" {value} checked={prefs.theme === value} onchange={() => change('theme', value)} /> {t(label)}</label>
       {/each}
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Text size</legend>
+    <legend>{t('appearance.textSize')}</legend>
     <div class="choices" role="radiogroup">
       {#each SIZES as [value, label] (value)}
-        <label class="choice"><input type="radio" name="text-size" {value} checked={prefs.textSize === value} onchange={() => change('textSize', value)} /> <span style={`font-size:${value / 100}em`}>{label}</span></label>
+        <label class="choice"><input type="radio" name="text-size" {value} checked={prefs.textSize === value} onchange={() => change('textSize', value)} /> <span style={`font-size:${value / 100}em`}>{t(label)}</span></label>
       {/each}
     </div>
-    <p class="muted small">Everything grows with it, and the page reflows: nothing is cut off. Your browser's own zoom (Ctrl or ⌘ and +) works too.</p>
+    <p class="muted small">{t('appearance.textSizeNote')}</p>
   </fieldset>
 
   <fieldset>
-    <legend>Library thumbnails</legend>
+    <legend>{t('appearance.thumbnails')}</legend>
     <div class="choices" role="radiogroup">
-      {#each [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']] as [value, label] (value)}
-        <label class="choice"><input type="radio" name="thumbnails" {value} checked={prefs.thumbnails === value} onchange={() => change('thumbnails', value as Preferences['thumbnails'])} /> {label}</label>
+      {#each THUMBS as [value, label] (value)}
+        <label class="choice"><input type="radio" name="thumbnails" {value} checked={prefs.thumbnails === value} onchange={() => change('thumbnails', value)} /> {t(label)}</label>
       {/each}
     </div>
   </fieldset>
 
   <fieldset>
-    <legend>Easier to see and use</legend>
-    <label class="check"><input type="checkbox" checked={prefs.highContrast} onchange={(e) => change('highContrast', e.currentTarget.checked)} /> <span><strong>Stronger contrast.</strong> Black or white text, firmer edges and thicker focus outlines.</span></label>
-    <label class="check"><input type="checkbox" checked={prefs.readableFont} onchange={(e) => change('readableFont', e.currentTarget.checked)} /> <span><strong>Easier-to-read font.</strong> Atkinson Hyperlegible, designed by the Braille Institute for low vision.</span></label>
-    <label class="check"><input type="checkbox" checked={prefs.underlineLinks} onchange={(e) => change('underlineLinks', e.currentTarget.checked)} /> <span><strong>Underline links,</strong> so they don't depend on colour.</span></label>
-    <label class="check"><input type="checkbox" checked={prefs.reduceMotion} onchange={(e) => change('reduceMotion', e.currentTarget.checked)} /> <span><strong>No animations.</strong> (They're already kept to a minimum when your computer asks for less motion.)</span></label>
+    <legend>{t('appearance.easier')}</legend>
+    <label class="check"><input type="checkbox" checked={prefs.highContrast} onchange={(e) => change('highContrast', e.currentTarget.checked)} /> <span><strong>{t('appearance.contrast')}</strong> {t('appearance.contrastNote')}</span></label>
+    <label class="check"><input type="checkbox" checked={prefs.readableFont} onchange={(e) => change('readableFont', e.currentTarget.checked)} /> <span><strong>{t('appearance.font')}</strong> {t('appearance.fontNote')}</span></label>
+    <label class="check"><input type="checkbox" checked={prefs.underlineLinks} onchange={(e) => change('underlineLinks', e.currentTarget.checked)} /> <span><strong>{t('appearance.links')}</strong> {t('appearance.linksNote')}</span></label>
+    <label class="check"><input type="checkbox" checked={prefs.reduceMotion} onchange={(e) => change('reduceMotion', e.currentTarget.checked)} /> <span><strong>{t('appearance.motion')}</strong> {t('appearance.motionNote')}</span></label>
   </fieldset>
 
   <div class="row foot">
-    <button class="btn btn-sm" type="button" onclick={reset}>Back to the usual</button>
+    <button class="btn btn-sm" type="button" onclick={reset}>{t('appearance.reset')}</button>
     <span class="muted small" role="status">{saved}</span>
   </div>
   {#if error}<div class="alert alert-error">{error}</div>{/if}

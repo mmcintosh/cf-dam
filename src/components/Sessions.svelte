@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
+  import { format, t } from '@cf-dam/i18n/client'
   import { describeUserAgent } from '../lib/user-agent'
 
   interface Session {
@@ -20,11 +21,11 @@
   let lapse: ReturnType<typeof setTimeout> | undefined
 
   const others = $derived(sessions.filter((s) => !s.current))
-  const date = (iso: string) => new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  const date = (iso: string) => format().date(iso)
   /** Sessions are refreshed at most once a day, so "active" is only as fine as the day. */
   function active(iso: string): string {
     const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000)
-    return days < 1 ? 'active today' : days < 2 ? 'active yesterday' : `active ${date(iso)}`
+    return days < 1 ? t('sessions.activeToday') : days < 2 ? t('sessions.activeYesterday') : t('sessions.activeOn', { date: date(iso) })
   }
 
   async function load() {
@@ -37,10 +38,10 @@
     busy = true
     try {
       await api(`/api/me/sessions/${session.id}`, { method: 'DELETE' })
-      notice = `Signed out ${describeUserAgent(session.userAgent)}.`
+      notice = t('sessions.signedOut', { browser: describeUserAgent(session.userAgent) })
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not sign it out.'
+      error = e instanceof Error ? e.message : t('sessions.couldNotOne')
     } finally {
       busy = false
     }
@@ -59,10 +60,10 @@
     busy = true
     try {
       const { ended } = await api<{ ended: number }>('/api/me/sessions/sign-out-others', { method: 'POST' })
-      notice = `Signed out of ${ended} other ${ended === 1 ? 'browser' : 'browsers'}.`
+      notice = t('sessions.signedOutOthers', { count: ended })
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not sign them out.'
+      error = e instanceof Error ? e.message : t('sessions.couldNotOthers')
     } finally {
       busy = false
     }
@@ -75,13 +76,13 @@
       <li>
         <span class="what">
           <strong>{describeUserAgent(session.userAgent)}</strong>
-          {#if session.current}<span class="badge badge-ok">This browser</span>{/if}
+          {#if session.current}<span class="badge badge-ok">{t('sessions.thisBrowser')}</span>{/if}
           <span class="muted small">
-            {session.ipAddress ?? 'Unknown address'} · signed in {date(session.signedInAt)} · {active(session.lastActiveAt)}
+            {session.ipAddress ?? t('sessions.unknownAddress')} · {t('sessions.signedIn', { date: date(session.signedInAt) })} · {active(session.lastActiveAt)}
           </span>
         </span>
         {#if !session.current}
-          <button class="btn btn-sm" disabled={busy} onclick={() => end(session)}>Sign out</button>
+          <button class="btn btn-sm" disabled={busy} onclick={() => end(session)}>{t('common.signOut')}</button>
         {/if}
       </li>
     {/each}
@@ -89,7 +90,7 @@
   {#if others.length > 1}
     <div>
       <button class="btn btn-sm btn-danger" disabled={busy} onclick={endOthers} onblur={() => (confirming = false)}>
-        {confirming ? 'Click again to confirm' : `Sign out all ${others.length} others`}
+        {confirming ? t('common.clickAgainConfirm') : t('sessions.signOutAll', { count: others.length })}
       </button>
     </div>
   {/if}
