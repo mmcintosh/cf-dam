@@ -18,6 +18,9 @@
     title: string | null
     /** Alt text, for screen readers: preferred over the title and file name. */
     alt: string | null
+    caption: string | null
+    /** AI review's suggestions, kept apart until someone uses them. */
+    ai: { alt: string | null; caption: string | null } | null
     width: number | null
     height: number | null
     /** The size shown, after any rotate or crop. */
@@ -195,6 +198,20 @@
     if (await bulk({ action: field, [field]: value }, ids)) return true
     assets = assets.map((a) => (before.has(a.id) && a[field] === value ? { ...a, [field]: before.get(a.id) } : a))
     return false
+  }
+
+  /** What a screen reader hears: the alt text, else the AI's suggested one, else the title or file name. */
+  const altOf = (a: Asset) => a.alt ?? a.ai?.alt ?? a.title ?? a.filename
+
+  /** Keep the AI's caption and alt text where the photo has none (people's own text is never replaced). */
+  async function useSuggestion(asset: Asset) {
+    try {
+      const result = await api<{ alt: string | null; caption: string | null }>(`/api/assets/${asset.id}/ai/accept`, { method: 'POST', body: JSON.stringify({ fields: ['alt', 'caption'] }) })
+      assets = assets.map((a) => (a.id === asset.id ? { ...a, alt: result.alt, caption: result.caption } : a))
+      say(t('library.say.suggestionUsed'))
+    } catch (e) {
+      say(e instanceof Error ? e.message : t('common.couldNotSave'))
+    }
   }
 
   async function rate(value: number) {
@@ -402,7 +419,7 @@
     >
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {#if asset.renditions.includes('thumb')}
-        <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={asset.alt ?? asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
+        <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={altOf(asset)} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
         <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? t('common.noPreview') : asset.status === 'queued' ? t('common.queued') : t('common.processing')}</span></span>
       {/if}
@@ -495,7 +512,7 @@
         {#key current.id}
           <img
             src={`/api/assets/${current.id}/renditions/${current.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${current.imageVersion}`}
-            alt={current.alt ?? current.title ?? current.filename}
+            alt={altOf(current)}
             style={current.renditions.includes('thumb') ? `background-image:url(/api/assets/${current.id}/renditions/thumb?v=${current.imageVersion})` : ''}
             onclick={() => (zoom = !zoom)}
           />
@@ -506,13 +523,23 @@
       <button class="nav prev" aria-label={t('library.previous')} onclick={() => next(-1)} disabled={loupe === 0}>‹</button>
       <button class="nav next" aria-label={t('library.next')} onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total && totalExact}>›</button>
       <button class="close" aria-label={t('library.closeKey')} onclick={closeLoupe}>✕</button>
-      {#if current.flag}<span class={`loupe-flag ${current.flag}`}>{current.flag === 'pick' ? '⚑ Pick' : '✕ Reject'}</span>{/if}
+      {#if current.flag}<span class={`loupe-flag ${current.flag}`}>{current.flag === 'pick' ? t('library.pickButton') : t('library.rejectButton')}</span>{/if}
       {#if current.label}<span class={`loupe-label label-${current.label}`}>{labelNames[current.label]}</span>{/if}
     </div>
     {#if showInfo}
       <aside class="info">
         <h2>{current.title ?? current.filename}</h2>
         <p class="muted">{t('library.position', { index: loupe! + 1, total: `${format().number(total)}${totalExact ? '' : '+'}` })}</p>
+        {#if current.caption}
+          <p class="caption">{current.caption}</p>
+        {:else if current.ai?.caption || (!current.alt && current.ai?.alt)}
+          <div class="suggestion">
+            <span class="small muted">{t('library.aiSuggestion')}</span>
+            {#if current.ai?.caption}<p>{current.ai.caption}</p>{/if}
+            {#if !current.alt && current.ai?.alt}<p class="small"><span class="muted">{t('editor.alt')}:</span> {current.ai.alt}</p>{/if}
+            {#if canEdit}<button class="btn btn-sm" type="button" onclick={() => useSuggestion(current)}>{t('library.useSuggestion')}</button>{/if}
+          </div>
+        {/if}
         <div class="stars-row" aria-label={t('common.rating')}>
           {#each [1, 2, 3, 4, 5] as star (star)}
             <button class:on={(current.rating ?? 0) >= star} disabled={!canEdit} onclick={() => rate(current.rating === star ? 0 : star)} aria-label={t('common.stars', { count: star })}>★</button>
@@ -547,7 +574,7 @@
         {@const asset = assets.find((a) => a.id === id)}
         {#if asset}
           <figure>
-            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${asset.imageVersion}`} alt={asset.alt ?? asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
+            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${asset.imageVersion}`} alt={altOf(asset)} onclick={() => (zoom = !zoom)} />
             <figcaption>
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}
@@ -830,8 +857,9 @@
     z-index: 100;
     display: grid;
     grid-template-columns: 1fr auto;
-    background: rgb(5 6 9 / 0.97);
-    color: #eceef3;
+    /* Follows light or dark, like every other page. */
+    background: light-dark(rgb(240 242 246 / 0.98), rgb(5 6 9 / 0.97));
+    color: var(--text);
     animation: fade 160ms var(--ease);
   }
   @keyframes fade {
@@ -870,8 +898,8 @@
   .close {
     position: absolute;
     border: 0;
-    background: rgb(255 255 255 / 0.08);
-    color: #fff;
+    background: light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.08));
+    color: var(--text);
     cursor: pointer;
     border-radius: 50%;
     width: 44px;
@@ -881,7 +909,7 @@
   }
   .nav:hover,
   .close:hover {
-    background: rgb(255 255 255 / 0.18);
+    background: light-dark(rgb(0 0 0 / 0.12), rgb(255 255 255 / 0.18));
   }
   .nav:disabled {
     opacity: 0.2;
@@ -922,8 +950,8 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    border-left: 1px solid rgb(255 255 255 / 0.08);
-    background: rgb(15 18 24 / 0.9);
+    border-left: 1px solid var(--border);
+    background: var(--bg-elevated);
     overflow-y: auto;
   }
   .info h2 {
@@ -941,7 +969,19 @@
     font-size: 0.85rem;
   }
   .info dt {
-    color: #9aa2b1;
+    color: var(--text-muted);
+  }
+  .caption {
+    font-size: 0.9rem;
+  }
+  .suggestion {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    padding: 10px 12px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
   }
   .info dd {
     margin: 0;
@@ -950,7 +990,7 @@
     font-size: 1.4rem;
     background: none;
     border: 0;
-    color: rgb(255 255 255 / 0.25);
+    color: var(--border-strong);
     cursor: pointer;
     padding: 0 2px;
   }
@@ -966,18 +1006,13 @@
     font-size: 0.8rem;
     padding: 2px 10px;
     border-radius: 99px;
-    color: #eceef3;
-    background: rgb(138 164 255 / 0.18);
-  }
-  .info input {
-    background: rgb(255 255 255 / 0.06);
-    color: #eceef3;
-    border-color: rgb(255 255 255 / 0.15);
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
   }
   .keys {
     margin-top: auto !important;
     font-size: 0.75rem;
-    color: #6b7385;
+    color: var(--text-faint);
   }
 
   /* Compare */
@@ -1017,8 +1052,8 @@
     font-size: 0.85rem;
   }
   .compare-grid .icon {
-    color: #eceef3;
-    border-color: rgb(255 255 255 / 0.2);
+    color: var(--text);
+    border-color: var(--border-strong);
   }
   .compare-keys {
     position: absolute;

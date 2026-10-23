@@ -5638,6 +5638,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "library.aiSuggestion": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "library.aiTags": {
     "es": "machine",
     "de": "machine",
@@ -5931,6 +5937,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "library.say.suggestionUsed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "library.say.tagged": {
     "es": "machine",
     "de": "machine",
@@ -5986,6 +5998,12 @@
     "it": "machine"
   },
   "library.tagsToAdd": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.useSuggestion": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

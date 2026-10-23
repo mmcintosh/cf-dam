@@ -481,8 +481,9 @@
     z-index: 50;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    background: rgb(5 6 9);
-    color: #fff;
+    /* Follows light or dark, like the rest of the gallery. */
+    background: light-dark(rgb(240 242 246), rgb(5 6 9));
+    color: var(--text);
   }
   .viewer.modal {
     grid-template-rows: 1fr;
@@ -526,12 +527,12 @@
     border: 0;
     border-radius: var(--radius-sm);
     font-size: 2rem;
-    color: #fff;
-    background: rgb(255 255 255 / 0.06);
+    color: var(--text);
+    background: light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06));
     cursor: pointer;
   }
   .nav:hover {
-    background: rgb(255 255 255 / 0.14);
+    background: light-dark(rgb(0 0 0 / 0.12), rgb(255 255 255 / 0.14));
   }
   .prev {
     left: 8px;
@@ -543,7 +544,7 @@
     margin: 0;
     padding: 0 16px 16px;
     text-align: center;
-    color: rgb(255 255 255 / 0.8);
+    color: var(--text-muted);
   }
   @media (max-width: 640px) {
     .gallery {
