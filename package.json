@@ -8,9 +8,9 @@
   ],
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/check-bundle.mjs",
     "preview": "astro preview",
-    "deploy": "astro build && node scripts/optional-bindings.mjs && wrangler deploy",
+    "deploy": "npm run build && node scripts/optional-bindings.mjs && wrangler deploy",
     "check": "astro check && npm run check -w @cf-dam/api && npm run check -w @cf-dam/agent",
     "test": "npm test -w @cf-dam/api && npm test -w @cf-dam/agent",
     "cf-typegen": "wrangler types"

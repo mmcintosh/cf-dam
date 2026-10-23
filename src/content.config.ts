@@ -2,16 +2,8 @@
 import { defineCollection } from 'astro:content'
 import { glob } from 'astro/loaders'
 import { z } from 'astro/zod'
+import { HELP_SECTIONS } from './lib/help'
 
-export const HELP_SECTIONS = [
-  'Getting started',
-  'Your photos',
-  'Sharing',
-  'Where photos are kept',
-  'Computers and NAS',
-  'People and security',
-  'Settings',
-] as const
 
 const help = defineCollection({
   loader: glob({ pattern: '*.md', base: './src/content/help' }),
