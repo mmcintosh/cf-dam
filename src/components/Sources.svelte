@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { format, t, tHtml } from '@cf-dam/i18n/client'
   /** Computers and NAS: add a helper (compose file or installer, then a pairing code), see what each is doing, choose its folders. */
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
@@ -83,7 +84,7 @@
   }
   const disarm = (key: string) => confirming === key && arm(null)
 
-  const failed = (e: unknown, what: string) => (error = `${what}: ${e instanceof Error ? e.message : 'try again.'}`)
+  const failed = (e: unknown, what: string) => (error = t('sources.failed', { what, why: e instanceof Error ? e.message : t('common.tryAgain') }))
 
   async function load() {
     sources = (await api<{ sources: Source[] }>('/api/sources')).sources
@@ -93,7 +94,7 @@
   onMount(() => {
     origin = window.location.origin
     kind = /Mac/.test(navigator.platform) ? 'mac' : /Win/.test(navigator.platform) ? 'windows' : 'nas'
-    load().catch((e) => failed(e, 'Could not load the agents'))
+    load().catch((e) => failed(e, t('sources.loadFailed')))
     api<{ connections: typeof connections }>('/api/connections').then((r) => (connections = r.connections)).catch(() => {})
     if (initialCode) void startAdding().then(lookUp)
     const timer = setInterval(() => void load().catch(() => {}), 10_000)
@@ -104,7 +105,7 @@
     if (composes[which]) return
     const res = await fetch(`/api/sources/compose?nas=${which}`)
     if (res.ok) composes[which] = await res.text()
-    else error = `Could not load the compose file (${res.status}).`
+    else error = t('sources.composeFailed', { status: String(res.status) })
   }
 
   async function startAdding() {
@@ -118,7 +119,7 @@
       copied = true
       setTimeout(() => (copied = false), 1500)
     } catch {
-      error = 'Could not copy: select the text and copy it yourself.'
+      error = t('sources.copyFailed')
     }
   }
 
@@ -132,7 +133,7 @@
       agentName = pending.name
       reconnectTo = pending.previous?.id ?? ''
     } catch (e) {
-      error = e instanceof Error ? e.message : 'That code is unknown or has expired.'
+      error = e instanceof Error ? e.message : t('sources.codeUnknown')
     }
   }
 
@@ -145,7 +146,7 @@
       code = ''
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not connect the agent.'
+      error = e instanceof Error ? e.message : t('sources.connectFailed')
     }
   }
 
@@ -156,7 +157,7 @@
       await api(`/api/sources/${s.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
     } catch (e) {
       if (input) input.value = s.name
-      failed(e, `“${s.name}” wasn't changed`)
+      failed(e, t('sources.notChanged', { name: s.name }))
     }
     await load().catch(() => {})
   }
@@ -166,7 +167,7 @@
     try {
       await api(`/api/sources/${s.id}/rescan`, { method: 'POST' })
     } catch (e) {
-      failed(e, `Could not start a scan on “${s.name}”`)
+      failed(e, t('sources.scanFailed', { name: s.name }))
     }
   }
 
@@ -177,7 +178,7 @@
     try {
       await api(`/api/sources/${s.id}`, { method: 'DELETE' })
     } catch (e) {
-      failed(e, `“${s.name}” wasn't disconnected`)
+      failed(e, t('sources.notDisconnected', { name: s.name }))
     }
     await load().catch(() => {})
   }
@@ -190,7 +191,7 @@
       await api(`/api/sources/${s.id}/roots`, { method: 'POST', body: JSON.stringify({ path }) })
       newFolder[s.id] = ''
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not add that folder.'
+      error = e instanceof Error ? e.message : t('sources.addFolderFailed')
       return
     }
     await rescan(s)
@@ -205,7 +206,7 @@
     } catch (e) {
       if (input.type === 'checkbox') input.checked = r.enabled
       else input.value = r.exclude.join(', ')
-      failed(e, `${r.path} wasn't changed`)
+      failed(e, t('sources.folderNotChanged', { path: r.path }))
     }
     await load().catch(() => {})
   }
@@ -217,7 +218,7 @@
     try {
       await api(`/api/sources/${s.id}/roots/${r.id}`, { method: 'DELETE' })
     } catch (e) {
-      failed(e, `${r.path} is still indexed`)
+      failed(e, t('sources.stillIndexed', { path: r.path }))
     }
     await load().catch(() => {})
   }
@@ -225,119 +226,108 @@
   /** Folders the agent can see that aren't indexed, inside, or around an indexed one. */
   const offered = (s: Source) => s.folders.filter((f) => !s.roots.some((r) => f === r.path || f.startsWith(`${r.path}/`) || r.path.startsWith(`${f}/`)))
   const ago = (iso: string | null) => {
-    if (!iso) return 'never'
+    if (!iso) return t('sources.never')
     const s = Math.round((Date.now() - Date.parse(iso)) / 1000)
-    return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`
+    return s < 90 ? t('sources.justNow') : format().relative(iso)
   }
-  const n = (v: number | undefined) => (v ?? 0).toLocaleString()
+  const n = (v: number | undefined) => format().number(v ?? 0)
 </script>
 
 <div class="stack sources">
   {#if !adding}
-    <div><button class="btn btn-primary" type="button" onclick={startAdding}>Add a computer or NAS</button></div>
+    <div><button class="btn btn-primary" type="button" onclick={startAdding}>{t('sources.add')}</button></div>
   {:else}
     <section class="card stack add">
-      <header class="row"><h2>Add a computer or NAS</h2><span class="spacer"></span><button class="btn btn-sm" type="button" onclick={() => (adding = false)}>Close</button></header>
-      <div class="kinds" role="tablist" aria-label="Where it runs">
-        {#each [['nas', 'A NAS (Docker)'], ['mac', 'A Mac'], ['windows', 'A Windows PC']] as [k, label] (k)}
+      <header class="row"><h2>{t('sources.add')}</h2><span class="spacer"></span><button class="btn btn-sm" type="button" onclick={() => (adding = false)}>{t('common.close')}</button></header>
+      <div class="kinds" role="tablist" aria-label={t('sources.whereRuns')}>
+        {#each [['nas', t('sources.kind.nas')], ['mac', t('sources.kind.mac')], ['windows', t('sources.kind.windows')]] as [k, label] (k)}
           <button class="btn btn-sm" class:btn-primary={kind === k} type="button" role="tab" aria-selected={kind === k} onclick={() => (kind = k as typeof kind)}>{label}</button>
         {/each}
       </div>
       <ol class="steps">
         {#if kind === 'nas'}
           <li>
-            <strong>Which NAS?</strong>
-            <select bind:value={nas} onchange={() => loadCompose(nas)} aria-label="Which NAS">
-              {#each NAS as [k, label] (k)}<option value={k}>{label}</option>{/each}
+            <strong>{t('sources.whichNas')}</strong>
+            <select bind:value={nas} onchange={() => loadCompose(nas)} aria-label={t('sources.whichNasLabel')}>
+              {#each NAS as [k, label] (k)}<option value={k}>{k === 'linux' ? t('sources.otherLinux') : label}</option>{/each}
             </select>
             <p class="muted small">
-              Any NAS that runs Docker containers works, on Intel, AMD or ARM. A WD My Cloud or Buffalo can't run them: use the Mac or Windows steps on a computer that sees its
-              shared folders instead.
+              {t('sources.anyNas')}
             </p>
           </li>
           <li>
             {#if nas === 'synology'}
-              <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>, choose any folder for it (for
-              example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
+              {@html tHtml('sources.steps.synology')}
             {:else if nas === 'qnap'}
-              <strong>On your QNAP</strong>, install <em>Container Station</em> from the App Center, then open <em>Applications</em> → <em>Create</em>, name it
-              <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.qnap')}
             {:else if nas === 'ugreen'}
-              <strong>On your UGREEN</strong>, install the <em>Docker</em> app from the App Center, create a project named <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.ugreen')}
             {:else if nas === 'terramaster'}
-              <strong>On your TerraMaster</strong>, install <em>Docker Manager</em> from the App Center, create a project (compose) named <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.terramaster')}
             {:else if nas === 'asustor'}
-              <strong>On your Asustor</strong>, install <em>Portainer CE</em> from App Central (it brings Docker), open it, go to <em>Stacks</em> → <em>Add stack</em>, name it
-              <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.asustor')}
             {:else if nas === 'truenas'}
-              <strong>On TrueNAS</strong> (24.10 or later), open <em>Apps</em> → <em>Discover Apps</em> → the <em>⋮</em> menu → <em>Install via YAML</em>, name it
-              <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.truenas')}
             {:else if nas === 'unraid'}
-              <strong>On Unraid</strong>, open <em>Docker</em> → <em>Add Container</em> and fill in: Name <code>cf-dam-agent</code>; Repository
-              <code>{image}</code>; a <em>Port</em> 8790 to 8790; a <em>Variable</em> <code>CF_DAM_URL</code> = <code>{origin}</code>; a <em>Variable</em>
-              <code>PHOTOS_DIR</code> = <code>/mnt/user</code>; a <em>Path</em> from <code>/mnt/user</code> to <code>/mnt/user</code>, access <em>Read Only</em>; and a
-              <em>Path</em> from <code>/mnt/user/appdata/cf-dam-agent</code> to <code>/data</code>. With the Compose Manager plugin, paste this into a new stack instead:
+              {@html tHtml('sources.steps.unraid', { image, origin })}
             {:else if nas === 'omv'}
-              <strong>In OpenMediaVault</strong>, install the <em>compose</em> plugin (from omv-extras), then open <em>Services</em> → <em>Compose</em> → <em>Files</em> →
-              <em>Add</em>, name it <code>cf-dam-agent</code> and paste this:
+              {@html tHtml('sources.steps.omv')}
             {:else}
-              <strong>On the computer</strong>, save this as <code>docker-compose.yml</code> in a folder of its own and run <code>docker compose up -d</code> there:
+              {@html tHtml('sources.steps.linux')}
             {/if}
             <div class="compose">
               <pre>{compose}</pre>
-              <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? 'Copied' : 'Copy'}</button>
+              <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? t('share.copied') : t('common.copy')}</button>
             </div>
             <p class="muted small">
-              <strong>Paste it as it is: there's nothing to change.</strong> It lets the helper read your NAS's drive (never change or delete anything on it), and in the
-              next steps you choose which photo folders it catalogues, from a list. It needs about 1 GB of memory.
+              {@html tHtml('sources.pasteAsIs')}
             </p>
           </li>
           <li>
-            <strong>Start it.</strong> The agent's log (and its page at <code>http://your-nas:8790</code>) shows an eight-letter code.
+            {@html tHtml('sources.startIt')}
           </li>
         {:else}
           <li>
-            <strong>Install Node.js 24</strong> (the LTS installer) from <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>, if it isn't there already.
+            {@html tHtml('sources.installNode')}
           </li>
           {#if kind === 'mac'}
             <li>
-              <strong>Unzip the helper</strong> (<code>cf-dam-agent-mac.zip</code>), open <em>Terminal</em> in its <code>cf-dam-agent</code> folder and run:
+              {@html tHtml('sources.unzipMac')}
               <div class="compose"><pre>./install-macos.sh {origin}</pre></div>
               <p class="muted small">
-                It takes this Mac’s name, starts at login and only reads your photos. When macOS asks whether <code>node</code> may read your Pictures folder, drives or network volumes,
-                allow it.
+                {@html tHtml('sources.macNote')}
               </p>
             </li>
           {:else}
             <li>
-              <strong>Unzip the helper</strong>, open <em>PowerShell</em> in its folder and run:
+              {@html tHtml('sources.unzipWindows')}
               <div class="compose"><pre>powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Url {origin}</pre></div>
-              <p class="muted small">It starts when you sign in, as you, so it sees your mapped drives and shares. It only reads your photos.</p>
+              <p class="muted small">{t('sources.windowsNote')}</p>
             </li>
           {/if}
           <li>
-            <strong>Open <code>http://localhost:8790</code></strong> on that computer. It shows an eight-letter code.
+            {@html tHtml('sources.openLocal')}
           </li>
         {/if}
         <li>
-          <strong>Enter the code:</strong>
+          <strong>{t('sources.enterCode')}</strong>
           <div class="row code-row">
-            <input type="text" bind:value={code} placeholder="ABCD-EFGH" maxlength="9" oninput={lookUp} aria-label="Pairing code" class="code" />
+            <input type="text" bind:value={code} placeholder="ABCD-EFGH" maxlength="9" oninput={lookUp} aria-label={t('sources.pairingCode')} class="code" />
             {#if pending}
               {#if pending.reconnectable.length > 0}
-                <select bind:value={reconnectTo} aria-label="Connect as">
-                  <option value="">As a new agent</option>
-                  {#each pending.reconnectable as w (w.id)}<option value={w.id}>As “{w.name}” again{w.platform ? ` (${w.platform})` : ''}</option>{/each}
+                <select bind:value={reconnectTo} aria-label={t('sources.connectAs')}>
+                  <option value="">{t('sources.asNew')}</option>
+                  {#each pending.reconnectable as w (w.id)}<option value={w.id}>{t('sources.asAgain', { name: w.name })}{w.platform ? ` (${w.platform})` : ''}</option>{/each}
                 </select>
               {/if}
-              {#if !reconnectTo}<input type="text" bind:value={agentName} maxlength="80" aria-label="Agent name" />{/if}
-              <button class="btn btn-primary" type="button" onclick={approve}>Connect</button>
+              {#if !reconnectTo}<input type="text" bind:value={agentName} maxlength="80" aria-label={t('sources.agentName')} />{/if}
+              <button class="btn btn-primary" type="button" onclick={approve}>{t('sources.connect')}</button>
             {/if}
           </div>
           {#if pending && reconnectTo}
-            <p class="muted small">It gets back its entry, folders and photos, and carries on from its own list of files{pending.previous?.id === reconnectTo ? ' (it says this was its entry)' : ''}.</p>
+            <p class="muted small">{pending.previous?.id === reconnectTo ? t('sources.getsBackOwn') : t('sources.getsBack')}</p>
           {/if}
-          {#if pending}<p class="muted small">Agent “{pending.name}”{pending.platform ? ` on ${pending.platform}` : ''} is waiting. Connecting gives it a key that can only send photos to this archive.</p>{/if}
+          {#if pending}<p class="muted small">{pending.platform ? t('sources.waitingAgentOn', { name: pending.name, platform: pending.platform }) : t('sources.waitingAgent', { name: pending.name })}</p>{/if}
         </li>
       </ol>
       {#if error}<div class="alert alert-error">{error}</div>{/if}
@@ -346,91 +336,90 @@
 
   {#if loaded && sources.length === 0 && !adding}
     <section class="card empty">
-      <p>Nothing connected yet. A small helper runs on your NAS or computer, reads your photos where they are, and sends their metadata and previews here. Originals stay where they are until you decide to move them.</p>
+      <p>{t('sources.none')}</p>
     </section>
   {/if}
 
   {#each sources as s (s.id)}
     <section class="card stack agent" class:revoked={s.revoked}>
       <header class="row">
-        <span class="dot" class:on={s.online && !s.paused} class:paused={s.paused} title={s.online ? 'Online' : 'Offline'}></span>
-        <input class="name" type="text" value={s.name} disabled={s.revoked} onchange={(e) => update(s, { name: e.currentTarget.value }, e.currentTarget)} aria-label="Agent name" />
-        <span class="muted small">{s.revoked ? 'Disconnected' : s.paused ? 'Paused' : s.online ? (s.status.phase === 'scanning' ? 'Scanning' : 'Online') : `Last seen ${ago(s.lastSeenAt)}`}{s.version ? ` · v${s.version}` : ''}{s.platform ? ` · ${s.platform}` : ''}</span>
+        <span class="dot" class:on={s.online && !s.paused} class:paused={s.paused} title={s.online ? t('sources.online') : t('sources.offline')}></span>
+        <input class="name" type="text" value={s.name} disabled={s.revoked} onchange={(e) => update(s, { name: e.currentTarget.value }, e.currentTarget)} aria-label={t('sources.agentName')} />
+        <span class="muted small">{s.revoked ? t('sources.disconnected') : s.paused ? t('sources.paused') : s.online ? (s.status.phase === 'scanning' ? t('sources.scanning') : t('sources.online')) : t('sources.lastSeen', { when: ago(s.lastSeenAt) })}{s.version ? ` · v${s.version}` : ''}{s.platform ? ` · ${s.platform}` : ''}</span>
         <span class="spacer"></span>
         {#if !s.revoked}
-          <button class="btn btn-sm" type="button" onclick={() => rescan(s)} disabled={s.paused}>Scan now</button>
-          <button class="btn btn-sm" type="button" onclick={() => update(s, { paused: !s.paused })}>{s.paused ? 'Resume' : 'Pause'}</button>
+          <button class="btn btn-sm" type="button" onclick={() => rescan(s)} disabled={s.paused}>{t('sources.scanNow')}</button>
+          <button class="btn btn-sm" type="button" onclick={() => update(s, { paused: !s.paused })}>{s.paused ? t('sources.resume') : t('sources.pause')}</button>
           <button
             class="btn btn-sm btn-danger"
             type="button"
             onclick={() => revoke(s)}
             onblur={() => disarm(`revoke:${s.id}`)}
-            title="Its key stops working at once. Connecting it again means pairing again, as a new agent."
+            title={t('sources.disconnectTitle')}
           >
-            {confirming === `revoke:${s.id}` ? "Click again: can't be undone" : 'Disconnect'}
+            {confirming === `revoke:${s.id}` ? t('people.deleteConfirm') : t('sources.disconnect')}
           </button>
         {/if}
       </header>
 
       <div class="numbers">
-        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}`}><strong>{n(s.photos.total)}</strong><span class="muted">photos</span></a>
-        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}&missing=1`}><strong>{n(s.photos.missing)}</strong><span class="muted">missing</span></a>
+        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}`}><strong>{n(s.photos.total)}</strong><span class="muted">{t('sources.photos')}</span></a>
+        <a href={`/?on=${encodeURIComponent(`nas-${s.id}`)}&missing=1`}><strong>{n(s.photos.missing)}</strong><span class="muted">{t('sources.missing')}</span></a>
         {#if s.status.phase === 'scanning'}
-          <div><strong>{n(s.status.sent)} / {n(s.status.queued)}</strong><span class="muted">this scan{s.status.failed ? `, ${n(s.status.failed)} failed` : ''}</span></div>
+          <div><strong>{n(s.status.sent)} / {n(s.status.queued)}</strong><span class="muted">{s.status.failed ? t('sources.thisScanFailed', { count: s.status.failed }) : t('sources.thisScan')}</span></div>
         {/if}
         {#if s.status.previewsLater}
-          <div title="Sent with a thumbnail first, so they show sooner. Their large previews follow once every thumbnail is in.">
-            <strong>{n(s.status.previewsLater)}</strong><span class="muted">large previews to come</span>
+          <div title={t('sources.previewsLaterTitle')}>
+            <strong>{n(s.status.previewsLater)}</strong><span class="muted">{t('sources.previewsLater')}</span>
           </div>
         {/if}
       </div>
-      {#if s.status.phase === 'scanning' && s.status.current}<p class="muted small current">Now: {s.status.current}</p>{/if}
+      {#if s.status.phase === 'scanning' && s.status.current}<p class="muted small current">{t('sources.now', { item: s.status.current })}</p>{/if}
       {#if s.waiting}
         <p class="alert">
-          Brought back from a backup, without its key. Once refused a few times, the agent pairs again by itself and shows a new code (in its log and on
-          its status page). Enter it under <em>Add a computer or NAS</em> and connect it as “{s.name}” again.
+          {t('sources.restoredWaiting', { name: s.name })}
         </p>
       {/if}
-      {#if s.status.lastError}<p class="muted small">Last problem: {s.status.lastError}</p>{/if}
+      {#if s.status.lastError}<p class="muted small">{t('sources.lastProblem', { error: s.status.lastError })}</p>{/if}
 
       {#if !s.revoked}
         <div class="folders">
-          <h3>Folders</h3>
-          {#if s.roots.length === 0}<p class="muted small">Nothing indexed yet. Choose a folder the agent can see.</p>{/if}
+          <h3>{t('sources.folders')}</h3>
+          {#if s.roots.length === 0}<p class="muted small">{t('sources.noFolders')}</p>{/if}
           {#each s.roots as r (r.id)}
             <div class="root row">
-              <input type="checkbox" checked={r.enabled} onchange={(e) => updateRoot(s, r, { enabled: e.currentTarget.checked }, e.currentTarget)} aria-label={`Index ${r.path}`} />
+              <input type="checkbox" checked={r.enabled} onchange={(e) => updateRoot(s, r, { enabled: e.currentTarget.checked }, e.currentTarget)} aria-label={t('sources.indexPath', { path: r.path })} />
               <code>{r.path}</code>
               {#if r.volume}<span class="pill">Drive: {r.volume.label ?? 'unnamed'}</span>{/if}
-              {#if r.offlineSince}<span class="pill offline" title="Unplugged or unmounted. Its photos stay here; connect it to update them.">Offline since {ago(r.offlineSince)}</span>{/if}
-              <span class="muted small">{r.lastScanAt ? `scanned ${ago(r.lastScanAt)}` : 'first scan pending'}</span>
+              {#if r.offlineSince}<span class="pill offline" title={t('sources.offlineTitle')}>{t('sources.offlineSince', { when: ago(r.offlineSince) })}</span>{/if}
+              <span class="muted small">{r.lastScanAt ? t('sources.scanned', { when: ago(r.lastScanAt) }) : t('sources.firstScanPending')}</span>
               <span class="spacer"></span>
               <input
                 class="globs"
                 type="text"
                 value={r.exclude.join(', ')}
-                placeholder="Also skip, e.g. Exports/**, *.tmp"
-                aria-label="Folders and files to skip"
+                placeholder={t('sources.skipPlaceholder')}
+                aria-label={t('sources.skipLabel')}
                 onchange={(e) => updateRoot(s, r, { exclude: e.currentTarget.value.split(',').map((g) => g.trim()).filter(Boolean) }, e.currentTarget)}
               />
-              <button class="btn btn-sm" type="button" onclick={() => removeRoot(s, r)} onblur={() => disarm(`remove:${r.id}`)}>{confirming === `remove:${r.id}` ? 'Click again to stop indexing' : 'Remove'}</button>
+              <button class="btn btn-sm" type="button" onclick={() => removeRoot(s, r)} onblur={() => disarm(`remove:${r.id}`)}>{confirming === `remove:${r.id}` ? t('sources.clickStop') : t('common.remove')}</button>
             </div>
           {/each}
           <div class="row">
             {#if offered(s).length > 0}
-              <select bind:value={newFolder[s.id]} aria-label="Folder to index">
-                <option value="">Choose a folder…</option>
+              <select bind:value={newFolder[s.id]} aria-label={t('sources.folderToIndex')}>
+                <option value="">{t('sources.chooseFolder')}</option>
                 {#each offered(s) as f (f)}
                   {@const drive = s.volumes.find((v) => v.path === f)}
-                  <option value={f}>{drive ? `${drive.label ?? 'Drive'} (${f})${drive.removable ? ' · removable' : ''}` : f}</option>
+                  <option value={f}>{drive ? `${drive.label ?? t('sources.drive')} (${f})${drive.removable ? ` · ${t('sources.removable')}` : ''}` : f}</option>
                 {/each}
               </select>
             {:else}
-              <input type="text" bind:value={newFolder[s.id]} placeholder="/photos/photo" aria-label="Folder to index" />
+              <input type="text" bind:value={newFolder[s.id]} placeholder="/photos/photo" aria-label={t('sources.folderToIndex')} />
             {/if}
-            <button class="btn btn-sm" type="button" onclick={() => addFolder(s)} disabled={!newFolder[s.id]}>Index this folder</button>
+            <button class="btn btn-sm" type="button" onclick={() => addFolder(s)} disabled={!newFolder[s.id]}>{t('sources.indexThis')}</button>
           </div>
-          <p class="muted small">Synology's own folders (@eaDir, #recycle), Mac and Windows clutter and Lightroom caches are always skipped. Removing a folder keeps its photos here, marked missing.</p>
+          <p class="muted small">{t('sources.alwaysSkipped')}</p>
         </div>
         <ArchivePanel sourceId={s.id} settings={s.archive ?? {}} progress={s.status.archive} {connections} onchange={() => void load()} />
       {/if}

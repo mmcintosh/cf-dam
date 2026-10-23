@@ -53,5 +53,16 @@ function current(): Current {
 }
 
 export const t = (key: MessageKey, params?: Params): string => current().t(key, params)
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!)
+
+/**
+ * For the few catalog texts that carry their own simple markup (<strong>, <em>, <code>, <a href>): the
+ * instructions on the Computers and NAS and Storage pages. Values put into them are escaped, so the
+ * result is safe for `{@html}`: only markup written in the catalog (and checked by its QA) gets through.
+ * Everything else uses `t()` and is escaped by Svelte as usual.
+ */
+export const tHtml = (key: MessageKey, params?: Params): string =>
+  current().t(key, params && Object.fromEntries(Object.entries(params).map(([k, v]) => [k, typeof v === 'string' ? escapeHtml(v) : v])))
 export const format = (): Format => current().format
 export const lang = (): UiLanguage => current().lang

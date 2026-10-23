@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createFormat, createTranslate, getT, pageI18n, parseAcceptLanguage, pseudoize, resolveLanguage, runInLanguage } from '../src/index'
-import { t as clientT } from '../src/client'
+import { t as clientT, tHtml } from '../src/client'
 
 describe('resolveLanguage', () => {
   it('takes the first source that names a language we have', () => {
@@ -87,3 +87,14 @@ describe('client t on the server', () => {
     expect(page).toMatchObject({ lang: 'es', timeZone: 'Europe/Madrid' })
   })
 })
+
+describe('tHtml', () => {
+  it("keeps the catalog's own markup and escapes what goes into it", async () => {
+    const html = await runInLanguage({ lang: 'en' }, async () => tHtml('sources.steps.unraid', { image: '<img src=x onerror=alert(1)>', origin: '"https://dam.example"' }))
+    expect(html).toContain('<strong>On Unraid</strong>')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    expect(html).not.toContain('<img')
+    expect(html).toContain('&quot;https://dam.example&quot;')
+  })
+})
+

@@ -37,7 +37,7 @@
   "src/components/SharePanel.svelte": 0,
   "src/components/SharePicks.svelte": 0,
   "src/components/SignOut.svelte": 0,
-  "src/components/Sources.svelte": 73,
+  "src/components/Sources.svelte": 0,
   "src/components/StorageChecks.svelte": 7,
   "src/components/StoragePanel.svelte": 3,
   "src/components/ThemeSwitch.svelte": 0,
