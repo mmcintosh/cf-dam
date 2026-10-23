@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { createApiKey, listApiKeys, revokeApiKey } from '../auth/api-keys'
 import { principalJson, requireAuth, requirePermission } from '../auth/principal'
+import { getPreferences, savePreferences } from '../catalog/preferences'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredString, stringArray } from '../lib/http'
@@ -21,6 +22,19 @@ meRoutes.get('/', async (c) => {
     createdAt: row?.created_at ?? null,
     lastLoginAt: row?.last_login_at ?? null,
   })
+})
+
+/** Appearance and accessibility choices (catalog/preferences.ts). */
+meRoutes.get('/preferences', async (c) => c.json(await getPreferences(c.env.DB, c.get('principal')!.userId)))
+
+/** Change some of them; the rest stay as they were. */
+meRoutes.put('/preferences', async (c) => {
+  try {
+    return c.json(await savePreferences(c.env.DB, c.get('principal')!.userId, await readJsonObject(c)))
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+    throw error
+  }
 })
 
 meRoutes.get('/api-keys', requirePermission('apikeys:manage'), async (c) => {

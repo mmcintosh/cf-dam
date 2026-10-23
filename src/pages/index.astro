@@ -52,7 +52,7 @@ const subtitle = archiveTotal
   ? `${archiveTotal.toLocaleString()} items`
   : `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}${filtered ? ' match' : ''}`
 ---
-<AppLayout title="Library" subtitle={subtitle}>
+<AppLayout title="Library" subtitle={subtitle} wide>
   {total === 0 && !filtered ? (
     <div class="empty stack">
       <div class="card hero">

@@ -12,7 +12,7 @@ const { assets, total, totalExact } = await listAssets(env.DB, { albumId: id, li
 const canShare = Astro.locals.principal!.permissions.has('shares:manage')
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 ---
-<AppLayout title={album.name} subtitle={album.description || `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}`}>
+<AppLayout wide title={album.name} subtitle={album.description || `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}`}>
   {canShare && (
     <div class="share">
       <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} />

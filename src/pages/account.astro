@@ -1,7 +1,9 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getPreferences } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import ApiKeys from '../components/ApiKeys.svelte'
+import AppearanceSettings from '../components/AppearanceSettings.svelte'
 import ChangePassword from '../components/ChangePassword.svelte'
 import Passkeys from '../components/Passkeys.svelte'
 import Sessions from '../components/Sessions.svelte'
@@ -16,6 +18,7 @@ const setup = principal.setup
 const canManageKeys = principal.permissions.has('apikeys:manage') && !setup
 // After a setup step, on to wherever the middleware sends them next (the Library, or the next step).
 const next = setup ? '/' : undefined
+const preferences = await getPreferences(env.DB, principal.userId)
 const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dateStyle: 'long' }) : ''
 ---
 <AppLayout title="Account" subtitle={`${principal.email} · member since ${since}`}>
@@ -32,6 +35,13 @@ const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dat
     </div>
   )}
   <div class="grid">
+    {!setup && (
+      <section class="card" id="appearance">
+        <h2>Appearance</h2>
+        <p class="lead">Light or dark, text size, contrast and other ways to make cf-dam easier to see and use. They follow you to any computer.</p>
+        <AppearanceSettings client:load initial={preferences} />
+      </section>
+    )}
     {setup !== 'password' && (
       <section class="card">
         <h2>Passkeys</h2>

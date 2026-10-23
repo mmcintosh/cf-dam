@@ -4,11 +4,13 @@ interface Props {
   title: string
   /** Client galleries: the page is the photographer's, so no product name in the title, and no indexing. */
   bare?: boolean
+  /** The signed-in person's appearance choices, as <html> attributes (preferenceAttributes). */
+  attributes?: Record<string, string | undefined>
 }
-const { title, bare = false } = Astro.props
+const { title, bare = false, attributes = {} } = Astro.props
 ---
 <!doctype html>
-<html lang="en">
+<html lang="en" {...attributes}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />

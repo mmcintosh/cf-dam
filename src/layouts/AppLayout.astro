@@ -1,15 +1,18 @@
 ---
 import { env } from 'cloudflare:workers'
-import { alertCount } from '@cf-dam/api'
+import { alertCount, getPreferences, preferenceAttributes } from '@cf-dam/api'
 import Base from './Base.astro'
 import Logo from '../components/Logo.astro'
 import SignOut from '../components/SignOut.svelte'
+import ThemeSwitch from '../components/ThemeSwitch.svelte'
 
 interface Props {
   title: string
   subtitle?: string
+  /** Pages of photos (library, a photo, duplicates, the map, an album) use the whole width. */
+  wide?: boolean
 }
-const { title, subtitle } = Astro.props
+const { title, subtitle, wide = false } = Astro.props
 const principal = Astro.locals.principal!
 const path = Astro.url.pathname
 
@@ -37,6 +40,7 @@ const nav: NavItem[] = [
   { href: '/admin/alerts', label: 'Alerts', icon: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5a2 2 0 0 0 4 0', needs: 'alerts:read' },
   { href: '/account', label: 'Account', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21c1-4 4.3-6 8-6s7 2 8 6' },
 ]
+const preferences = await getPreferences(env.DB, principal.userId)
 const visible = nav.filter((item) => !item.needs || principal.permissions.has(item.needs))
 // Problems that need someone, for those who see alerts: one small query.
 const alerts = principal.permissions.has('alerts:read') ? await alertCount(env.DB).catch(() => 0) : 0
@@ -46,7 +50,8 @@ const initials = (principal.name || principal.email)
   .slice(0, 2)
   .join('')
 ---
-<Base title={title}>
+<Base title={title} attributes={preferenceAttributes(preferences)}>
+  <a class="skip" href="#main">Skip to content</a>
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="/"><Logo /><span>cf-dam</span></a>
@@ -75,7 +80,10 @@ const initials = (principal.name || principal.email)
           <span class="muted">{principal.roles.join(', ')}</span>
         </div>
       </div>
-      <SignOut client:load />
+      <div class="row end">
+        <ThemeSwitch client:load theme={preferences.theme} />
+        <SignOut client:load />
+      </div>
     </aside>
 
     <script is:inline>
@@ -87,7 +95,7 @@ const initials = (principal.name || principal.email)
         }
       })
     </script>
-    <main class="content">
+    <main class:list={["content", { wide }]} id="main" tabindex="-1">
       <header class="page-head">
         <div>
           <h1>{title}</h1>
@@ -222,6 +230,30 @@ const initials = (principal.name || principal.email)
     padding: 28px 36px 60px;
     max-width: 1200px;
     width: 100%;
+  }
+  .content.wide {
+    max-width: none;
+  }
+  .content:focus {
+    outline: none;
+  }
+  .end {
+    gap: 6px;
+    align-items: center;
+  }
+  .skip {
+    position: absolute;
+    left: 12px;
+    top: -60px;
+    z-index: 200;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-strong);
+    color: #fff;
+    font-weight: 600;
+  }
+  .skip:focus {
+    top: 12px;
   }
   .page-head {
     display: flex;

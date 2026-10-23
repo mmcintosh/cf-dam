@@ -566,7 +566,8 @@
 
 <style>
   .justified {
-    --row: 220px;
+    /* Taller rows on wide screens, and the person's thumbnail size (catalog/preferences.ts). */
+    --row: clamp(200px, 11vw, 300px);
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -584,6 +585,12 @@
     background: var(--surface-strong);
     color: #fff;
     outline-offset: 2px;
+  }
+  :global(:root[data-thumbs='small']) .justified {
+    --row: clamp(130px, 7vw, 190px);
+  }
+  :global(:root[data-thumbs='large']) .justified {
+    --row: clamp(280px, 16vw, 440px);
   }
   .spacer {
     display: block;
