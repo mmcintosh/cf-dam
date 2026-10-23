@@ -1,11 +1,13 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
 import Connections from '../../components/Connections.svelte'
 import BackupSettings from '../../components/BackupSettings.svelte'
 import StorageChecks from '../../components/StorageChecks.svelte'
 import PreviewHealth from '../../components/PreviewHealth.svelte'
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="storage" title="Storage" subtitle="Where originals live. Thumbnails and previews always stay in the built-in R2 bucket.">
+<AppLayout help="storage" title={t('nav.storage')} subtitle={t('storagePage.subtitle')}>
   <div class="stack">
     <Connections client:load origin={Astro.url.origin} />
     <StorageChecks client:load />

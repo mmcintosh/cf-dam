@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, tHtml } from '@cf-dam/i18n/client'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
@@ -100,7 +101,7 @@
       if (authMode === 'oidc-role') await loadSetup(connection.id)
       else await test(connection.id)
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not add the connection.'
+      error = e instanceof Error ? e.message : t('conn.addFailed')
     } finally {
       busy = false
     }
@@ -135,7 +136,7 @@
       } while (cursor)
       state.done = true
     } catch (e) {
-      state.error = e instanceof Error ? e.message : 'The import stopped.'
+      state.error = e instanceof Error ? e.message : t('conn.importStopped')
     } finally {
       state.running = false
     }
@@ -147,12 +148,12 @@
   }
 
   async function remove(c: Connection) {
-    if (!confirm(`Remove "${c.name}"? The bucket and its files are not touched.`)) return
+    if (!confirm(t('conn.removeConfirm', { name: c.name }))) return
     try {
       await api(`/api/connections/${c.id}`, { method: 'DELETE' })
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not remove the connection.'
+      error = e instanceof Error ? e.message : t('conn.removeFailed')
     }
   }
 
@@ -171,17 +172,17 @@
     <article class="card conn">
       <div class="row top">
         <div>
-          <h3>{c.name} {#if c.isDefault}<span class="badge badge-accent">Default</span>{/if}</h3>
+          <h3>{c.name} {#if c.isDefault}<span class="badge badge-accent">{t('conn.default')}</span>{/if}</h3>
           <p class="muted">
-            {#if c.provider === 'r2-binding'}This deployment's own R2 bucket, through the Worker binding. Thumbnails and previews always live here.
-            {:else if c.authMode === 'oidc-role'}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.region} · <span class="badge badge-ok">Keyless</span> role <code>{c.roleArn}</code>
-            {:else}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.endpoint} · {c.region} · key <code>{c.accessKeyId}</code>{/if}
+            {#if c.provider === 'r2-binding'}{t('conn.builtIn')}
+            {:else if c.authMode === 'oidc-role'}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.region} · <span class="badge badge-ok">{t('conn.keyless')}</span> {t('conn.role')} <code>{c.roleArn}</code>
+            {:else}<code>{c.bucket}</code>{c.prefix ? ` / ${c.prefix}` : ''} · {c.endpoint} · {c.region} · {t('conn.key')} <code>{c.accessKeyId}</code>{/if}
           </p>
         </div>
         <div class="row actions">
-          <button class="btn btn-sm" onclick={() => test(c.id)} disabled={result === 'running'}>{result === 'running' ? 'Testing…' : 'Test'}</button>
-          {#if !c.isDefault}<button class="btn btn-sm" onclick={() => makeDefault(c.id)}>Make default</button>{/if}
-          {#if c.provider === 's3'}<button class="btn btn-sm btn-danger" onclick={() => remove(c)}>Remove</button>{/if}
+          <button class="btn btn-sm" onclick={() => test(c.id)} disabled={result === 'running'}>{result === 'running' ? t('conn.testing') : t('conn.test')}</button>
+          {#if !c.isDefault}<button class="btn btn-sm" onclick={() => makeDefault(c.id)}>{t('conn.makeDefault')}</button>{/if}
+          {#if c.provider === 's3'}<button class="btn btn-sm btn-danger" onclick={() => remove(c)}>{t('common.remove')}</button>{/if}
         </div>
       </div>
       <div class="row classes">
@@ -189,47 +190,46 @@
       </div>
       {#if result && result !== 'running'}
         <div class="alert" class:alert-success={result.ok} class:alert-error={!result.ok}>
-          {result.ok ? 'Connected: wrote, read back and deleted a test object.' : result.message}
+          {result.ok ? t('conn.ok') : result.message}
         </div>
       {/if}
       {#if c.authMode === 'oidc-role'}
         {@const setup = setups[c.id]}
         <details class="import" ontoggle={(e) => e.currentTarget.open && !setup && loadSetup(c.id)}>
-          <summary>AWS setup for this keyless connection</summary>
+          <summary>{t('conn.awsSetup')}</summary>
           {#if setup}
             <ol class="steps">
               <li>
-                In IAM → Identity providers, add an <strong>OpenID Connect</strong> provider with URL
-                <code>{setup.identityProvider.url}</code> and audience <code>{setup.identityProvider.audience}</code>.
+                {@html tHtml('conn.step1', { url: setup.identityProvider.url, audience: setup.identityProvider.audience })}
               </li>
               <li>
-                Create the role <code>{setup.roleArn}</code> with this trust policy:
-                <button class="btn btn-sm" onclick={() => copy(`trust-${c.id}`, setup.trustPolicy)}>{copied === `trust-${c.id}` ? 'Copied' : 'Copy'}</button>
+                {@html tHtml('conn.step2', { role: setup.roleArn })}
+                <button class="btn btn-sm" onclick={() => copy(`trust-${c.id}`, setup.trustPolicy)}>{copied === `trust-${c.id}` ? t('share.copied') : t('common.copy')}</button>
                 <pre class="mono">{JSON.stringify(setup.trustPolicy, null, 2)}</pre>
               </li>
               <li>
-                Give it this permissions policy (this bucket only):
-                <button class="btn btn-sm" onclick={() => copy(`perm-${c.id}`, setup.permissionsPolicy)}>{copied === `perm-${c.id}` ? 'Copied' : 'Copy'}</button>
+                {t('conn.step3')}
+                <button class="btn btn-sm" onclick={() => copy(`perm-${c.id}`, setup.permissionsPolicy)}>{copied === `perm-${c.id}` ? t('share.copied') : t('common.copy')}</button>
                 <pre class="mono">{JSON.stringify(setup.permissionsPolicy, null, 2)}</pre>
               </li>
-              <li>Press <strong>Test</strong> above. No AWS secret is stored: each use signs a five-minute token that AWS swaps for one-hour keys.</li>
+              <li>{@html tHtml('conn.step4')}</li>
             </ol>
           {:else}
-            <p class="muted">Loading…</p>
+            <p class="muted">{t('common.loading')}</p>
           {/if}
         </details>
       {/if}
       {#if c.provider === 's3'}
         {@const state = importState(c.id)}
         <details class="import">
-          <summary>Catalogue files already in this bucket</summary>
-          <p class="muted">Every file becomes searchable where it is. Nothing is copied. Previews are made in the background; archived files are listed with their name, size and class.</p>
+          <summary>{t('conn.catalogue')}</summary>
+          <p class="muted">{t('conn.catalogueLead')}</p>
           <div class="row">
-            <input type="text" placeholder="Folder to start from (optional), e.g. photos/2019/" bind:value={state.prefix} style="flex: 1" aria-label="Folder to import" />
-            <button class="btn" onclick={() => runImport(c.id)} disabled={state.running}>{state.running ? 'Importing…' : 'Import'}</button>
+            <input type="text" placeholder={t('conn.importFrom')} bind:value={state.prefix} style="flex: 1" aria-label={t('conn.importFolder')} />
+            <button class="btn" onclick={() => runImport(c.id)} disabled={state.running}>{state.running ? t('conn.importing') : t('conn.import')}</button>
           </div>
           {#if state.running || state.done}
-            <p class="muted">{state.imported} new {state.imported === 1 ? 'file' : 'files'} catalogued, {state.skipped} skipped{state.done ? '. Done.' : '…'}</p>
+            <p class="muted">{t(state.done ? 'conn.progressDone' : 'conn.progress', { files: t('conn.newFiles', { count: state.imported }), skipped: state.skipped })}</p>
           {/if}
           {#if state.error}<div class="alert alert-error">{state.error}</div>{/if}
         </details>
@@ -240,58 +240,58 @@
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
 
   {#if !adding}
-    <div><button class="btn btn-primary" onclick={() => (adding = true)}>Add an S3 connection</button></div>
+    <div><button class="btn btn-primary" onclick={() => (adding = true)}>{t('conn.add')}</button></div>
   {:else}
     <form class="card stack" onsubmit={create}>
-      <h3>New S3 connection</h3>
-      <div class="presets" role="radiogroup" aria-label="Provider">
+      <h3>{t('conn.new')}</h3>
+      <div class="presets" role="radiogroup" aria-label={t('conn.provider')}>
         {#each Object.entries(PRESETS) as [key, p] (key)}
-          <button type="button" role="radio" aria-checked={preset === key} class:on={preset === key} onclick={() => applyPreset(key as PresetKey)}>{p.label}</button>
+          <button type="button" role="radio" aria-checked={preset === key} class:on={preset === key} onclick={() => applyPreset(key as PresetKey)}>{key === 'custom' ? t('conn.otherS3') : p.label}</button>
         {/each}
       </div>
       {#if preset === 'aws'}
-        <div class="presets" role="radiogroup" aria-label="How cf-dam reaches AWS">
-          <button type="button" role="radio" aria-checked={authMode === 'oidc-role'} class:on={authMode === 'oidc-role'} onclick={() => (authMode = 'oidc-role')}>Keyless: an IAM role (recommended)</button>
-          <button type="button" role="radio" aria-checked={authMode === 'access-key'} class:on={authMode === 'access-key'} onclick={() => (authMode = 'access-key')}>Access keys</button>
+        <div class="presets" role="radiogroup" aria-label={t('conn.howReach')}>
+          <button type="button" role="radio" aria-checked={authMode === 'oidc-role'} class:on={authMode === 'oidc-role'} onclick={() => (authMode = 'oidc-role')}>{t('conn.keylessOption')}</button>
+          <button type="button" role="radio" aria-checked={authMode === 'access-key'} class:on={authMode === 'access-key'} onclick={() => (authMode = 'access-key')}>{t('conn.keysOption')}</button>
         </div>
         {#if authMode === 'oidc-role'}
-          <p class="muted">cf-dam signs its own short-lived tokens and AWS swaps them for temporary keys, so no AWS secret is ever stored. Needs this site on https. After saving, cf-dam shows the exact trust and permissions policies to create.</p>
+          <p class="muted">{t('conn.keylessLead')}</p>
         {/if}
       {/if}
       <div class="grid">
-        <div class="field"><label for="c-name">Name</label><input id="c-name" type="text" placeholder="Studio archive" required bind:value={form.name} /></div>
-        <div class="field"><label for="c-bucket">Bucket</label><input id="c-bucket" type="text" required bind:value={form.bucket} /></div>
-        <div class="field"><label for="c-region">Region</label><input id="c-region" type="text" required bind:value={form.region} oninput={regionChanged} /></div>
-        <div class="field"><label for="c-prefix">Folder in the bucket (optional)</label><input id="c-prefix" type="text" placeholder="cf-dam" bind:value={form.prefix} /></div>
+        <div class="field"><label for="c-name">{t('conn.name')}</label><input id="c-name" type="text" placeholder={t('conn.namePlaceholder')} required bind:value={form.name} /></div>
+        <div class="field"><label for="c-bucket">{t('conn.bucket')}</label><input id="c-bucket" type="text" required bind:value={form.bucket} /></div>
+        <div class="field"><label for="c-region">{t('conn.region')}</label><input id="c-region" type="text" required bind:value={form.region} oninput={regionChanged} /></div>
+        <div class="field"><label for="c-prefix">{t('conn.prefix')}</label><input id="c-prefix" type="text" placeholder="cf-dam" bind:value={form.prefix} /></div>
         {#if authMode === 'oidc-role'}
-          <div class="field wide"><label for="c-role">Role ARN</label><input id="c-role" type="text" placeholder="arn:aws:iam::123456789012:role/cf-dam" required bind:value={roleArn} /></div>
+          <div class="field wide"><label for="c-role">{t('conn.roleArn')}</label><input id="c-role" type="text" placeholder="arn:aws:iam::123456789012:role/cf-dam" required bind:value={roleArn} /></div>
         {:else}
-          <div class="field wide"><label for="c-endpoint">Endpoint</label><input id="c-endpoint" type="text" required bind:value={form.endpoint} /></div>
-          <div class="field"><label for="c-key">Access key ID</label><input id="c-key" type="text" autocomplete="off" required bind:value={form.accessKeyId} /></div>
-          <div class="field"><label for="c-secret">Secret access key</label><input id="c-secret" type="password" autocomplete="off" required bind:value={form.secretAccessKey} /></div>
+          <div class="field wide"><label for="c-endpoint">{t('conn.endpoint')}</label><input id="c-endpoint" type="text" required bind:value={form.endpoint} /></div>
+          <div class="field"><label for="c-key">{t('conn.accessKeyId')}</label><input id="c-key" type="text" autocomplete="off" required bind:value={form.accessKeyId} /></div>
+          <div class="field"><label for="c-secret">{t('conn.secret')}</label><input id="c-secret" type="password" autocomplete="off" required bind:value={form.secretAccessKey} /></div>
         {/if}
       </div>
-      <label class="check"><input type="checkbox" bind:checked={form.forcePathStyle} /> Path-style URLs (most non-AWS services)</label>
+      <label class="check"><input type="checkbox" bind:checked={form.forcePathStyle} /> {t('conn.pathStyle')}</label>
       <fieldset class="classes-pick">
-        <legend class="label">Storage classes this bucket offers</legend>
+        <legend class="label">{t('conn.classes')}</legend>
         {#each ALL_CLASSES as cls (cls)}
           <label class="check"><input type="checkbox" value={cls} bind:group={form.storageClasses} /> <code>{cls}</code></label>
         {/each}
       </fieldset>
       <div class="field narrow">
-        <label for="c-default">Default class for uploads</label>
+        <label for="c-default">{t('conn.defaultClass')}</label>
         <select id="c-default" bind:value={form.defaultClass}>
           {#each form.storageClasses as cls (cls)}<option value={cls}>{cls}</option>{/each}
         </select>
       </div>
       <details>
-        <summary>Browser uploads go straight to the bucket: add this CORS rule to it</summary>
+        <summary>{t('conn.cors')}</summary>
         <pre class="mono">{corsRule}</pre>
-        <p class="muted">Without it, uploads to this connection fail with a network error. The secret is encrypted before it is stored and is never shown again.</p>
+        <p class="muted">{t('conn.corsLead')}</p>
       </details>
       <div class="row">
-        <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add and test'}</button>
-        <button class="btn" type="button" onclick={() => (adding = false)}>Cancel</button>
+        <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('conn.adding') : t('conn.addTest')}</button>
+        <button class="btn" type="button" onclick={() => (adding = false)}>{t('common.cancel')}</button>
       </div>
     </form>
   {/if}

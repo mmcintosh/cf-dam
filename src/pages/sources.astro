@@ -1,10 +1,12 @@
 ---
 import AppLayout from '../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
 import Sources from '../components/Sources.svelte'
 
 // A pairing code can arrive in the URL (the agent's status page links here).
 const code = new URL(Astro.url).searchParams.get('code')
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="computers-and-nas" title="Computers and NAS" subtitle="Index photos where they live. Originals stay on the computer or NAS; cf-dam gets their metadata and previews.">
+<AppLayout help="computers-and-nas" title={t('sources.title')} subtitle={t('sourcesPage.subtitle')}>
   <Sources client:load initialCode={code} />
 </AppLayout>

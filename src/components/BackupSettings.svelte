@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, lang, t } from '@cf-dam/i18n/client'
+  import { intlTag } from '@cf-dam/i18n/languages'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
@@ -41,13 +43,13 @@
   const destinations = $derived(connections.filter((c) => c.provider !== 'nas'))
   const builtIn = $derived(connections.find((c) => c.id === draft.connectionId)?.provider === 'r2-binding')
   const changed = $derived(config !== null && JSON.stringify(config) !== JSON.stringify(draft))
-  const fmt = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-  const size = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`)
+  const fmt = (iso: string) => format().dateTime(iso)
+  const size = (bytes: number) => format().bytes(bytes)
   /** The UTC hour as this browser's local time, so "03:00 UTC" means something. */
   const local = (hour: number) => {
     const d = new Date()
     d.setUTCHours(hour, 0, 0, 0)
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    return d.toLocaleTimeString(intlTag(lang()), { hour: 'numeric', minute: '2-digit' })
   }
 
   async function load() {
@@ -69,10 +71,10 @@
     busy = true
     try {
       await api('/api/backups/config', { method: 'PUT', body: JSON.stringify(draft) })
-      notice = draft.connectionId ? 'Saved.' : 'Catalog backups are off.'
+      notice = draft.connectionId ? t('backup.saved') : t('backup.isOff')
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
     } finally {
       busy = false
     }
@@ -83,10 +85,10 @@
     busy = true
     try {
       await api('/api/backups/run', { method: 'POST' })
-      notice = 'Started. A large catalog takes a while; this page shows its progress.'
+      notice = t('backup.started')
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not start a backup.'
+      error = e instanceof Error ? e.message : t('backup.startFailed')
     } finally {
       busy = false
     }
@@ -95,44 +97,40 @@
 
 <section class="card stack">
   <div>
-    <h2>Catalog backups</h2>
-    <p class="muted">
-      A daily copy of the catalog: every photo's details, keywords, albums, galleries and people. Not the originals, and not
-      passwords, codes or sign-ins: after a restore, people are given new passwords.
-    </p>
+    <h2>{t('backup.title')}</h2>
+    <p class="muted">{t('backup.lead')}</p>
   </div>
 
   {#if config}
     <form class="settings" onsubmit={save}>
       <label class="field">
-        <span>Back up to</span>
+        <span>{t('backup.to')}</span>
         <select bind:value={draft.connectionId}>
-          <option value={null}>Off</option>
+          <option value={null}>{t('backup.off')}</option>
           {#each destinations as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
         </select>
       </label>
       <label class="field">
-        <span>Every day at (UTC)</span>
+        <span>{t('backup.at')}</span>
         <select bind:value={draft.hour} disabled={!draft.connectionId}>
           {#each Array.from({ length: 24 }, (_, h) => h) as h (h)}
-            <option value={h}>{String(h).padStart(2, '0')}:00 · {local(h)} here</option>
+            <option value={h}>{String(h).padStart(2, '0')}:00 · {t('backup.here', { time: local(h) })}</option>
           {/each}
         </select>
       </label>
       <label class="field">
-        <span>Keep for (days)</span>
+        <span>{t('backup.keep')}</span>
         <input type="number" min="1" max="365" bind:value={draft.keepDays} disabled={!draft.connectionId} />
       </label>
       <div class="actions">
-        <button class="btn btn-primary" type="submit" disabled={busy || !changed}>Save</button>
-        <button class="btn" type="button" disabled={busy || !config.connectionId || running !== null} onclick={runNow}>Back up now</button>
+        <button class="btn btn-primary" type="submit" disabled={busy || !changed}>{t('common.save')}</button>
+        <button class="btn" type="button" disabled={busy || !config.connectionId || running !== null} onclick={runNow}>{t('backup.now')}</button>
       </div>
     </form>
 
     {#if builtIn}
       <p class="alert note">
-        The built-in bucket is in the same Cloudflare account as the catalog. It protects against mistakes, not against losing the
-        account. For that, add your own S3 bucket above and back up there.
+        {t('backup.builtIn')}
       </p>
     {/if}
   {/if}
@@ -142,27 +140,27 @@
 
   {#if running}
     <p class="muted">
-      Backing up now: {running.tablesDone} of {running.tables} tables, {running.rows.toLocaleString()} rows so far{running.failures > 0
-        ? `, after ${running.failures} failed ${running.failures === 1 ? 'try' : 'tries'}`
-        : ''}.
+      {running.failures > 0
+        ? t('backup.runningRetried', { done: running.tablesDone, tables: running.tables, rows: running.rows, tries: t('backup.failedTries', { count: running.failures }) })
+        : t('backup.running', { done: running.tablesDone, tables: running.tables, rows: running.rows })}
     </p>
   {/if}
 
   {#if backups.length > 0}
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>Started</th><th>Where</th><th>Rows</th><th>Size</th><th>State</th></tr></thead>
+        <thead><tr><th>{t('backup.started2')}</th><th>{t('common.where')}</th><th>{t('backup.rows')}</th><th>{t('backup.size')}</th><th>{t('backup.state')}</th></tr></thead>
         <tbody>
           {#each backups as b (b.id)}
             <tr>
               <td>{fmt(b.startedAt)}</td>
-              <td>{b.connectionName ?? 'A removed connection'}</td>
-              <td class="num">{b.status === 'done' ? b.rows.toLocaleString() : ''}</td>
+              <td>{b.connectionName ?? t('common.removedConnection')}</td>
+              <td class="num">{b.status === 'done' ? format().number(b.rows) : ''}</td>
               <td class="num">{b.status === 'done' ? size(b.bytes) : ''}</td>
               <td>
-                {#if b.status === 'done'}<span class="badge badge-ok">Finished</span>
-                {:else if b.status === 'running'}<span class="badge">Running</span>
-                {:else}<span class="badge badge-warn">Failed</span> <span class="muted small">{b.error}</span>{/if}
+                {#if b.status === 'done'}<span class="badge badge-ok">{t('backup.finished')}</span>
+                {:else if b.status === 'running'}<span class="badge">{t('backup.runningBadge')}</span>
+                {:else}<span class="badge badge-warn">{t('backup.failed')}</span> <span class="muted small">{b.error}</span>{/if}
               </td>
             </tr>
           {/each}
@@ -170,7 +168,7 @@
       </table>
     </div>
   {:else if config?.connectionId}
-    <p class="muted">The first backup starts within a minute.</p>
+    <p class="muted">{t('backup.first')}</p>
   {/if}
 </section>
 

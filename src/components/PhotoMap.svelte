@@ -81,7 +81,7 @@
       map = L.map(container!, { worldCopyJump: true }).setView([20, 0], 2)
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · places: <a href="https://www.geonames.org">GeoNames</a>',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · places: <a href="https://www.geonames.org">GeoNames</a>', // i18n-ok: the map data's required credit
       }).addTo(map)
 
       const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 })

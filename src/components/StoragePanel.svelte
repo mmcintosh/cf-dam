@@ -98,7 +98,7 @@
         <dt>{t('storage.drive')}</dt>
         <dd>{location.nasFolder.root.volume.label ?? t('storage.unnamedDrive')}</dd>
       {/if}
-      <dt>State</dt>
+      <dt>{t('storage.stateLabel')}</dt>
       <dd>
         {#if location.state === 'missing'}
           {t('storage.missing')}
@@ -122,7 +122,7 @@
       <dd>{location.connectionName}</dd>
       <dt>{t('storage.class')}</dt>
       <dd>{className(location.storageClass)}</dd>
-      <dt>State</dt>
+      <dt>{t('storage.stateLabel')}</dt>
       <dd>
         {location.restoreExpiresAt ? t('storage.until', { state: stateName(location.state), date: format().date(location.restoreExpiresAt) }) : stateName(location.state)}
       </dd>

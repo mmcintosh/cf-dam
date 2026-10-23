@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
@@ -19,21 +21,21 @@
     problems: Problem[]
   }
 
-  const RESULT: Record<Problem['result'], string> = { missing: 'Missing', changed: 'Changed', unreadable: "Couldn't check" }
+  const RESULT: Record<Problem['result'], MessageKey> = { missing: 'checks.result.missing', changed: 'checks.result.changed', unreadable: 'checks.result.unreadable' }
 
   let checks = $state<Checks | null>(null)
   let error = $state('')
   let requeued = $state<Set<string>>(new Set())
 
-  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'not yet')
-  const n = (value: number) => value.toLocaleString()
+  const fmt = (iso: string | null) => (iso ? format().dateTime(iso) : t('checks.notYet'))
+  const n = (value: number) => format().number(value)
   const problems = $derived(checks ? checks.totals.missing + checks.totals.changed + checks.totals.unreadable : 0)
 
   async function load() {
     try {
       checks = await api<Checks>('/api/storage-checks')
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not load the checks.'
+      error = e instanceof Error ? e.message : t('checks.loadFailed')
     }
   }
   onMount(load)
@@ -46,39 +48,36 @@
 
 <section class="card stack">
   <div>
-    <h2>Checks</h2>
-    <p class="muted">
-      Every original in cloud storage is checked once every {checks?.cycleDays ?? 30} days: still there, the same size, the same file. Originals in the
-      built-in R2 bucket are also read back and compared with what was uploaded. Originals on a computer or NAS are checked by its helper on each scan.
-    </p>
+    <h2>{t('checks.title')}</h2>
+    <p class="muted">{t('checks.lead', { days: checks?.cycleDays ?? 30 })}</p>
   </div>
 
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
 
   {#if checks}
     <div class="totals">
-      <div><strong>{n(checks.totals.ok)}</strong><span class="muted">fine</span></div>
-      <div class:bad={problems > 0}><strong>{n(problems)}</strong><span class="muted">{problems === 1 ? 'problem' : 'problems'}</span></div>
-      <div><strong>{n(checks.totals.unchecked)}</strong><span class="muted">not checked yet</span></div>
-      <div><strong class="when">{fmt(checks.lastCheckedAt)}</strong><span class="muted">last check</span></div>
+      <div><strong>{n(checks.totals.ok)}</strong><span class="muted">{t('checks.fine')}</span></div>
+      <div class:bad={problems > 0}><strong>{n(problems)}</strong><span class="muted">{t('checks.problems', { count: problems })}</span></div>
+      <div><strong>{n(checks.totals.unchecked)}</strong><span class="muted">{t('checks.unchecked')}</span></div>
+      <div><strong class="when">{fmt(checks.lastCheckedAt)}</strong><span class="muted">{t('checks.last')}</span></div>
     </div>
 
     {#if checks.problems.length > 0}
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>Photo</th><th>Where</th><th>What</th><th>Checked</th><th></th></tr></thead>
+          <thead><tr><th>{t('common.photo')}</th><th>{t('common.where')}</th><th>{t('checks.what')}</th><th>{t('checks.checked')}</th><th></th></tr></thead>
           <tbody>
             {#each checks.problems as p (`${p.assetId}:${p.connectionId}`)}
               <tr>
                 <td><a href={`/assets/${p.assetId}`}>{p.filename}</a></td>
-                <td class="where"><span>{p.connectionName ?? 'A removed connection'}</span><span class="muted mono">{p.key}</span></td>
-                <td><span class="badge badge-warn">{RESULT[p.result]}</span> <span class="muted">{p.detail}</span></td>
+                <td class="where"><span>{p.connectionName ?? t('common.removedConnection')}</span><span class="muted mono">{p.key}</span></td>
+                <td><span class="badge badge-warn">{t(RESULT[p.result])}</span> <span class="muted">{p.detail}</span></td>
                 <td class="muted">{fmt(p.checkedAt)}</td>
                 <td class="end">
                   {#if requeued.has(`${p.assetId}:${p.connectionId}`)}
-                    <span class="muted small">Within a minute</span>
+                    <span class="muted small">{t('checks.withinMinute')}</span>
                   {:else}
-                    <button class="btn btn-sm" onclick={() => recheck(p)}>Check again</button>
+                    <button class="btn btn-sm" onclick={() => recheck(p)}>{t('checks.again')}</button>
                   {/if}
                 </td>
               </tr>
