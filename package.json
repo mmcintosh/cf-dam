@@ -12,7 +12,7 @@
     "preview": "astro preview",
     "deploy": "npm run build && node scripts/optional-bindings.mjs && node scripts/deploy-target.mjs production && wrangler deploy",
     "deploy:staging": "CLOUDFLARE_ENV=staging npm run build && node scripts/optional-bindings.mjs && node scripts/deploy-target.mjs staging && wrangler deploy",
-    "check": "astro check && node scripts/check-help-translations.mjs && npm run check -w @cf-dam/i18n && npm run check -w @cf-dam/api && npm run check -w @cf-dam/agent",
+    "check": "astro check && node scripts/check-help-translations.mjs && node scripts/check-i18n-literals.mjs && npm run check -w @cf-dam/i18n && npm run check -w @cf-dam/api && npm run check -w @cf-dam/agent",
     "test": "npm test -w @cf-dam/i18n && npm test -w @cf-dam/api && npm test -w @cf-dam/agent",
     "cf-typegen": "wrangler types"
   },

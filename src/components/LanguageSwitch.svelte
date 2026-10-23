@@ -22,7 +22,7 @@
   <span class="sr-only">{t('language.label')}</span>
   <select aria-label={t('language.label')} value={current} onchange={choose}>
     {#each LANGUAGES as language (language.code)}<option value={language.code} lang={language.code}>{language.name}</option>{/each}
-    {#if pseudo}<option value={PSEUDO}>Pseudo (test)</option>{/if}
+    {#if pseudo}<option value={PSEUDO}>Pseudo (test)</option>{/if}<!-- i18n-ok: a testing aid, not shown to real people -->
   </select>
 </label>
 

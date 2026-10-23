@@ -27,6 +27,15 @@ app.route('/.well-known', wellKnownRoutes)
 app.route('/api', createDamApi())
 app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404))
 
+// Pages are built for one person in one language: never cached for anyone else (pages may say more).
+app.use('*', async (c, next) => {
+  await next()
+  if (!c.res.headers.get('Content-Type')?.startsWith('text/html')) return
+  if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'private, no-cache')
+  const vary = c.res.headers.get('Vary')
+  c.res.headers.set('Vary', vary ? `${vary}, Cookie, Accept-Language` : 'Cookie, Accept-Language')
+})
+
 app.use(cf())
 app.use(sessions())
 app.use(notFound())
