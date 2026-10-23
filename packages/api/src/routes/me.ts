@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { createApiKey, listApiKeys, revokeApiKey } from '../auth/api-keys'
 import { principalJson, requireAuth, requirePermission } from '../auth/principal'
 import { clientGalleries } from '../catalog/clients'
+import { languageCookie } from '../lib/language'
 import { getPreferences, savePreferences } from '../catalog/preferences'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -34,7 +35,11 @@ meRoutes.get('/preferences', async (c) => c.json(await getPreferences(c.env.DB, 
 /** Change some of them; the rest stay as they were. */
 meRoutes.put('/preferences', async (c) => {
   try {
-    return c.json(await savePreferences(c.env.DB, c.get('principal')!.userId, await readJsonObject(c)))
+    const body = await readJsonObject(c)
+    const saved = await savePreferences(c.env.DB, c.get('principal')!.userId, body)
+    // A copy in a cookie, so working out each request's language needs no database read.
+    if (body.language !== undefined) c.header('Set-Cookie', languageCookie(c.req.raw, saved.language))
+    return c.json(saved)
   } catch (error) {
     if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
     throw error

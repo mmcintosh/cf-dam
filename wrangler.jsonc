@@ -32,6 +32,8 @@
   "env": {
     "staging": {
       "name": "cf-dam-staging",
+      // The pseudo-language (accented, longer English) for spotting untranslated text.
+      "vars": { "I18N_PSEUDO": "1" },
       "d1_databases": [{ "binding": "DB", "database_name": "cf-dam-staging" }],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "cf-dam-staging-media" }],
       "kv_namespaces": [{ "binding": "CACHE_KV" }],

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@better-auth/passkey": "^1.7.10",
+    "@cf-dam/i18n": "*",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.10",
     "exifr": "^7.1.3",

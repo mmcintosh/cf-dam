@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css'
+import { currentTimeZone, direction, intlTag, PAGE_DATA_ID, pageI18n } from '@cf-dam/i18n'
 interface Props {
   title: string
   /** Client galleries: the page is the photographer's, so no product name in the title, and no indexing. */
@@ -8,9 +9,12 @@ interface Props {
   attributes?: Record<string, string | undefined>
 }
 const { title, bare = false, attributes = {} } = Astro.props
+const lang = Astro.locals.lang ?? 'en'
+// The page's language and its text, once, for the islands' `t` (packages/i18n/src/client.ts).
+const i18n = JSON.stringify(pageI18n(lang, currentTimeZone())).replace(/</g, '\\u003c')
 ---
 <!doctype html>
-<html lang="en" {...attributes}>
+<html lang={intlTag(lang)} dir={direction(lang)} {...attributes}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -18,6 +22,16 @@ const { title, bare = false, attributes = {} } = Astro.props
     {bare && <meta name="robots" content="noindex, nofollow" />}
     {bare && <meta name="referrer" content="no-referrer" />}
     <title>{bare ? title : `${title} · cf-dam`}</title>
+    <script type="application/json" id={PAGE_DATA_ID} set:html={i18n} />
+    <script is:inline>
+      // The browser's time zone, so times the server writes are in the reader's own (packages/i18n format).
+      try {
+        const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+        if (zone && !document.cookie.split('; ').includes('cfdam_tz=' + encodeURIComponent(zone))) {
+          document.cookie = 'cfdam_tz=' + encodeURIComponent(zone) + '; Path=/; Max-Age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '')
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <slot />

@@ -36,6 +36,7 @@ export { runSweep, type SweepResult } from './catalog/sweeper'
 export { alertCount } from './catalog/alerts'
 export { currentRestore as currentRestoreView } from './catalog/restore'
 export { securityHeaders } from './lib/security-headers'
+export { languageCookie, readCookie, requestLanguage, setSiteLanguage, siteLanguage, pseudoAllowed, SITE_LANGUAGE_KEY, TIME_ZONE_COOKIE } from './lib/language'
 export { wellKnownRoutes } from './routes/well-known'
 
 export const API_VERSION = '0.1.0'

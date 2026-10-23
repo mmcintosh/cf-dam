@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { cf } from '@astrojs/cloudflare/hono'
 import { actions, i18n, middleware, notFound, pages, sessions } from 'astro/hono'
-import { browserOrigins, createDamApi, ensureMigrated, handleWork, runSweep, securityHeaders, wellKnownRoutes, type DamBindings, type WorkMessage } from '@cf-dam/api'
+import { browserOrigins, createDamApi, ensureMigrated, handleWork, requestLanguage, runSweep, securityHeaders, wellKnownRoutes, type DamBindings, type WorkMessage } from '@cf-dam/api'
+import { runInLanguage } from '@cf-dam/i18n'
 
 // The Worker entry (wrangler `main`). One Worker serves both halves: the JSON API under /api,
 // with real env and executionCtx, then Astro for every other path.
@@ -16,6 +17,10 @@ app.use('*', async (c, next) => {
   await ensureMigrated(c.env.DB)
   await next()
 })
+
+// The request's language (packages/i18n): everything after this, API messages and pages alike, runs in it.
+// A signed-in person's own choice can still change it (src/middleware.ts, the API's sign-in check).
+app.use('*', async (c, next) => runInLanguage(await requestLanguage(c.env, c.req.raw), next))
 
 // OIDC issuer metadata for keyless AWS access (public keys only).
 app.route('/.well-known', wellKnownRoutes)

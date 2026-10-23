@@ -51,7 +51,7 @@ const clientNav: NavItem[] = [
   { href: '/help/for-clients', label: 'Help', icon: nav.find((n) => n.href === '/help')!.icon },
 ]
 const helpPage = client ? 'for-clients' : help
-const preferences = await getPreferences(env.DB, principal.userId)
+const preferences = Astro.locals.preferences ?? (await getPreferences(env.DB, principal.userId))
 const visible = client ? clientNav : nav.filter((item) => !item.needs || principal.permissions.has(item.needs))
 // Problems that need someone, for those who see alerts: one small query.
 const alerts = principal.permissions.has('alerts:read') ? await alertCount(env.DB).catch(() => 0) : 0

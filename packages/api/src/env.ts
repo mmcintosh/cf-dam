@@ -12,6 +12,8 @@ export interface DamBindings {
   BETTER_AUTH_URL?: string
   /** Required to create the first admin anywhere but localhost. */
   SETUP_TOKEN?: string
+  /** "1" offers the pseudo-language (accented, longer English) for testing translations. Staging only. */
+  I18N_PSEUDO?: string
   /** Encrypts stored storage credentials. Falls back to BETTER_AUTH_SECRET when unset. */
   STORAGE_ENCRYPTION_KEY?: string
   /** Cloudflare Images, for thumbnails and previews. Without it, only embedded thumbnails are used. */

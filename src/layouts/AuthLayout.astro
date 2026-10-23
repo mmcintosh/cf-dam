@@ -1,6 +1,9 @@
 ---
 import Base from './Base.astro'
+import { env } from 'cloudflare:workers'
+import { pseudoAllowed } from '@cf-dam/api'
 import Logo from '../components/Logo.astro'
+import LanguageSwitch from '../components/LanguageSwitch.svelte'
 interface Props {
   title: string
 }
@@ -12,6 +15,7 @@ const { title } = Astro.props
     <a class="brand" href="/"><Logo size={36} /><span>cf-dam</span></a>
     <div class="card panel"><slot /></div>
     <p class="foot muted">Open-source digital asset management on Cloudflare</p>
+    <LanguageSwitch client:load pseudo={pseudoAllowed(env as { I18N_PSEUDO?: string })} />
   </main>
 </Base>
 

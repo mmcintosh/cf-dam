@@ -10,7 +10,8 @@
  */
 import { defineMiddleware } from 'astro:middleware'
 import { env } from 'cloudflare:workers'
-import { clientGalleries, isClientOnly, resolvePrincipal, setupNeeded } from '@cf-dam/api'
+import { clientGalleries, getPreferences, isClientOnly, resolvePrincipal, setupNeeded } from '@cf-dam/api'
+import { currentLanguage, LANGUAGE_COOKIE, setLanguage } from '@cf-dam/i18n'
 
 const SIGNED_OUT_PAGES = new Set(['/login'])
 /** All a client can open (client galleries themselves are under /s/, open to anyone with the link). */
@@ -36,6 +37,8 @@ const PAGE_PERMISSIONS: [string, string][] = [
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname, search } = context.url
   context.locals.principal = null
+  context.locals.preferences = null
+  context.locals.lang = currentLanguage()
   // Served by the Hono routes in src/fetch.ts; never gated behind sign-in.
   if (pathname.startsWith('/.well-known/')) return next()
   // Client galleries: the link is the key (packages/api/src/routes/gallery.ts).
@@ -55,6 +58,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)
   }
   if (SIGNED_OUT_PAGES.has(pathname)) return context.redirect('/')
+  // Their own language wins over the browser's; the cookie keeps a copy for the API and next time.
+  const preferences = await getPreferences(env.DB, principal.userId)
+  context.locals.preferences = preferences
+  if (preferences.language !== 'auto') {
+    setLanguage(preferences.language)
+    context.locals.lang = preferences.language
+    if (context.cookies.get(LANGUAGE_COOKIE)?.value !== preferences.language) {
+      context.cookies.set(LANGUAGE_COOKIE, preferences.language, { path: '/', maxAge: 31_536_000, sameSite: 'lax', secure: context.url.protocol === 'https:' })
+    }
+  }
   // A temporary password to replace, or a second factor to set up: Account until it's done.
   if (principal.setup) return pathname === '/account' ? next() : context.redirect('/account')
   if (isClientOnly(principal.roles)) {

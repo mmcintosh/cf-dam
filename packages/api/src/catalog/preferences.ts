@@ -7,6 +7,7 @@
  * that can be enlarged without breaking the page (1.4.4), stronger contrast (1.4.6), no motion when
  * asked (2.3.3), visible links (1.4.1) and a font chosen for low vision.
  */
+import { asLanguage, type Language } from '@cf-dam/i18n'
 import { nowIso } from '../lib/time'
 
 export const THEMES = ['system', 'light', 'dark'] as const
@@ -24,6 +25,8 @@ export interface Preferences {
   readableFont: boolean
   underlineLinks: boolean
   thumbnails: (typeof THUMBNAIL_SIZES)[number]
+  /** The language cf-dam speaks to them; 'auto' follows their browser (then the archive's language). */
+  language: Language | 'auto'
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -34,6 +37,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   readableFont: false,
   underlineLinks: false,
   thumbnails: 'medium',
+  language: 'auto',
 }
 
 const one = <T>(allowed: readonly T[], value: unknown, fallback: T): T => (allowed.includes(value as T) ? (value as T) : fallback)
@@ -50,6 +54,7 @@ export function parsePreferences(value: unknown, base: Preferences = DEFAULT_PRE
     readableFont: flag(v.readableFont, base.readableFont),
     underlineLinks: flag(v.underlineLinks, base.underlineLinks),
     thumbnails: one(THUMBNAIL_SIZES, v.thumbnails, base.thumbnails),
+    language: v.language === 'auto' ? 'auto' : ((asLanguage(v.language) as Language | null) ?? base.language),
   }
 }
 

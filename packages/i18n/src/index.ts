@@ -46,7 +46,7 @@ export function pageI18n(lang: UiLanguage, timeZone?: string): PageI18n {
   return { lang, catalog: lang === 'en' ? en : { ...en, ...catalogFor(lang) }, ...(timeZone ? { timeZone } : {}) }
 }
 
-interface RequestLanguage {
+export interface RequestLanguage {
   lang: UiLanguage
   timeZone?: string
 }
@@ -54,7 +54,20 @@ const store = new AsyncLocalStorage<RequestLanguage>()
 
 /** Run a request's work in its language, so Svelte's server render (via `client.ts`) uses it too. */
 export function runInLanguage<T>(language: RequestLanguage, work: () => T): T {
-  return store.run(language, work)
+  return store.run({ ...language }, work)
+}
+
+/** The current request's language (English outside a request). */
+export const currentLanguage = (): UiLanguage => store.getStore()?.lang ?? 'en'
+export const currentTimeZone = (): string | undefined => store.getStore()?.timeZone
+
+/**
+ * Change the current request's language once more is known (the signed-in person's own choice,
+ * read after sign-in). Only inside `runInLanguage`; elsewhere it does nothing.
+ */
+export function setLanguage(lang: UiLanguage): void {
+  const current = store.getStore()
+  if (current) current.lang = lang
 }
 
 const formats = new Map<string, Format>()
