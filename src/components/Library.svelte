@@ -457,8 +457,8 @@
         <select aria-label={t('library.applyPreset')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>
           <option value="">{t('library.presetMenu')}</option>
           {#each presets as p (p.id)}
-            <option value={`${p.id}:fill`}>{p.name}: fill empty fields</option>
-            <option value={`${p.id}:overwrite`}>{p.name}: overwrite</option>
+            <option value={`${p.id}:fill`}>{t('library.presetFill', { name: p.name })}</option>
+            <option value={`${p.id}:overwrite`}>{t('library.presetOverwrite', { name: p.name })}</option>
           {/each}
         </select>
       {/if}

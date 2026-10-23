@@ -17,6 +17,8 @@ import { join } from 'node:path'
 const BASELINE = 'scripts/i18n-literals.json'
 const ROOTS = ['src/components', 'src/pages', 'src/layouts']
 const TEXT = />[ \t]*[A-Z][a-z][^<>{}]{2,}</g
+// Words after a value, as in `{name}: fill empty fields</option>`.
+const AFTER = /\}[ \t]*[:,–-]?[ \t]*[a-z]{2,}(?: [a-z]{2,})+[^<>{}]*</g
 const ATTR = /\b(?:placeholder|title|aria-label|alt)="[A-Z][a-z][^"]*"/g
 
 function* walk(dir, test) {
@@ -37,7 +39,7 @@ function count(path) {
   let n = 0
   for (const line of lines) {
     if (/i18n-ok/.test(line)) continue
-    n += (line.match(TEXT)?.length ?? 0) + (line.match(ATTR)?.length ?? 0)
+    n += (line.match(TEXT)?.length ?? 0) + (line.match(AFTER)?.length ?? 0) + (line.match(ATTR)?.length ?? 0)
   }
   return n
 }

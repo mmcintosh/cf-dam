@@ -5751,7 +5751,19 @@
     "fr": "machine",
     "it": "machine"
   },
+  "library.presetFill": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "library.presetMenu": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.presetOverwrite": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
