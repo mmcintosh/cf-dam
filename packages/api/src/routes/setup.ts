@@ -12,7 +12,10 @@ import { hashPassword } from '../auth/password'
 import { startPreviewCheck } from '../catalog/previews'
 import { currentRestore, finishRestore, listBackups, parseSource, sourceProvider, startRestore } from '../catalog/restore'
 import type { DamEnv } from '../env'
+import { asLanguage, type Language } from '@cf-dam/i18n'
+import { savePreferences } from '../catalog/preferences'
 import { logActivity } from '../lib/activity'
+import { setSiteLanguage } from '../lib/language'
 import { timingSafeEqual } from '../lib/crypto'
 import { BadRequest, isLocalRequest, readJsonObject, requiredEmail, requiredString } from '../lib/http'
 import { markSetupDone, setupNeeded } from '../auth/setup-state'
@@ -68,9 +71,16 @@ setupRoutes.post('/', async (c) => {
     const name = requiredString(body, 'name')
     const email = requiredEmail(body)
     const password = requiredString(body, 'password', 256)
+    const language = asLanguage(body.language) as Language | null
     const response = await signUpAdmin(c, name, email, password)
     if (response.ok) {
       markSetupDone()
+      // The archive's language, chosen on the setup page; the first administrator's own too.
+      if (language) {
+        await setSiteLanguage(c.env.DB, language)
+        const admin = await c.env.DB.prepare('SELECT id FROM users WHERE lower(email) = ?').bind(email).first<{ id: string }>()
+        if (admin) await savePreferences(c.env.DB, admin.id, { language })
+      }
       await logActivity(c.env.DB, {
         userId: null,
         action: 'setup.admin_created',

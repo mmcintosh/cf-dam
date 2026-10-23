@@ -3,6 +3,7 @@ import { getPlatformProxy } from 'wrangler'
 import { createDamApi, wellKnownRoutes, type DamBindings } from '../src/index'
 import { migrate, type Migration } from '../src/db/migrate'
 import { resetSetupCacheForTests } from '../src/routes/setup'
+import { resetSiteLanguageCache } from '../src/lib/language'
 
 export const ORIGIN = 'http://localhost'
 export const ADMIN = { name: 'Ada Admin', email: 'ada@example.com', password: 'correct horse battery staple' }
@@ -45,6 +46,7 @@ export async function createHarness(overrides: Partial<DamBindings> = {}, option
   }
   await migrate(env.DB, options.migrations)
   resetSetupCacheForTests()
+  resetSiteLanguageCache()
 
   const app = new Hono().route('/.well-known', wellKnownRoutes).route('/api', createDamApi())
   const pending: Promise<unknown>[] = []

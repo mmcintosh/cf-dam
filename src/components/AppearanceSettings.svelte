@@ -4,6 +4,8 @@
    * the person, so it follows them to any computer.
    */
   import { api } from '../lib/auth-client'
+  import { t } from '@cf-dam/i18n/client'
+  import { LANGUAGES } from '@cf-dam/i18n/languages'
 
   interface Preferences {
     theme: 'system' | 'light' | 'dark'
@@ -13,6 +15,8 @@
     readableFont: boolean
     underlineLinks: boolean
     thumbnails: 'small' | 'medium' | 'large'
+    /** 'auto' follows the browser. */
+    language?: string
   }
 
   let { initial }: { initial: Preferences } = $props()
@@ -53,8 +57,18 @@
       }
     }, 300)
   }
+  /** A new language needs the page rebuilt in it, so save at once and reload. */
+  async function chooseLanguage(language: string) {
+    try {
+      await api('/api/me/preferences', { method: 'PUT', body: JSON.stringify({ language }) })
+      location.reload()
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Could not save.'
+    }
+  }
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) => apply({ ...prefs, [key]: value })
-  const reset = () => apply({ ...USUAL })
+  // Appearance only: the language stays as chosen.
+  const reset = () => apply({ ...USUAL, language: prefs.language })
 
   const SIZES: [Preferences['textSize'], string][] = [
     [100, 'Normal'],
@@ -65,6 +79,14 @@
 </script>
 
 <div class="stack appearance">
+  <div class="field language">
+    <label for="appearance-language">{t('language.label')}</label>
+    <select id="appearance-language" value={prefs.language ?? 'auto'} onchange={(e) => chooseLanguage(e.currentTarget.value)}>
+      <option value="auto">{t('language.browser')}</option>
+      {#each LANGUAGES as language (language.code)}<option value={language.code} lang={language.code}>{language.name}</option>{/each}
+    </select>
+  </div>
+
   <fieldset>
     <legend>Theme</legend>
     <div class="choices" role="radiogroup">

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createHarness, json, setUpAdmin, type Harness } from './harness'
+import { ADMIN, cookiesFrom, createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
 
@@ -60,3 +60,21 @@ describe('languages in the API', () => {
     expect(((await (await h.fetch('/api/me/preferences', { ...json({ language: 'xx' }), method: 'PUT', cookie: admin })).json()) as { language: string }).language).toBe('auto')
   })
 })
+
+describe('the language chosen at setup', () => {
+  it("becomes the archive's language and the first administrator's own", async () => {
+    const fresh = await createHarness()
+    try {
+      const response = await fresh.fetch('/api/setup', json({ ...ADMIN, language: 'it' }))
+      expect(response.ok).toBe(true)
+      const cookie = cookiesFrom(response)
+      expect(((await (await fresh.fetch('/api/me/preferences', { cookie })).json()) as { language: string }).language).toBe('it')
+      // Someone whose browser says nothing we speak gets the archive's language.
+      const gone = await fresh.fetch('/api/public/galleries/abcdefghijklmnopqrstuv', { headers: { 'Accept-Language': 'pt' } })
+      expect(((await gone.json()) as { message: string }).message).toBe('Questa galleria non è più disponibile.')
+    } finally {
+      await fresh.dispose()
+    }
+  })
+})
+

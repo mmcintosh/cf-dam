@@ -27,6 +27,11 @@ export async function siteLanguage(db: D1Database): Promise<Language | null> {
   return value
 }
 
+/** Tests share one isolate across databases. */
+export function resetSiteLanguageCache(): void {
+  site = null
+}
+
 export async function setSiteLanguage(db: D1Database, lang: Language): Promise<void> {
   await db
     .prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')

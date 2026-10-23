@@ -1,7 +1,9 @@
 ---
 import AuthLayout from '../layouts/AuthLayout.astro'
 import LoginForm from '../components/LoginForm.svelte'
+import { getT } from '@cf-dam/i18n'
+const t = getT(Astro.locals.lang)
 ---
-<AuthLayout title="Sign in">
+<AuthLayout title={t('auth.signIn.title')}>
   <LoginForm client:load />
 </AuthLayout>
