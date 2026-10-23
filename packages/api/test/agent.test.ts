@@ -86,15 +86,17 @@ const asset = async (id: string) =>
   }
 
 describe('pairing', () => {
-  it('gives a compose file for each kind of NAS, with its own example folders', async () => {
+  it('gives a compose file for each kind of NAS that needs no changes: the drive read-only, at its own path', async () => {
     const text = async (q: string) => (await h.fetch(`/api/sources/compose${q}`, { cookie: admin })).text()
-    expect(await text('')).toContain('- /volume1/photo:/photos/photo:ro')
+    const synology = await text('')
+    expect(synology).toContain('- /volume1:/volume1:ro')
+    expect(synology).toContain('PHOTOS_DIR: /volume1')
+    expect(synology).toContain('- cf-dam-agent-data:/data')
     const qnap = await text('?nas=qnap')
     expect(qnap).toContain('Container Station')
-    expect(qnap).toContain('- /share/Multimedia:/photos/multimedia:ro')
-    expect(qnap).toContain('- /share/Container/cf-dam-agent:/data')
+    expect(qnap).toContain('- /share:/share:ro')
     expect(qnap).toContain('CF_DAM_URL: http://localhost')
-    expect(await text('?nas=truenas')).toContain('- /mnt/tank/photos:/photos/photos:ro')
+    expect(await text('?nas=truenas')).toContain('- /mnt:/mnt:ro')
     expect(await text('?nas=nonsense')).toContain('Synology')
   })
 

@@ -257,7 +257,7 @@
           </li>
           <li>
             {#if nas === 'synology'}
-              <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>, choose a folder for it (for
+              <strong>On your Synology</strong>, open <em>Container Manager</em> → <em>Project</em> → <em>Create</em>. Name it <code>cf-dam-agent</code>, choose any folder for it (for
               example <code>/docker/cf-dam-agent</code>), pick <em>Create docker-compose.yml</em> and paste this:
             {:else if nas === 'qnap'}
               <strong>On your QNAP</strong>, install <em>Container Station</em> from the App Center, then open <em>Applications</em> → <em>Create</em>, name it
@@ -274,9 +274,9 @@
               <code>cf-dam-agent</code> and paste this:
             {:else if nas === 'unraid'}
               <strong>On Unraid</strong>, open <em>Docker</em> → <em>Add Container</em> and fill in: Name <code>cf-dam-agent</code>; Repository
-              <code>{image}</code>; a <em>Port</em> 8790 to 8790; a <em>Variable</em> <code>CF_DAM_URL</code> = <code>{origin}</code>; a
-              <em>Path</em> from your photo share (<code>/mnt/user/photos</code>) to <code>/photos/photos</code>, access <em>Read Only</em>; and a <em>Path</em> from
-              <code>/mnt/user/appdata/cf-dam-agent</code> to <code>/data</code>. With the Compose Manager plugin, paste this into a new stack instead:
+              <code>{image}</code>; a <em>Port</em> 8790 to 8790; a <em>Variable</em> <code>CF_DAM_URL</code> = <code>{origin}</code>; a <em>Variable</em>
+              <code>PHOTOS_DIR</code> = <code>/mnt/user</code>; a <em>Path</em> from <code>/mnt/user</code> to <code>/mnt/user</code>, access <em>Read Only</em>; and a
+              <em>Path</em> from <code>/mnt/user/appdata/cf-dam-agent</code> to <code>/data</code>. With the Compose Manager plugin, paste this into a new stack instead:
             {:else if nas === 'omv'}
               <strong>In OpenMediaVault</strong>, install the <em>compose</em> plugin (from omv-extras), then open <em>Services</em> → <em>Compose</em> → <em>Files</em> →
               <em>Add</em>, name it <code>cf-dam-agent</code> and paste this:
@@ -288,8 +288,8 @@
               <button class="btn btn-sm" type="button" onclick={copyCompose}>{copied ? 'Copied' : 'Copy'}</button>
             </div>
             <p class="muted small">
-              Change the folder on the left of <code>:/photos/…</code> to your photo shared folder's real path (your NAS shows it in the shared folder's properties); add a line for
-              each other folder. Keep <code>:ro</code>: the agent can then only read your photos. It needs about 1 GB of memory.
+              <strong>Paste it as it is: there's nothing to change.</strong> It lets the helper read your NAS's drive (never change or delete anything on it), and in the
+              next steps you choose which photo folders it catalogues, from a list. It needs about 1 GB of memory.
             </p>
           </li>
           <li>

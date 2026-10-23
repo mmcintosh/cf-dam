@@ -123,44 +123,54 @@ export class Agent {
 
   /**
    * The folders cf-dam can offer, and the only ones it lets people choose (or folders inside them).
-   * In Docker: the photos folder and what's mounted under it, two levels down. On a Mac or PC: each
-   * drive and mounted share but the system disk (and their folders), Pictures, and AGENT_FOLDERS.
+   * In Docker: the photos folder (a NAS's whole drive, usually) three levels down (/volume1/photo/2024),
+   * and AGENT_FOLDERS. On a Mac or PC: each drive and mounted share but the system disk (and their
+   * folders), Pictures, and AGENT_FOLDERS.
    */
   async reportFolders(): Promise<void> {
     this.volumes = await this.volumeLister().catch(() => [])
     const folders: string[] = []
-    const list = (dir: string, depth: number) => {
-      let names: string[] = []
-      try {
-        names = readdirSync(dir)
-      } catch {
-        return
-      }
-      for (const name of names) {
-        if (name.startsWith('.') || name.startsWith('@') || name.startsWith('#')) continue
-        const path = join(dir, name)
-        try {
-          if (!statSync(path).isDirectory()) continue
-        } catch {
-          continue
+    /** Folders under `top`, a level at a time down to `levels`, so a cut at 500 drops the deepest first. */
+    const list = (top: string, levels: number) => {
+      let level = [top]
+      for (let depth = 1; depth <= levels && level.length > 0; depth++) {
+        const next: string[] = []
+        for (const dir of level) {
+          let names: string[] = []
+          try {
+            names = readdirSync(dir)
+          } catch {
+            continue
+          }
+          for (const name of names.sort()) {
+            if (name.startsWith('.') || name.startsWith('@') || name.startsWith('#')) continue
+            const path = join(dir, name)
+            try {
+              if (statSync(path).isDirectory()) next.push(path)
+            } catch {
+              // unreadable: not offered
+            }
+          }
         }
-        folders.push(path)
-        if (depth < 2) list(path, depth + 1)
+        folders.push(...next)
+        level = next
       }
     }
     if (this.config.photosDir) {
-      folders.push(this.config.photosDir)
-      list(this.config.photosDir, 1)
+      for (const top of [this.config.photosDir, ...this.config.extraFolders]) {
+        folders.push(top)
+        list(top, 3)
+      }
     } else {
       for (const v of this.volumes) {
         if (isSystemVolume(v)) continue
         folders.push(v.path)
-        list(v.path, 2)
+        list(v.path, 1)
       }
       folders.push(join(homedir(), 'Pictures'))
       for (const f of this.config.extraFolders) {
         folders.push(f)
-        list(f, 2)
+        list(f, 1)
       }
     }
     await this.api.call('POST', '/api/agent/folders', {
