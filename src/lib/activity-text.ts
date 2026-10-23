@@ -2,6 +2,8 @@
  * Activity log entries as sentences, for the Activity page. The API returns entries as stored
  * (packages/api/src/routes/activity.ts); an action without a sentence here falls back to its name.
  */
+import { format, t } from '@cf-dam/i18n/client'
+import type { MessageKey } from '@cf-dam/i18n'
 import { describeUserAgent } from './user-agent'
 
 export interface ActivityPerson {
@@ -20,161 +22,171 @@ export interface ActivityEntry {
   ipAddress: string | null
 }
 
-const SIGN_IN_METHODS: Record<string, string> = {
-  password: 'a password',
-  'password+code': 'a password and a code',
-  'password+backup_code': 'a password and a backup code',
-  passkey: 'a passkey',
-  setup: 'the setup page',
+const SIGN_IN_METHODS: Record<string, MessageKey> = {
+  password: 'act.method.password',
+  'password+code': 'act.method.passwordCode',
+  'password+backup_code': 'act.method.passwordBackup',
+  passkey: 'act.method.passkey',
+  setup: 'act.method.setup',
 }
 
-const BULK: Record<string, string> = {
-  'tag-add': 'added keywords to',
-  'tag-remove': 'removed keywords from',
-  rating: 'rated',
-  flag: 'flagged',
-  label: 'labelled',
-  preset: 'applied a preset to',
-  gps: 'set the place of',
-  title: 'set the title of',
-  caption: 'set the caption of',
-  'album-add': 'added to an album',
-  delete: 'deleted',
-  'ai-queue': 'queued AI review for',
-  'ai-accept': 'accepted AI suggestions for',
+// One whole sentence per kind of change, so each language can place the photo count where it belongs.
+const BULK: Record<string, MessageKey> = {
+  'tag-add': 'act.bulk.tagAdd',
+  'tag-remove': 'act.bulk.tagRemove',
+  rating: 'act.bulk.rating',
+  flag: 'act.bulk.flag',
+  label: 'act.bulk.label',
+  preset: 'act.bulk.preset',
+  gps: 'act.bulk.gps',
+  title: 'act.bulk.title',
+  caption: 'act.bulk.caption',
+  'album-add': 'act.bulk.albumAdd',
+  delete: 'act.bulk.delete',
+  'ai-queue': 'act.bulk.aiQueue',
+  'ai-accept': 'act.bulk.aiAccept',
 }
 
-const SCOPES: Record<string, string> = { nobody: 'nobody', admins: 'administrators', everyone: 'everyone' }
+const SCOPES: Record<string, MessageKey> = { admins: 'act.scope.admins', everyone: 'act.scope.everyone' }
+const ROLES = ['admin', 'editor', 'viewer', 'client']
 
-const nameOf = (p: ActivityPerson | null | undefined, fallback = 'Someone') => p?.name || p?.email || fallback
-const plural = (n: unknown, one: string) => (typeof n === 'number' ? `${n} ${n === 1 ? one : `${one}s`}` : `some ${one}s`)
+const nameOf = (p: ActivityPerson | null | undefined, fallback?: string) => p?.name || p?.email || fallback || t('act.someone')
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
+const num = (v: unknown) => (typeof v === 'number' ? format().number(v) : '?')
+const roles = (v: unknown[]) => format().list(v.map((r) => (ROLES.includes(String(r)) ? t(`role.${r}` as MessageKey) : String(r))))
 
 export function describeActivity(e: ActivityEntry): string {
   const who = nameOf(e.actor)
   // Done to an account: the person, or, once deleted, the email the entry kept.
-  const whom = e.target?.type === 'user' ? nameOf(e.target, str(e.details?.email) || 'a deleted person') : ''
+  const whom = e.target?.type === 'user' ? nameOf(e.target, str(e.details?.email) || t('act.deletedPerson')) : ''
   const d = e.details ?? {}
 
   switch (e.action) {
     case 'auth.signed_in': {
-      const method = SIGN_IN_METHODS[str(d.method)] ?? str(d.method)
-      const from = d.userAgent ? ` from ${describeUserAgent(str(d.userAgent))}` : ''
-      return `${who} signed in with ${method}${from}`
+      const method = SIGN_IN_METHODS[str(d.method)] ? t(SIGN_IN_METHODS[str(d.method)]) : str(d.method)
+      return d.userAgent
+        ? t('act.signedInFrom', { who, method, browser: describeUserAgent(str(d.userAgent)) })
+        : t('act.signedIn', { who, method })
     }
     case 'auth.sign_in_failed':
-      return `Wrong password for ${whom}${typeof d.failures === 'number' && d.failures > 1 ? ` (${d.failures} in a row)` : ''}`
+      return typeof d.failures === 'number' && d.failures > 1
+        ? t('act.signInFailedRow', { whom, count: d.failures })
+        : t('act.signInFailed', { whom })
     case 'auth.locked':
-      return `${whom}'s password sign-in was locked after too many wrong passwords`
+      return t('act.locked', { whom })
     case 'auth.passkey_required':
-      return `${whom} gave the right password alone and was asked to use their passkey`
+      return t('act.passkeyRequired', { whom })
     case 'account.password_changed':
-      return `${who} changed their password`
+      return t('act.passwordChanged', { who })
     case 'account.two_factor_on':
-      return `${who} turned on sign-in codes`
+      return t('act.twoFactorOn', { who })
     case 'account.two_factor_off':
-      return `${who} turned off sign-in codes`
+      return t('act.twoFactorOff', { who })
     case 'account.passkey_added':
-      return `${who} added a passkey`
+      return t('act.passkeyAdded', { who })
     case 'account.passkey_removed':
-      return `${who} removed a passkey`
+      return t('act.passkeyRemoved', { who })
     case 'account.session_ended':
-      return `${who} signed out another browser`
+      return t('act.sessionEnded', { who })
     case 'account.signed_out_elsewhere':
-      return `${who} signed out of ${plural(d.sessions, 'other browser')}`
+      return t('act.signedOutElsewhere', { who, count: typeof d.sessions === 'number' ? d.sessions : 0 })
     case 'setup.admin_created':
-      return `${who} set up the archive`
+      return t('act.setup', { who })
     case 'policy.two_factor':
-      return d.requiredFor === 'nobody' ? `${who} made two-factor sign-in optional` : `${who} required two-factor sign-in for ${SCOPES[str(d.requiredFor)] ?? str(d.requiredFor)}`
+      return d.requiredFor === 'nobody'
+        ? t('act.policyOptional', { who })
+        : t('act.policyRequired', { who, scope: SCOPES[str(d.requiredFor)] ? t(SCOPES[str(d.requiredFor)]) : str(d.requiredFor) })
     case 'user.created':
-      return `${who} added ${whom}${Array.isArray(d.roles) ? ` as ${d.roles.join(', ')}` : ''}`
+      return Array.isArray(d.roles) ? t('act.userCreatedAs', { who, whom, roles: roles(d.roles) }) : t('act.userCreated', { who, whom })
     case 'user.updated': {
       const parts = [
-        Array.isArray(d.roles) ? `made them ${d.roles.join(', ')}` : '',
-        d.isActive === false ? 'deactivated them' : d.isActive === true ? 'reactivated them' : '',
-        d.name ? 'renamed them' : '',
+        Array.isArray(d.roles) ? t('act.part.roles', { roles: roles(d.roles) }) : '',
+        d.isActive === false ? t('act.part.deactivated') : d.isActive === true ? t('act.part.reactivated') : '',
+        d.name ? t('act.part.renamed') : '',
       ].filter(Boolean)
-      return `${who} changed ${whom}${parts.length ? `: ${parts.join(', ')}` : ''}`
+      return parts.length ? t('act.userUpdatedParts', { who, whom, changes: format().list(parts) }) : t('act.userUpdated', { who, whom })
     }
     case 'user.password_reset':
-      return `${who} set a temporary password for ${whom}`
+      return t('act.passwordReset', { who, whom })
     case 'user.two_factor_reset':
-      return `${who} reset ${whom}'s codes${d.passkeys ? ' and passkeys' : ''}`
+      return t(d.passkeys ? 'act.twoFactorResetPasskeys' : 'act.twoFactorReset', { who, whom })
     case 'user.unlocked':
-      return `${who} unlocked ${whom}'s password sign-in`
+      return t('act.unlocked', { who, whom })
     case 'user.signed_out':
-      return `${who} signed ${whom} out everywhere`
+      return t('act.signedOutUser', { who, whom })
     case 'user.deleted':
-      return `${who} deleted ${whom}`
+      return t('act.userDeleted', { who, whom })
     case 'api_key.created':
-      return `${who} made an API key`
+      return t('act.apiKeyCreated', { who })
     case 'api_key.revoked':
-      return `${who} revoked an API key`
+      return t('act.apiKeyRevoked', { who })
     case 'asset.uploaded':
-      return `${who} uploaded a photo`
+      return t('act.assetUploaded', { who })
     case 'asset.deleted':
-      return `${who} deleted a photo`
+      return t('act.assetDeleted', { who })
     case 'asset.storage_class_changed':
-      return `${who} moved a photo's original to ${str(d.to) || 'another storage class'}`
+      return t('act.storageClassChanged', { who, class: str(d.to) || t('act.anotherClass') })
     case 'asset.restore_requested':
-      return `${who} asked for an archived original back`
+      return t('act.restoreRequested', { who })
     case 'duplicates.resolved':
-      return `${who} resolved duplicates`
+      return t('act.duplicatesResolved', { who })
     case 'keyword.merged':
-      return `${who} merged keywords`
+      return t('act.keywordMerged', { who })
     case 'keyword.deleted':
-      return `${who} deleted a keyword`
+      return t('act.keywordDeleted', { who })
     case 'storage.connection_created':
-      return `${who} added a storage connection`
+      return t('act.connectionCreated', { who })
     case 'storage.imported':
-      return `${who} imported photos from storage`
+      return t('act.imported', { who })
     case 'source.paired':
-      return `${who} connected an agent`
+      return t('act.sourcePaired', { who })
     case 'source.revoked':
-      return `${who} disconnected an agent`
+      return t('act.sourceRevoked', { who })
     case 'album.renamed':
-      return `${who} renamed the album “${str(d.from)}” to “${str(d.to)}”`
+      return t('act.albumRenamed', { who, from: str(d.from), to: str(d.to) })
     case 'album.deleted':
-      return `${who} deleted the album “${str(d.name)}”${typeof d.links === 'number' && d.links > 0 ? ` and its ${plural(d.links, 'client gallery link')}` : ''}`
+      return typeof d.links === 'number' && d.links > 0
+        ? t('act.albumDeletedLinks', { who, name: str(d.name), links: t('albumTools.links', { count: d.links }) })
+        : t('act.albumDeleted', { who, name: str(d.name) })
     case 'share.create':
-      return `${who} made a client gallery link`
+      return t('act.shareCreate', { who })
     case 'share.revoke':
-      return `${who} revoked a client gallery link`
+      return t('act.shareRevoke', { who })
     case 'client.invited':
-      return `${who} invited ${str(d.email) || 'a client'} to a client gallery`
+      return t('act.clientInvited', { who, email: str(d.email) || t('act.aClient') })
     case 'client.joined':
-      return `${who} chose a password and joined as a client`
+      return t('act.clientJoined', { who })
     case 'client.removed':
-      return `${who} took ${whom || 'a client'} off a client gallery`
+      return t('act.clientRemoved', { who, whom: whom || t('act.aClient') })
     case 'watermark.set':
-      return `${who} changed the watermark`
+      return t('act.watermarkSet', { who })
     case 'ai.settings_changed':
-      return `${who} changed the AI review settings`
+      return t('act.aiSettings', { who })
     case 'ai.backfill_queued':
-      return `${who} queued AI review for the library`
+      return t('act.aiBackfill', { who })
     case 'storage.check_problem': {
-      const where = str(d.connection) || 'its store'
-      const what = d.result === 'missing' ? `is missing from ${where}` : d.result === 'changed' ? `has changed in ${where}` : `couldn't be checked in ${where}`
-      return `Storage check: a photo's original ${what}`
+      const where = str(d.connection) || t('act.itsStore')
+      return t(d.result === 'missing' ? 'act.checkMissing' : d.result === 'changed' ? 'act.checkChanged' : 'act.checkUnreadable', { where })
     }
     case 'backup.started':
-      return `${who} started a catalog backup`
+      return t('act.backupStarted', { who })
     case 'backup.done':
-      return `The catalog was backed up${typeof d.rows === 'number' ? ` (${d.rows.toLocaleString()} rows)` : ''}`
+      return typeof d.rows === 'number' ? t('act.backupDoneRows', { rows: num(d.rows) }) : t('act.backupDone')
     case 'backup.failed':
-      return `A catalog backup failed${str(d.error) ? `: ${str(d.error)}` : ''}`
+      return str(d.error) ? t('act.backupFailedWhy', { error: str(d.error) }) : t('act.backupFailed')
     case 'backup.settings_changed':
-      return d.connectionId ? `${who} changed the backup settings` : `${who} turned catalog backups off`
+      return t(d.connectionId ? 'act.backupSettings' : 'act.backupOff', { who })
     case 'previews.check_started':
-      return `${who} started a check of every preview`
+      return t('act.previewsCheckStarted', { who })
     case 'previews.checked':
-      return `Previews checked: ${typeof d.checked === 'number' ? d.checked.toLocaleString() : '?'}, of which ${typeof d.missing === 'number' ? d.missing.toLocaleString() : '?'} were missing and are being made again`
+      return t('act.previewsChecked', { checked: num(d.checked), missing: num(d.missing) })
     case 'alert.dismissed':
-      return `${who} dismissed an alert${str(d.message) ? `: ${str(d.message)}` : ''}`
+      return str(d.message) ? t('act.alertDismissedWhy', { who, message: str(d.message) }) : t('act.alertDismissed', { who })
   }
   if (e.action.startsWith('asset.bulk_')) {
-    const verb = BULK[e.action.slice('asset.bulk_'.length)] ?? `changed (${e.action.slice('asset.bulk_'.length)})`
-    return `${who} ${verb} ${plural(d.count, 'photo')}`
+    const kind = e.action.slice('asset.bulk_'.length)
+    const photos = typeof d.count === 'number' ? t('common.photos', { count: d.count }) : t('act.somePhotos')
+    return BULK[kind] ? t(BULK[kind], { who, photos }) : t('act.bulk.changed', { who, photos, kind })
   }
-  return `${who}: ${e.action}`
+  return t('act.unknown', { who, action: e.action })
 }
