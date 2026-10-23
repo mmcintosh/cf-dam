@@ -21,10 +21,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      # No npm cache: the last step removes ~/.npm on purpose (as a tester's uninstall does), and saving a
+      # cache from a folder that's gone fails the job.
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
       - run: sw_vers && uname -m && node --version
       - run: npm ci
       - run: npm test -w @cf-dam/agent
