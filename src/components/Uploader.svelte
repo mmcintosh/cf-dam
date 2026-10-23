@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { uploadFile, type Progress } from '../lib/uploader'
 
   interface ConnectionOption {
@@ -15,14 +17,14 @@
   }
   let { connections, open = false }: Props = $props()
 
-  const CLASS_LABELS: Record<string, string> = {
-    STANDARD: 'Standard (hot)',
-    INTELLIGENT_TIERING: 'Intelligent-Tiering',
-    STANDARD_IA: 'Infrequent Access (warm)',
-    ONEZONE_IA: 'One Zone-IA (warm)',
-    GLACIER_IR: 'Glacier Instant Retrieval',
-    GLACIER: 'Glacier Flexible Retrieval (restore: hours)',
-    DEEP_ARCHIVE: 'Glacier Deep Archive (restore: 12–48 h)',
+  const CLASS_LABELS: Record<string, MessageKey> = {
+    STANDARD: 'storageClass.STANDARD',
+    INTELLIGENT_TIERING: 'storageClass.INTELLIGENT_TIERING',
+    STANDARD_IA: 'storageClass.STANDARD_IA',
+    ONEZONE_IA: 'storageClass.ONEZONE_IA',
+    GLACIER_IR: 'storageClass.GLACIER_IR',
+    GLACIER: 'storageClass.GLACIER',
+    DEEP_ARCHIVE: 'storageClass.DEEP_ARCHIVE',
   }
 
   interface Item {
@@ -97,11 +99,11 @@
           const outcome = await uploadFile(current.file, { connectionId, storageClass }, (p) => (current.progress = p), current.controller.signal)
           current.assetId = outcome.assetId
           current.state = outcome.kind === 'duplicate' ? 'duplicate' : 'done'
-          current.message = outcome.kind === 'duplicate' ? 'Already in the archive' : (outcome.note ?? '')
+          current.message = outcome.kind === 'duplicate' ? t('upload.duplicate') : (outcome.note ?? '')
         } catch (error) {
           const aborted = error instanceof DOMException && error.name === 'AbortError'
           current.state = aborted ? 'cancelled' : 'failed'
-          current.message = aborted ? 'Cancelled' : error instanceof Error ? error.message : 'Upload failed'
+          current.message = aborted ? t('upload.cancelled') : error instanceof Error ? error.message : t('upload.failed')
         }
       }
     } finally {
@@ -118,42 +120,40 @@
   function label(item: Item): string {
     if (item.state === 'working') {
       const phase = item.progress?.phase
-      return phase === 'hashing' ? 'Checking for duplicates…' : phase === 'preparing' ? 'Making preview…' : phase === 'finishing' ? 'Finishing…' : `${percent(item)}%`
+      return phase === 'hashing' ? t('upload.hashing') : phase === 'preparing' ? t('upload.preparing') : phase === 'finishing' ? t('upload.finishing') : `${percent(item)}%`
     }
-    return { queued: 'Waiting', done: item.message || 'Uploaded', duplicate: item.message, failed: item.message, cancelled: 'Cancelled', working: '' }[item.state]
+    return { queued: t('upload.waiting'), done: item.message || t('upload.uploaded'), duplicate: item.message, failed: item.message, cancelled: t('upload.cancelled'), working: '' }[item.state]
   }
 
-  const size = (bytes: number) =>
-    bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`
+  const size = (bytes: number) => format().bytes(bytes)
 </script>
 
 {#if !expanded}
   <button class="btn btn-primary" onclick={() => (expanded = true)}>
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-    Upload
+    {t('upload.button')}
   </button>
 {:else}
   <section class="card uploader">
     <div class="row head">
       <div class="field">
-        <label for="dest">Store originals in</label>
+        <label for="dest">{t('upload.dest')}</label>
         <select id="dest" value={connectionId} onchange={(e) => pickConnection(e.currentTarget.value)}>
           {#each connections as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label for="class">Storage class</label>
+        <label for="class">{t('upload.class')}</label>
         <select id="class" bind:value={storageClass}>
-          {#each connection?.storageClasses ?? [] as cls (cls)}<option value={cls}>{CLASS_LABELS[cls] ?? cls}</option>{/each}
+          {#each connection?.storageClasses ?? [] as cls (cls)}<option value={cls}>{CLASS_LABELS[cls] ? t(CLASS_LABELS[cls]!) : cls}</option>{/each}
         </select>
       </div>
-      {#if !open}<button class="btn btn-sm close" onclick={() => (expanded = false)} aria-label="Close uploader">✕</button>{/if}
+      {#if !open}<button class="btn btn-sm close" onclick={() => (expanded = false)} aria-label={t('upload.close')}>✕</button>{/if}
     </div>
 
     {#if storageClass === 'GLACIER' || storageClass === 'DEEP_ARCHIVE'}
       <p class="hint">
-        Straight to deep archive: your browser makes the preview before the original leaves, because nothing can read it back for
-        hours. Getting the original later takes a restore.
+        {t('upload.deep')}
       </p>
     {/if}
 
@@ -177,12 +177,12 @@
     >
       <input type="file" multiple class="sr-only" onchange={(e) => e.currentTarget.files && add(e.currentTarget.files)} />
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 9a4 4 0 0 1 0 8M12 12v9m0-9-3 3m3-3 3 3" /></svg>
-      <strong>Drop photos, RAW files and video here</strong>
-      <span class="muted">or click to choose. Large files upload in parts, up to 5 TB each.</span>
+      <strong>{t('upload.drop')}</strong>
+      <span class="muted">{t('upload.dropLead')}</span>
     </label>
 
     {#if items.length > 0}
-      <p class="muted summary">{finished} of {items.length} uploaded</p>
+      <p class="muted summary">{t('upload.progress', { done: finished, count: items.length })}</p>
       <ul class="queue">
         {#each items as item (item.id)}
           <li class={`state-${item.state}`}>
@@ -198,14 +198,14 @@
                 <span>{label(item)}</span>
               {/if}
               {#if item.state === 'working' || item.state === 'queued'}
-                <button class="btn btn-sm" onclick={() => (item.state === 'queued' ? (item.state = 'cancelled') : item.controller.abort())}>Cancel</button>
+                <button class="btn btn-sm" onclick={() => (item.state === 'queued' ? (item.state = 'cancelled') : item.controller.abort())}>{t('common.cancel')}</button>
               {/if}
             </div>
           </li>
         {/each}
       </ul>
       {#if !running && finished > 0}
-        <div><a class="btn" href="/">Refresh the library</a></div>
+        <div><a class="btn" href="/">{t('upload.refresh')}</a></div>
       {/if}
     {/if}
   </section>

@@ -13,7 +13,7 @@ const LANGS = ['es', 'de', 'fr', 'it']
 const STATUSES = new Set(['machine', 'ai-reviewed', 'ai-reviewed-2', 'native-confirmed'])
 const PLURAL = /\.(zero|one|two|few|many|other)$/
 const read = (name) => JSON.parse(readFileSync(new URL(`../src/catalogs/${name}.json`, import.meta.url), 'utf8'))
-const placeholders = (text) => [...text.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]).sort().join(',')
+const placeholders = (text) => [...new Set([...text.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]))].sort().join(",")
 
 const en = read('en')
 const review = read('review-status')
@@ -22,6 +22,8 @@ const pluralBases = new Set(Object.keys(en).filter((k) => PLURAL.test(k)).map((k
 
 for (const [key, value] of Object.entries(en)) if (!String(value).trim()) problems.push(`en: "${key}" is empty`)
 for (const base of pluralBases) if (!(`${base}.other` in en)) problems.push(`en: "${base}" has plural forms but no .other`)
+// A key ending in a plural form's name reads as a plural: `x.other` must have a sibling `x.one`.
+for (const key of Object.keys(en)) if (PLURAL.test(key) && !(`${key.replace(PLURAL, '')}.one` in en)) problems.push(`en: "${key}" ends like a plural form (.${key.split('.').pop()}); rename it`)
 
 for (const lang of LANGS) {
   const catalog = read(lang)

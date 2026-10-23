@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   /** "Save this search": names the current filters and keeps them in the sidebar. */
   import { api } from '../lib/auth-client'
 
@@ -13,7 +14,7 @@
       await api('/api/saved-searches', { method: 'POST', body: JSON.stringify({ name: name.trim(), query }) })
       location.reload()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
     }
   }
 </script>
@@ -21,12 +22,12 @@
 {#if naming}
   <form class="save" onsubmit={(e) => (e.preventDefault(), save())}>
     <!-- svelte-ignore a11y_autofocus -->
-    <input type="text" bind:value={name} placeholder="Name this search" maxlength="100" autofocus aria-label="Saved search name" />
-    <button class="btn btn-sm" type="submit">Save</button>
+    <input type="text" bind:value={name} placeholder={t('savesearch.placeholder')} maxlength="100" autofocus aria-label={t('savesearch.label')} />
+    <button class="btn btn-sm" type="submit">{t('common.save')}</button>
     {#if error}<span class="err">{error}</span>{/if}
   </form>
 {:else}
-  <button class="link" type="button" onclick={() => (naming = true)}>Save this search</button>
+  <button class="link" type="button" onclick={() => (naming = true)}>{t('savesearch.save')}</button>
 {/if}
 
 <style>

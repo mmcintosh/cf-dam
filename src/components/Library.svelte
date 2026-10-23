@@ -9,6 +9,8 @@
    */
   import { onMount, tick } from 'svelte'
   import { api } from '../lib/auth-client'
+  import { format, lang, t } from '@cf-dam/i18n/client'
+  import { intlTag } from '@cf-dam/i18n/languages'
 
   interface Asset {
     id: string
@@ -153,7 +155,7 @@
   }
   function selectAll() {
     selected = new Set(assets.slice(0, MAX_BULK).map((a) => a.id))
-    if (assets.length > MAX_BULK) say(`Selected the first ${MAX_BULK}: edits go ${MAX_BULK} at a time`)
+    if (assets.length > MAX_BULK) say(t('library.say.firstOnly', { count: MAX_BULK }))
   }
   const clearSelection = () => ((selected = new Set()), (anchor = null))
 
@@ -169,14 +171,14 @@
     if (!canEdit && body.action !== 'delete' && body.action !== 'ai-queue') return false
     if (ids.length === 0) return false
     if (ids.length > MAX_BULK) {
-      say(`Select at most ${MAX_BULK} at a time (${ids.length} selected)`)
+      say(t('library.say.atMost', { max: MAX_BULK, count: ids.length }))
       return false
     }
     try {
       await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids, ...body }) })
       return true
     } catch (e) {
-      say(e instanceof Error ? e.message : 'That did not save.')
+      say(e instanceof Error ? e.message : t('library.say.notSaved'))
       return false
     }
   }
@@ -198,12 +200,12 @@
   async function rate(value: number) {
     const ids = targets()
     const rating = value === 0 ? null : value
-    if (await edit(ids, 'rating', rating)) say(rating ? `${'★'.repeat(rating)} on ${ids.length}` : `Rating cleared on ${ids.length}`)
+    if (await edit(ids, 'rating', rating)) say(rating ? t('library.say.rated', { stars: '★'.repeat(rating), count: ids.length }) : t('library.say.ratingCleared', { count: ids.length }))
   }
 
   async function setFlag(flag: 'pick' | 'reject' | null, ids = targets()) {
     if (!(await edit(ids, 'flag', flag))) return
-    say(flag ? `${flag === 'pick' ? 'Picked' : 'Rejected'} ${ids.length}` : `Flag cleared on ${ids.length}`)
+    say(flag ? t(flag === 'pick' ? 'library.say.picked' : 'library.say.rejected', { count: ids.length }) : t('library.say.flagCleared', { count: ids.length }))
     if (loupe !== null && flag) next(1)
   }
 
@@ -212,14 +214,14 @@
     const ids = targets()
     const first = assets.find((a) => a.id === ids[0])
     const label = value && first?.label === value && ids.length === 1 ? null : value
-    if (await edit(ids, 'label', label)) say(label ? `${labelNames[label]} on ${ids.length}` : `Label cleared on ${ids.length}`)
+    if (await edit(ids, 'label', label)) say(label ? t('library.say.labelled', { label: labelNames[label], count: ids.length }) : t('library.say.labelCleared', { count: ids.length }))
   }
 
   async function addTags() {
     const tags = tagInput.split(',').map((t) => t.trim()).filter(Boolean)
     if (tags.length === 0) return
     if (await bulk({ action: 'tag-add', tags })) {
-      say(`Tagged ${targets().length} with ${tags.join(', ')}`)
+      say(t('library.say.tagged', { count: targets().length, tags: format().list(tags) }))
       tagInput = ''
       if (detail) detail = { ...detail, tags: [...new Set([...detail.tags, ...tags])] }
     }
@@ -227,34 +229,34 @@
 
   async function addToAlbum(albumId: string) {
     if (!albumId) return
-    if (await bulk({ action: 'album-add', albumId })) say(`Added ${targets().length} to ${albums.find((a) => a.id === albumId)?.name ?? 'the album'}`)
+    if (await bulk({ action: 'album-add', albumId })) say(t('library.say.addedToAlbum', { count: targets().length, album: albums.find((a) => a.id === albumId)?.name ?? t('library.say.theAlbum') }))
   }
 
   async function applyPreset(value: string) {
     const [id, mode] = value.split(':')
     const preset = presets.find((p) => p.id === id)
     if (!preset) return
-    if (await bulk({ action: 'preset', presetId: id, overwrite: mode === 'overwrite' })) say(`${preset.name} applied to ${targets().length}${mode === 'overwrite' ? ' (overwriting)' : ''}`)
+    if (await bulk({ action: 'preset', presetId: id, overwrite: mode === 'overwrite' })) say(t(mode === 'overwrite' ? 'library.say.presetOverwrote' : 'library.say.presetApplied', { preset: preset.name, count: targets().length }))
   }
 
   async function aiAction(choice: string) {
     const count = targets().length
     if (choice === 'queue') {
-      if (await bulk({ action: 'ai-queue' })) say(`Queued ${count} for AI review`)
+      if (await bulk({ action: 'ai-queue' })) say(t('library.say.queued', { count }))
     } else if (choice === 'alt' || choice === 'caption' || choice === 'tags') {
-      const done = { alt: 'AI alt text used where empty', caption: 'AI captions used where empty', tags: 'AI tags kept' }[choice]
-      if (await bulk({ action: 'ai-accept', fields: [choice] })) say(`${done} on ${count}`)
+      const done = ({ alt: 'library.say.altUsed', caption: 'library.say.captionUsed', tags: 'library.say.tagsKept' } as const)[choice]
+      if (await bulk({ action: 'ai-accept', fields: [choice] })) say(t(done, { count }))
     }
   }
 
   async function remove() {
     const ids = [...selected]
-    if (!confirm(`Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}? Originals stay in storage until purged.`)) return
+    if (!confirm(t('library.confirmDelete', { count: ids.length }))) return
     if (await bulk({ action: 'delete' }, ids)) {
       assets = assets.filter((a) => !selected.has(a.id))
       total -= ids.length
       clearSelection()
-      say(`Deleted ${ids.length}`)
+      say(t('library.say.deleted', { count: ids.length }))
     }
   }
 
@@ -381,7 +383,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="justified" bind:this={grid} role="grid" aria-label="Photos" aria-multiselectable="true">
+<div class="justified" bind:this={grid} role="grid" aria-label={t('library.grid')} aria-multiselectable="true">
   {#each assets as asset, index (asset.id)}
     <a
       class="tile"
@@ -402,7 +404,7 @@
       {#if asset.renditions.includes('thumb')}
         <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={asset.alt ?? asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
-        <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? 'No preview' : asset.status === 'queued' ? 'Queued' : 'Processing…'}</span></span>
+        <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? t('common.noPreview') : asset.status === 'queued' ? t('common.queued') : t('common.processing')}</span></span>
       {/if}
       {#if scrubbing === asset.id}
         <span class="scrub" style={`background-image:url(/api/assets/${asset.id}/renditions/sheet);background-position:${scrubFrame % 2 ? '100%' : '0%'} ${scrubFrame > 1 ? '100%' : '0%'}`}></span>
@@ -410,7 +412,7 @@
       <button
         class="tick"
         type="button"
-        aria-label={selected.has(asset.id) ? 'Deselect' : 'Select'}
+        aria-label={selected.has(asset.id) ? t('library.deselect') : t('library.select')}
         onclick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -418,7 +420,7 @@
         }}>✓</button
       >
       {#if asset.video}<span class="duration">▶ {asset.video.duration ? clock(asset.video.duration) : ''}</span>{/if}
-      {#if asset.flag === 'pick'}<span class="flag pick" title="Pick">⚑</span>{/if}
+      {#if asset.flag === 'pick'}<span class="flag pick" title={t('library.pick')}>⚑</span>{/if}
       {#if asset.label}<span class={`label-strip label-${asset.label}`} title={labelNames[asset.label]}></span>{/if}
       {#if asset.storage && asset.storage.storageClass !== 'STANDARD'}<span class={`tier tier-${TIER[asset.storage.storageClass] ?? 'warm'}`} title={asset.storage.storageClass}></span>{/if}
       <span class="overlay">
@@ -429,31 +431,31 @@
   {/each}
 </div>
 <div id="library-end" class="end muted">
-  {#if loading}Loading…{:else if assets.length < total || !totalExact}<button class="btn btn-sm" onclick={loadMore}>Load more</button>{:else if total > 0}All {total} shown{/if}
+  {#if loading}{t('common.loading')}{:else if assets.length < total || !totalExact}<button class="btn btn-sm" onclick={loadMore}>{t('library.loadMore')}</button>{:else if total > 0}{t('library.allShown', { count: total })}{/if}
 </div>
 
 {#if selected.size > 0 && loupe === null && !compare}
-  <div class="bulkbar card" role="toolbar" aria-label="Selection actions">
-    <strong>{selected.size} selected</strong>
-    {#if selected.size > MAX_BULK}<span class="muted">edits take {MAX_BULK} at a time</span>{/if}
+  <div class="bulkbar card" role="toolbar" aria-label={t('library.bulkbar')}>
+    <strong>{t('library.selected', { count: selected.size })}</strong>
+    {#if selected.size > MAX_BULK}<span class="muted">{t('library.editsAtATime', { count: MAX_BULK })}</span>{/if}
     {#if canEdit}
       <span class="group">
         {#each [1, 2, 3, 4, 5] as star (star)}<button class="icon" title={`${star} star${star > 1 ? 's' : ''}`} onclick={() => rate(star)}>{star}★</button>{/each}
-        <button class="icon" title="Pick (P)" onclick={() => setFlag('pick')}>⚑</button>
-        <button class="icon" title="Reject (X)" onclick={() => setFlag('reject')}>✕</button>
+        <button class="icon" title={t('library.pickKey')} onclick={() => setFlag('pick')}>⚑</button>
+        <button class="icon" title={t('library.rejectKey')} onclick={() => setFlag('reject')}>✕</button>
       </span>
       <form class="group" onsubmit={(e) => (e.preventDefault(), addTags())}>
-        <input type="text" placeholder="Add tags, comma separated" bind:value={tagInput} aria-label="Tags to add" />
-        <button class="btn btn-sm" type="submit">Tag</button>
+        <input type="text" placeholder={t('library.tagsPlaceholder')} bind:value={tagInput} aria-label={t('library.tagsToAdd')} />
+        <button class="btn btn-sm" type="submit">{t('library.tag')}</button>
       </form>
-      <select aria-label="Label" onchange={(e) => { const v = e.currentTarget.value; if (v) setLabel(v === 'clear' ? null : (v as Label)); e.currentTarget.value = '' }}>
-        <option value="">Label…</option>
+      <select aria-label={t('library.label')} onchange={(e) => { const v = e.currentTarget.value; if (v) setLabel(v === 'clear' ? null : (v as Label)); e.currentTarget.value = '' }}>
+        <option value="">{t('library.labelMenu')}</option>
         {#each Object.entries(labelNames) as [value, name] (value)}<option {value}>{name}</option>{/each}
-        <option value="clear">No label</option>
+        <option value="clear">{t('library.noLabel')}</option>
       </select>
       {#if presets.length > 0}
-        <select aria-label="Apply a preset" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>
-          <option value="">Preset…</option>
+        <select aria-label={t('library.applyPreset')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>
+          <option value="">{t('library.presetMenu')}</option>
           {#each presets as p (p.id)}
             <option value={`${p.id}:fill`}>{p.name}: fill empty fields</option>
             <option value={`${p.id}:overwrite`}>{p.name}: overwrite</option>
@@ -461,28 +463,28 @@
         </select>
       {/if}
       {#if albums.length > 0}
-        <select aria-label="Add to album" onchange={(e) => (addToAlbum(e.currentTarget.value), (e.currentTarget.value = ''))}>
-          <option value="">Add to album…</option>
+        <select aria-label={t('library.addToAlbum')} onchange={(e) => (addToAlbum(e.currentTarget.value), (e.currentTarget.value = ''))}>
+          <option value="">{t('library.addToAlbumMenu')}</option>
           {#each albums as album (album.id)}<option value={album.id}>{album.name}</option>{/each}
         </select>
       {/if}
     {/if}
     {#if canRunAi || canEdit}
-      <select aria-label="AI actions" onchange={(e) => (aiAction(e.currentTarget.value), (e.currentTarget.value = ''))}>
-        <option value="">AI…</option>
-        {#if canRunAi}<option value="queue">Analyse again</option>{/if}
+      <select aria-label={t('library.aiActions')} onchange={(e) => (aiAction(e.currentTarget.value), (e.currentTarget.value = ''))}>
+        <option value="">{t('library.aiMenu')}</option>
+        {#if canRunAi}<option value="queue">{t('library.aiAgain')}</option>{/if}
         {#if canEdit}
-          <option value="alt">Use AI alt text where empty</option>
-          <option value="caption">Use AI captions where empty</option>
-          <option value="tags">Keep AI tags</option>
+          <option value="alt">{t('library.aiAlt')}</option>
+          <option value="caption">{t('library.aiCaption')}</option>
+          <option value="tags">{t('library.aiTags')}</option>
         {/if}
       </select>
     {/if}
-    {#if selected.size >= 2 && selected.size <= 4}<button class="btn btn-sm" onclick={openCompare}>Compare</button>{/if}
-    {#if canDelete}<button class="btn btn-sm btn-danger" onclick={remove}>Delete</button>{/if}
+    {#if selected.size >= 2 && selected.size <= 4}<button class="btn btn-sm" onclick={openCompare}>{t('library.compare')}</button>{/if}
+    {#if canDelete}<button class="btn btn-sm btn-danger" onclick={remove}>{t('common.delete')}</button>{/if}
     <span class="spacer"></span>
-    <button class="btn btn-sm" onclick={selectAll} title={assets.length > MAX_BULK ? `Edits go ${MAX_BULK} at a time` : undefined}>Select {assets.length > MAX_BULK ? `first ${MAX_BULK}` : `all ${assets.length}`}</button>
-    <button class="btn btn-sm" onclick={clearSelection}>Clear</button>
+    <button class="btn btn-sm" onclick={selectAll} title={assets.length > MAX_BULK ? t('library.editsAtATimeTitle', { count: MAX_BULK }) : undefined}>{assets.length > MAX_BULK ? t('library.selectFirst', { count: MAX_BULK }) : t('library.selectAll', { count: assets.length })}</button>
+    <button class="btn btn-sm" onclick={clearSelection}>{t('common.clear')}</button>
   </div>
 {/if}
 
@@ -499,47 +501,47 @@
           />
         {/key}
       {:else}
-        <div class="no-preview"><strong>{ext(current.filename)}</strong><span>No preview</span></div>
+        <div class="no-preview"><strong>{ext(current.filename)}</strong><span>{t('common.noPreview')}</span></div>
       {/if}
-      <button class="nav prev" aria-label="Previous (←)" onclick={() => next(-1)} disabled={loupe === 0}>‹</button>
-      <button class="nav next" aria-label="Next (→)" onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total && totalExact}>›</button>
-      <button class="close" aria-label="Close (Esc)" onclick={closeLoupe}>✕</button>
+      <button class="nav prev" aria-label={t('library.previous')} onclick={() => next(-1)} disabled={loupe === 0}>‹</button>
+      <button class="nav next" aria-label={t('library.next')} onclick={() => next(1)} disabled={loupe === assets.length - 1 && assets.length >= total && totalExact}>›</button>
+      <button class="close" aria-label={t('library.closeKey')} onclick={closeLoupe}>✕</button>
       {#if current.flag}<span class={`loupe-flag ${current.flag}`}>{current.flag === 'pick' ? '⚑ Pick' : '✕ Reject'}</span>{/if}
       {#if current.label}<span class={`loupe-label label-${current.label}`}>{labelNames[current.label]}</span>{/if}
     </div>
     {#if showInfo}
       <aside class="info">
         <h2>{current.title ?? current.filename}</h2>
-        <p class="muted">{loupe! + 1} of {total.toLocaleString()}{totalExact ? '' : '+'}</p>
-        <div class="stars-row" aria-label="Rating">
+        <p class="muted">{t('library.position', { index: loupe! + 1, total: `${format().number(total)}${totalExact ? '' : '+'}` })}</p>
+        <div class="stars-row" aria-label={t('common.rating')}>
           {#each [1, 2, 3, 4, 5] as star (star)}
-            <button class:on={(current.rating ?? 0) >= star} disabled={!canEdit} onclick={() => rate(current.rating === star ? 0 : star)} aria-label={`${star} stars`}>★</button>
+            <button class:on={(current.rating ?? 0) >= star} disabled={!canEdit} onclick={() => rate(current.rating === star ? 0 : star)} aria-label={t('common.stars', { count: star })}>★</button>
           {/each}
         </div>
         <dl>
-          {#if current.capturedAt}<dt>Taken</dt><dd>{new Date(`${current.capturedAt}Z`).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })}</dd>{/if}
-          {#if current.camera.model}<dt>Camera</dt><dd>{current.camera.model}</dd>{/if}
-          {#if current.camera.lens}<dt>Lens</dt><dd>{current.camera.lens}</dd>{/if}
-          {#if current.exposure.aperture}<dt>Exposure</dt><dd>{[current.exposure.focalLength && `${current.exposure.focalLength} mm`, `ƒ/${current.exposure.aperture}`, shutter(current.exposure.exposureTime), current.exposure.iso && `ISO ${current.exposure.iso}`].filter(Boolean).join(' · ')}</dd>{/if}
-          {#if current.width}<dt>Size</dt><dd>{current.width} × {current.height}</dd>{/if}
+          {#if current.capturedAt}<dt>{t('common.taken')}</dt><dd>{new Intl.DateTimeFormat(intlTag(lang()), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(`${current.capturedAt}Z`))}</dd>{/if}
+          {#if current.camera.model}<dt>{t('common.camera')}</dt><dd>{current.camera.model}</dd>{/if}
+          {#if current.camera.lens}<dt>{t('common.lens')}</dt><dd>{current.camera.lens}</dd>{/if}
+          {#if current.exposure.aperture}<dt>{t('common.exposure')}</dt><dd>{[current.exposure.focalLength && `${current.exposure.focalLength} mm`, `ƒ/${current.exposure.aperture}`, shutter(current.exposure.exposureTime), current.exposure.iso && `ISO ${current.exposure.iso}`].filter(Boolean).join(' · ')}</dd>{/if}
+          {#if current.width}<dt>{t('common.size')}</dt><dd>{current.width} × {current.height}</dd>{/if}
         </dl>
         {#if detail && detail.id === current.id}
           <div class="tags">{#each detail.tags as tag (tag)}<a class="tag" href={`/?tag=${encodeURIComponent(tag)}`} title={tag}>{tag.split(' › ').at(-1)}</a>{/each}</div>
         {/if}
         {#if canEdit}
           <form class="row" onsubmit={(e) => (e.preventDefault(), addTags())}>
-            <input type="text" placeholder="Add tags…" bind:value={tagInput} aria-label="Add tags" />
+            <input type="text" placeholder={t('library.addTagsPlaceholder')} bind:value={tagInput} aria-label={t('library.addTags')} />
           </form>
         {/if}
-        <a class="btn btn-sm" href={`/assets/${current.id}`}>Open details</a>
-        <p class="keys muted">← → move · 1–5 rate · 6–9 label · P pick · X reject · U clear · Z zoom · I info · Esc close</p>
+        <a class="btn btn-sm" href={`/assets/${current.id}`}>{t('library.openDetails')}</a>
+        <p class="keys muted">{t('library.loupeKeys')}</p>
       </aside>
     {/if}
   </div>
 {/if}
 
 {#if compare}
-  <div class="loupe compare" role="dialog" aria-modal="true" aria-label="Compare">
+  <div class="loupe compare" role="dialog" aria-modal="true" aria-label={t('library.compareTitle')}>
     <div class="compare-grid" class:zoomed={zoom}>
       {#each compare as id (id)}
         {@const asset = assets.find((a) => a.id === id)}
@@ -550,8 +552,8 @@
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}
                 <span>
-                  <button class="icon" class:on={asset.flag === 'pick'} onclick={() => setFlag('pick', [id])}>⚑ Pick</button>
-                  <button class="icon" class:on={asset.flag === 'reject'} onclick={() => setFlag('reject', [id])}>✕ Reject</button>
+                  <button class="icon" class:on={asset.flag === 'pick'} onclick={() => setFlag('pick', [id])}>{t('library.pickButton')}</button>
+                  <button class="icon" class:on={asset.flag === 'reject'} onclick={() => setFlag('reject', [id])}>{t('library.rejectButton')}</button>
                 </span>
               {/if}
             </figcaption>
@@ -559,8 +561,8 @@
         {/if}
       {/each}
     </div>
-    <button class="close" aria-label="Close (Esc)" onclick={() => (compare = null)}>✕</button>
-    <p class="keys muted compare-keys">Z zoom both · click a photo to zoom · Esc close</p>
+    <button class="close" aria-label={t('library.closeKey')} onclick={() => (compare = null)}>✕</button>
+    <p class="keys muted compare-keys">{t('library.compareKeys')}</p>
   </div>
 {/if}
 

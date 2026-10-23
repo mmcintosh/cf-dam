@@ -3,6 +3,7 @@
 import { COUNT_CAP, normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch } from '@cf-dam/api'
 import KeywordTree from './KeywordTree.astro'
 import SaveSearch from './SaveSearch.svelte'
+import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
 
 interface Props {
   facets: Facets
@@ -26,17 +27,18 @@ const link = (changes: Record<string, string | null>) => {
   return s ? `/?${s}` : '/'
 }
 
+const t = getT(Astro.locals.lang)
 const LABELS: Record<string, Record<string, string>> = {
-  flag: { pick: 'Picks', reject: 'Rejects', none: 'Unflagged' },
-  type: { photo: 'Photos', raw: 'RAW', video: 'Video', other: 'Other files' },
-  orientation: { landscape: 'Landscape', portrait: 'Portrait', square: 'Square' },
-  tier: { nas: 'Local', hot: 'Hot', warm: 'Warm', cold: 'Cold', deep: 'Deep archive' },
-  year: { undated: 'Undated' },
-  label: { ...labelNames, none: 'No label' },
-  missing: { '1': 'Missing from its folder' },
+  flag: { pick: t('facets.flag.pick'), reject: t('facets.flag.reject'), none: t('facets.flag.none') },
+  type: { photo: t('facets.type.photo'), raw: t('facets.type.raw'), video: t('facets.type.video'), other: t('facets.type.otherFiles') },
+  orientation: { landscape: t('facets.orientation.landscape'), portrait: t('facets.orientation.portrait'), square: t('facets.orientation.square') },
+  tier: { nas: t('facets.tier.nas'), hot: t('facets.tier.hot'), warm: t('facets.tier.warm'), cold: t('facets.tier.cold'), deep: t('facets.tier.deep') },
+  year: { undated: t('facets.undated') },
+  label: { ...labelNames, none: t('facets.noLabel') },
+  missing: { '1': t('facets.missing') },
   on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
   kw: Object.fromEntries(facets.tag.map((k) => [k.id, k.path])),
-  gps: { some: 'With a location', none: 'Without a location' },
+  gps: { some: t('facets.gps.some'), none: t('facets.gps.none') },
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
 
@@ -58,54 +60,55 @@ const ratingCounts = (() => {
 const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
 const active: { key: string; text: string }[] = []
-for (const [key, prefix] of [['q', 'Search'], ['tag', 'Tag'], ['kw', 'Keyword'], ['camera', 'Camera'], ['lens', 'Lens'], ['year', 'Year'], ['month', 'Month'], ['rating', 'Rating'], ['flag', ''], ['label', 'Label'], ['country', 'Country'], ['city', 'City'], ['creator', 'Creator'], ['missing', ''], ['on', 'Stored on'], ['gps', ''], ['orientation', ''], ['type', ''], ['tier', '']] as const) {
+const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['type', null], ['tier', null]]
+for (const [key, prefix] of CHIPS) {
   const value = params.get(key)
   if (!value) continue
-  const shown = key === 'rating' ? `${'★'.repeat(Number(value))} and up` : label(key, value)
-  active.push({ key, text: prefix ? `${prefix}: ${shown}` : shown })
+  const shown = key === 'rating' ? t('facets.andUp', { stars: '★'.repeat(Number(value)) }) : label(key, value)
+  active.push({ key, text: prefix ? t('facets.chip', { name: t(prefix), value: shown }) : shown })
 }
 
 const sections: { key: string; title: string; values: FacetValue[]; open: boolean }[] = [
-  { key: 'type', title: 'Type', values: facets.type, open: true },
-  { key: 'flag', title: 'Flag', values: facets.flag, open: true },
-  { key: 'tier', title: 'Storage', values: facets.tier, open: true },
-  { key: 'orientation', title: 'Orientation', values: facets.orientation, open: false },
-  { key: 'camera', title: 'Camera', values: facets.camera, open: false },
-  { key: 'lens', title: 'Lens', values: facets.lens, open: false },
-  { key: 'label', title: 'Label', values: facets.label, open: true },
-  { key: 'country', title: 'Country', values: facets.country, open: false },
-  { key: 'city', title: 'City', values: facets.city, open: false },
-  { key: 'creator', title: 'Creator', values: facets.creator, open: false },
+  { key: 'type', title: t('facets.type'), values: facets.type, open: true },
+  { key: 'flag', title: t('facets.flag'), values: facets.flag, open: true },
+  { key: 'tier', title: t('facets.storage'), values: facets.tier, open: true },
+  { key: 'orientation', title: t('facets.orientation'), values: facets.orientation, open: false },
+  { key: 'camera', title: t('facets.camera'), values: facets.camera, open: false },
+  { key: 'lens', title: t('facets.lens'), values: facets.lens, open: false },
+  { key: 'label', title: t('facets.label'), values: facets.label, open: true },
+  { key: 'country', title: t('facets.country'), values: facets.country, open: false },
+  { key: 'city', title: t('facets.city'), values: facets.city, open: false },
+  { key: 'creator', title: t('facets.creator'), values: facets.creator, open: false },
 ]
 const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
 ---
-<aside class="facets" aria-label="Filters">
+<aside class="facets" aria-label={t('facets.filters')}>
   {active.length > 0 && (
     <div class="active">
       {active.map((chip) => (
-        <a class="chip" href={link({ [chip.key]: null })} title="Remove this filter">{chip.text} <span aria-hidden="true">✕</span></a>
+        <a class="chip" href={link({ [chip.key]: null })} title={t('facets.remove')}>{chip.text} <span aria-hidden="true">✕</span></a>
       ))}
-      {active.length > 1 && <a class="clear" href="/">Clear all</a>}
+      {active.length > 1 && <a class="clear" href="/">{t('facets.clearAll')}</a>}
       {canSave && current && current !== 'sort=added' && !alreadySaved && <SaveSearch client:idle query={current} />}
     </div>
   )}
   {uncounted && (
-    <p class="uncounted">Too many photos match to count each choice. Narrow the selection to see counts.</p>
+    <p class="uncounted">{t('facets.uncounted')}</p>
   )}
 
   {savedSearches.length > 0 && (
     <details open>
-      <summary>Saved searches</summary>
+      <summary>{t('facets.saved')}</summary>
       <ul class="values">
         {savedSearches.map((s) => (
-          <li><a href={`/?${s.query}`} class:list={{ on: s.query === current }}><span>{s.name}</span><span class="count">{s.count > COUNT_CAP ? `${COUNT_CAP.toLocaleString()}+` : s.count}</span></a></li>
+          <li><a href={`/?${s.query}`} class:list={{ on: s.query === current }}><span>{s.name}</span><span class="count">{s.count > COUNT_CAP ? `${createFormat(Astro.locals.lang).number(COUNT_CAP)}+` : s.count}</span></a></li>
         ))}
       </ul>
     </details>
   )}
 
   <details open>
-    <summary>Year</summary>
+    <summary>{t('facets.year')}</summary>
     <ul class="values">
       {facets.year.map((y) => (
         <li><a href={link({ year: params.get('year') === y.value ? null : y.value })} class:list={{ on: params.get('year') === y.value }}><span>{label('year', y.value)}</span><span class="count">{y.count}</span></a></li>
@@ -115,10 +118,10 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
 
   {ratingCounts.length > 0 && (
     <details open>
-      <summary>Rating</summary>
+      <summary>{t('facets.rating')}</summary>
       <ul class="values">
         {ratingCounts.map((r) => (
-          <li><a href={link({ rating: params.get('rating') === String(r.stars) ? null : String(r.stars) })} class:list={{ on: params.get('rating') === String(r.stars) }}><span class="stars">{'★'.repeat(r.stars)}{r.stars < 5 ? ' & up' : ''}</span><span class="count">{r.count}</span></a></li>
+          <li><a href={link({ rating: params.get('rating') === String(r.stars) ? null : String(r.stars) })} class:list={{ on: params.get('rating') === String(r.stars) }}><span class="stars">{r.stars < 5 ? t('facets.andUp', { stars: '★'.repeat(r.stars) }) : '★'.repeat(r.stars)}</span><span class="count">{r.count}</span></a></li>
         ))}
       </ul>
     </details>
@@ -142,7 +145,7 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
 
   {facets.tag.length > 0 && (
     <details open>
-      <summary>Keywords</summary>
+      <summary>{t('facets.keywords')}</summary>
       <div class="values"><KeywordTree nodes={rootKeywords} all={facets.tag} activeId={params.get('kw')} activeTag={params.get('tag')} link={(id) => link({ kw: id, tag: null })} /></div>
     </details>
   )}

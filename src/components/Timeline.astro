@@ -1,11 +1,15 @@
 ---
+import { getT, intlTag } from '@cf-dam/i18n'
 /** Photos per month across the whole archive (for the current filters), as a clickable histogram. */
 interface Props {
   months: { month: string; count: number }[]
   params: URLSearchParams
 }
 const { months, params } = Astro.props
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// Month names in the reader's language, from the calendar itself.
+const monthName = new Intl.DateTimeFormat(intlTag(Astro.locals.lang), { month: 'short', timeZone: 'UTC' })
+const MONTHS = Array.from({ length: 12 }, (_, i) => monthName.format(Date.UTC(2000, i, 1)))
+const t = getT(Astro.locals.lang)
 
 // Fill gaps so empty months take up space and the axis reads as time.
 const filled: { month: string; count: number }[] = []
@@ -36,7 +40,7 @@ const link = (month: string) => {
 }
 ---
 {filled.length > 1 && (
-  <nav class="timeline" aria-label="Timeline">
+  <nav class="timeline" aria-label={t('timeline.label')}>
     <div class="bars">
       {filled.map((m) => {
         const [year, month] = m.month.split('-')
