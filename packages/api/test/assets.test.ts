@@ -192,6 +192,37 @@ describe('albums', () => {
     const albums = (await (await h.fetch('/api/albums', { cookie: admin })).json()) as { albums: { itemCount: number; coverAssetId: string }[] }
     expect(albums.albums[0]).toMatchObject({ itemCount: 1, coverAssetId: a })
   })
+
+  it('renames, keeps the cover inside the album, takes photos out and deletes without touching the photos', async () => {
+    const a = await upload(camera, 'a.jpg')
+    const b = await upload(png, 'b.png', { contentType: 'image/png' })
+    const { album } = (await (await h.fetch('/api/albums', { ...json({ name: 'Shortlist' }), cookie: admin })).json()) as { album: { id: string } }
+    await h.fetch(`/api/albums/${album.id}/items`, { ...json({ assetIds: [a] }), cookie: admin })
+    const get = async () => ((await (await h.fetch(`/api/albums/${album.id}`, { cookie: admin })).json()) as { album: { name: string; coverAssetId: string | null; itemCount: number } }).album
+
+    expect((await h.fetch(`/api/albums/${album.id}`, { ...json({ name: '  ' }), method: 'PATCH', cookie: admin })).status).toBe(400)
+    expect((await h.fetch(`/api/albums/${album.id}`, { ...json({ name: 'Final picks' }), method: 'PATCH', cookie: admin })).status).toBe(200)
+    // b isn't in the album, so it can't be the cover.
+    expect((await h.fetch(`/api/albums/${album.id}`, { ...json({ coverAssetId: b }), method: 'PATCH', cookie: admin })).status).toBe(400)
+    await h.fetch(`/api/albums/${album.id}/items`, { ...json({ assetIds: [b] }), cookie: admin })
+    expect((await h.fetch(`/api/albums/${album.id}`, { ...json({ coverAssetId: b }), method: 'PATCH', cookie: admin })).status).toBe(200)
+    expect(await get()).toMatchObject({ name: 'Final picks', coverAssetId: b, itemCount: 2 })
+
+    // Taking the cover out falls back to the first photo left.
+    expect((await h.fetch(`/api/albums/${album.id}/items`, { ...json({ assetIds: [b] }), method: 'DELETE', cookie: admin })).status).toBe(204)
+    expect(await get()).toMatchObject({ coverAssetId: a, itemCount: 1 })
+    expect((await h.fetch(`/api/albums/nope/items`, { ...json({ assetIds: [a] }), method: 'DELETE', cookie: admin })).status).toBe(404)
+
+    expect((await h.fetch('/api/shares', { ...json({ albumId: album.id, name: 'For the Smiths' }), cookie: admin })).status).toBe(201)
+    expect((await h.fetch(`/api/albums/${album.id}`, { method: 'DELETE', cookie: admin })).status).toBe(204)
+    expect((await h.fetch(`/api/albums/${album.id}`, { cookie: admin })).status).toBe(404)
+    expect((await h.fetch(`/api/assets/${b}`, { cookie: admin })).status).toBe(200)
+    const shares = await h.env.DB.prepare('SELECT COUNT(*) AS n FROM shares WHERE album_id = ?').bind(album.id).first<{ n: number }>()
+    expect(shares?.n).toBe(0)
+    const log = await h.env.DB.prepare(`SELECT action, details FROM activity_log WHERE action LIKE 'album.%' ORDER BY created_at`).all<{ action: string; details: string }>()
+    expect(log.results.map((r) => r.action)).toEqual(['album.renamed', 'album.deleted'])
+    expect(JSON.parse(log.results[1]!.details)).toEqual({ name: 'Final picks', links: 1 })
+  })
 })
 
 describe('video uploads', () => {

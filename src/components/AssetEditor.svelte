@@ -18,6 +18,8 @@
     /** Workers AI is bound and AI review is switched on. */
     aiAvailable: boolean
     canRunAi: boolean
+    /** The albums this photo is in. */
+    inAlbums?: { id: string; name: string }[]
   }
 
   interface AiSuggestions {
@@ -238,6 +240,8 @@
   let albums = $state<{ id: string; name: string }[]>([])
   let albumId = $state('')
   let albumMessage = $state('')
+  let inAlbums = $state([...(props.inAlbums ?? [])])
+  const otherAlbums = $derived(albums.filter((a) => !inAlbums.some((x) => x.id === a.id)))
 
   onMount(async () => {
     if (props.canEdit) albums = (await api<{ albums: { id: string; name: string }[] }>('/api/albums').catch(() => ({ albums: [] }))).albums
@@ -248,9 +252,22 @@
     const name = albums.find((a) => a.id === albumId)?.name ?? 'the album'
     try {
       await api(`/api/albums/${albumId}/items`, { method: 'POST', body: JSON.stringify({ assetIds: [props.assetId] }) })
+      inAlbums = [...inAlbums, { id: albumId, name }]
+      albumId = ''
       albumMessage = `Added to ${name}.`
     } catch (e) {
       albumMessage = `Not added to ${name}: ${e instanceof Error ? e.message : 'try again.'}`
+    }
+  }
+
+  /** Out of one album only: the photo stays in the library and in its other albums. */
+  async function leaveAlbum(album: { id: string; name: string }) {
+    try {
+      await api(`/api/albums/${album.id}/items`, { method: 'DELETE', body: JSON.stringify({ assetIds: [props.assetId] }) })
+      inAlbums = inAlbums.filter((a) => a.id !== album.id)
+      albumMessage = `Taken out of ${album.name}.`
+    } catch (e) {
+      albumMessage = `Still in ${album.name}: ${e instanceof Error ? e.message : 'try again.'}`
     }
   }
 
@@ -412,17 +429,31 @@
       {/if}
     </section>
   {/if}
-  {#if props.canEdit && albums.length > 0}
+  {#if inAlbums.length > 0 || (props.canEdit && albums.length > 0)}
     <div class="field">
-      <label for="album">Add to album</label>
-      <div class="row">
-        <select id="album" bind:value={albumId} style="flex: 1">
-          <option value="">Choose an album…</option>
-          {#each albums as album (album.id)}<option value={album.id}>{album.name}</option>{/each}
-        </select>
-        <button class="btn" type="button" onclick={addToAlbum} disabled={!albumId}>Add</button>
-      </div>
-      {#if albumMessage}<span class="muted">{albumMessage}</span>{/if}
+      <span class="label" id="albums-label">Albums</span>
+      {#if inAlbums.length > 0}
+        <div class="tags" role="group" aria-labelledby="albums-label">
+          {#each inAlbums as album (album.id)}
+            <span class="tag">
+              <a href={`/albums/${album.id}`}>{album.name}</a>
+              {#if props.canEdit}<button type="button" aria-label={`Take out of ${album.name}`} title="Take out of this album" onclick={() => leaveAlbum(album)}>×</button>{/if}
+            </span>
+          {/each}
+        </div>
+      {:else}
+        <span class="muted small">Not in any album yet.</span>
+      {/if}
+      {#if props.canEdit && otherAlbums.length > 0}
+        <div class="row">
+          <select id="album" aria-label="Add to album" bind:value={albumId} style="flex: 1">
+            <option value="">Add to an album…</option>
+            {#each otherAlbums as album (album.id)}<option value={album.id}>{album.name}</option>{/each}
+          </select>
+          <button class="btn" type="button" onclick={addToAlbum} disabled={!albumId}>Add</button>
+        </div>
+      {/if}
+      {#if albumMessage}<span class="muted" role="status">{albumMessage}</span>{/if}
     </div>
   {/if}
   {#if status === 'error'}<div class="alert alert-error">{message}</div>{/if}

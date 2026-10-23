@@ -132,6 +132,10 @@ export function describeActivity(e: ActivityEntry): string {
       return `${who} connected an agent`
     case 'source.revoked':
       return `${who} disconnected an agent`
+    case 'album.renamed':
+      return `${who} renamed the album “${str(d.from)}” to “${str(d.to)}”`
+    case 'album.deleted':
+      return `${who} deleted the album “${str(d.name)}”${typeof d.links === 'number' && d.links > 0 ? ` and its ${plural(d.links, 'client gallery link')}` : ''}`
     case 'share.create':
       return `${who} made a client gallery link`
     case 'share.revoke':

@@ -20,7 +20,13 @@ const [locations, tags, renditionRows, aiSettings] = await Promise.all([
   env.DB.prepare('SELECT name FROM renditions WHERE asset_id = ?').bind(id).all<{ name: string }>(),
   getAiSettings(env.DB),
 ])
-const [labelNames, presets] = await Promise.all([getLabelNames(env.DB), listPresets(env.DB)])
+const [labelNames, presets, inAlbums] = await Promise.all([
+  getLabelNames(env.DB),
+  listPresets(env.DB),
+  env.DB.prepare('SELECT al.id, al.name FROM album_items ai JOIN albums al ON al.id = ai.album_id WHERE ai.asset_id = ? ORDER BY al.name COLLATE NOCASE')
+    .bind(id)
+    .all<{ id: string; name: string }>(),
+])
 const asset = assetJson(row, renditionRows.results.map((r) => r.name))
 const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
 const connection = primary ? await getConnection(env.DB, primary.connection_id) : null
@@ -115,6 +121,7 @@ const facts: [string, string][] = [
           aiAvailable={Boolean(env.AI) && aiSettings.enabled}
           canRunAi={principal.permissions.has('ai:run')}
           canEdit={principal.permissions.has('assets:edit')}
+          inAlbums={inAlbums.results}
         />
       </section>
       <section class="card">
@@ -136,6 +143,7 @@ const facts: [string, string][] = [
           {principal.permissions.has('assets:edit') && (
             <><dt>{asset.gps ? '' : 'Location'}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? 'Move on the map' : 'Set on the map'}</a></dd></>
           )}
+          <dt>Metadata</dt><dd><a href={`/api/assets/${id}/xmp`} download title="Keywords, captions, rating and credits, for Lightroom, Capture One or Bridge">Download XMP sidecar</a></dd>
         </dl>
       </section>
       <section class="card">

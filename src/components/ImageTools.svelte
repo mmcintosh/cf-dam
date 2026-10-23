@@ -244,6 +244,7 @@
         {#each sizes as size (size)}
           <a class="btn btn-sm" href={href(size)} download onclick={() => (downloading = false)}>{SIZE_LABELS[size] ?? size}</a>
         {/each}
+        <a class="btn btn-sm" href={`/api/assets/${assetId}/xmp`} download onclick={() => (downloading = false)} title="Keywords, captions, rating and credits in a file Lightroom, Capture One and Bridge read">Metadata only (XMP)</a>
         {#if hasWatermark}
           <label class="small"><input type="checkbox" bind:checked={watermark} /> With the watermark (small and large)</label>
         {/if}

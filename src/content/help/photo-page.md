@@ -13,7 +13,7 @@ Open a photo in the library and press **Open details** (or click a photo anywher
 - **Alt text**: a short description for people who can't see the image (screen readers read it out). Galleries and downloads use it.
 - **Rating**, **pick or reject**, and **Colour label**.
 - **Tags** (keywords): type to find one from your keyword list, or add a new one. See [Keywords](/help/keywords).
-- **Add to album**.
+- **Albums**: the albums the photo is in. Choose one under **Add to an album…** and press **Add**; press **×** beside an album to take the photo out of it (the photo stays in your library and its other albums).
 
 Changes are saved as you make them, and become searchable straight away.
 
@@ -56,6 +56,10 @@ Press **Save**. The thumbnail, preview, library, galleries and downloads all sho
 | **Background removed (PNG)** | the preview, with the background cut away by Cloudflare's AI; works best on a clear subject |
 
 Each copy is rotated and cropped as shown. Tick **With the watermark** to add your watermark to small and large copies (when a watermark is set: see [Client galleries](/help/client-galleries)).
+
+## Metadata for Lightroom and others
+
+**Metadata only (XMP)** in the download menu, or **Download XMP sidecar** under **Details**, gives you a small `.xmp` file with the photo's title, caption, alt text, keywords, rating, colour label and credits. Put it in the same folder as the original, with the same name, and Lightroom, Capture One or Bridge pick up everything you wrote in cf-dam. How keywords are written follows your choices on [Keywords](/help/keywords).
 
 ## The original
 
