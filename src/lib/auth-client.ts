@@ -1,4 +1,5 @@
 import { passkeyClient } from '@better-auth/passkey/client'
+import { t } from '@cf-dam/i18n/client'
 import { createAuthClient } from 'better-auth/client'
 import { twoFactorClient } from 'better-auth/client/plugins'
 
@@ -21,7 +22,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...init.headers },
   })
   if (!response.ok) {
-    let message = `Request failed (${response.status})`
+    let message = t('common.requestFailed', { status: String(response.status) })
     try {
       const body = (await response.json()) as { message?: string; error?: string }
       message = body.message ?? body.error ?? message

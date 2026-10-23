@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t, tHtml } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   /** Bring a catalog back from a backup into this fresh install: find it, load it, choose your sign-in. */
   import { onDestroy } from 'svelte'
 
@@ -40,18 +42,16 @@
   let error = $state('')
   let busy = $state(false)
 
-  const MESSAGES: Record<string, string> = {
-    invalid_setup_token: 'That setup token is not right.',
-    setup_token_not_configured: 'This deployment has no SETUP_TOKEN. Set it with `wrangler secret put SETUP_TOKEN`, then reload.',
-    already_set_up: 'Setup is already done. Sign in instead.',
+  const MESSAGES: Record<string, MessageKey> = {
+    invalid_setup_token: 'setup.badToken',
+    already_set_up: 'setup.alreadyDone',
   }
-  const PHASES: Record<RestoreView['phase'], string> = {
-    tables: 'Loading the catalog',
-    bands: 'Rebuilding look-alike matching',
-    reseed: 'Finishing off',
+  const PHASES: Record<RestoreView['phase'], MessageKey> = {
+    tables: 'restore.phase.tables',
+    bands: 'restore.phase.bands',
+    reseed: 'restore.phase.reseed',
   }
-  const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-  const count = (n: number) => n.toLocaleString()
+  const when = (iso: string) => format().dateTime(iso)
   /** A backup's id is when it started, with : and . made safe for keys. */
   const backupTime = (id: string) => id.replace(/T(\d\d)-(\d\d)-(\d\d)-(\d+)Z$/, 'T$1:$2:$3.$4Z')
   const percent = $derived(restore && restore.totalRows > 0 ? Math.min(100, Math.floor((restore.rows / restore.totalRows) * 100)) : 0)
@@ -61,7 +61,8 @@
     const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, token: token || undefined }) })
     if (response.ok) return { ok: true, data: (await response.json().catch(() => ({}))) as T, response }
     const failure = (await response.json().catch(() => ({}))) as { error?: string; message?: string }
-    error = (failure.error && MESSAGES[failure.error]) || failure.message || `That didn’t work (${response.status}).`
+    const known = failure.error === 'setup_token_not_configured' ? t('setup.noToken', { command: 'wrangler secret put SETUP_TOKEN' }) : failure.error && MESSAGES[failure.error] ? t(MESSAGES[failure.error]!) : null
+    error = known || failure.message || t('restore.failedStatus', { status: String(response.status) })
     return { ok: false }
   }
 
@@ -95,7 +96,7 @@
     event.preventDefault()
     error = ''
     if (password !== confirm) {
-      error = 'The passwords do not match.'
+      error = t('setup.mismatch')
       return
     }
     busy = true
@@ -121,7 +122,7 @@
 {#snippet tokenField()}
   {#if tokenRequired}
     <div class="field">
-      <label for="restore-token">Setup token</label>
+      <label for="restore-token">{t('setup.token')}</label>
       <input id="restore-token" type="password" autocomplete="off" required bind:value={token} />
     </div>
   {/if}
@@ -129,83 +130,79 @@
 
 {#snippet sourceFields()}
   <fieldset class="field">
-    <legend>Where the backups are</legend>
-    <label class="choice"><input type="radio" bind:group={kind} value="r2" /> This install’s built-in storage (R2), if it still has them</label>
-    <label class="choice"><input type="radio" bind:group={kind} value="s3" /> An S3 bucket (Amazon S3, or any S3-compatible store)</label>
+    <legend>{t('restore.where')}</legend>
+    <label class="choice"><input type="radio" bind:group={kind} value="r2" /> {t('restore.r2')}</label>
+    <label class="choice"><input type="radio" bind:group={kind} value="s3" /> {t('restore.s3')}</label>
   </fieldset>
   {#if kind === 's3'}
-    <div class="field"><label for="s3-endpoint">Endpoint</label><input id="s3-endpoint" type="url" required bind:value={s3.endpoint} /></div>
+    <div class="field"><label for="s3-endpoint">{t('conn.endpoint')}</label><input id="s3-endpoint" type="url" required bind:value={s3.endpoint} /></div>
     <div class="row">
-      <div class="field"><label for="s3-region">Region</label><input id="s3-region" type="text" bind:value={s3.region} /></div>
-      <div class="field"><label for="s3-bucket">Bucket</label><input id="s3-bucket" type="text" required bind:value={s3.bucket} /></div>
+      <div class="field"><label for="s3-region">{t('conn.region')}</label><input id="s3-region" type="text" bind:value={s3.region} /></div>
+      <div class="field"><label for="s3-bucket">{t('conn.bucket')}</label><input id="s3-bucket" type="text" required bind:value={s3.bucket} /></div>
     </div>
-    <div class="field"><label for="s3-key">Access key ID</label><input id="s3-key" type="text" autocomplete="off" required bind:value={s3.accessKeyId} /></div>
-    <div class="field"><label for="s3-secret">Secret access key</label><input id="s3-secret" type="password" autocomplete="off" required bind:value={s3.secretAccessKey} /></div>
-    <label class="choice"><input type="checkbox" bind:checked={s3.forcePathStyle} /> Path-style addresses (most stores other than Amazon need this)</label>
-    <p class="muted small">Read-only keys are enough. They’re kept, sealed, only until the restore has finished.</p>
+    <div class="field"><label for="s3-key">{t('conn.accessKeyId')}</label><input id="s3-key" type="text" autocomplete="off" required bind:value={s3.accessKeyId} /></div>
+    <div class="field"><label for="s3-secret">{t('conn.secret')}</label><input id="s3-secret" type="password" autocomplete="off" required bind:value={s3.secretAccessKey} /></div>
+    <label class="choice"><input type="checkbox" bind:checked={s3.forcePathStyle} /> {t('restore.pathStyle')}</label>
+    <p class="muted small">{t('restore.keysNote')}</p>
   {/if}
 {/snippet}
 
 <div class="stack">
   {#if blocked}
     <div class="alert alert-error">
-      This deployment has no <code>SETUP_TOKEN</code> secret. Set one with
-      <code>wrangler secret put SETUP_TOKEN</code>, then reload this page.
+      {t('setup.noToken', { command: 'wrangler secret put SETUP_TOKEN' })}
     </div>
   {/if}
 
   {#if restore?.status === 'running'}
     <div>
-      <p><strong>{PHASES[restore.phase]}</strong> from the backup of {when(backupTime(restore.backupId))}.</p>
+      <p>{@html tHtml('restore.running', { phase: t(PHASES[restore.phase]), date: when(backupTime(restore.backupId)) })}</p>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent}><span style:width="{percent}%"></span></div>
-      <p class="muted small">{count(restore.rows)} of {count(restore.totalRows)} rows. It carries on by itself, a part each minute; you can close this page and come back.</p>
-      {#if restore.error}<p class="muted small">Last problem, being tried again: {restore.error}</p>{/if}
+      <p class="muted small">{t('restore.progress', { done: restore.rows, total: restore.totalRows })}</p>
+      {#if restore.error}<p class="muted small">{t('restore.retrying', { error: restore.error })}</p>{/if}
     </div>
   {:else if restore?.status === 'failed'}
     <form class="stack" onsubmit={(e) => (e.preventDefault(), start(restore!.backupId))}>
-      <div class="alert alert-error" role="alert">The restore stopped after {count(restore.rows)} of {count(restore.totalRows)} rows: {restore.error}</div>
-      <p class="muted small">Try again: it carries on where it stopped. Say again where the backup is.</p>
+      <div class="alert alert-error" role="alert">{t('restore.stopped', { done: restore.rows, total: restore.totalRows, error: restore.error ?? '' })}</div>
+      <p class="muted small">{t('restore.tryAgainLead')}</p>
       {@render sourceFields()}
       {@render tokenField()}
-      <button class="btn btn-primary" type="submit" disabled={busy || blocked}>{busy ? 'Starting…' : 'Try again'}</button>
+      <button class="btn btn-primary" type="submit" disabled={busy || blocked}>{busy ? t('restore.starting') : t('restore.tryAgain')}</button>
     </form>
   {:else if restore?.status === 'restored'}
     <form class="stack" onsubmit={finish}>
-      <p>The catalog is back: {count(restore.rows)} rows. Choose how you’ll sign in.</p>
-      <p class="muted small">
-        If your email was in the backup, that account becomes yours again, as an administrator. Nobody else has a password yet: set temporary
-        ones on the People page. Agents need connecting again.
-      </p>
-      <div class="field"><label for="r-name">Your name</label><input id="r-name" type="text" autocomplete="name" required bind:value={name} /></div>
-      <div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email" required bind:value={email} /></div>
-      <div class="field"><label for="r-password">Password</label><input id="r-password" type="password" autocomplete="new-password" minlength="12" required bind:value={password} /></div>
-      <div class="field"><label for="r-confirm">Confirm password</label><input id="r-confirm" type="password" autocomplete="new-password" minlength="12" required bind:value={confirm} /></div>
+      <p>{t('restore.back', { rows: restore.rows })}</p>
+      <p class="muted small">{t('restore.backLead')}</p>
+      <div class="field"><label for="r-name">{t('setup.yourName')}</label><input id="r-name" type="text" autocomplete="name" required bind:value={name} /></div>
+      <div class="field"><label for="r-email">{t('common.email')}</label><input id="r-email" type="email" autocomplete="email" required bind:value={email} /></div>
+      <div class="field"><label for="r-password">{t('common.password')}</label><input id="r-password" type="password" autocomplete="new-password" minlength="12" required bind:value={password} /></div>
+      <div class="field"><label for="r-confirm">{t('setup.confirm')}</label><input id="r-confirm" type="password" autocomplete="new-password" minlength="12" required bind:value={confirm} /></div>
       {@render tokenField()}
-      <button class="btn btn-primary" type="submit" disabled={busy || blocked}>{busy ? 'Signing in…' : 'Sign in to the restored archive'}</button>
+      <button class="btn btn-primary" type="submit" disabled={busy || blocked}>{busy ? t('auth.signIn.busy') : t('restore.signInRestored')}</button>
     </form>
   {:else}
     <form class="stack" onsubmit={look}>
       {@render sourceFields()}
       {@render tokenField()}
-      <button class="btn" type="submit" disabled={busy || blocked}>{busy && !backups ? 'Looking…' : 'Look for backups'}</button>
+      <button class="btn" type="submit" disabled={busy || blocked}>{busy && !backups ? t('restore.looking') : t('restore.look')}</button>
     </form>
     {#if backups}
       {#if backups.length === 0}
-        <p class="muted">No finished backups there. cf-dam keeps them under <code>cf-dam-backups/</code> at the top of the bucket.</p>
+        <p class="muted">{@html tHtml('restore.none')}</p>
       {:else}
         <fieldset class="field">
-          <legend>Choose a backup</legend>
+          <legend>{t('restore.choose')}</legend>
           {#each backups as b (b.id)}
             <label class="choice" class:disabled={b.problem}>
               <input type="radio" bind:group={chosen} value={b.id} disabled={!!b.problem} />
               <span>
-                {when(b.startedAt)}: {count(b.photos)} photos, {count(b.rows)} rows
+                {t('restore.item', { date: when(b.startedAt), photos: t('common.photos', { count: b.photos }), rows: b.rows })}
                 {#if b.problem}<span class="muted small"> {b.problem}</span>{/if}
               </span>
             </label>
           {/each}
         </fieldset>
-        <button class="btn btn-primary" type="button" disabled={busy || !chosen || blocked} onclick={() => start(chosen)}>{busy ? 'Starting…' : 'Restore this backup'}</button>
+        <button class="btn btn-primary" type="button" disabled={busy || !chosen || blocked} onclick={() => start(chosen)}>{busy ? t('restore.starting') : t('restore.restoreThis')}</button>
       {/if}
     {/if}
   {/if}

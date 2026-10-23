@@ -28,7 +28,12 @@ function* walk(dir, test) {
 }
 
 function count(path) {
-  const lines = readFileSync(path, 'utf8').replace(/<style[\s\S]*?<\/style>/g, '').split('\n')
+  // Markup only: style blocks, Svelte <script> blocks and Astro frontmatter hold code, not page text.
+  const lines = readFileSync(path, 'utf8')
+    .replace(/<style[\s\S]*?<\/style>/g, '')
+    .replace(/<script(?![^>]*type="application\/json")[\s\S]*?<\/script>/g, '')
+    .replace(/^---\n[\s\S]*?\n---\n/, '')
+    .split('\n')
   let n = 0
   for (const line of lines) {
     if (/i18n-ok/.test(line)) continue

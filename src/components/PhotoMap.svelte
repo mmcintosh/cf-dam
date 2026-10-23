@@ -36,7 +36,7 @@
 
   const photos = (n: number) => t('common.photos', { count: n })
   $effect(() => {
-    if (placeButton) placeButton.textContent = `Place ${photos(selected.size)} here`
+    if (placeButton) placeButton.textContent = t('map.placeHere', { photos: photos(selected.size) })
   })
 
   const join = (...parts: string[]) => parts.filter(Boolean).join('&')

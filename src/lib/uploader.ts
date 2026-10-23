@@ -6,6 +6,7 @@
  * three at a time, each retried with backoff. When the original is going somewhere the Worker can't
  * read it back (deep archive) or is too big to transform there, the browser makes the preview itself.
  */
+import { t } from '@cf-dam/i18n/client'
 
 export interface UploadTarget {
   connectionId?: string
@@ -41,7 +42,7 @@ const BROWSER_DECODABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'ima
 async function json<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string; error?: string }
-    throw Object.assign(new Error(body.message ?? body.error ?? `Request failed (${response.status})`), { status: response.status, body })
+    throw Object.assign(new Error(body.message ?? body.error ?? t('common.requestFailed', { status: String(response.status) })), { status: response.status, body })
   }
   return (await response.json()) as T
 }
@@ -180,14 +181,14 @@ function putPart(target: PartTarget, body: Blob, onSent: (bytes: number) => void
     for (const [name, value] of Object.entries(target.headers)) xhr.setRequestHeader(name, value)
     xhr.upload.onprogress = (event) => onSent(event.loaded)
     xhr.onload = () => {
-      if (xhr.status < 200 || xhr.status >= 300) return reject(Object.assign(new Error(`Part ${target.partNumber} failed (${xhr.status})`), { status: xhr.status }))
+      if (xhr.status < 200 || xhr.status >= 300) return reject(Object.assign(new Error(t('upload.partFailed', { part: target.partNumber, status: String(xhr.status) })), { status: xhr.status }))
       const etag = xhr.getResponseHeader('ETag')
       if (!etag) {
-        return reject(new Error('Storage did not expose the ETag header. Add ETag to the bucket CORS rule’s ExposeHeaders.'))
+        return reject(new Error(t('upload.noEtag')))
       }
       resolve(etag)
     }
-    xhr.onerror = () => reject(new Error(`Network error on part ${target.partNumber}. If this is an S3 bucket, check its CORS rule allows PUT from this site.`))
+    xhr.onerror = () => reject(new Error(t('upload.networkPart', { part: target.partNumber })))
     signal?.addEventListener('abort', () => xhr.abort(), { once: true })
     xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'))
     xhr.send(body)
@@ -242,16 +243,16 @@ export async function uploadFile(
       const thumb = await makeRendition(video.poster, 480, 0.78).catch(() => null)
       const renditions: [string, Blob | null][] = [['preview', video.poster], ['thumb', thumb], ['sheet', video.sheet]]
       for (const [name, blob] of renditions) {
-        if (blob && !(await sendRendition(created.uploadId, name, blob, signal)) && name === 'preview') note = 'Uploaded without a preview'
+        if (blob && !(await sendRendition(created.uploadId, name, blob, signal)) && name === 'preview') note = t('upload.noPreview')
       }
     } else if (isVideo) {
-      note = 'Uploaded without a preview (this browser couldn’t read the video)'
+      note = t('upload.noPreviewVideo')
     }
     const workerCannotRead = ARCHIVE_CLASSES.has(created.storageClass) || file.size > WORKER_TRANSFORM_LIMIT
     if (workerCannotRead && BROWSER_DECODABLE.has(file.type)) {
       for (const [name, edge, quality] of [['preview', 2048, 0.82], ['thumb', 480, 0.78]] as const) {
         const blob = await makeRendition(file, edge, quality).catch(() => null)
-        if ((!blob || !(await sendRendition(created.uploadId, name, blob, signal))) && name === 'preview') note = 'Uploaded without a preview'
+        if ((!blob || !(await sendRendition(created.uploadId, name, blob, signal))) && name === 'preview') note = t('upload.noPreview')
       }
     }
 

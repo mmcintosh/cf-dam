@@ -8,7 +8,7 @@
     section: string
     text: string
   }
-  let { articles, sections }: { articles: Article[]; sections: string[] } = $props()
+  let { articles, sections }: { articles: Article[]; sections: { id: string; name: string }[] } = $props()
   let query = $state('')
 
   const words = $derived(
@@ -49,11 +49,11 @@
     </section>
   {/if}
   <div class="sections">
-    {#each sections as section (section)}
-      {@const list = articles.filter((a) => a.section === section)}
+    {#each sections as section (section.id)}
+      {@const list = articles.filter((a) => a.section === section.id)}
       {#if list.length > 0}
         <section class="card">
-          <h2>{section}</h2>
+          <h2>{section.name}</h2>
           <ul>
             {#each list as a (a.slug)}
               <li><a href={`/help/${a.slug}`}>{a.title}</a><span class="muted small">{a.summary}</span></li>

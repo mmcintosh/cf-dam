@@ -2,7 +2,7 @@
 import { getT } from '@cf-dam/i18n'
 import AppLayout from '../../layouts/AppLayout.astro'
 import HelpSearch from '../../components/HelpSearch.svelte'
-import { HELP_SECTIONS } from '../../lib/help'
+import { HELP_SECTION_KEYS, HELP_SECTIONS } from '../../lib/help'
 import { helpArticles } from '../../lib/help-articles'
 
 const t = getT(Astro.locals.lang)
@@ -10,5 +10,5 @@ const articles = await helpArticles(Astro.locals.lang)
 const index = articles.map(({ slug, entry }) => ({ slug, title: entry.data.title, summary: entry.data.summary, section: entry.data.section, text: entry.body ?? '' }))
 ---
 <AppLayout title={t('common.help')} subtitle={t('help.subtitle')}>
-  <HelpSearch client:load articles={index} sections={[...HELP_SECTIONS]} />
+  <HelpSearch client:load articles={index} sections={HELP_SECTIONS.map((s) => ({ id: s, name: t(HELP_SECTION_KEYS[s]) }))} />
 </AppLayout>
