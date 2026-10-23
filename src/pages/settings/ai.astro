@@ -1,12 +1,12 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { aiStats, getAiSettings, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
+import { aiStats, getAiSettings, siteLanguage, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AiSettings from '../../components/AiSettings.svelte'
 
 const principal = Astro.locals.principal!
-const [settings, stats] = await Promise.all([getAiSettings(env.DB), aiStats(env.DB)])
+const [settings, stats, archiveLanguage] = await Promise.all([getAiSettings(env.DB), aiStats(env.DB), siteLanguage(env.DB)])
 const t = getT(Astro.locals.lang)
 ---
 <AppLayout help="ai-review" title={t('ai.title')} subtitle={t('ai.subtitle')}>
@@ -17,6 +17,7 @@ const t = getT(Astro.locals.lang)
     initialStats={stats}
     models={[...VISION_MODELS]}
     usdPer1000Neurons={USD_PER_1000_NEURONS}
+    archiveLanguage={archiveLanguage ?? 'en'}
     canManage={principal.permissions.has('settings:manage')}
   />
 </AppLayout>

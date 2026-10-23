@@ -10,6 +10,7 @@
 import type { DamBindings } from '../env'
 import { renditionStore } from '../storage/connections'
 import { renditionKey } from './renditions'
+import type { Language } from '@cf-dam/i18n'
 
 export interface VisionModel {
   id: string
@@ -53,7 +54,12 @@ export interface VisionContext {
   filename?: string
   existingKeywords?: string[]
   capturedAt?: string | null
+  /** The language to write in; English when absent. */
+  language?: Language
 }
+
+/** How the prompt names each language: in English (the instructions are English), then in itself. */
+const WRITE_IN: Record<Language, string> = { en: 'English', es: 'Spanish (español)', de: 'German (Deutsch)', fr: 'French (français)', it: 'Italian (italiano)' }
 
 const SCHEMA = {
   type: 'object',
@@ -79,6 +85,11 @@ export function buildPrompt(context: VisionContext): string {
   return [
     'You catalogue photos for a professional photo archive. Describe only what is visible; do not guess names of people or places unless they are unmistakable or given below.',
     ...hints,
+    ...(context.language && context.language !== 'en'
+      ? [
+          `Write tags, alt, caption and description in ${WRITE_IN[context.language]}.${context.language === 'de' ? ' Capitalise nouns in tags as German does.' : ''} Keep the JSON keys and the quality values in English, and copy "text" exactly as written in the picture.`,
+        ]
+      : []),
     'Reply with JSON only, no prose, in exactly this shape:',
     '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "readable text in the picture exactly as written (signs, shirts, documents), at most 500 characters, or empty"}',
   ].join('\n')
@@ -97,13 +108,14 @@ export function extractJson(text: string): unknown {
 
 const clean = (value: unknown, max: number) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '')
 
-export function normalizeResult(raw: unknown): Omit<VisionResult, 'usage'> {
+/** German capitalises nouns, so its tags keep their case; other languages' tags are lowercased. */
+export function normalizeResult(raw: unknown, language: Language = 'en'): Omit<VisionResult, 'usage'> {
   const obj = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
   const tags = Array.isArray(obj.tags) ? obj.tags : typeof obj.tags === 'string' ? obj.tags.split(',') : []
   const quality = typeof obj.quality === 'string' ? obj.quality.toLowerCase().trim() : ''
   const people = typeof obj.people === 'number' ? obj.people : Number.parseInt(String(obj.people ?? '0'), 10)
   return {
-    tags: [...new Set(tags.map((t) => clean(t, 40).toLowerCase()).filter((t) => t.length > 1 && t.length <= 40))].slice(0, 20),
+    tags: [...new Set(tags.map((t) => (language === 'de' ? clean(t, 40) : clean(t, 40).toLowerCase())).filter((t) => t.length > 1 && t.length <= 40))].slice(0, 20),
     alt: clean(obj.alt, 250),
     caption: clean(obj.caption, 600),
     description: clean(obj.description, 1500),
@@ -184,7 +196,7 @@ export async function analyzeImage(ai: Ai, modelId: string, dataUrl: string, con
   if (payload === undefined || payload === null) throw new Error('The model returned no answer.')
   const parsed = typeof payload === 'string' ? extractJson(payload) : payload
   return {
-    ...normalizeResult(parsed),
+    ...normalizeResult(parsed, context.language),
     usage: reply.usage
       ? { prompt: reply.usage.prompt_tokens ?? 0, completion: reply.usage.completion_tokens ?? 0, neurons: reply.usage.neurons ?? null }
       : null,

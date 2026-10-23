@@ -922,6 +922,24 @@
     "fr": "machine",
     "it": "machine"
   },
+  "ai.language": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "ai.languageNote": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "ai.languageSite": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "ai.lessThanCent": {
     "es": "machine",
     "de": "machine",
@@ -3570,6 +3588,12 @@
     "it": "machine"
   },
   "err.aiBusy": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "err.aiOff": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

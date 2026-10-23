@@ -10,6 +10,8 @@ import { addTags, getAsset, getTags } from './assets'
 import { matchKeywords } from './keywords'
 import { indexAsset, indexAssets } from './search'
 import { analyzeImage, DEFAULT_VISION_MODEL, modelImage, USD_PER_1000_NEURONS, VISION_MODELS } from './vision'
+import { asLanguage, type Language } from '@cf-dam/i18n'
+import { say, siteLanguage } from '../lib/language'
 
 export interface AiSettings {
   enabled: boolean
@@ -18,9 +20,11 @@ export interface AiSettings {
   model: string
   /** Free text the model is told about the archive, e.g. "Wedding photographer in Bergen". */
   context: string
+  /** What suggestions are written in: 'site' follows the archive's language (settings `site.language`). */
+  language: Language | 'site'
 }
 
-const KEYS = { enabled: 'ai.enabled', auto: 'ai.auto', model: 'ai.model', context: 'ai.context' } as const
+const KEYS = { enabled: 'ai.enabled', auto: 'ai.auto', model: 'ai.model', context: 'ai.context', language: 'ai.language' } as const
 
 export async function getAiSettings(db: D1Database): Promise<AiSettings> {
   const { results } = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'ai.%'").all<{ key: string; value: string }>()
@@ -31,6 +35,7 @@ export async function getAiSettings(db: D1Database): Promise<AiSettings> {
     auto: map.get(KEYS.auto) !== 'false',
     model: model && VISION_MODELS.some((m) => m.id === model) ? model : DEFAULT_VISION_MODEL,
     context: map.get(KEYS.context) ?? '',
+    language: (asLanguage(map.get(KEYS.language)) as Language | null) ?? 'site',
   }
 }
 
@@ -43,6 +48,7 @@ export async function saveAiSettings(db: D1Database, patch: Partial<AiSettings>)
   if (patch.auto !== undefined) put(KEYS.auto, String(patch.auto))
   if (patch.model !== undefined) put(KEYS.model, patch.model)
   if (patch.context !== undefined) put(KEYS.context, patch.context)
+  if (patch.language !== undefined) put(KEYS.language, patch.language)
   if (statements.length > 0) await db.batch(statements)
   return getAiSettings(db)
 }
@@ -53,7 +59,7 @@ export const AI_MAX_ATTEMPTS = 3
 export const AI_RUNNING_STALE_MS = 10 * 60_000
 
 /** Why photos can't be queued for analysis while AI review is switched off. */
-export const AI_OFF = 'AI review is switched off. Turn it on in AI settings first.'
+export const aiOff = () => say('err.aiOff')
 
 /** Whether AI can run at all here: the binding exists and it is switched on. */
 export async function aiAvailable(env: DamBindings): Promise<boolean> {
@@ -123,18 +129,20 @@ export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'
       return 'skipped'
     }
     const userTags = (await getTags(db, assetId)).filter((t) => t.source !== 'ai').map((t) => t.name)
+    const language = settings.language === 'site' ? ((await siteLanguage(db)) ?? 'en') : settings.language
     const result = await analyzeImage(env.AI, settings.model, image, {
       photographer: settings.context || null,
       filename: asset.filename,
       existingKeywords: userTags,
       capturedAt: asset.captured_at,
+      language,
     })
     await db
       .prepare(
         `UPDATE assets SET ai_status = 'done', ai_model = ?, ai_analyzed_at = ?, ai_alt = ?, ai_caption = ?, ai_description = ?,
-           ai_quality = ?, ai_people = ?, ai_text = ?, ai_neurons = ?, ai_error = NULL WHERE id = ?`,
+           ai_quality = ?, ai_people = ?, ai_text = ?, ai_neurons = ?, ai_language = ?, ai_error = NULL WHERE id = ?`,
       )
-      .bind(settings.model, nowIso(), result.alt || null, result.caption || null, result.description || null, result.quality, result.people, result.text || null, result.usage?.neurons ?? null, assetId)
+      .bind(settings.model, nowIso(), result.alt || null, result.caption || null, result.description || null, result.quality, result.people, result.text || null, result.usage?.neurons ?? null, language, assetId)
       .run()
     // Replace the previous run's AI tags; people's own tags are untouched.
     await db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai'").bind(assetId).run()

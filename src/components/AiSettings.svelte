@@ -1,6 +1,7 @@
 <script lang="ts">
   import { format, t } from '@cf-dam/i18n/client'
   import type { MessageKey } from '@cf-dam/i18n'
+  import { LANGUAGES } from '@cf-dam/i18n/languages'
   import { api } from '../lib/auth-client'
 
   interface Settings {
@@ -8,6 +9,7 @@
     auto: boolean
     model: string
     context: string
+    language: string
   }
   interface Stats {
     analysed: number
@@ -28,6 +30,8 @@
     initialStats: Stats
     models: Model[]
     usdPer1000Neurons: number
+    /** settings `site.language`, for the "archive's language" choice. */
+    archiveLanguage: string
     canManage: boolean
   }
   let props: Props = $props()
@@ -161,6 +165,15 @@
         </label>
       {/each}
     </fieldset>
+
+    <div class="field">
+      <label for="ai-language">{t('ai.language')}</label>
+      <select id="ai-language" bind:value={settings.language} disabled={!props.canManage} onchange={() => save({ language: settings.language })}>
+        <option value="site">{t('ai.languageSite', { name: LANGUAGES.find((l) => l.code === props.archiveLanguage)?.name ?? props.archiveLanguage })}</option>
+        {#each LANGUAGES as language (language.code)}<option value={language.code} lang={language.code}>{language.name}</option>{/each}
+      </select>
+      <span class="muted small">{t('ai.languageNote')}</span>
+    </div>
 
     <div class="field">
       <label for="context">{t('ai.aboutWork')}</label>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runSweep } from '../src/catalog/sweeper'
-import { extractJson, normalizeResult } from '../src/catalog/vision'
+import { buildPrompt, extractJson, normalizeResult } from '../src/catalog/vision'
 import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -193,5 +193,20 @@ describe('AI review', () => {
     await runSweep(h.env)
     expect((await asset(admin, id)).ai.status).toBeNull()
     expect(calls).toHaveLength(0)
+  })
+})
+
+describe('suggestions in the archive’s language', () => {
+  it('asks for the language, keeping JSON keys and quality values in English', () => {
+    const prompt = buildPrompt({ language: 'de' })
+    expect(prompt).toContain('in German (Deutsch)')
+    expect(prompt).toContain('Keep the JSON keys and the quality values in English')
+    expect(buildPrompt({})).not.toContain('Write tags')
+    expect(buildPrompt({ language: 'en' })).not.toContain('Write tags')
+  })
+
+  it('keeps German nouns capitalised in tags, and lowercases other languages', () => {
+    expect(normalizeResult({ tags: ['Eisvogel', 'Ast'] }, 'de').tags).toEqual(['Eisvogel', 'Ast'])
+    expect(normalizeResult({ tags: ['Martín Pescador'] }, 'es').tags).toEqual(['martín pescador'])
   })
 })

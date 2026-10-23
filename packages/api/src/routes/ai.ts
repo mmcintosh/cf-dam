@@ -1,19 +1,20 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { AI_OFF, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
+import { aiOff, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
 import { nudge } from '../catalog/work'
 import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject } from '../lib/http'
-import { say } from '../lib/language'
+import { say, siteLanguage } from '../lib/language'
+import { asLanguage, type Language } from '@cf-dam/i18n'
 
 export const aiRoutes = new Hono<DamEnv>()
 
 /** Settings, the models on offer, and the backlog with its estimated cost. */
 aiRoutes.get('/', requirePermission('ai:run'), async (c) => {
   const [settings, stats] = await Promise.all([getAiSettings(c.env.DB), aiStats(c.env.DB)])
-  return c.json({ available: Boolean(c.env.AI), settings, models: VISION_MODELS, stats, usdPer1000Neurons: USD_PER_1000_NEURONS })
+  return c.json({ available: Boolean(c.env.AI), settings, models: VISION_MODELS, stats, usdPer1000Neurons: USD_PER_1000_NEURONS, archiveLanguage: (await siteLanguage(c.env.DB)) ?? 'en' })
 })
 
 aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
@@ -28,6 +29,11 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
     if (body.model !== undefined) {
       if (typeof body.model !== 'string' || !VISION_MODELS.some((m) => m.id === body.model)) throw new BadRequest(say('err.unknownModel'))
       patch.model = body.model
+    }
+    if (body.language !== undefined) {
+      const language = body.language === 'site' ? 'site' : (asLanguage(body.language) as Language | null)
+      if (!language) throw new BadRequest('language is a language code cf-dam speaks, or "site".')
+      patch.language = language
     }
     if (body.context !== undefined) {
       if (typeof body.context !== 'string' || body.context.length > 500) throw new BadRequest('context is text up to 500 characters.')
@@ -46,7 +52,7 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
 aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
   if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: say('err.noAi') }, 409)
   // Queued while switched off, photos would wait with nothing to analyse them.
-  if (!(await getAiSettings(c.env.DB)).enabled) return c.json({ error: 'ai_off', message: AI_OFF }, 409)
+  if (!(await getAiSettings(c.env.DB)).enabled) return c.json({ error: 'ai_off', message: aiOff() }, 409)
   const queued = await queueForAi(c.env.DB, 'unanalysed')
   await nudge(c.env, 'ai', queued)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.backfill_queued', details: { queued } })
