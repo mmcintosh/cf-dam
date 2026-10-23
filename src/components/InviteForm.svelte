@@ -5,6 +5,10 @@
 
   let { token, name, email }: { token: string; name: string; email: string } = $props()
 
+  // Sentences with a word in bold or italics: split where it goes, so each language can put it anywhere.
+  const lead = t('invite.lead', { email: '\u0000' }).split('\u0000')
+  const tip = t('invite.tip', { example: '\u0000' }).split('\u0000')
+
   let password = $state('')
   let again = $state('')
   let show = $state(false)
@@ -40,8 +44,7 @@
 <form class="stack" onsubmit={join}>
   <div>
     <h1>{t('invite.welcome', { name: name.split(/\s+/)[0] || name })}</h1>
-    {@const [before, after = ''] = t('invite.lead', { email: '\u0000' }).split('\u0000')}
-    <p class="muted">{before}<strong>{email}</strong>{after}</p>
+    <p class="muted">{lead[0]}<strong>{email}</strong>{lead[1] ?? ''}</p>
   </div>
   <input type="email" autocomplete="username" value={email} hidden readonly />
   <div class="field">
@@ -53,8 +56,7 @@
     <input id="new-password-again" type={show ? 'text' : 'password'} autocomplete="new-password" required minlength="12" maxlength="256" bind:value={again} />
   </div>
   <label class="check"><input type="checkbox" bind:checked={show} /> {t('invite.show')}</label>
-  {@const [tipBefore, tipAfter = ''] = t('invite.tip', { example: '\u0000' }).split('\u0000')}
-  <p class="muted small">{tipBefore}<em>{t('invite.tipExample')}</em>{tipAfter}</p>
+  <p class="muted small">{tip[0]}<em>{t('invite.tipExample')}</em>{tip[1] ?? ''}</p>
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
   <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('invite.busy') : t('invite.submit')}</button>
 </form>
