@@ -53,6 +53,8 @@ function fakeVectors() {
       return ids.filter((id) => stored.has(id)).map((id) => ({ id, values: stored.get(id)! }))
     },
     async query(values: number[], options: { topK: number }) {
+      // As the real one: "max top K is 100".
+      if (options.topK > 100) throw new Error(`VECTOR_QUERY_ERROR (code = 40011): max top K is 100, got ${options.topK}`)
       const matches = [...stored].map(([id, v]) => ({ id, score: v.reduce((n, x, i) => n + x * values[i]!, 0) }))
       matches.sort((a, b) => b.score - a.score)
       return { matches: matches.slice(0, options.topK), count: matches.length }

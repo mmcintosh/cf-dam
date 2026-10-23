@@ -30,7 +30,7 @@ const QUERY_INSTRUCTION = 'Instruct: Given a photo search query, find photo desc
 const BATCH = 50
 /** Text per photo, in characters: plenty for a description, and keeps a call small. */
 const MAX_TEXT = 2000
-/** Nearest photos a search returns, at most. */
+/** Nearest photos a search returns, at most: Vectorize's own limit ("max top K is 100"). */
 export const NEAREST = 100
 /** Below this a match is about something else (see MEANING_MODEL). */
 export const MIN_SCORE = 0.4
@@ -127,8 +127,8 @@ export async function nearest(env: DamBindings, by: { text: string } | { assetId
     if (!own) return []
     values = [...own.values]
   }
-  const { matches } = await vectors.query(values, { topK: NEAREST + 1 })
-  return matches.filter((m) => m.score >= MIN_SCORE && !('assetId' in by && m.id === by.assetId)).slice(0, NEAREST).map((m) => m.id)
+  const { matches } = await vectors.query(values, { topK: NEAREST })
+  return matches.filter((m) => m.score >= MIN_SCORE && !('assetId' in by && m.id === by.assetId)).map((m) => m.id)
 }
 
 /**
@@ -136,7 +136,13 @@ export async function nearest(env: DamBindings, by: { text: string } | { assetId
  * (`near`), so the rest of the list query can narrow and order by them.
  */
 export async function resolveNear(env: DamBindings, filters: ListFilters): Promise<ListFilters> {
-  if (filters.like) return { ...filters, near: await nearest(env, { assetId: filters.like }) }
-  if (filters.meaning) return { ...filters, near: await nearest(env, { text: filters.meaning }) }
-  return filters
+  if (!filters.like && !filters.meaning) return filters
+  try {
+    const near = await nearest(env, filters.like ? { assetId: filters.like } : { text: filters.meaning! })
+    return { ...filters, near }
+  } catch (error) {
+    // The library still opens: the search finds nothing, and the log says why.
+    console.warn('[meaning] search failed', error)
+    return { ...filters, near: [] }
+  }
 }
