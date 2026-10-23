@@ -12,7 +12,7 @@ const { assets, total, totalExact } = await listAssets(env.DB, { albumId: id, li
 const canShare = Astro.locals.principal!.permissions.has('shares:manage')
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 ---
-<AppLayout wide title={album.name} subtitle={album.description || `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}`}>
+<AppLayout help="albums" wide title={album.name} subtitle={album.description || `${total.toLocaleString()}${totalExact ? '' : '+'} ${total === 1 && totalExact ? 'item' : 'items'}`}>
   {canShare && (
     <div class="share">
       <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} />
@@ -21,7 +21,7 @@ const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
   {assets.length > 0 ? (
     <AssetGrid assets={assets} />
   ) : (
-    <p class="muted">This album is empty. Open a photo and add it from there, or use the API: <code>POST /api/albums/{id}/items</code>.</p>
+    <p class="muted">This album is empty. Select photos in the <a href="/">library</a> and choose <strong>Add to album…</strong>, or add one from its own page.</p>
   )}
 </AppLayout>
 

@@ -74,7 +74,7 @@ const facts: [string, string][] = [
   ...(asset.gps ? [['Location', `${asset.gps.lat.toFixed(4)}, ${asset.gps.lng.toFixed(4)}`] as [string, string]] : []),
 ]
 ---
-<AppLayout wide title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>
+<AppLayout help="photo-page" wide title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>
   <div class="layout">
     <section class="stage">
       {playable ? (

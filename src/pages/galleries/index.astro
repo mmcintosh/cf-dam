@@ -13,7 +13,7 @@ const live = shares.filter((s) => s.status !== 'revoked')
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en', { dateStyle: 'medium' }) : '—')
 const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', revoked: 'Revoked' }
 ---
-<AppLayout title="Client galleries" subtitle="Albums shared with clients by link. Make a link from an album's page.">
+<AppLayout help="client-galleries" title="Client galleries" subtitle="Albums shared with clients by link. Make a link from an album's page.">
   <section class="card">
     {live.length === 0 ? (
       <p class="muted">No links yet. Open an <a href="/albums">album</a> and use <strong>New link</strong> to share it with a client.</p>

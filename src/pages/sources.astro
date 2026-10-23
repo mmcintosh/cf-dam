@@ -5,6 +5,6 @@ import Sources from '../components/Sources.svelte'
 // A pairing code can arrive in the URL (the agent's status page links here).
 const code = new URL(Astro.url).searchParams.get('code')
 ---
-<AppLayout title="Computers and NAS" subtitle="Index photos where they live. Originals stay on the computer or NAS; cf-dam gets their metadata and previews.">
+<AppLayout help="computers-and-nas" title="Computers and NAS" subtitle="Index photos where they live. Originals stay on the computer or NAS; cf-dam gets their metadata and previews.">
   <Sources client:load initialCode={code} />
 </AppLayout>

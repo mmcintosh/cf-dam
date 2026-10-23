@@ -18,7 +18,7 @@ const { results: photos } = await env.DB.prepare(
 const STATUS: Record<string, string> = { active: 'Open', expired: 'Expired', revoked: 'Revoked' }
 const link = `${Astro.url.origin}/s/${share.token}`
 ---
-<AppLayout title={share.name} subtitle={`${share.title} · ${STATUS[share.status]} · ${share.stats.opens} opens, ${share.stats.downloads} downloads`}>
+<AppLayout help="client-galleries" title={share.name} subtitle={`${share.title} · ${STATUS[share.status]} · ${share.stats.opens} opens, ${share.stats.downloads} downloads`}>
   <section class="card stack">
     <div class="row">
       <a class="btn btn-sm" href={`/albums/${share.albumId}`}>← {share.albumName}</a>

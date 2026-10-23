@@ -4,6 +4,6 @@ import UsersAdmin from '../../components/UsersAdmin.svelte'
 
 const principal = Astro.locals.principal!
 ---
-<AppLayout title="People" subtitle="Who can reach this archive, and what they can do.">
+<AppLayout help="people-and-roles" title="People" subtitle="Who can reach this archive, and what they can do.">
   <UsersAdmin client:load selfId={principal.userId} />
 </AppLayout>

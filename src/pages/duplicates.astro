@@ -9,7 +9,7 @@ const kind = Astro.url.searchParams.get('kind') === 'similar' ? 'similar' : 'exa
 const [exact, similar] = await Promise.all([exactGroups(env.DB, kind === 'exact' ? 50 : 0), similarGroups(env.DB, kind === 'similar' ? 50 : 0)])
 const groups = kind === 'exact' ? exact.groups : similar.groups
 ---
-<AppLayout wide title="Duplicates" subtitle="Identical files and look-alikes (resized copies, re-saved JPEGs, light edits).">
+<AppLayout help="duplicates" wide title="Duplicates" subtitle="Identical files and look-alikes (resized copies, re-saved JPEGs, light edits).">
   <nav class="tabs" aria-label="Kind of duplicate">
     <a href="/duplicates" class:list={{ on: kind === 'exact' }}>Exact copies <span class="badge">{exact.total}</span></a>
     <a href="/duplicates?kind=similar" class:list={{ on: kind === 'similar' }}>Look-alikes <span class="badge">{similar.total}</span></a>

@@ -14,6 +14,8 @@
     id: string
     filename: string
     title: string | null
+    /** Alt text, for screen readers: preferred over the title and file name. */
+    alt: string | null
     width: number | null
     height: number | null
     /** The size shown, after any rotate or crop. */
@@ -398,7 +400,7 @@
     >
       <i class="spacer" style={`padding-bottom:${(100 / ratio(asset)).toFixed(4)}%`}></i>
       {#if asset.renditions.includes('thumb')}
-        <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
+        <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={asset.alt ?? asset.title ?? asset.filename} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
         <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? 'No preview' : asset.status === 'queued' ? 'Queued' : 'Processing…'}</span></span>
       {/if}
@@ -491,7 +493,7 @@
         {#key current.id}
           <img
             src={`/api/assets/${current.id}/renditions/${current.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${current.imageVersion}`}
-            alt={current.title ?? current.filename}
+            alt={current.alt ?? current.title ?? current.filename}
             style={current.renditions.includes('thumb') ? `background-image:url(/api/assets/${current.id}/renditions/thumb?v=${current.imageVersion})` : ''}
             onclick={() => (zoom = !zoom)}
           />
@@ -543,7 +545,7 @@
         {@const asset = assets.find((a) => a.id === id)}
         {#if asset}
           <figure>
-            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${asset.imageVersion}`} alt={asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
+            <img src={`/api/assets/${id}/renditions/${asset.renditions.includes('preview') ? 'preview' : 'thumb'}?v=${asset.imageVersion}`} alt={asset.alt ?? asset.title ?? asset.filename} onclick={() => (zoom = !zoom)} />
             <figcaption>
               <span>{asset.title ?? asset.filename}</span>
               {#if canEdit}

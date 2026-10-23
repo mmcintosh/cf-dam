@@ -21,7 +21,7 @@ const next = setup ? '/' : undefined
 const preferences = await getPreferences(env.DB, principal.userId)
 const since = row ? new Date(row.created_at).toLocaleDateString(undefined, { dateStyle: 'long' }) : ''
 ---
-<AppLayout title="Account" subtitle={`${principal.email} · member since ${since}`}>
+<AppLayout help="account-security" title="Account" subtitle={`${principal.email} · member since ${since}`}>
   {setup === 'password' && (
     <div class="alert setup" role="status">
       <strong>Choose your own password.</strong> You signed in with a temporary one. Type it as the current password, then

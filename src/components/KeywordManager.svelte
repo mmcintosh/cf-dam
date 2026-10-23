@@ -222,7 +222,7 @@
         {/each}
       </ul>
     {:else if keywords.length === 0}
-      <p class="muted empty">No keywords yet. Add one below, tag photos, or import a Lightroom catalog.</p>
+      <p class="muted empty">No keywords yet. Add one below, or tag photos: keywords already in your files come in by themselves.</p>
     {:else}
       {@render branch(null)}
     {/if}

@@ -4,6 +4,7 @@
     id: string
     filename: string
     title: string | null
+    alt: string | null
     mimeType: string
     width: number | null
     height: number | null
@@ -118,7 +119,7 @@
           <label class="member" class:kept={keep[group.key] === asset.id}>
             <input type="radio" name={`keep-${group.key}`} value={asset.id} bind:group={keep[group.key]} />
             <span class="thumb">
-              {#if asset.renditions.includes('thumb')}<img src={`/api/assets/${asset.id}/renditions/thumb`} alt={asset.filename} loading="lazy" />{/if}
+              {#if asset.renditions.includes('thumb')}<img src={`/api/assets/${asset.id}/renditions/thumb`} alt={asset.alt ?? asset.title ?? asset.filename} loading="lazy" />{/if}
               {#if i === 0}<span class="best">Suggested</span>{/if}
             </span>
             <span class="facts">

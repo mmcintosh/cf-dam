@@ -7,6 +7,6 @@ import PresetManager from '../components/PresetManager.svelte'
 const principal = Astro.locals.principal!
 const presets = await listPresets(env.DB)
 ---
-<AppLayout title="Metadata presets" subtitle="Credit, copyright and contact details you stamp on photos in one go.">
+<AppLayout help="presets" title="Metadata presets" subtitle="Credit, copyright and contact details you stamp on photos in one go.">
   <PresetManager client:load initial={presets} fields={[...IPTC_FIELDS]} canEdit={principal.permissions.has('assets:edit')} />
 </AppLayout>

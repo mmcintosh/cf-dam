@@ -8,6 +8,6 @@ const placeId = params.get('place')
 params.delete('place')
 const canEdit = Astro.locals.principal!.permissions.has('assets:edit')
 ---
-<AppLayout wide title="Map" subtitle="Where your photos were taken. Filters from the library carry over.">
+<AppLayout help="library" wide title="Map" subtitle="Where your photos were taken. Filters from the library carry over.">
   <PhotoMap client:only="svelte" query={params.toString()} placeId={placeId} canEdit={canEdit} />
 </AppLayout>

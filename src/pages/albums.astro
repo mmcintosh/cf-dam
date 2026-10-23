@@ -11,7 +11,7 @@ const { results: albums } = await env.DB.prepare(
    FROM albums al ORDER BY al.updated_at DESC`,
 ).all<{ id: string; name: string; description: string; cover: string | null; items: number }>()
 ---
-<AppLayout title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
+<AppLayout help="albums" title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
   {principal.permissions.has('assets:edit') && <div class="new"><NewAlbum client:idle /></div>}
   <div class="albums">
     {albums.map((album) => (
