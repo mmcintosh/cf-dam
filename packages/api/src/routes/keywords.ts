@@ -18,6 +18,7 @@ import { indexAssets, markUnindexed } from '../catalog/search'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, stringArray } from '../lib/http'
+import { say } from '../lib/language'
 
 export const tagRoutes = new Hono<DamEnv>()
 
@@ -130,7 +131,7 @@ labelRoutes.put('/', requirePermission('settings:manage'), async (c) => {
     for (const label of LABELS) {
       const value = body[label]
       if (value === undefined) continue
-      if (typeof value !== 'string' || value.trim() === '' || value.length > 40) throw new BadRequest(`${label} must be a name up to 40 characters.`)
+      if (typeof value !== 'string' || value.trim() === '' || value.length > 40) throw new BadRequest(say('err.labelName', { label }))
       patch[label] = value
     }
     return c.json({ labels: LABELS, names: await saveLabelNames(c.env.DB, patch) })

@@ -5,6 +5,7 @@ import { logActivity } from '../lib/activity'
 import { randomId } from '../lib/crypto'
 import { BadRequest, optionalString, readJsonObject, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
+import { say } from '../lib/language'
 
 export const albumRoutes = new Hono<DamEnv>()
 
@@ -64,7 +65,7 @@ albumRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
   try {
     const body = await readJsonObject(c)
     const name = optionalString(body, 'name', 200)
-    if (name !== undefined && !name.trim()) throw new BadRequest('An album needs a name.')
+    if (name !== undefined && !name.trim()) throw new BadRequest(say('err.albumName'))
     const description = optionalString(body, 'description', 2000)
     const cover = body.coverAssetId
     if (cover !== undefined && cover !== null && typeof cover !== 'string') throw new BadRequest('coverAssetId must be an asset id.')
@@ -72,7 +73,7 @@ albumRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
     if (!before) return c.json({ error: 'not_found' }, 404)
     // The cover has to be one of the album's own photos.
     if (typeof cover === 'string' && !(await c.env.DB.prepare('SELECT 1 FROM album_items WHERE album_id = ? AND asset_id = ?').bind(id, cover).first())) {
-      throw new BadRequest('The cover must be a photo in this album.')
+      throw new BadRequest(say('err.coverInAlbum'))
     }
     await c.env.DB.prepare(
       `UPDATE albums SET name = COALESCE(?, name), description = COALESCE(?, description),
@@ -106,7 +107,7 @@ albumRoutes.post('/:id/items', requirePermission('assets:edit'), async (c) => {
   const id = c.req.param('id')
   try {
     const assetIds = stringArray(await readJsonObject(c), 'assetIds') ?? []
-    if (assetIds.length === 0 || assetIds.length > 500) throw new BadRequest('Add between 1 and 500 assets at a time.')
+    if (assetIds.length === 0 || assetIds.length > 500) throw new BadRequest(say('err.addAssets', { max: 500 }))
     if (!(await c.env.DB.prepare('SELECT 1 FROM albums WHERE id = ?').bind(id).first())) return c.json({ error: 'not_found' }, 404)
     const now = nowIso()
     const start = (await c.env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM album_items WHERE album_id = ?').bind(id).first<{ next: number }>())?.next ?? 0
@@ -128,7 +129,7 @@ albumRoutes.delete('/:id/items', requirePermission('assets:edit'), async (c) => 
   const id = c.req.param('id')
   try {
     const assetIds = stringArray(await readJsonObject(c), 'assetIds') ?? []
-    if (assetIds.length === 0 || assetIds.length > 500) throw new BadRequest('Remove between 1 and 500 assets at a time.')
+    if (assetIds.length === 0 || assetIds.length > 500) throw new BadRequest(say('err.removeAssets', { max: 500 }))
     if (!(await c.env.DB.prepare('SELECT 1 FROM albums WHERE id = ?').bind(id).first())) return c.json({ error: 'not_found' }, 404)
     await c.env.DB.batch([
       ...assetIds.map((assetId) => c.env.DB.prepare('DELETE FROM album_items WHERE album_id = ? AND asset_id = ?').bind(id, assetId)),

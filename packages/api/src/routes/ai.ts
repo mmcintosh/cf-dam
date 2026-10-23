@@ -6,6 +6,7 @@ import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject } from '../lib/http'
+import { say } from '../lib/language'
 
 export const aiRoutes = new Hono<DamEnv>()
 
@@ -25,7 +26,7 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
       patch[flag] = body[flag]
     }
     if (body.model !== undefined) {
-      if (typeof body.model !== 'string' || !VISION_MODELS.some((m) => m.id === body.model)) throw new BadRequest('Unknown model.')
+      if (typeof body.model !== 'string' || !VISION_MODELS.some((m) => m.id === body.model)) throw new BadRequest(say('err.unknownModel'))
       patch.model = body.model
     }
     if (body.context !== undefined) {
@@ -43,7 +44,7 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
 
 /** Queue every photo that has never been analysed (or failed). The sweep works through them. */
 aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
-  if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: 'This deployment has no Workers AI binding.' }, 409)
+  if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: say('err.noAi') }, 409)
   // Queued while switched off, photos would wait with nothing to analyse them.
   if (!(await getAiSettings(c.env.DB)).enabled) return c.json({ error: 'ai_off', message: AI_OFF }, 409)
   const queued = await queueForAi(c.env.DB, 'unanalysed')

@@ -4,6 +4,7 @@ import { dismissPairs, duplicateCounts, exactGroups, keepOne, similarGroups } fr
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredString, stringArray } from '../lib/http'
+import { say } from '../lib/language'
 
 export const duplicateRoutes = new Hono<DamEnv>()
 
@@ -19,7 +20,7 @@ duplicateRoutes.post('/resolve', requirePermission('assets:delete'), async (c) =
     const remove = stringArray(body, 'remove') ?? []
     if (remove.length === 0 || remove.length > 100) throw new BadRequest('remove lists 1 to 100 assets.')
     if (!(await c.env.DB.prepare('SELECT 1 FROM assets WHERE id = ? AND deleted_at IS NULL').bind(keep).first())) {
-      return c.json({ error: 'not_found', message: 'The asset to keep does not exist.' }, 404)
+      return c.json({ error: 'not_found', message: say('err.keepMissing') }, 404)
     }
     const removed = await keepOne(c.env.DB, keep, remove)
     await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'duplicates.resolved', targetType: 'asset', targetId: keep, details: { removed } })

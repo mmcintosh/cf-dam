@@ -78,3 +78,11 @@ describe('the language chosen at setup', () => {
   })
 })
 
+
+describe('the server’s own messages', () => {
+  it('come back in the reader’s language', async () => {
+    const rename = (cookie: string) => h.fetch(`/api/albums/${albumId}`, { ...json({ name: '  ' }), method: 'PATCH', cookie })
+    expect(((await (await rename(admin)).json()) as { message: string }).message).toBe('An album needs a name.')
+    expect(((await (await rename(`${admin}; cfdam_lang=de`)).json()) as { message: string }).message).toBe('Ein Album braucht einen Namen.')
+  })
+})

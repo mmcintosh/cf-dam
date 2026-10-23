@@ -4,6 +4,7 @@ import { requirePermission } from '../auth/principal'
 import { previewStatus, requestPreviews, startPreviewCheck } from '../catalog/previews'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
+import { say } from '../lib/language'
 
 export const previewRoutes = new Hono<DamEnv>()
 
@@ -13,7 +14,7 @@ previewRoutes.get('/', async (c) => c.json(await previewStatus(c.env.DB)))
 
 /** Ask R2 about every preview the catalog lists, and have missing ones made again. */
 previewRoutes.post('/check', async (c) => {
-  if (!(await startPreviewCheck(c.env.DB))) return c.json({ error: 'already_running', message: 'A check is already running.' }, 409)
+  if (!(await startPreviewCheck(c.env.DB))) return c.json({ error: 'already_running', message: say('err.checkRunning') }, 409)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'previews.check_started' })
   return c.json(await previewStatus(c.env.DB), 202)
 })

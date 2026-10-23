@@ -15,7 +15,7 @@ import type { DamEnv } from '../env'
 import { asLanguage, type Language } from '@cf-dam/i18n'
 import { savePreferences } from '../catalog/preferences'
 import { logActivity } from '../lib/activity'
-import { setSiteLanguage } from '../lib/language'
+import { say, setSiteLanguage } from '../lib/language'
 import { timingSafeEqual } from '../lib/crypto'
 import { BadRequest, isLocalRequest, readJsonObject, requiredEmail, requiredString } from '../lib/http'
 import { markSetupDone, setupNeeded } from '../auth/setup-state'
@@ -66,7 +66,7 @@ setupRoutes.post('/', async (c) => {
   try {
     const { body, refusal } = await guarded(c)
     if (refusal) return refusal
-    if (await currentRestore(c.env.DB)) return c.json({ error: 'restore_in_progress', message: 'A backup is being restored: finish that instead.' }, 409)
+    if (await currentRestore(c.env.DB)) return c.json({ error: 'restore_in_progress', message: say('err.restoreInProgress') }, 409)
 
     const name = requiredString(body, 'name')
     const email = requiredEmail(body)
@@ -102,7 +102,7 @@ setupRoutes.post('/restore/backups', async (c) => {
     const { body, refusal } = await guarded(c)
     if (refusal) return refusal
     const backups = await listBackups(sourceProvider(c.env, parseSource(body))).catch((error) => {
-      throw new BadRequest(`Couldn't look in that bucket: ${error instanceof Error ? error.message : String(error)}`)
+      throw new BadRequest(say('err.bucketUnreadable', { error: error instanceof Error ? error.message : String(error) }))
     })
     return c.json({ backups })
   } catch (error) {
@@ -132,7 +132,7 @@ setupRoutes.post('/restore/finish', async (c) => {
     const name = requiredString(body, 'name')
     const email = requiredEmail(body)
     const password = requiredString(body, 'password', 256)
-    if (password.length < 12) throw new BadRequest('password must be at least 12 characters.')
+    if (password.length < 12) throw new BadRequest(say('err.passwordShort'))
     const { userId, existing } = await finishRestore(c.env.DB, hashPassword, { name, email, password })
     markSetupDone()
     // Previews aren't in backups: into a new account, they're all to make again.

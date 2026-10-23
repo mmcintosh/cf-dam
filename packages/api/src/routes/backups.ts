@@ -6,6 +6,7 @@ import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject } from '../lib/http'
 import { getConnection } from '../storage/connections'
+import { say } from '../lib/language'
 
 const LISTED = 30
 
@@ -76,8 +77,8 @@ backupRoutes.put('/config', async (c) => {
     if (!Number.isInteger(keepDays) || (keepDays as number) < 1 || (keepDays as number) > 365) throw new BadRequest('keepDays must be 1 to 365.')
     if (connectionId) {
       const connection = await getConnection(c.env.DB, connectionId)
-      if (!connection) throw new BadRequest('No such storage connection.')
-      if (connection.provider === 'nas') throw new BadRequest('A NAS connection can only be read by its agent; choose a bucket.')
+      if (!connection) throw new BadRequest(say('err.noConnection'))
+      if (connection.provider === 'nas') throw new BadRequest(say('err.nasNotForBackups'))
     }
     const config: BackupConfig = { connectionId, hour: hour as number, keepDays: keepDays as number }
     await setBackupConfig(c.env.DB, config)
@@ -92,10 +93,10 @@ backupRoutes.put('/config', async (c) => {
 /** Start a backup now; the sweep carries it on within a minute. */
 backupRoutes.post('/run', async (c) => {
   const config = await getBackupConfig(c.env.DB)
-  if (!config.connectionId) return c.json({ error: 'backups_off', message: 'Choose where backups go first.' }, 409)
+  if (!config.connectionId) return c.json({ error: 'backups_off', message: say('err.backupsOff') }, 409)
   try {
     const state = await startBackup(c.env, config.connectionId)
-    if (!state) return c.json({ error: 'running', message: 'A backup is already running.' }, 409)
+    if (!state) return c.json({ error: 'running', message: say('err.backupRunning') }, 409)
     await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'backup.started', targetType: 'backup', targetId: state.id, ipAddress: c.req.header('cf-connecting-ip') })
     return c.json({ id: state.id }, 202)
   } catch (error) {

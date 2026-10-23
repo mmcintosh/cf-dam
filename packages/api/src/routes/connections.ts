@@ -18,6 +18,7 @@ import {
   setDefaultConnection,
 } from '../storage/connections'
 import { isStorageClass, StorageError, type StorageClass } from '../storage/types'
+import { say } from '../lib/language'
 
 export const connectionRoutes = new Hono<DamEnv>()
 
@@ -175,7 +176,7 @@ connectionRoutes.post('/:id/default', requirePermission('sources:manage'), async
 connectionRoutes.delete('/:id', requirePermission('sources:manage'), async (c) => {
   const result = await deleteConnection(c.env.DB, c.req.param('id'))
   if (result === 'not-found') return c.json({ error: 'not_found' }, 404)
-  if (result === 'built-in') return c.json({ error: 'built_in', message: 'The built-in R2 connection cannot be removed.' }, 409)
-  if (result === 'in-use') return c.json({ error: 'in_use', message: 'Originals are stored here. Move them before removing it.' }, 409)
+  if (result === 'built-in') return c.json({ error: 'built_in', message: say('err.builtInConnection') }, 409)
+  if (result === 'in-use') return c.json({ error: 'in_use', message: say('err.connectionInUse') }, 409)
   return c.body(null, 204)
 })

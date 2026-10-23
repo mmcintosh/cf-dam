@@ -6,6 +6,7 @@ import type { DamEnv } from '../env'
 import { randomId } from '../lib/crypto'
 import { BadRequest, readJsonObject, requiredString } from '../lib/http'
 import { nowIso } from '../lib/time'
+import { say } from '../lib/language'
 
 function failure(c: Context<DamEnv>, error: unknown) {
   if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
@@ -20,7 +21,7 @@ function presetInput(body: Record<string, unknown>) {
   } catch (error) {
     throw new BadRequest(error instanceof Error ? error.message : 'Invalid fields.')
   }
-  if (!Object.values(fields).some((v) => v)) throw new BadRequest('A preset needs at least one field.')
+  if (!Object.values(fields).some((v) => v)) throw new BadRequest(say('err.presetEmpty'))
   return { name: requiredString(body, 'name', 100), fields, applyToUploads: body.applyToUploads === true }
 }
 
@@ -116,7 +117,7 @@ savedSearchRoutes.post('/', requirePermission('assets:edit'), async (c) => {
     const body = await readJsonObject(c)
     const name = requiredString(body, 'name', 100)
     const query = normalizeQuery(typeof body.query === 'string' ? body.query : '')
-    if (!query || query === 'sort=added') throw new BadRequest('Choose some filters before saving a search.')
+    if (!query || query === 'sort=added') throw new BadRequest(say('err.searchNoFilters'))
     const id = randomId()
     const position = (await c.env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM saved_searches').first<{ next: number }>())?.next ?? 0
     await c.env.DB.prepare('INSERT INTO saved_searches (id, name, query, position, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
@@ -140,7 +141,7 @@ savedSearchRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
     }
     if (body.query !== undefined) {
       const query = normalizeQuery(typeof body.query === 'string' ? body.query : '')
-      if (!query) throw new BadRequest('Choose some filters.')
+      if (!query) throw new BadRequest(say('err.chooseFilters'))
       sets.push('query = ?')
       params.push(query)
     }
@@ -149,7 +150,7 @@ savedSearchRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
       sets.push('position = ?')
       params.push(body.position)
     }
-    if (sets.length === 0) throw new BadRequest('Nothing to change.')
+    if (sets.length === 0) throw new BadRequest(say('err.nothingToChange'))
     const result = await c.env.DB.prepare(`UPDATE saved_searches SET ${sets.join(', ')} WHERE id = ?`).bind(...params, id).run()
     if (result.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
     return c.json({ ok: true })

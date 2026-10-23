@@ -25,6 +25,7 @@ import { randomId } from '../lib/crypto'
 import { BadRequest, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
+import { say } from '../lib/language'
 
 export const shareRoutes = new Hono<DamEnv>()
 
@@ -43,7 +44,7 @@ shareRoutes.post('/', async (c) => {
     const albumId = requiredString(body, 'albumId', 64)
     const principal = c.get('principal')!
     const share = await createShare(c.env.DB, albumId, parseShareInput(body, true), principal.userId)
-    if (!share) return c.json({ error: 'not_found', message: 'No such album.' }, 404)
+    if (!share) return c.json({ error: 'not_found', message: say('err.noAlbum') }, 404)
     await logActivity(c.env.DB, { userId: principal.userId, action: 'share.create', targetType: 'share', targetId: share.id, details: { albumId }, ipAddress: c.req.header('cf-connecting-ip') })
     return c.json({ share }, 201)
   } catch (error) {
@@ -77,7 +78,7 @@ shareRoutes.get('/watermark/image', async (c) => {
 
 shareRoutes.put('/watermark/image', async (c) => {
   const length = Number(c.req.header('Content-Length') ?? NaN)
-  if (!Number.isFinite(length) || length > MAX_WATERMARK_BYTES) return c.json({ error: 'invalid_request', message: 'A watermark must be an image of at most 2 MB.' }, 400)
+  if (!Number.isFinite(length) || length > MAX_WATERMARK_BYTES) return c.json({ error: 'invalid_request', message: say('err.watermarkSize') }, 400)
   try {
     const watermark = await setWatermarkImage(c.env, await c.req.arrayBuffer())
     await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'watermark.set', ipAddress: c.req.header('cf-connecting-ip') })
@@ -101,7 +102,7 @@ shareRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   try {
     const changed = await updateShare(c.env.DB, id, parseShareInput(await readJsonObject(c), false))
-    if (!changed) return c.json({ error: 'not_found', message: 'No such link, or it was revoked.' }, 404)
+    if (!changed) return c.json({ error: 'not_found', message: say('err.linkGone') }, 404)
     return c.json({ share: await getShare(c.env.DB, id) })
   } catch (error) {
     return c.json(invalid(error), 400)
@@ -110,7 +111,7 @@ shareRoutes.patch('/:id', async (c) => {
 
 shareRoutes.post('/:id/revoke', async (c) => {
   const id = c.req.param('id')
-  if (!(await revokeShare(c.env.DB, id))) return c.json({ error: 'not_found', message: 'No such link, or it was already revoked.' }, 404)
+  if (!(await revokeShare(c.env.DB, id))) return c.json({ error: 'not_found', message: say('err.linkAlreadyRevoked') }, 404)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'share.revoke', targetType: 'share', targetId: id, ipAddress: c.req.header('cf-connecting-ip') })
   return c.json({ share: await getShare(c.env.DB, id) })
 })
@@ -126,7 +127,7 @@ shareRoutes.post('/:id/picks/album', async (c) => {
     const visitorIds = stringArray(body, 'visitorIds') ?? null
     const mode = body.mode === 'all' ? 'all' : 'any'
     const assetIds = await pickedAssets(c.env.DB, share, visitorIds && visitorIds.length > 0 ? visitorIds : null, mode)
-    if (assetIds.length === 0) throw new BadRequest('Nothing has been picked by those people.')
+    if (assetIds.length === 0) throw new BadRequest(say('err.nothingPicked'))
     const albumId = randomId()
     const now = nowIso()
     const principal = c.get('principal')!
@@ -160,7 +161,7 @@ shareRoutes.post('/:id/members', async (c) => {
     const name = requiredString(body, 'name', 100)
     const email = requiredEmail(body)
     const share = await c.env.DB.prepare('SELECT id, revoked_at FROM shares WHERE id = ?').bind(id).first<Pick<ShareRow, 'id' | 'revoked_at'>>()
-    if (!share || share.revoked_at) return c.json({ error: 'not_found', message: 'No such link, or it was revoked.' }, 404)
+    if (!share || share.revoked_at) return c.json({ error: 'not_found', message: say('err.linkGone') }, 404)
     const principal = c.get('principal')!
     const outcome = await inviteClient(c.env, c.req.raw, share, { name, email }, principal.userId)
     if (outcome.kind === 'team') return c.json({ error: 'on_the_team', message: outcome.message }, 409)
@@ -183,7 +184,7 @@ shareRoutes.post('/:id/members/:userId/invite', async (c) => {
   const { id, userId } = c.req.param()
   const member = (await shareMembers(c.env.DB, id)).find((m) => m.userId === userId)
   if (!member) return c.json({ error: 'not_found' }, 404)
-  if (member.joined) return c.json({ error: 'joined', message: 'They have already chosen a password. They sign in as usual.' }, 409)
+  if (member.joined) return c.json({ error: 'joined', message: say('err.clientJoined') }, 409)
   const invite = await newInvite(c.env.DB, userId, c.get('principal')!.userId)
   return c.json({ invite })
 })

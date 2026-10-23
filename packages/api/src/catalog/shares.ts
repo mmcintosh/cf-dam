@@ -14,6 +14,7 @@ import { hashPassword } from '../auth/password'
 import { randomBase62, randomId, timingSafeEqual, toHex } from '../lib/crypto'
 import { BadRequest, optionalString, requiredString } from '../lib/http'
 import { nowIso } from '../lib/time'
+import { say } from '../lib/language'
 
 export const DOWNLOAD_SIZES = ['small', 'large', 'original'] as const
 export type DownloadSize = (typeof DOWNLOAD_SIZES)[number]
@@ -192,7 +193,7 @@ export function parseShareInput(body: Record<string, unknown>, creating: boolean
   if (body.password === null) input.password = null
   else if (body.password !== undefined) {
     if (typeof body.password !== 'string' || body.password.length < 4 || body.password.length > 200) {
-      throw new BadRequest('A gallery password is 4 to 200 characters.')
+      throw new BadRequest(say('err.galleryPassword'))
     }
     input.password = body.password
   }

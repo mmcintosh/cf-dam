@@ -24,6 +24,7 @@ import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import type { StorageProvider } from '../storage/types'
 import { BACKUP_PREFIX, insertRows, INSERT_ROWS, readChunk, readManifest, type BackupManifest } from './backups'
 import { bands, bitsSet, MIN_DETAIL_BITS } from './dhash'
+import { say } from '../lib/language'
 
 /** Where the backup is, as the person restoring gives it. */
 export type RestoreSource =
@@ -110,7 +111,7 @@ export function parseSource(body: Record<string, unknown>): RestoreSource {
 
 export function sourceProvider(env: DamBindings, source: RestoreSource): StorageProvider {
   if (source.kind === 'r2') {
-    if (!env.MEDIA_BUCKET) throw new BadRequest('This install has no built-in R2 bucket.')
+    if (!env.MEDIA_BUCKET) throw new BadRequest(say('err.noR2'))
     return new R2Provider(env.MEDIA_BUCKET)
   }
   const { accessKeyId, secretAccessKey } = source
@@ -194,16 +195,16 @@ export async function startRestore(env: DamBindings, source: RestoreSource, back
     db.prepare('SELECT 1 FROM users LIMIT 1'),
     db.prepare("SELECT id, status, backup_id FROM restore_jobs WHERE status != 'finished' LIMIT 1"),
   ])
-  if (users!.results.length > 0 && existing!.results.length === 0) throw new BadRequest('This install already has accounts: a backup can only be restored into a fresh one.')
+  if (users!.results.length > 0 && existing!.results.length === 0) throw new BadRequest(say('err.restoreHasAccounts'))
   const job = existing!.results[0] as { id: string; status: RestoreStatus; backup_id: string } | undefined
-  if (job && job.status !== 'failed') throw new BadRequest('A restore is already under way.')
+  if (job && job.status !== 'failed') throw new BadRequest(say('err.restoreRunning'))
   // After a failure, only the same backup may be tried again: it carries on where it stopped.
-  if (job && job.backup_id !== backupId) throw new BadRequest(`Part of backup ${job.backup_id} is already loaded. Try that one again, or start over with a fresh database.`)
+  if (job && job.backup_id !== backupId) throw new BadRequest(say('err.restorePartLoaded', { id: job.backup_id }))
 
   const manifest = await readManifest(sourceProvider(env, source), backupId).catch((error) => {
-    throw new BadRequest(`Couldn't read the backup: ${error instanceof Error ? error.message : String(error)}`)
+    throw new BadRequest(say('err.restoreUnreadable', { error: error instanceof Error ? error.message : String(error) }))
   })
-  if (!manifest) throw new BadRequest(`Backup ${backupId} isn't there, or never finished.`)
+  if (!manifest) throw new BadRequest(say('err.backupMissing', { id: backupId }))
   const problem = incompatibility(manifest)
   if (problem) throw new BadRequest(problem)
 
@@ -333,7 +334,7 @@ export interface SignIn {
  */
 export async function finishRestore(db: D1Database, hash: (password: string) => Promise<string>, signIn: SignIn): Promise<{ userId: string | null; existing: boolean }> {
   const job = await db.prepare("SELECT id FROM restore_jobs WHERE status = 'restored' LIMIT 1").first<{ id: string }>()
-  if (!job) throw new BadRequest('There is no finished restore waiting for a sign-in.')
+  if (!job) throw new BadRequest(say('err.restoreNoSignIn'))
   const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(signIn.email.toLowerCase()).first<{ id: string }>()
   const now = nowIso()
   const finished = db.prepare("UPDATE restore_jobs SET status = 'finished', finished_at = ?, updated_at = ? WHERE id = ?").bind(now, now, job.id)

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { createApiKey, listApiKeys, revokeApiKey } from '../auth/api-keys'
 import { principalJson, requireAuth, requirePermission } from '../auth/principal'
 import { clientGalleries } from '../catalog/clients'
-import { languageCookie } from '../lib/language'
+import { languageCookie, say } from '../lib/language'
 import { getPreferences, savePreferences } from '../catalog/preferences'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -60,9 +60,9 @@ meRoutes.post('/api-keys', requirePermission('apikeys:manage'), async (c) => {
     const body = await readJsonObject(c)
     const name = requiredString(body, 'name', 100)
     const scopes = stringArray(body, 'scopes') ?? []
-    if (scopes.length === 0) throw new BadRequest('Choose at least one scope.')
+    if (scopes.length === 0) throw new BadRequest(say('err.chooseScope'))
     const notHeld = scopes.filter((s) => !principal.permissions.has(s))
-    if (notHeld.length > 0) throw new BadRequest(`You can't grant scopes you don't hold: ${notHeld.join(', ')}`)
+    if (notHeld.length > 0) throw new BadRequest(say('err.scopesNotHeld', { scopes: notHeld.join(', ') }))
 
     let expiresAt: string | null = null
     if (body.expiresInDays !== undefined && body.expiresInDays !== null) {
@@ -141,7 +141,7 @@ meRoutes.delete('/sessions/:id', async (c) => {
   const principal = c.get('principal')!
   const id = c.req.param('id')
   if (principal.via !== 'session') return c.json({ error: 'sessions_need_a_session' }, 400)
-  if (id === principal.sessionId) return c.json({ error: 'current_session', message: 'Use Sign out for this browser.' }, 409)
+  if (id === principal.sessionId) return c.json({ error: 'current_session', message: say('err.currentSession') }, 409)
   const result = await c.env.DB.prepare('DELETE FROM session WHERE id = ? AND user_id = ?').bind(id, principal.userId).run()
   if (result.meta.changes === 0) return c.json({ error: 'not_found' }, 404)
   await logActivity(c.env.DB, { userId: principal.userId, action: 'account.session_ended', targetType: 'session', targetId: id, ipAddress: c.req.header('cf-connecting-ip') })

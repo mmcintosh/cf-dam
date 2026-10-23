@@ -97,7 +97,7 @@ export async function inviteClient(env: DamBindings, request: Request, share: Pi
     .bind(email)
     .first<{ id: string; roles: string | null }>()
   if (user && !isClientOnly(user.roles ? user.roles.split(',') : [])) {
-    return { kind: 'team', message: 'That person is on your team and can already see this album. Send them the album instead.' }
+    return { kind: 'team', message: say('err.teamMember') }
   }
   if (!user) {
     const auth = createAuth(env, request, { allowSignUp: true, role: CLIENT_ROLE })

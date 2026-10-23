@@ -19,6 +19,7 @@ import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { parseArchiveSettings, validArchiveSettings } from '../catalog/archive'
 import { BadRequest, readJsonObject } from '../lib/http'
+import { say } from '../lib/language'
 
 export const sourceRoutes = new Hono<DamEnv>()
 sourceRoutes.use('*', requirePermission('sources:manage'))
@@ -81,7 +82,7 @@ sourceRoutes.get('/', async (c) => {
 /** Look a code up before approving, so people see which agent is asking. */
 sourceRoutes.get('/pair/:code', async (c) => {
   const row = await pendingPairing(c.env.DB, c.req.param('code'))
-  if (!row) return c.json({ error: 'not_found', message: 'That code is unknown or has expired.' }, 404)
+  if (!row) return c.json({ error: 'not_found', message: say('err.codeUnknown') }, 404)
   // Entries waiting for their agent (after a restore); the one this agent says it had first.
   const waiting = await reconnectableSources(c.env.DB)
   const previous = waiting.find((s) => s.id === row.previous_source_id) ?? null

@@ -9,6 +9,7 @@ import { logActivity } from '../lib/activity'
 import { randomId } from '../lib/crypto'
 import { BadRequest, optionalString, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
+import { say } from '../lib/language'
 
 interface UserRow {
   id: string
@@ -59,7 +60,7 @@ async function getUser(db: D1Database, id: string) {
 async function validRoleNames(db: D1Database, names: string[]): Promise<string[]> {
   const known = new Set((await listRoles(db)).map((r) => r.name))
   const unknown = names.filter((n) => !known.has(n))
-  if (unknown.length > 0) throw new BadRequest(`Unknown roles: ${unknown.join(', ')}`)
+  if (unknown.length > 0) throw new BadRequest(say('err.unknownRoles', { roles: unknown.join(', ') }))
   return names
 }
 
@@ -87,7 +88,7 @@ userRoutes.put('/policy', async (c) => {
     if (twoFactorRequired(scope, actor.roles)) {
       const me = await getUser(c.env.DB, actor.userId)
       if (me && !me.twoFactorEnabled && me.passkeys === 0) {
-        return c.json({ error: 'set_up_yourself', message: 'Set up a code or a passkey for yourself on Account first.' }, 409)
+        return c.json({ error: 'set_up_yourself', message: say('err.setUpYourself') }, 409)
       }
     }
     await c.env.DB.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
@@ -113,9 +114,9 @@ userRoutes.post('/', async (c) => {
     const name = requiredString(body, 'name')
     const email = requiredEmail(body)
     const password = requiredString(body, 'password', 256)
-    if (password.length < 12) throw new BadRequest('password must be at least 12 characters.')
+    if (password.length < 12) throw new BadRequest(say('err.passwordShort'))
     const roles = await validRoleNames(c.env.DB, stringArray(body, 'roles') ?? ['viewer'])
-    if (roles.length === 0) throw new BadRequest('Give the user at least one role.')
+    if (roles.length === 0) throw new BadRequest(say('err.needRole'))
 
     const auth = createAuth(c.env, c.req.raw, { allowSignUp: true, role: roles[0] })
     const ctx = await auth.$context
@@ -165,11 +166,11 @@ userRoutes.patch('/:id', async (c) => {
       existing.roles.includes('admin') &&
       ((roleNames !== undefined && !roleNames.includes('admin')) || isActive === false)
     if (losingAdmin && (await isLastActiveAdmin(c.env.DB, id))) {
-      return c.json({ error: 'last_admin', message: 'At least one active administrator must remain.' }, 409)
+      return c.json({ error: 'last_admin', message: say('err.lastAdmin') }, 409)
     }
 
     if (roleNames !== undefined) {
-      if (roleNames.length === 0) throw new BadRequest('Give the user at least one role.')
+      if (roleNames.length === 0) throw new BadRequest(say('err.needRole'))
       await setUserRoles(c.env.DB, id, await validRoleNames(c.env.DB, roleNames))
     }
     if (name !== undefined) {
@@ -204,7 +205,7 @@ userRoutes.patch('/:id', async (c) => {
  */
 async function otherUser(c: Context<DamEnv>) {
   const id = c.req.param('id')!
-  if (id === c.get('principal')!.userId) return { error: c.json({ error: 'yourself', message: 'Use Account for your own sign-in.' }, 409) }
+  if (id === c.get('principal')!.userId) return { error: c.json({ error: 'yourself', message: say('err.useAccount') }, 409) }
   const user = await getUser(c.env.DB, id)
   if (!user) return { error: c.json({ error: 'not_found' }, 404) }
   return { user }
@@ -231,7 +232,7 @@ userRoutes.post('/:id/password', async (c) => {
   if (error) return error
   try {
     const password = requiredString(await readJsonObject(c), 'password', 256)
-    if (password.length < 12) throw new BadRequest('password must be at least 12 characters.')
+    if (password.length < 12) throw new BadRequest(say('err.passwordShort'))
     const now = nowIso()
     const db = c.env.DB
     await db.batch([
@@ -297,7 +298,7 @@ userRoutes.delete('/:id', async (c) => {
   const { user, error } = await otherUser(c)
   if (error) return error
   if (user.roles.includes('admin') && (await isLastActiveAdmin(c.env.DB, user.id))) {
-    return c.json({ error: 'last_admin', message: 'At least one active administrator must remain.' }, 409)
+    return c.json({ error: 'last_admin', message: say('err.lastAdmin') }, 409)
   }
   await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run()
   await logged(c, 'user.deleted', user, { name: user.name, roles: user.roles })

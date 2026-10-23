@@ -23,6 +23,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor, renditionStore } from '../storage/connections'
 import { originalResponse } from '../storage/original'
 import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, StorageError, type RestoreTier } from '../storage/types'
+import { say } from '../lib/language'
 
 export const assetRoutes = new Hono<DamEnv>()
 
@@ -56,7 +57,7 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
   try {
     const body = await readJsonObject(c)
     const ids = stringArray(body, 'ids') ?? []
-    if (ids.length === 0 || ids.length > MAX_BULK) throw new BadRequest(`Choose between 1 and ${MAX_BULK} assets.`)
+    if (ids.length === 0 || ids.length > MAX_BULK) throw new BadRequest(say('err.chooseAssets', { max: MAX_BULK }))
     const action = body.action
     let bulk: BulkAction
     switch (action) {
@@ -193,7 +194,7 @@ assetRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
     if (label !== undefined && label !== null && !isLabel(label)) throw new BadRequest(`label is one of ${LABELS.join(', ')}, or null.`)
     const filename = body.filename
     if (filename !== undefined && (typeof filename !== 'string' || !/^[^\\/\u0000-\u001f]{1,200}$/.test(filename.trim()))) {
-      throw new BadRequest('filename must be 1–200 characters with no slashes.')
+      throw new BadRequest(say('err.filename'))
     }
     await updateAsset(c.env.DB, id, {
       flag: flag as 'pick' | 'reject' | null | undefined,
@@ -268,8 +269,8 @@ assetRoutes.put('/:id/edit', requirePermission('assets:edit'), async (c) => {
   const id = c.req.param('id')
   const asset = await getAsset(c.env.DB, id)
   if (!asset) return c.json({ error: 'not_found' }, 404)
-  if (asset.mime_type.startsWith('video/')) return c.json({ error: 'unsupported', message: 'Videos can’t be rotated or cropped here.' }, 409)
-  if (!c.env.IMAGES) return c.json({ error: 'unsupported', message: 'This deployment has no Images binding to make edited previews with.' }, 409)
+  if (asset.mime_type.startsWith('video/')) return c.json({ error: 'unsupported', message: say('err.videoEdit') }, 409)
+  if (!c.env.IMAGES) return c.json({ error: 'unsupported', message: say('err.noImages') }, 409)
   let edit
   try {
     edit = parseEdit((await readJsonObject(c)).edit)
@@ -286,7 +287,7 @@ assetRoutes.put('/:id/edit', requirePermission('assets:edit'), async (c) => {
     console.warn('[edits] could not apply', id, error)
     await save(before)
     await applyEdit(c.env, id).catch(() => {})
-    return c.json({ error: 'edit_failed', message: 'The edited preview couldn’t be made. Nothing was changed; try again.' }, 502)
+    return c.json({ error: 'edit_failed', message: say('err.editFailed') }, 502)
   }
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: edit ? 'asset.edited' : 'asset.edit_undone', targetType: 'asset', targetId: id, details: { edit } })
   const updated = (await getAsset(c.env.DB, id))!
@@ -319,7 +320,7 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
   const asset = await getAsset(c.env.DB, id)
   if (!asset) return c.json({ error: 'not_found' }, 404)
   const locations = await getLocations(c.env.DB, id)
-  if (!copySizes(asset, locations).includes(size)) return c.json({ error: 'unavailable', message: 'This photo can’t be downloaded in that size.' }, 409)
+  if (!copySizes(asset, locations).includes(size)) return c.json({ error: 'unavailable', message: say('err.sizeUnavailable') }, 409)
   const name = `${asset.filename.replace(/\.[^.]*$/, '') || 'photo'}-${size}.${size === 'cutout' ? 'png' : 'jpg'}`
   const headers = (length: number) => ({
     'Content-Type': size === 'cutout' ? 'image/png' : 'image/jpeg',
@@ -329,27 +330,27 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
   })
   if (isDownloadSize(size) && size !== 'original') {
     const image = await galleryImage(c.env, id, size, { watermark: c.req.query('watermark') === '1', longEdge: JPEG_LONG_EDGE[size] })
-    if (!image) return c.json({ error: 'unavailable', message: 'This photo has no preview to make a copy from yet.' }, 409)
+    if (!image) return c.json({ error: 'unavailable', message: say('err.noPreviewCopy') }, 409)
     return new Response(image.body, { headers: headers(image.size) })
   }
   const images = c.env.IMAGES
   if (size === 'cutout') {
     const preview = (await renditionStore(c.env).get(renditionKey(id, 'preview'))) ?? (await renditionStore(c.env).get(renditionKey(id, 'thumb')))
-    if (!images || !preview) return c.json({ error: 'unavailable', message: 'This photo has no preview to cut out yet.' }, 409)
+    if (!images || !preview) return c.json({ error: 'unavailable', message: say('err.noPreviewCutout') }, 409)
     try {
       const png = await (await images.input(preview.body).transform({ segment: 'foreground' }).output({ format: 'image/png' })).response().arrayBuffer()
       return new Response(png, { headers: headers(png.byteLength) })
     } catch (error) {
       console.warn('[download] cut-out failed', id, error)
-      return c.json({ error: 'download_failed', message: 'The background couldn’t be removed from this photo.' }, 502)
+      return c.json({ error: 'download_failed', message: say('err.cutoutFailed') }, 502)
     }
   }
   const location = readableLocation(locations)
   const connection = location && (await getConnection(c.env.DB, location.connection_id))
-  if (!images || !location || !connection) return c.json({ error: 'unavailable', message: 'The original can’t be read here.' }, 409)
+  if (!images || !location || !connection) return c.json({ error: 'unavailable', message: say('err.originalUnreadable') }, 409)
   try {
     const original = await providerFor(c.env, connection).get(location.key)
-    if (!original) return c.json({ error: 'not_found', message: 'The original isn’t where the catalog says.' }, 404)
+    if (!original) return c.json({ error: 'not_found', message: say('err.originalMissing') }, 404)
     const edit = readEdit(asset.edit)
     let bytes: ArrayBuffer
     if (!edit) {
@@ -369,7 +370,7 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
   } catch (error) {
     if (error instanceof StorageError) return storageFailure(c, error)
     console.warn('[download] full size failed', id, error)
-    return c.json({ error: 'download_failed', message: 'The full-size copy couldn’t be made. Try the large one.' }, 502)
+    return c.json({ error: 'download_failed', message: say('err.fullSizeFailed') }, 502)
   }
 })
 
@@ -380,7 +381,7 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
   const location = asset && primaryLocation(await getLocations(c.env.DB, id))
   if (!asset || !location) return c.json({ error: 'not_found' }, 404)
   if (ARCHIVE_CLASSES.has(location.storage_class) && location.state !== 'restored') {
-    return c.json({ error: 'archived', message: 'This original is in deep storage. Request a restore first.', storageClass: location.storage_class }, 409)
+    return c.json({ error: 'archived', message: say('err.archived'), storageClass: location.storage_class }, 409)
   }
   try {
     return (await originalResponse(c.env, c.req.raw, asset, location)) ?? c.json({ error: 'not_found' }, 404)
@@ -431,7 +432,7 @@ assetRoutes.post('/:id/restore', requirePermission('lifecycle:manage'), async (c
     if (!found) return c.json({ error: 'not_found' }, 404)
     const { location, provider } = found
     if (!ARCHIVE_CLASSES.has(location.storage_class) || !provider.restore) {
-      return c.json({ error: 'not_archived', message: 'This original is not in deep storage.' }, 409)
+      return c.json({ error: 'not_archived', message: say('err.notArchived') }, 409)
     }
     const result = await provider.restore(location.key, { days: days as number, tier })
     await c.env.DB.prepare("UPDATE asset_locations SET state = 'restoring', updated_at = ? WHERE asset_id = ? AND connection_id = ?")
@@ -492,8 +493,8 @@ function acceptFields(value: unknown): AcceptField[] {
 assetRoutes.post('/:id/ai/analyze', requirePermission('ai:run'), async (c) => {
   const id = c.req.param('id')
   if (!(await getAsset(c.env.DB, id))) return c.json({ error: 'not_found' }, 404)
-  if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: 'This deployment has no Workers AI binding.' }, 409)
-  if (!(await claimForAi(c.env.DB, id))) return c.json({ error: 'busy', message: 'This photo is being analysed already.' }, 409)
+  if (!c.env.AI) return c.json({ error: 'ai_unavailable', message: say('err.noAi') }, 409)
+  if (!(await claimForAi(c.env.DB, id))) return c.json({ error: 'busy', message: say('err.aiBusy') }, 409)
   const outcome = await analyzeAsset(c.env, id)
   const row = (await getAsset(c.env.DB, id))!
   return c.json({ outcome, ai: assetJson(row, []).ai, tags: await getTags(c.env.DB, id) }, outcome === 'failed' ? 502 : 200)
