@@ -57,18 +57,14 @@ npm run check      # type checks
 
 ### Search by meaning (optional)
 
-It needs a Vectorize index in your Cloudflare account, made once, then a binding:
+It needs a Vectorize index in your Cloudflare account, made once:
 
 ```sh
 npx wrangler vectorize create cf-dam-meaning --dimensions=1024 --metric=cosine
 ```
 
-and in `wrangler.jsonc`:
-
-```jsonc
-"vectorize": [{ "binding": "VECTORS", "index_name": "cf-dam-meaning" }],
-```
-
+`npm run deploy` binds it when it's there (`scripts/optional-bindings.mjs`; Wrangler doesn't make
+Vectorize indexes itself, so the binding can't sit in `wrangler.jsonc` without breaking new installs).
 After the next deploy, the background work turns each photo's words (title, caption, keywords,
 place, what the AI saw) into vectors with Workers AI, and the library offers "Search by meaning"
 and each photo "More like this". Without the index both are simply absent.
