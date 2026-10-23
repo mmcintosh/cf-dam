@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import { iptcGroup, iptcLabel } from '../lib/iptc-labels'
   /** IPTC Core fields on the asset page, grouped as photographers know them. Saves each field on change. */
   import { api } from '../lib/auth-client'
 
@@ -27,7 +29,7 @@
   /** What the server has: a field that fails to save goes back to it. */
   let saved = $state<Record<string, string>>({ ...values })
   let fromGps = $state(props.placeFromGps)
-  const gpsHint = $derived(`${props.fields.filter((f) => fromGps.includes(f.key)).map((f) => f.label.toLowerCase()).join(', ')} from GPS`)
+  const gpsHint = $derived(t('iptc.fromGps', { fields: format().list(props.fields.filter((f) => fromGps.includes(f.key)).map((f) => iptcLabel(f).toLocaleLowerCase())) }))
   let status = $state('')
   let error = $state('')
   const groups = [...new Set(props.fields.map((f) => f.group))]
@@ -35,21 +37,24 @@
   // Open the groups that have something in them; Rights always, since that's what people come for.
   const initiallyOpen = (group: string) => group === 'Rights' || props.fields.some((f) => f.group === group && props.values[f.key])
 
-  const label = (key: string) => props.fields.find((f) => f.key === key)?.label ?? key
+  const label = (key: string) => {
+    const field = props.fields.find((f) => f.key === key)
+    return field ? iptcLabel(field) : key
+  }
 
   async function save(key: string) {
     error = ''
-    status = 'Saving…'
+    status = t('common.saving')
     const value = values[key]!.trim()
     try {
       await api(`/api/assets/${props.assetId}`, { method: 'PATCH', body: JSON.stringify({ iptc: { [key]: value || null } }) })
       saved[key] = value
       fromGps = fromGps.filter((k) => k !== key)
-      status = 'Saved'
-      setTimeout(() => status === 'Saved' && (status = ''), 1500)
+      status = t('common.saved')
+      setTimeout(() => status === t('common.saved') && (status = ''), 1500)
     } catch (e) {
       status = ''
-      error = `${label(key)} wasn't saved (“${value}”): ${e instanceof Error ? e.message : 'try again.'}`
+      error = t('iptc.notSaved', { field: label(key), value, why: e instanceof Error ? e.message : t('common.tryAgain') })
       values[key] = saved[key]!
     }
   }
@@ -63,10 +68,10 @@
       values = Object.fromEntries(props.fields.map((f) => [f.key, fresh.iptc[f.key] ?? '']))
       saved = { ...values }
       fromGps = fresh.placeFromGps
-      status = 'Preset applied'
+      status = t('iptc.presetApplied')
       setTimeout(() => (status = ''), 1500)
     } catch (e) {
-      error = `The preset wasn't applied: ${e instanceof Error ? e.message : 'try again.'}`
+      error = t('iptc.presetFailed', { why: e instanceof Error ? e.message : t('common.tryAgain') })
     }
   }
 </script>
@@ -74,23 +79,23 @@
 <div class="stack iptc">
   {#if props.canEdit && props.presets.length > 0}
     <div class="row presets">
-      <select aria-label="Apply a preset" onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; applyPreset(v, false) }}>
-        <option value="">Apply preset (fill empty fields)…</option>
+      <select aria-label={t('library.applyPreset')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; applyPreset(v, false) }}>
+        <option value="">{t('iptc.applyPreset')}</option>
         {#each props.presets as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
       </select>
-      <a class="small" href="/presets">Manage</a>
+      <a class="small" href="/presets">{t('iptc.manage')}</a>
     </div>
   {/if}
   {#each groups as group (group)}
     <details open={initiallyOpen(group)}>
       <summary>
-        {group}
+        {iptcGroup(group)}
         {#if group === 'Location' && fromGps.length > 0}<span class="hint">{gpsHint}</span>{/if}
       </summary>
       <div class="grid">
         {#each props.fields.filter((f) => f.group === group) as field (field.key)}
           <div class="field" class:wide={field.long || WIDE.has(field.key)}>
-            <label for={`iptc-${field.key}`}>{field.label}</label>
+            <label for={`iptc-${field.key}`}>{iptcLabel(field)}</label>
             {#if field.long}
               <textarea id={`iptc-${field.key}`} rows="2" maxlength={field.max} bind:value={values[field.key]} disabled={!props.canEdit} onchange={() => save(field.key)}></textarea>
             {:else}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { iptcGroup, iptcLabel } from '../lib/iptc-labels'
   import { api } from '../lib/auth-client'
 
   interface Field {
@@ -120,11 +121,11 @@
       </div>
       {#each groups as group (group)}
         <fieldset>
-          <legend class="label">{group}</legend>
+          <legend class="label">{iptcGroup(group)}</legend>
           <div class="grid">
             {#each props.fields.filter((f) => f.group === group) as field (field.key)}
               <div class="field" class:wide={field.long}>
-                <label for={`p-${field.key}`}>{field.label}</label>
+                <label for={`p-${field.key}`}>{iptcLabel(field)}</label>
                 {#if field.long}
                   <textarea id={`p-${field.key}`} rows="2" maxlength={field.max} bind:value={values[field.key]}></textarea>
                 {:else}

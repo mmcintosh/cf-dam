@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { api } from '../lib/auth-client'
 
   interface Location {
@@ -28,21 +30,23 @@
   let busy = $state(false)
   let message = $state<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
+  // AWS's own class names, except where a word describes them.
   const LABELS: Record<string, string> = {
-    STANDARD: 'Standard',
     INTELLIGENT_TIERING: 'Intelligent-Tiering',
-    STANDARD_IA: 'Infrequent Access',
     ONEZONE_IA: 'One Zone-IA',
     GLACIER_IR: 'Glacier Instant Retrieval',
     GLACIER: 'Glacier Flexible Retrieval',
     DEEP_ARCHIVE: 'Glacier Deep Archive',
-    NAS: 'On a computer or NAS (indexed in place)',
   }
-  const TIER_NOTES: Record<string, string> = {
-    Expedited: 'minutes (Flexible only; extra cost)',
-    Standard: 'Flexible 3–5 h, Deep Archive within 12 h',
-    Bulk: 'cheapest: Flexible 5–12 h, Deep Archive within 48 h',
-  }
+  const LABEL_KEYS: Record<string, MessageKey> = { STANDARD: 'storage.cls.STANDARD', STANDARD_IA: 'storage.cls.STANDARD_IA', NAS: 'storage.cls.NAS' }
+  const className = (cls: string) => (LABEL_KEYS[cls] ? t(LABEL_KEYS[cls]!) : (LABELS[cls] ?? cls))
+  const TIERS: ['Expedited' | 'Standard' | 'Bulk', MessageKey][] = [
+    ['Expedited', 'storage.tier.Expedited'],
+    ['Standard', 'storage.tier.Standard'],
+    ['Bulk', 'storage.tier.Bulk'],
+  ]
+  const STATES = new Set(['stored', 'archived', 'restoring', 'restored', 'pending', 'missing', 'gone'])
+  const stateName = (state: string) => (STATES.has(state) ? t(`storage.state.${state}` as MessageKey) : state)
 
   async function act(run: () => Promise<string>) {
     busy = true
@@ -50,7 +54,7 @@
     try {
       message = { kind: 'ok', text: await run() }
     } catch (e) {
-      message = { kind: 'error', text: e instanceof Error ? e.message : 'That did not work.' }
+      message = { kind: 'error', text: e instanceof Error ? e.message : t('common.didNotWork') }
     } finally {
       busy = false
     }
@@ -63,7 +67,7 @@
         body: JSON.stringify({ storageClass: target }),
       })
       location = { ...location!, storageClass: result.storageClass, state: result.state, archived: result.state === 'archived' }
-      return `Moved to ${LABELS[result.storageClass] ?? result.storageClass}.`
+      return t('storage.moved', { class: className(result.storageClass) })
     })
 
   const restore = () =>
@@ -71,94 +75,97 @@
       const result = await api<{ result: string }>(`/api/assets/${assetId}/restore`, { method: 'POST', body: JSON.stringify({ days, tier }) })
       location = { ...location!, state: 'restoring' }
       return result.result === 'already-restored'
-        ? 'Already restored; the restore was extended.'
-        : `Restore requested. Check back in a few hours; the copy stays available for ${days} days.`
+        ? t('storage.alreadyRestored')
+        : t('storage.restoreRequested', { days: t('common.days', { count: days }) })
     })
 
   const refresh = () =>
     act(async () => {
       const result = await api<{ state: string; storageClass: string; restoreExpiresAt: string | null }>(`/api/assets/${assetId}/refresh`, { method: 'POST' })
       location = { ...location!, state: result.state, storageClass: result.storageClass, restoreExpiresAt: result.restoreExpiresAt }
-      return result.state === 'restored' ? 'Restored and ready to download.' : `Status: ${result.state}.`
+      return result.state === 'restored' ? t('storage.restoredReady') : t('storage.status', { state: stateName(result.state) })
     })
 </script>
 
 {#if location?.nasPath}
   <div class="stack">
     <dl class="facts">
-      <dt>On</dt>
+      <dt>{t('storage.on')}</dt>
       <dd>{location.connectionName}</dd>
-      <dt>Path</dt>
+      <dt>{t('storage.path')}</dt>
       <dd class="path">{location.nasPath}</dd>
       {#if location.nasFolder?.root.volume}
-        <dt>Drive</dt>
-        <dd>{location.nasFolder.root.volume.label ?? 'Unnamed drive'}</dd>
+        <dt>{t('storage.drive')}</dt>
+        <dd>{location.nasFolder.root.volume.label ?? t('storage.unnamedDrive')}</dd>
       {/if}
       <dt>State</dt>
       <dd>
         {#if location.state === 'missing'}
-          Missing: not found in the last scan (moved or deleted)
+          {t('storage.missing')}
         {:else if location.nasFolder?.root.offlineSince}
-          Offline since {new Date(location.nasFolder.root.offlineSince).toLocaleDateString()}. To reach the original, connect
-          {location.nasFolder.root.volume ? `“${location.nasFolder.root.volume.label ?? 'the drive'}”` : 'the folder'} to {location.nasFolder.sourceName}.
+          {t('storage.offline', {
+            date: format().date(location.nasFolder.root.offlineSince),
+            what: location.nasFolder.root.volume ? `“${location.nasFolder.root.volume.label ?? t('storage.theDrive')}”` : t('storage.theFolder'),
+            source: location.nasFolder.sourceName,
+          })}
         {:else}
-          Present
+          {t('storage.present')}
         {/if}
       </dd>
     </dl>
-    <p class="muted small">The original stays where it is{location.nasFolder ? `, on ${location.nasFolder.sourceName}` : ''}. cf-dam has its metadata and previews; lifecycle rules (Phase 6) will move originals to cloud storage.</p>
+    <p class="muted small">{location.nasFolder ? t('storage.staysOn', { source: location.nasFolder.sourceName }) : t('storage.stays')}</p>
   </div>
 {:else if location}
   <div class="stack">
     <dl class="facts">
-      <dt>Stored in</dt>
+      <dt>{t('storage.storedIn')}</dt>
       <dd>{location.connectionName}</dd>
-      <dt>Class</dt>
-      <dd>{LABELS[location.storageClass] ?? location.storageClass}</dd>
+      <dt>{t('storage.class')}</dt>
+      <dd>{className(location.storageClass)}</dd>
       <dt>State</dt>
       <dd>
-        {location.state}{location.restoreExpiresAt ? ` until ${new Date(location.restoreExpiresAt).toLocaleDateString()}` : ''}
+        {location.restoreExpiresAt ? t('storage.until', { state: stateName(location.state), date: format().date(location.restoreExpiresAt) }) : stateName(location.state)}
       </dd>
     </dl>
 
     <div class="row">
       {#if !location.archived || location.state === 'restored'}
-        <a class="btn btn-primary" href={`/api/assets/${assetId}/original`}>Download original</a>
+        <a class="btn btn-primary" href={`/api/assets/${assetId}/original`}>{t('storage.downloadOriginal')}</a>
       {/if}
-      <button class="btn" onclick={refresh} disabled={busy}>Check status</button>
+      <button class="btn" onclick={refresh} disabled={busy}>{t('storage.checkStatus')}</button>
     </div>
 
     {#if canManage && location.archived && location.state !== 'restored'}
       <div class="subpanel stack">
-        <strong>Restore from deep storage</strong>
+        <strong>{t('storage.restoreTitle')}</strong>
         <div class="row">
           <div class="field">
-            <label for="tier">Speed</label>
+            <label for="tier">{t('storage.speed')}</label>
             <select id="tier" bind:value={tier}>
-              {#each ['Expedited', 'Standard', 'Bulk'] as t (t)}<option value={t}>{t}: {TIER_NOTES[t]}</option>{/each}
+              {#each TIERS as [value, note] (value)}<option {value}>{t(note)}</option>{/each}
             </select>
           </div>
           <div class="field days">
-            <label for="days">Keep restored for</label>
+            <label for="days">{t('storage.keepFor')}</label>
             <select id="days" bind:value={days}>
-              {#each [1, 3, 7, 14, 30] as d (d)}<option value={d}>{d} day{d > 1 ? 's' : ''}</option>{/each}
+              {#each [1, 3, 7, 14, 30] as d (d)}<option value={d}>{t('common.days', { count: d })}</option>{/each}
             </select>
           </div>
         </div>
-        <div><button class="btn btn-primary" onclick={restore} disabled={busy || location.state === 'restoring'}>Request restore</button></div>
+        <div><button class="btn btn-primary" onclick={restore} disabled={busy || location.state === 'restoring'}>{t('storage.requestRestore')}</button></div>
       </div>
     {/if}
 
     {#if canManage && location.offeredClasses.length > 1}
       <div class="subpanel stack">
-        <strong>Move to another class</strong>
+        <strong>{t('storage.moveTitle')}</strong>
         <div class="row">
-          <select bind:value={target} aria-label="Target storage class">
-            {#each location.offeredClasses as cls (cls)}<option value={cls}>{LABELS[cls] ?? cls}</option>{/each}
+          <select bind:value={target} aria-label={t('storage.targetClass')}>
+            {#each location.offeredClasses as cls (cls)}<option value={cls}>{className(cls)}</option>{/each}
           </select>
-          <button class="btn" onclick={changeClass} disabled={busy || target === location.storageClass}>Move</button>
+          <button class="btn" onclick={changeClass} disabled={busy || target === location.storageClass}>{t('storage.move')}</button>
         </div>
-        <p class="muted note">S3 bills a minimum stay: 30 days for the IA classes, 90 for Glacier, 180 for Deep Archive.</p>
+        <p class="muted note">{t('storage.minimumStay')}</p>
       </div>
     {/if}
 
@@ -167,7 +174,7 @@
     {/if}
   </div>
 {:else}
-  <p class="muted">No stored original.</p>
+  <p class="muted">{t('storage.none')}</p>
 {/if}
 
 <style>

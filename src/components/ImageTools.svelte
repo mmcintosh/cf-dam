@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   /** Under a photo: rotate and crop it (never touching the original), and download a copy in a chosen size. */
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
@@ -17,7 +19,7 @@
   let hasWatermark = $state(false)
   let watermark = $state(false)
   let downloading = $state(false)
-  const SIZE_LABELS: Record<string, string> = { small: 'Small (1024 px)', large: 'Large (2048 px)', full: 'Full size', cutout: 'Background removed (PNG)' }
+  const SIZE_LABELS: Record<string, MessageKey> = { small: 'tools.size.small', large: 'tools.size.large', full: 'tools.size.full', cutout: 'tools.size.cutout' }
 
   onMount(() => {
     api<{ sizes: string[]; watermark: boolean }>(`/api/assets/${assetId}/download`)
@@ -45,15 +47,17 @@
   let frame = $state({ width: 1, height: 1 })
   let scale = $state(1)
 
-  const RATIOS: [string, string][] = [
-    ['free', 'Free'],
-    ['original', 'Original'],
-    ['1', 'Square'],
+  /** Crop shapes: a key to translate, or a ratio that reads the same in any language. */
+  const RATIOS: [string, MessageKey | string][] = [
+    ['free', 'tools.ratio.free'],
+    ['original', 'tools.ratio.original'],
+    ['1', 'tools.ratio.square'],
     ['0.8', '4:5'],
     ['1.5', '3:2'],
     ['0.6667', '2:3'],
     ['1.7778', '16:9'],
   ]
+  const ratioName = (name: string) => (name.includes(':') ? name : t(name as MessageKey))
   const ratio = $derived.by(() => {
     if (ratioChoice === 'free') return null
     if (ratioChoice === 'original') return frame.width / frame.height
@@ -76,7 +80,7 @@
     }
     // A photo still waiting for its large preview is edited on its thumbnail.
     img.onerror = () => {
-      if (img.src.includes('/thumb')) error = 'Could not load the picture to edit.'
+      if (img.src.includes('/thumb')) error = t('tools.loadFailed')
       else img.src = `/api/assets/${assetId}/renditions/thumb?base=1`
     }
     img.src = `/api/assets/${assetId}/renditions/preview?base=1`
@@ -218,7 +222,7 @@
       // The page's images carry the new version: load it again to show them.
       window.location.reload()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save the edit.'
+      error = e instanceof Error ? e.message : t('tools.saveFailed')
       saving = false
     }
   }
@@ -232,48 +236,48 @@
 
 <div class="tools row">
   {#if canEdit}
-    <button class="btn btn-sm" type="button" onclick={open}>Rotate and crop</button>
-    {#if edit}<span class="muted small">Edited: the original is unchanged.</span>{/if}
+    <button class="btn btn-sm" type="button" onclick={open}>{t('tools.rotateCrop')}</button>
+    {#if edit}<span class="muted small">{t('tools.edited')}</span>{/if}
   {/if}
-  {#if moreLike}<a class="btn btn-sm" href={`/?like=${assetId}`}>More like this</a>{/if}
+  {#if moreLike}<a class="btn btn-sm" href={`/?like=${assetId}`}>{t('tools.moreLike')}</a>{/if}
   {#if sizes.length > 0}
     <span class="spacer"></span>
     <details class="download" bind:open={downloading}>
-      <summary class="btn btn-sm">Download a copy</summary>
+      <summary class="btn btn-sm">{t('tools.download')}</summary>
       <div class="menu card stack">
         {#each sizes as size (size)}
-          <a class="btn btn-sm" href={href(size)} download onclick={() => (downloading = false)}>{SIZE_LABELS[size] ?? size}</a>
+          <a class="btn btn-sm" href={href(size)} download onclick={() => (downloading = false)}>{SIZE_LABELS[size] ? t(SIZE_LABELS[size]!) : size}</a>
         {/each}
-        <a class="btn btn-sm" href={`/api/assets/${assetId}/xmp`} download onclick={() => (downloading = false)} title="Keywords, captions, rating and credits in a file Lightroom, Capture One and Bridge read">Metadata only (XMP)</a>
+        <a class="btn btn-sm" href={`/api/assets/${assetId}/xmp`} download onclick={() => (downloading = false)} title={t('tools.xmpTitle')}>{t('tools.xmp')}</a>
         {#if hasWatermark}
-          <label class="small"><input type="checkbox" bind:checked={watermark} /> With the watermark (small and large)</label>
+          <label class="small"><input type="checkbox" bind:checked={watermark} /> {t('tools.withWatermark')}</label>
         {/if}
-        <p class="muted small">{edit ? 'Rotated and cropped as shown' : 'As shown'}. Removing the background is done by Cloudflare’s AI and works best on a clear subject.</p>
+        <p class="muted small">{edit ? t('tools.asShownEdited') : t('tools.asShown')} {t('tools.cutoutNote')}</p>
       </div>
     </details>
   {/if}
 </div>
 
 {#if editing}
-  <div class="overlay" role="dialog" aria-modal="true" aria-label="Rotate and crop">
+  <div class="overlay" role="dialog" aria-modal="true" aria-label={t('tools.rotateCrop')}>
     <div class="panel card stack">
       <div class="row bar">
-        <button class="btn btn-sm" type="button" onclick={() => turn(false)} title="Turn left">⟲ Left</button>
-        <button class="btn btn-sm" type="button" onclick={() => turn(true)} title="Turn right">⟳ Right</button>
-        <button class="btn btn-sm" type="button" onclick={flip} class:btn-primary={mirrored}>Mirror</button>
-        <select value={ratioChoice} onchange={(e) => chooseRatio(e.currentTarget.value)} aria-label="Crop shape">
-          {#each RATIOS as [value, label] (value)}<option {value}>{label}</option>{/each}
+        <button class="btn btn-sm" type="button" onclick={() => turn(false)} title={t('tools.turnLeft')}>{t('tools.left')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => turn(true)} title={t('tools.turnRight')}>{t('tools.right')}</button>
+        <button class="btn btn-sm" type="button" onclick={flip} class:btn-primary={mirrored}>{t('tools.mirror')}</button>
+        <select value={ratioChoice} onchange={(e) => chooseRatio(e.currentTarget.value)} aria-label={t('tools.cropShape')}>
+          {#each RATIOS as [value, label] (value)}<option {value}>{ratioName(label)}</option>{/each}
         </select>
-        <button class="btn btn-sm" type="button" onclick={reset}>Reset</button>
+        <button class="btn btn-sm" type="button" onclick={reset}>{t('common.reset')}</button>
         <span class="spacer"></span>
-        <button class="btn btn-sm" type="button" onclick={() => (editing = false)}>Cancel</button>
-        <button class="btn btn-sm btn-primary" type="button" onclick={save} disabled={saving || !loaded}>{saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (editing = false)}>{t('common.cancel')}</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick={save} disabled={saving || !loaded}>{saving ? t('common.saving') : t('common.save')}</button>
       </div>
       <div class="stage-box" bind:this={stage}>
         <canvas bind:this={canvas} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} class:hidden={!loaded}></canvas>
-        {#if !loaded && !error}<p class="muted">Loading…</p>{/if}
+        {#if !loaded && !error}<p class="muted">{t('common.loading')}</p>{/if}
       </div>
-      <p class="muted small">Drag a corner to crop, or inside the box to move it. The original file is never changed; Reset and Save undoes the edit.</p>
+      <p class="muted small">{t('tools.cropHint')}</p>
       {#if error}<div class="alert alert-error">{error}</div>{/if}
     </div>
   </div>

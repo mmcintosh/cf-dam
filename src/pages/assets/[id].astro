@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { createFormat, getT, intlTag } from '@cf-dam/i18n'
 import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
@@ -47,10 +48,10 @@ const location = primary && connection
 
 const hasPreview = asset.renditions.includes('preview')
 const hasThumb = asset.renditions.includes('thumb')
-const fmtSize = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(2)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+const fmtSize = (b: number) => createFormat(Astro.locals.lang).bytes(b)
 const shutter = (t: number | null) => (t === null ? null : t >= 1 ? `${t}s` : `1/${Math.round(1 / t)}`)
 const taken = asset.capturedAt
-  ? new Date(`${asset.capturedAt}${asset.capturedOffset ?? 'Z'}`).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short', timeZone: asset.capturedOffset ? undefined : 'UTC' })
+  ? new Date(`${asset.capturedAt}${asset.capturedOffset ?? 'Z'}`).toLocaleString(intlTag(Astro.locals.lang), { dateStyle: 'long', timeStyle: 'short', timeZone: asset.capturedOffset ? undefined : 'UTC' })
   : null
 const exposure = [
   asset.exposure.focalLength && `${asset.exposure.focalLength} mm`,
@@ -69,15 +70,16 @@ const videoFacts = asset.video
 // The browser plays the original straight from storage when the Worker can serve it (not on a NAS, not archived).
 const moreLike = await meaningAvailable(env)
 const playable = asset.video && location && !location.nasPath && !location.archived && ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'].includes(asset.mimeType)
+const t = getT(Astro.locals.lang)
 const facts: [string, string][] = [
-  ['File', asset.filename],
-  ['Size', `${fmtSize(asset.size)}${asset.width ? ` · ${asset.width} × ${asset.height}` : ''}`],
-  ...(videoFacts ? [['Video', videoFacts] as [string, string]] : []),
-  ...(taken ? [['Taken', taken] as [string, string]] : []),
-  ...(asset.camera.model ? [['Camera', [asset.camera.make && !asset.camera.model.startsWith(asset.camera.make) ? asset.camera.make : '', asset.camera.model].filter(Boolean).join(' ')] as [string, string]] : []),
-  ...(asset.camera.lens ? [['Lens', asset.camera.lens] as [string, string]] : []),
-  ...(exposure.length ? [['Exposure', exposure.join('  ·  ')] as [string, string]] : []),
-  ...(asset.gps ? [['Location', `${asset.gps.lat.toFixed(4)}, ${asset.gps.lng.toFixed(4)}`] as [string, string]] : []),
+  [t('photo.file'), asset.filename],
+  [t('common.size'), `${fmtSize(asset.size)}${asset.width ? ` · ${asset.width} × ${asset.height}` : ''}`],
+  ...(videoFacts ? [[t('photo.video'), videoFacts] as [string, string]] : []),
+  ...(taken ? [[t('common.taken'), taken] as [string, string]] : []),
+  ...(asset.camera.model ? [[t('common.camera'), [asset.camera.make && !asset.camera.model.startsWith(asset.camera.make) ? asset.camera.make : '', asset.camera.model].filter(Boolean).join(' ')] as [string, string]] : []),
+  ...(asset.camera.lens ? [[t('common.lens'), asset.camera.lens] as [string, string]] : []),
+  ...(exposure.length ? [[t('common.exposure'), exposure.join('  ·  ')] as [string, string]] : []),
+  ...(asset.gps ? [[t('photo.location'), `${asset.gps.lat.toFixed(4)}, ${asset.gps.lng.toFixed(4)}`] as [string, string]] : []),
 ]
 ---
 <AppLayout help="photo-page" wide title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>
@@ -95,7 +97,7 @@ const facts: [string, string][] = [
       ) : (
         <div class="no-preview">
           <strong>{asset.filename.split('.').pop()?.toUpperCase()}</strong>
-          <span class="muted">{asset.status === 'processing' ? 'Still processing. Refresh in a moment.' : 'No preview for this file.'}</span>
+          <span class="muted">{asset.status === 'processing' ? t('photo.stillProcessing') : t('photo.noPreviewFile')}</span>
         </div>
       )}
       {primary && <span class="badge-slot"><TierBadge storageClass={primary.storage_class} state={primary.state} /></span>}
@@ -125,7 +127,7 @@ const facts: [string, string][] = [
         />
       </section>
       <section class="card">
-        <h2>Credit, rights &amp; place</h2>
+        <h2>{t('photo.credit')}</h2>
         <IptcEditor
           client:visible
           assetId={id}
@@ -137,17 +139,17 @@ const facts: [string, string][] = [
         />
       </section>
       <section class="card">
-        <h2>Details</h2>
+        <h2>{t('photo.details')}</h2>
         <dl class="facts">
           {facts.map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
           {principal.permissions.has('assets:edit') && (
-            <><dt>{asset.gps ? '' : 'Location'}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? 'Move on the map' : 'Set on the map'}</a></dd></>
+            <><dt>{asset.gps ? '' : t('photo.location')}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? t('photo.moveOnMap') : t('photo.setOnMap')}</a></dd></>
           )}
-          <dt>Metadata</dt><dd><a href={`/api/assets/${id}/xmp`} download title="Keywords, captions, rating and credits, for Lightroom, Capture One or Bridge">Download XMP sidecar</a></dd>
+          <dt>{t('photo.metadata')}</dt><dd><a href={`/api/assets/${id}/xmp`} download title={t('photo.xmpTitle')}>{t('photo.xmpDownload')}</a></dd>
         </dl>
       </section>
       <section class="card">
-        <h2>Original</h2>
+        <h2>{t('photo.original')}</h2>
         <StoragePanel client:visible assetId={id} location={location} canManage={principal.permissions.has('lifecycle:manage')} />
       </section>
     </aside>

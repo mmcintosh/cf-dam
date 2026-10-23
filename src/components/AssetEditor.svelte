@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
+  import { t } from '@cf-dam/i18n/client'
 
   interface Props {
     assetId: string
@@ -122,9 +123,9 @@
       const body = (await response.json()) as { ai?: AiSuggestions; tags?: TagRow[]; message?: string }
       if (body.ai) ai = body.ai
       if (body.tags) applyTags(body.tags)
-      if (!response.ok) aiMessage = body.ai?.error ?? body.message ?? 'Analysis failed.'
+      if (!response.ok) aiMessage = body.ai?.error ?? body.message ?? t('editor.analysisFailed')
     } catch {
-      aiMessage = 'Analysis failed.'
+      aiMessage = t('editor.analysisFailed')
     } finally {
       analysing = false
     }
@@ -140,7 +141,7 @@
       caption = saved.caption = result.caption ?? ''
       applyTags(result.tags)
     } catch (e) {
-      failed(e, "The suggestion wasn't kept")
+      failed(e, t('editor.notKept'))
     }
   }
 
@@ -157,7 +158,7 @@
       applyTags((await api<{ tags: TagRow[] }>(`/api/assets/${props.assetId}/ai/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' })).tags)
     } catch (e) {
       aiTags = before
-      failed(e, `${leaf(tag)} wasn't dropped`)
+      failed(e, t('editor.notDropped', { tag: leaf(tag) }))
     }
   }
   let status = $state<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -165,7 +166,7 @@
 
   function failed(e: unknown, what: string) {
     status = 'error'
-    message = `${what}: ${e instanceof Error ? e.message : 'try again.'}`
+    message = t('editor.failed', { what, why: e instanceof Error ? e.message : t('common.tryAgain') })
   }
 
   /** Save a change. False when it didn't save: the caller puts back what the server has. */
@@ -178,7 +179,7 @@
       setTimeout(() => status === 'saved' && (status = 'idle'), 1500)
       return true
     } catch (e) {
-      failed(e, "That wasn't saved")
+      failed(e, t('editor.notSaved'))
       return false
     }
   }
@@ -249,14 +250,14 @@
 
   async function addToAlbum() {
     if (!albumId) return
-    const name = albums.find((a) => a.id === albumId)?.name ?? 'the album'
+    const name = albums.find((a) => a.id === albumId)?.name ?? t('editor.theAlbum')
     try {
       await api(`/api/albums/${albumId}/items`, { method: 'POST', body: JSON.stringify({ assetIds: [props.assetId] }) })
       inAlbums = [...inAlbums, { id: albumId, name }]
       albumId = ''
-      albumMessage = `Added to ${name}.`
+      albumMessage = t('editor.addedTo', { album: name })
     } catch (e) {
-      albumMessage = `Not added to ${name}: ${e instanceof Error ? e.message : 'try again.'}`
+      albumMessage = t('editor.notAddedTo', { album: name, why: e instanceof Error ? e.message : t('common.tryAgain') })
     }
   }
 
@@ -265,9 +266,9 @@
     try {
       await api(`/api/albums/${album.id}/items`, { method: 'DELETE', body: JSON.stringify({ assetIds: [props.assetId] }) })
       inAlbums = inAlbums.filter((a) => a.id !== album.id)
-      albumMessage = `Taken out of ${album.name}.`
+      albumMessage = t('editor.takenOut', { album: album.name })
     } catch (e) {
-      albumMessage = `Still in ${album.name}: ${e instanceof Error ? e.message : 'try again.'}`
+      albumMessage = t('editor.stillIn', { album: album.name, why: e instanceof Error ? e.message : t('common.tryAgain') })
     }
   }
 
@@ -279,19 +280,19 @@
 </script>
 
 <div class="stack editor">
-  <div class="stars" role="radiogroup" aria-label="Rating">
+  <div class="stars" role="radiogroup" aria-label={t('common.rating')}>
     {#each [1, 2, 3, 4, 5] as star (star)}
       <button
         type="button"
         role="radio"
         aria-checked={rating === star}
-        aria-label={`${star} star${star > 1 ? 's' : ''}`}
+        aria-label={t('common.stars', { count: star })}
         class:on={star <= rating}
         disabled={!props.canEdit}
         onclick={() => rate(star)}>★</button
       >
     {/each}
-    <span class="labels" role="radiogroup" aria-label="Colour label">
+    <span class="labels" role="radiogroup" aria-label={t('editor.colourLabel')}>
       {#each Object.entries(props.labelNames) as [value, name] (value)}
         <button
           type="button"
@@ -306,28 +307,28 @@
         ></button>
       {/each}
     </span>
-    <span class="save-state muted">{status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : ''}</span>
+    <span class="save-state muted">{status === 'saving' ? t('common.saving') : status === 'saved' ? t('common.saved') : ''}</span>
   </div>
 
   <div class="field">
-    <label for="title">Title</label>
+    <label for="title">{t('editor.title')}</label>
     <input id="title" type="text" bind:value={title} disabled={!props.canEdit} onchange={() => saveText('title')} />
   </div>
   <div class="field">
-    <label for="caption">Caption</label>
+    <label for="caption">{t('editor.caption')}</label>
     <textarea id="caption" rows="3" bind:value={caption} disabled={!props.canEdit} onchange={() => saveText('caption')}></textarea>
   </div>
   <div class="field">
-    <label for="alt">Alt text</label>
-    <input id="alt" type="text" bind:value={alt} disabled={!props.canEdit} onchange={() => saveText('alt')} placeholder="Describe the image for people who can't see it" />
+    <label for="alt">{t('editor.alt')}</label>
+    <input id="alt" type="text" bind:value={alt} disabled={!props.canEdit} onchange={() => saveText('alt')} placeholder={t('editor.altPlaceholder')} />
   </div>
   <div class="field">
-    <span class="label">Tags</span>
+    <span class="label">{t('editor.tags')}</span>
     <div class="tags">
       {#each tags as tag (tag)}
         <span class="tag" title={tag}>
           <a href={`/?tag=${encodeURIComponent(tag)}`}>{leaf(tag)}{#if tag.includes(' › ')}<small> · {tag.split(' › ').slice(0, -1).join(' › ')}</small>{/if}</a>
-          {#if props.canEdit}<button type="button" aria-label={`Remove ${tag}`} onclick={() => removeTag(tag)}>×</button>{/if}
+          {#if props.canEdit}<button type="button" aria-label={t('editor.removeTag', { tag })} onclick={() => removeTag(tag)}>×</button>{/if}
         </span>
       {/each}
       {#if props.canEdit}
@@ -335,12 +336,12 @@
           <input
             class="tag-input"
             type="text"
-            placeholder="Add a keyword… (Places > Norway)"
+            placeholder={t('editor.keywordPlaceholder')}
             bind:value={tagInput}
             onkeydown={addTag}
             oninput={suggest}
             onblur={() => setTimeout(closeSuggestions, 150)}
-            aria-label="Add a keyword"
+            aria-label={t('editor.addKeyword')}
             aria-autocomplete="list"
           />
           {#if suggestions.length > 0}
@@ -360,70 +361,70 @@
     </div>
   </div>
   {#if props.aiAvailable || ai.status}
-    <section class="ai" aria-label="AI suggestions">
+    <section class="ai" aria-label={t('editor.ai')}>
       <header class="row">
-        <span class="label">AI suggestions</span>
-        {#if ai.quality}<span class="pill">{ai.quality}</span>{/if}
-        {#if ai.people}<span class="pill">{ai.people} {ai.people === 1 ? 'person' : 'people'}</span>{/if}
+        <span class="label">{t('editor.ai')}</span>
+        {#if ai.quality}<span class="pill">{['excellent', 'good', 'fair', 'poor'].includes(ai.quality) ? t(`quality.${ai.quality}` as 'quality.good') : ai.quality}</span>{/if}
+        {#if ai.people}<span class="pill">{t('editor.people', { count: ai.people })}</span>{/if}
         <span class="spacer"></span>
         {#if props.canRunAi && props.aiAvailable}
           <button class="btn btn-sm" type="button" onclick={analyse} disabled={analysing}>
-            {analysing ? 'Looking…' : ai.status === 'done' ? 'Again' : 'Analyse'}
+            {analysing ? t('editor.looking') : ai.status === 'done' ? t('editor.again') : t('editor.analyse')}
           </button>
         {/if}
       </header>
 
       {#if analysing}
-        <p class="muted small">The model is looking at the photo. This takes a few seconds.</p>
+        <p class="muted small">{t('editor.lookingLead')}</p>
       {:else if ai.status === 'queued' || ai.status === 'running'}
-        <p class="muted small">Queued. Suggestions appear within a few minutes.</p>
+        <p class="muted small">{t('editor.queued')}</p>
       {:else if ai.status === 'failed'}
-        <p class="muted small">Last attempt failed: {ai.error}</p>
+        <p class="muted small">{t('editor.lastFailed', { error: ai.error ?? '' })}</p>
       {:else if !ai.status}
-        <p class="muted small">Not analysed yet.</p>
+        <p class="muted small">{t('editor.notAnalysed')}</p>
       {/if}
       {#if aiMessage}<p class="alert alert-error small">{aiMessage}</p>{/if}
 
       {#if ai.alt && ai.alt !== alt}
         <div class="suggestion">
-          <span class="muted small">Alt text</span>
+          <span class="muted small">{t('editor.alt')}</span>
           <p>{ai.alt}</p>
-          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['alt'], true)}>{alt ? 'Replace mine' : 'Use this'}</button>{/if}
+          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['alt'], true)}>{alt ? t('editor.replaceMine') : t('editor.useThis')}</button>{/if}
         </div>
       {/if}
       {#if ai.caption && ai.caption !== caption}
         <div class="suggestion">
-          <span class="muted small">Caption</span>
+          <span class="muted small">{t('editor.caption')}</span>
           <p>{ai.caption}</p>
-          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['caption'], true)}>{caption ? 'Replace mine' : 'Use this'}</button>{/if}
+          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['caption'], true)}>{caption ? t('editor.replaceMine') : t('editor.useThis')}</button>{/if}
         </div>
       {/if}
       {#if aiTags.length > 0}
         <div class="suggestion">
-          <span class="muted small">Tags (searchable now; keep or drop)</span>
+          <span class="muted small">{t('editor.aiTags')}</span>
           <div class="tags">
             {#each aiTags as tag (tag)}
               <span class="tag tag-ai" title={tag}>
                 <a href={`/?tag=${encodeURIComponent(tag)}`}>{leaf(tag)}</a>
                 {#if props.canEdit}
-                  <button type="button" aria-label={`Keep ${tag}`} title="Keep" onclick={() => keepTag(tag)}>✓</button>
-                  <button type="button" aria-label={`Drop ${tag}`} title="Drop" onclick={() => dropTag(tag)}>×</button>
+                  <button type="button" aria-label={t('editor.keepTag', { tag })} title={t('editor.keep')} onclick={() => keepTag(tag)}>✓</button>
+                  <button type="button" aria-label={t('editor.dropTag', { tag })} title={t('editor.drop')} onclick={() => dropTag(tag)}>×</button>
                 {/if}
               </span>
             {/each}
           </div>
-          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['tags'])}>Keep all</button>{/if}
+          {#if props.canEdit}<button class="link" type="button" onclick={() => accept(['tags'])}>{t('editor.keepAll')}</button>{/if}
         </div>
       {/if}
       {#if ai.text}
         <div class="suggestion">
-          <span class="muted small">Text in the picture (searchable)</span>
+          <span class="muted small">{t('editor.textInPicture')}</span>
           <p class="ocr">{ai.text}</p>
         </div>
       {/if}
       {#if ai.description}
         <details>
-          <summary class="muted small">What the model saw</summary>
+          <summary class="muted small">{t('editor.modelSaw')}</summary>
           <p class="small">{ai.description}</p>
         </details>
       {/if}
@@ -431,26 +432,26 @@
   {/if}
   {#if inAlbums.length > 0 || (props.canEdit && albums.length > 0)}
     <div class="field">
-      <span class="label" id="albums-label">Albums</span>
+      <span class="label" id="albums-label">{t('editor.albums')}</span>
       {#if inAlbums.length > 0}
         <div class="tags" role="group" aria-labelledby="albums-label">
           {#each inAlbums as album (album.id)}
             <span class="tag">
               <a href={`/albums/${album.id}`}>{album.name}</a>
-              {#if props.canEdit}<button type="button" aria-label={`Take out of ${album.name}`} title="Take out of this album" onclick={() => leaveAlbum(album)}>×</button>{/if}
+              {#if props.canEdit}<button type="button" aria-label={t('editor.takeOutOf', { album: album.name })} title={t('editor.takeOutTitle')} onclick={() => leaveAlbum(album)}>×</button>{/if}
             </span>
           {/each}
         </div>
       {:else}
-        <span class="muted small">Not in any album yet.</span>
+        <span class="muted small">{t('editor.noAlbum')}</span>
       {/if}
       {#if props.canEdit && otherAlbums.length > 0}
         <div class="row">
-          <select id="album" aria-label="Add to album" bind:value={albumId} style="flex: 1">
-            <option value="">Add to an album…</option>
+          <select id="album" aria-label={t('library.addToAlbum')} bind:value={albumId} style="flex: 1">
+            <option value="">{t('editor.addToAnAlbum')}</option>
             {#each otherAlbums as album (album.id)}<option value={album.id}>{album.name}</option>{/each}
           </select>
-          <button class="btn" type="button" onclick={addToAlbum} disabled={!albumId}>Add</button>
+          <button class="btn" type="button" onclick={addToAlbum} disabled={!albumId}>{t('common.add')}</button>
         </div>
       {/if}
       {#if albumMessage}<span class="muted" role="status">{albumMessage}</span>{/if}
