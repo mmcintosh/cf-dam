@@ -43,6 +43,7 @@ import { fillQuickHashes } from './duplicates'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
 import { indexAssets, unindexed } from './search'
+import { meaningStep } from './meaning'
 import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
@@ -51,7 +52,8 @@ export const SLICES = {
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
-  ai: { ms: 25_000, queries: 190 },
+  ai: { ms: 25_000, queries: 180 },
+  meaning: { ms: 5_000, queries: 10 },
   hash: { ms: 8_000, queries: 100 },
   restores: { ms: 5_000, queries: 60 },
   gallery: { ms: 3_000, queries: 10 },
@@ -77,6 +79,7 @@ const STALE_PROCESSING_MS = 60 * 60_000
 export interface SweepResult {
   indexed: number
   placed: number
+  meant: number
   analysed: number
   hashed: number
   processed: number
@@ -94,7 +97,7 @@ export interface SweepResult {
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null, previews: { checking: false, remade: 0 } }
+  const result: SweepResult = { indexed: 0, placed: 0, meant: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null, previews: { checking: false, remade: 0 } }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -219,6 +222,15 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       )
       .bind(AI_MAX_ATTEMPTS, AI_MAX_ATTEMPTS, new Date(Date.now() - AI_RUNNING_STALE_MS).toISOString())
       .run()
+  }
+
+  // Search by meaning: vectors for photos whose words changed (catalog/meaning.ts).
+  const meaning = slice('meaning')
+  if (meaning.more()) {
+    result.meant = await meaningStep(env, meaning.more).catch(async (error) => {
+      await noteSweepFailure(db, 'meaning', error)
+      return 0
+    })
   }
 
   // 4. Look-alike fingerprints for assets that have a thumbnail but no hash yet.

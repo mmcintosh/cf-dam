@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, parseListFilters, timeline as loadTimeline } from '@cf-dam/api'
+import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -12,7 +12,11 @@ const params = new URL(Astro.url).searchParams
 params.delete('offset')
 params.delete('limit')
 const query = Object.fromEntries(params)
-const filters = parseListFilters(query)
+const canSearchMeaning = principal.permissions.has('assets:read') && (await meaningAvailable(env))
+// A search by meaning (words, or "more like" a photo) is looked up first: the rest narrows and orders by it.
+const filters = canSearchMeaning ? await resolveNear(env, parseListFilters(query)) : parseListFilters(query)
+const likeName = filters.like ? (await getAsset(env.DB, filters.like))?.filename : undefined
+const byWords = (words: string, key: 'q' | 'meaning') => `/?${new URLSearchParams({ [key]: words })}`
 const PAGE = 100
 
 const canRead = principal.permissions.has('assets:read')
@@ -65,6 +69,21 @@ const subtitle = archiveTotal
       {facets && <Facets facets={facets} params={params} labelNames={labelNames} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} storedOnName={storedOn?.name} />}
       <section class="main">
         <Timeline months={months} params={params} />
+        {(filters.meaning || filters.like) && (
+          <p class="meaning row">
+            <span>
+              {filters.like ? <>Photos most like <strong>{likeName ?? 'this one'}</strong></> : <>Closest in meaning to <strong>“{filters.meaning}”</strong></>}, nearest first.
+              {!canSearchMeaning && ' Search by meaning isn’t set up here.'}
+            </span>
+            {filters.meaning && <a href={byWords(filters.meaning, 'q')}>Search the words instead</a>}
+          </p>
+        )}
+        {filters.q && canSearchMeaning && !filters.meaning && (
+          <p class="meaning row">
+            <span class="muted">Looking for something nobody wrote down?</span>
+            <a href={byWords(filters.q, 'meaning')}>Search by meaning</a>
+          </p>
+        )}
         <div class="toolbar row">
           <nav class="sort" aria-label="Sort">
             <a href={sortLink('captured')} class:list={{ on: sort === 'captured' }}>Date taken</a>
@@ -116,6 +135,12 @@ const subtitle = archiveTotal
     top: 20px;
     max-height: calc(100vh - 40px);
     overflow-y: auto;
+  }
+  .meaning {
+    gap: 12px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
   }
   .toolbar {
     justify-content: space-between;

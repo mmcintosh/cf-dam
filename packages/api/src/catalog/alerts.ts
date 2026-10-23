@@ -182,6 +182,7 @@ const SWEEP_STAGE_NAMES: Record<string, string> = {
   backup: 'catalog backups',
   stats: 'archive totals',
   previews: 'making missing previews',
+  meaning: 'search by meaning',
   alerts: 'looking for problems',
 }
 

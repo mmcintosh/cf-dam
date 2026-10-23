@@ -18,6 +18,11 @@ export interface DamBindings {
   IMAGES?: ImagesBinding
   /** Workers AI, for tags, alt text and captions. Without it, AI review is off. */
   AI?: Ai
+  /**
+   * Vectorize, for search by meaning (catalog/meaning.ts): 1,024 dimensions, cosine. Without it, that
+   * search is absent.
+   */
+  VECTORS?: Vectorize
   /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
   ASSETS?: Fetcher
   /** Tests only: a smaller archive part size (bytes; S3 takes parts down to 5 MiB) than the 64 MiB used. */

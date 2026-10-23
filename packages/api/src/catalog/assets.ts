@@ -296,6 +296,11 @@ export async function renditionNames(db: D1Database, assetIds: string[]): Promis
 
 export interface ListFilters {
   q?: string
+  /** Search by meaning (catalog/meaning.ts): words, or a photo whose kind is wanted. */
+  meaning?: string
+  like?: string
+  /** What `meaning` or `like` found, nearest first (resolveNear). Unresolved, they match nothing. */
+  near?: string[]
   /** Keywords as typed: a path ('Places > Norway'), or a name meaning every keyword of that name. */
   tag?: string
   /** One keyword by id, and those below it (`kw=`: facet links, saved searches). Part of the tag facet. */
@@ -370,6 +375,13 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   const where: string[] = ["a.deleted_at IS NULL", "a.status != 'uploading'"]
   const params: unknown[] = []
   const use = (key: keyof ListFilters) => key !== omit && filters[key] !== undefined && filters[key] !== ''
+  if (filters.near !== undefined) {
+    where.push('a.id IN (SELECT value FROM json_each(?))')
+    params.push(JSON.stringify(filters.near))
+  } else if (filters.meaning || filters.like) {
+    // Never everything: a search by meaning nobody looked up (a bulk action, a saved search) finds nothing.
+    where.push('0')
+  }
   const fts = use('q') ? toFtsQuery(filters.q!) : null
   if (fts) {
     where.push(SEARCH_MATCH)
@@ -477,13 +489,17 @@ export const cappedCount = (clause: string) => `SELECT COUNT(*) AS n FROM (SELEC
  */
 export async function listAssets(db: D1Database, filters: ListFilters): Promise<{ assets: AssetJson[]; total: number; totalExact: boolean }> {
   const { clause, params } = buildWhere(filters)
-  const order =
-    filters.sort === 'added' ? 'a.created_at DESC, a.id DESC' : 'COALESCE(a.captured_at, a.created_at) DESC, a.id DESC'
+  // A search by meaning lists the nearest first.
+  const order = filters.near
+    ? '(SELECT j.key FROM json_each(?) j WHERE j.value = a.id)'
+    : filters.sort === 'added'
+      ? 'a.created_at DESC, a.id DESC'
+      : 'COALESCE(a.captured_at, a.created_at) DESC, a.id DESC'
   const limit = Math.min(Math.max(filters.limit ?? 60, 1), 200)
   const offset = Math.max(filters.offset ?? 0, 0)
 
   const [rows, count] = await db.batch([
-    db.prepare(`SELECT a.* FROM assets a WHERE ${clause} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...params, limit, offset),
+    db.prepare(`SELECT a.* FROM assets a WHERE ${clause} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...params, ...(filters.near ? [JSON.stringify(filters.near)] : []), limit, offset),
     db.prepare(cappedCount(clause)).bind(...params),
   ])
   const assets = (rows!.results ?? []) as AssetRow[]
@@ -553,6 +569,8 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
   const rating = int(query.rating)
   return {
     q: text(query.q),
+    meaning: text(query.meaning, 500),
+    like: query.like && /^[0-9a-f]{32}$/.test(query.like) ? query.like : undefined,
     tag: text(query.tag),
     keyword: text(query.kw, 64),
     camera: text(query.camera),

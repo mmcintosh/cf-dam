@@ -90,7 +90,8 @@ export async function indexAssets(db: D1Database, assetIds: string[]): Promise<v
            FROM json_each(?) j JOIN assets a ON a.id = ${field('id')}`,
         )
         .bind(JSON.stringify(docs)),
-      db.prepare("UPDATE assets SET indexed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id IN (SELECT value FROM json_each(?))").bind(list),
+      // The text may have changed: search by meaning checks it again (catalog/meaning.ts).
+      db.prepare("UPDATE assets SET indexed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), meaning_at = NULL WHERE id IN (SELECT value FROM json_each(?))").bind(list),
     ])
   }
 }

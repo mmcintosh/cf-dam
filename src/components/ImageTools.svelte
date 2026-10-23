@@ -10,7 +10,7 @@
     crop: Crop | null
   }
 
-  let { assetId, edit = null, canEdit = false }: { assetId: string; edit?: Edit | null; canEdit?: boolean } = $props()
+  let { assetId, edit = null, canEdit = false, moreLike = false }: { assetId: string; edit?: Edit | null; canEdit?: boolean; moreLike?: boolean } = $props()
 
   // ── Download a copy ────────────────────────────────────────────────────────────
   let sizes = $state<string[]>([])
@@ -235,6 +235,7 @@
     <button class="btn btn-sm" type="button" onclick={open}>Rotate and crop</button>
     {#if edit}<span class="muted small">Edited: the original is unchanged.</span>{/if}
   {/if}
+  {#if moreLike}<a class="btn btn-sm" href={`/?like=${assetId}`}>More like this</a>{/if}
   {#if sizes.length > 0}
     <span class="spacer"></span>
     <details class="download" bind:open={downloading}>

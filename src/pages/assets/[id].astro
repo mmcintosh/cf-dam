@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import ImageTools from '../../components/ImageTools.svelte'
@@ -61,6 +61,7 @@ const videoFacts = asset.video
   ? [asset.video.duration && clock(asset.video.duration), asset.video.codec?.toUpperCase(), asset.video.frameRate && `${Math.round(asset.video.frameRate * 100) / 100} fps`].filter(Boolean).join(' · ')
   : null
 // The browser plays the original straight from storage when the Worker can serve it (not on a NAS, not archived).
+const moreLike = await meaningAvailable(env)
 const playable = asset.video && location && !location.nasPath && !location.archived && ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'].includes(asset.mimeType)
 const facts: [string, string][] = [
   ['File', asset.filename],
@@ -93,7 +94,7 @@ const facts: [string, string][] = [
       )}
       {primary && <span class="badge-slot"><TierBadge storageClass={primary.storage_class} state={primary.state} /></span>}
       {!playable && (hasPreview || hasThumb) && (
-        <ImageTools client:load assetId={id} edit={asset.edit} canEdit={principal.permissions.has('assets:edit') && !asset.mimeType.startsWith('video/')} />
+        <ImageTools client:load assetId={id} edit={asset.edit} moreLike={moreLike} canEdit={principal.permissions.has('assets:edit') && !asset.mimeType.startsWith('video/')} />
       )}
     </section>
 

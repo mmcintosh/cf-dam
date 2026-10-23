@@ -5,6 +5,7 @@ import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { acceptSuggestions, AI_OFF, aiAvailable, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
+import { resolveNear } from '../catalog/meaning'
 import { fillPlacesFromGps } from '../catalog/places'
 import { processAsset } from '../catalog/process'
 import { indexAssets } from '../catalog/search'
@@ -33,16 +34,19 @@ function storageFailure(c: Context<DamEnv>, error: unknown) {
   throw error
 }
 
-assetRoutes.get('/', requirePermission('assets:read'), async (c) => c.json(await listAssets(c.env.DB, parseListFilters(c.req.query()))))
+/** Library filters, with a search by meaning looked up (catalog/meaning.ts). */
+const filtersOf = (c: Context<DamEnv>) => resolveNear(c.env, parseListFilters(c.req.query()))
 
-assetRoutes.get('/facets', requirePermission('assets:read'), async (c) => c.json(await facets(c.env.DB, parseListFilters(c.req.query()))))
+assetRoutes.get('/', requirePermission('assets:read'), async (c) => c.json(await listAssets(c.env.DB, await filtersOf(c))))
+
+assetRoutes.get('/facets', requirePermission('assets:read'), async (c) => c.json(await facets(c.env.DB, await filtersOf(c))))
 
 assetRoutes.get('/timeline', requirePermission('assets:read'), async (c) =>
-  c.json({ months: await timeline(c.env.DB, parseListFilters(c.req.query())) }),
+  c.json({ months: await timeline(c.env.DB, await filtersOf(c)) }),
 )
 
 assetRoutes.get('/geo', requirePermission('assets:read'), async (c) =>
-  c.json({ points: await geoPoints(c.env.DB, parseListFilters(c.req.query())) }),
+  c.json({ points: await geoPoints(c.env.DB, await filtersOf(c)) }),
 )
 
 /** One action on up to 500 assets. The permission depends on the action. */
