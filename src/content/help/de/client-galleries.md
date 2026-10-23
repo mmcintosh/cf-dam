@@ -4,12 +4,14 @@ summary: "Ein Album mit einem Kunden teilen, per privatem Link oder per Einladun
 section: Sharing
 order: 1
 review: machine
-source: 5cf25c9dc96f
+source: 3f09564d5b32
 ---
 
 Eine **Kundengalerie** zeigt ein Album jemandem außerhalb deines Teams: einem Paar, das seine Hochzeitsfotos auswählt, einer Art-Direktorin, die Motive aussucht, einer Familie, die Abzüge herunterlädt. Du schickst ihnen einen Link; sie sehen nur dieses Album, sonst nichts aus deinem Archiv.
 
 ## Einen Link erstellen
+
+Am schnellsten: Wähle Fotos in der **Bibliothek** aus und nimm **Mit Kunden teilen…**. Daraus wird ein Album (umbenennen kannst du es auf seiner Seite), und das Galerieformular öffnet sich. Oder drücke auf **Kundengalerien** auf **Neue Kundengalerie** und wähle ein Album. Schritt für Schritt:
 
 1. Leg ein Album mit den Fotos an, die du teilen willst (siehe [Alben](/help/albums)), und öffne es.
 2. Drücke unter **Mit Kunden teilen** auf **Neuer Link**.
@@ -47,7 +49,7 @@ Dasselbe Wasserzeichen gilt für jeden Link, bei dem es eingeschaltet ist, und f
 
 ## Die Seite Kundengalerien
 
-**Kundengalerien** listet jeden Link auf: welches Album, ob er geöffnet, abgelaufen oder passwortgeschützt ist, wie oft er aufgerufen wurde und wie viele Favoriten und Downloads es gab.
+**Kundengalerien** listet jeden Link auf: welches Album, ob er geöffnet, abgelaufen oder passwortgeschützt ist, wie oft er aufgerufen wurde und wie viele Favoriten und Downloads es gab. Die Schaltflächen über der Liste zeigen die offenen, die in 7 Tagen schließenden, die abgelaufenen und die widerrufenen; die Spalte **Schließt** sagt, wann jeder Link aufhört zu funktionieren.
 
 ## Kunden mit Konto
 

@@ -9,6 +9,8 @@ A **client gallery** shows one album to someone outside your team: a couple choo
 
 ## Making a link
 
+The quickest way: select photos in the **Library** and choose **Share with a client…**. An album is made for them (rename it on its page) and the gallery form opens. Or, on **Client galleries**, press **New client gallery** and choose an album. Step by step:
+
 1. Make an album with the photos to share (see [Albums](/help/albums)) and open it.
 2. Under **Share with clients**, press **New link**.
 3. Fill in:
@@ -45,7 +47,7 @@ The same watermark is used by every link that has it turned on, and by **Downloa
 
 ## The Client galleries page
 
-**Client galleries** lists every link: which album, whether it's open, expired or protected by a password, how many times it was opened, how many favourites and downloads it has had.
+**Client galleries** lists every link: which album, whether it's open, expired or protected by a password, how many times it was opened, how many favourites and downloads it has had. The buttons above the list show the open ones, those closing within 7 days, the expired and the revoked; the **Closes** column says when each one stops working.
 
 ## Clients with an account
 

@@ -37,6 +37,15 @@
   const team = $derived(users.filter((u) => !isClient(u)))
   const clients = $derived(users.filter(isClient))
   const teamRoles = $derived(roles.filter((r) => r.name !== 'client'))
+  /** Team or Clients, and a search over names and emails that ignores case and accents ("muller" finds Müller). */
+  let tab = $state<'team' | 'clients'>('team')
+  let query = $state('')
+  const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
+  const matching = (list: User[]) => {
+    const q = fold(query.trim())
+    return q ? list.filter((u) => fold(`${u.name ?? ''} ${u.email}`).includes(q)) : list
+  }
+  const shown = $derived(matching(tab === 'team' ? team : clients))
   let showCreate = $state(false)
   let draft = $state({ name: '', email: '', password: '', role: 'viewer' })
   let error = $state('')
@@ -355,18 +364,54 @@
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
   {#if notice}<div class="alert alert-success" role="status">{notice}</div>{/if}
 
-  {@render people(team)}
-
-  {#if clients.length > 0}
-    <div>
-      <h2 class="section">{t('people.clients')}</h2>
-      <p class="muted small">{t('people.clientsLead')}</p>
+  <div class="row between tabs-row">
+    <div class="tabs" role="tablist">
+      <button role="tab" type="button" class="tab" class:on={tab === 'team'} aria-selected={tab === 'team'} onclick={() => (tab = 'team')}>{t('people.tab.team')} <span class="count">{team.length}</span></button>
+      <button role="tab" type="button" class="tab" class:on={tab === 'clients'} aria-selected={tab === 'clients'} onclick={() => (tab = 'clients')}>{t('people.tab.clients')} <span class="count">{clients.length}</span></button>
     </div>
-    {@render people(clients)}
+    <input class="search" type="search" placeholder={t('people.search')} aria-label={t('people.search')} bind:value={query} />
+  </div>
+  {#if tab === 'clients'}<p class="muted small">{clients.length > 0 ? t('people.clientsLead') : t('people.noClients')}</p>{/if}
+  {#if shown.length > 0}
+    {@render people(shown)}
+  {:else if query.trim()}
+    <p class="muted">{t('people.noMatch', { query: query.trim() })}</p>
   {/if}
 </div>
 
 <style>
+  .tabs-row {
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    font: inherit;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .tab.on {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .count {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 4px;
+  }
+  .search {
+    flex: 0 1 280px;
+  }
   .section {
     font-size: 1.1rem;
     margin: 12px 0 4px;

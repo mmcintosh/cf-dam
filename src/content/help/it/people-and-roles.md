@@ -4,12 +4,12 @@ summary: "Invitare i colleghi, cosa può fare ogni ruolo e aiutare chi è rimast
 section: People and security
 order: 1
 review: machine
-source: 4a5be25cb866
+source: db2ca999caa7
 ---
 
 Chiunque acceda a cf-dam ha il proprio account e un **ruolo** che decide cosa può fare.
 
-I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nient’altro. Li inviti da **Condividi con i clienti** di un album, non da qui, e sono elencati a parte, sotto **Clienti**, in fondo a **Persone**. A un cliente puoi anche mandare solo un link, senza account. Vedi [Gallerie clienti](/help/client-galleries).
+I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nient’altro. Li inviti da **Condividi con i clienti** di un album, non da qui, e sono elencati a parte, nella scheda **Clienti** di **Persone**, che ha una ricerca come la scheda **Team**. A un cliente puoi anche mandare solo un link, senza account. Vedi [Gallerie clienti](/help/client-galleries).
 
 ## I ruoli
 

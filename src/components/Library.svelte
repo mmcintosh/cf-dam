@@ -55,12 +55,14 @@
     labelNames: Record<Label, string>
     /** Metadata presets that can be stamped on a selection. */
     presets: { id: string; name: string }[]
+    /** Can make client galleries (with canEdit, to make the album for them). */
+    canShare?: boolean
   }
   type Label = 'red' | 'yellow' | 'green' | 'blue' | 'purple'
   const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
   /** The most one bulk edit takes (the server's MAX_BULK). */
   const MAX_BULK = 500
-  let { initial, initialTotal, initialTotalExact, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets }: Props = $props()
+  let { initial, initialTotal, initialTotalExact, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets, canShare = false }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
@@ -241,6 +243,21 @@
       say(t('library.say.tagged', { count: targets().length, tags: format().list(tags) }))
       tagInput = ''
       if (detail) detail = { ...detail, tags: [...new Set([...detail.tags, ...tags])] }
+    }
+  }
+
+  /** Make an album of the selection, then open its new-gallery form. The album can be renamed there. */
+  async function shareWithClient() {
+    const ids = targets()
+    if (ids.length === 0) return
+    if (ids.length > MAX_BULK) return say(t('library.say.atMost', { max: MAX_BULK, count: ids.length }))
+    say(t('library.say.makingAlbum'))
+    try {
+      const name = t('library.shareAlbumName', { date: format().date(new Date()) })
+      const { album } = await api<{ album: { id: string } }>('/api/albums', { method: 'POST', body: JSON.stringify({ name }) })
+      if (await bulk({ action: 'album-add', albumId: album.id }, ids)) location.href = `/albums/${album.id}?share=new#share`
+    } catch (e) {
+      say(e instanceof Error ? e.message : t('library.say.notSaved'))
     }
   }
 
@@ -497,6 +514,7 @@
         {/if}
       </select>
     {/if}
+    {#if canShare && canEdit}<button class="btn btn-sm" onclick={shareWithClient}>{t('library.shareWithClient')}</button>{/if}
     {#if selected.size >= 2 && selected.size <= 4}<button class="btn btn-sm" onclick={openCompare}>{t('library.compare')}</button>{/if}
     {#if canDelete}<button class="btn btn-sm btn-danger" onclick={remove}>{t('common.delete')}</button>{/if}
     <span class="spacer"></span>

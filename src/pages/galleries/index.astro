@@ -4,31 +4,61 @@ import { createFormat, getT } from '@cf-dam/i18n'
 import { getWatermark, listShares } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import WatermarkSettings from '../../components/WatermarkSettings.svelte'
+import NewGallery from '../../components/NewGallery.svelte'
 
 const shares = await listShares(env.DB)
 const watermark = await getWatermark(env.DB)
 const sample = await env.DB.prepare(
   "SELECT r.asset_id FROM renditions r JOIN assets a ON a.id = r.asset_id AND a.deleted_at IS NULL WHERE r.name = 'preview' AND a.width >= a.height ORDER BY a.created_at DESC LIMIT 1",
 ).first<{ asset_id: string }>()
-const live = shares.filter((s) => s.status !== 'revoked')
 const t = getT(Astro.locals.lang)
+const canShare = Astro.locals.principal!.permissions.has('shares:manage')
+const albums = canShare
+  ? (await env.DB.prepare('SELECT id, name FROM albums ORDER BY updated_at DESC LIMIT 500').all<{ id: string; name: string }>()).results
+  : []
+// Which galleries to list: open and expired by default; "closing" is open with an end date within 7 days.
+const FILTERS = ['live', 'active', 'expiring', 'expired', 'revoked'] as const
+type Filter = (typeof FILTERS)[number]
+const asked = Astro.url.searchParams.get('status')
+const filter: Filter = (FILTERS as readonly string[]).includes(asked ?? '') ? (asked as Filter) : 'live'
+const soon = Date.now() + 7 * 86_400_000
+const matches: Record<Filter, (s: (typeof shares)[number]) => boolean> = {
+  live: (s) => s.status !== 'revoked',
+  active: (s) => s.status === 'active',
+  expiring: (s) => s.status === 'active' && s.expiresAt !== null && Date.parse(s.expiresAt) <= soon,
+  expired: (s) => s.status === 'expired',
+  revoked: (s) => s.status === 'revoked',
+}
+const counts = Object.fromEntries(FILTERS.map((f) => [f, shares.filter(matches[f]).length])) as Record<Filter, number>
+const live = shares.filter(matches[filter])
 const fmt = (iso: string | null) => (iso ? createFormat(Astro.locals.lang).date(iso) : '—')
 const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 ---
-<AppLayout help="client-galleries" title={t('nav.galleries')} subtitle={t('galleries.subtitle')}>
+<AppLayout help="client-galleries" title={t('nav.galleries')} subtitle={t('galleries.subtitle2')}>
+  {canShare && <NewGallery client:load albums={albums} />}
+  {shares.length > 0 && (
+    <nav class="filters" aria-label={t('galleries.filterLabel')}>
+      {FILTERS.map((f) => (
+        <a href={f === 'live' ? '/galleries' : `/galleries?status=${f}`} class:list={['chip', { on: filter === f }]} aria-current={filter === f ? 'page' : undefined}>
+          {t(`galleries.filter.${f}`)} <span class="count">{counts[f]}</span>
+        </a>
+      ))}
+    </nav>
+  )}
   <section class="card">
     {live.length === 0 ? (
-      <p class="muted">{t('galleries.none')} <a href="/albums">{t('albums.title')}</a></p>
+      <p class="muted">{shares.length === 0 ? t('galleries.none') : t('galleries.noneHere')}</p>
     ) : (
       <div class="scroll">
         <table class="table">
-          <thead><tr><th>{t('galleries.link')}</th><th>{t('galleries.album')}</th><th>{t('common.status')}</th><th>{t('galleries.opens')}</th><th>{t('galleries.picking')}</th><th>{t('common.favourites')}</th><th>{t('common.downloads')}</th><th>{t('galleries.lastOpened')}</th></tr></thead>
+          <thead><tr><th>{t('galleries.link')}</th><th>{t('galleries.album')}</th><th>{t('common.status')}</th><th>{t('galleries.expires')}</th><th>{t('galleries.opens')}</th><th>{t('galleries.picking')}</th><th>{t('common.favourites')}</th><th>{t('common.downloads')}</th><th>{t('galleries.lastOpened')}</th></tr></thead>
           <tbody>
             {live.map((s) => (
               <tr>
                 <td><a href={`/galleries/${s.id}`}>{s.name}</a></td>
                 <td><a href={`/albums/${s.albumId}`}>{s.albumName}</a></td>
                 <td><span class:list={['badge', { 'badge-ok': s.status === 'active' }]}>{STATUS[s.status]}</span></td>
+                <td class="muted">{s.expiresAt ? fmt(s.expiresAt) : t('galleries.never')}</td>
                 <td>{s.stats.opens}</td>
                 <td>{s.stats.visitors}</td>
                 <td>{s.stats.picks}</td>
@@ -55,5 +85,27 @@ const STATUS: Record<string, string> = { active: t('galleries.status.active'), e
   }
   .scroll {
     overflow-x: auto;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    padding: 5px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 99px;
+    font-size: 0.85rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .chip.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .count {
+    color: var(--text-muted);
+    margin-left: 4px;
   }
 </style>

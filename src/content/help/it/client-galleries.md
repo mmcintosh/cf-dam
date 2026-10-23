@@ -4,12 +4,14 @@ summary: "Condividere un album con un cliente tramite link privato o invitandolo
 section: Sharing
 order: 1
 review: machine
-source: 5cf25c9dc96f
+source: 3f09564d5b32
 ---
 
 Una **galleria cliente** mostra un album a qualcuno fuori dal tuo team: una coppia che sceglie le foto del matrimonio, un art director che seleziona gli scatti, una famiglia che scarica le stampe. Gli mandi un link; vede solo quell’album, nient’altro del tuo archivio.
 
 ## Creare un link
+
+Il modo più rapido: seleziona delle foto nella **Libreria** e scegli **Condividi con un cliente…**. Viene creato un album con quelle foto (puoi rinominarlo nella sua pagina) e si apre il modulo della galleria. Oppure, in **Gallerie clienti**, premi **Nuova galleria cliente** e scegli un album. Passo per passo:
 
 1. Crea un album con le foto da condividere (vedi [Album](/help/albums)) e aprilo.
 2. In **Condividi con i clienti**, premi **Nuovo link**.
@@ -47,7 +49,7 @@ La stessa filigrana è usata da ogni link che la ha attivata e da **Scarica una 
 
 ## La pagina Gallerie clienti
 
-**Gallerie clienti** elenca tutti i link: quale album, se è aperto, scaduto o protetto da password, quante volte è stato aperto, quante preferite e quanti download ha avuto.
+**Gallerie clienti** elenca tutti i link: quale album, se è aperto, scaduto o protetto da password, quante volte è stato aperto, quante preferite e quanti download ha avuto. I pulsanti sopra l’elenco mostrano quelle aperte, quelle che chiudono entro 7 giorni, le scadute e le revocate; la colonna **Chiude** indica quando ognuna smette di funzionare.
 
 ## Clienti con un account
 

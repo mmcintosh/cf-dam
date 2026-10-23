@@ -4,12 +4,12 @@ summary: "Kollegen einladen, was jede Rolle darf, und jemandem helfen, der sich 
 section: People and security
 order: 1
 review: machine
-source: 4a5be25cb866
+source: db2ca999caa7
 ---
 
 Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, die festlegt, was er tun kann.
 
-**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie über **Mit Kunden teilen** in einem Album ein, nicht hier, und sie stehen getrennt unter **Kunden** unten auf **Personen**. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries).
+**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie über **Mit Kunden teilen** in einem Album ein, nicht hier, und sie stehen getrennt im Reiter **Kunden** auf **Personen**, der wie der Reiter **Team** eine Suche hat. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries).
 
 ## Die Rollen
 

@@ -28,7 +28,7 @@ const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
   {canEdit && <AlbumTools client:load albumId={album.id} name={album.name} description={album.description} links={album.links} items={items} coverId={album.cover} />}
   {canShare && (
     <div class="share">
-      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} />
+      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} />
     </div>
   )}
   {assets.length > 0 ? (

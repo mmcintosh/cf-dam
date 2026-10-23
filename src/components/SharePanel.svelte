@@ -12,8 +12,11 @@
     albumName: string
     /** Whether a watermark image has been set (Galleries page). */
     hasWatermark: boolean
+    /** Open the new-gallery form at once (arriving from "New client gallery" or "Share with a client"). */
+    startNew?: boolean
   }
-  let { albumId, albumName, hasWatermark }: Props = $props()
+  let { albumId, albumName, hasWatermark, startNew = false }: Props = $props()
+  let panel: HTMLElement | undefined = $state()
 
   type Size = 'small' | 'large' | 'original'
   const SIZES: [Size, MessageKey][] = [
@@ -55,7 +58,13 @@
   async function load() {
     shares = (await api<{ shares: ShareJson[] }>(`/api/shares?albumId=${encodeURIComponent(albumId)}`)).shares
   }
-  onMount(load)
+  onMount(async () => {
+    await load()
+    if (startNew) {
+      start(null)
+      panel?.scrollIntoView({ block: 'start' })
+    }
+  })
 
   function start(share: ShareJson | null) {
     error = ''
@@ -132,7 +141,7 @@
   }
 </script>
 
-<section class="card stack">
+<section class="card stack" id="share" bind:this={panel}>
   <div class="row head">
     <div>
       <h2>{t('share.title')}</h2>

@@ -4,12 +4,12 @@ summary: "Invitar a compañeros, qué puede hacer cada función y cómo ayudar a
 section: People and security
 order: 1
 review: machine
-source: 4a5be25cb866
+source: db2ca999caa7
 ---
 
 Cada persona que inicia sesión en cf-dam tiene su propia cuenta y una **función** que decide lo que puede hacer.
 
-Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde **Compartir con clientes** en un álbum, no desde aquí, y aparecen aparte, en **Clientes**, al final de **Personas**. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries).
+Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde **Compartir con clientes** en un álbum, no desde aquí, y aparecen aparte, en la pestaña **Clientes** de **Personas**, que tiene un buscador como la pestaña **Equipo**. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries).
 
 ## Las funciones
 

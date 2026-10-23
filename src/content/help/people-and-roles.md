@@ -7,7 +7,7 @@ order: 1
 
 Everyone who signs in to cf-dam has their own account, and a **role** that decides what they can do.
 
-**Clients** are different: they see only the client galleries you invite them to, nothing else. You invite them from an album's **Share with clients**, not from here, and they're listed apart, under **Clients**, at the bottom of **People**. A client can also just be sent a link, without an account. See [Client galleries](/help/client-galleries).
+**Clients** are different: they see only the client galleries you invite them to, nothing else. You invite them from an album's **Share with clients**, not from here, and they're listed apart, on the **Clients** tab of **People**, which has a search box like the **Team** tab. A client can also just be sent a link, without an account. See [Client galleries](/help/client-galleries).
 
 ## The roles
 
