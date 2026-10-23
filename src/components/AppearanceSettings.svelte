@@ -5,7 +5,6 @@
    */
   import { api } from '../lib/auth-client'
   import { t } from '@cf-dam/i18n/client'
-  import { LANGUAGES } from '@cf-dam/i18n/languages'
   import type { MessageKey } from '@cf-dam/i18n'
 
   interface Preferences {
@@ -58,15 +57,6 @@
       }
     }, 300)
   }
-  /** A new language needs the page rebuilt in it, so save at once and reload. */
-  async function chooseLanguage(language: string) {
-    try {
-      await api('/api/me/preferences', { method: 'PUT', body: JSON.stringify({ language }) })
-      location.reload()
-    } catch (e) {
-      error = e instanceof Error ? e.message : t('common.couldNotSave')
-    }
-  }
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) => apply({ ...prefs, [key]: value })
   // Appearance only: the language stays as chosen.
   const reset = () => apply({ ...USUAL, language: prefs.language })
@@ -89,15 +79,8 @@
   ]
 </script>
 
-<div class="stack appearance">
-  <div class="field language">
-    <label for="appearance-language">{t('language.label')}</label>
-    <select id="appearance-language" value={prefs.language ?? 'auto'} onchange={(e) => chooseLanguage(e.currentTarget.value)}>
-      <option value="auto">{t('language.browser')}</option>
-      {#each LANGUAGES as language (language.code)}<option value={language.code} lang={language.code}>{language.name}</option>{/each}
-    </select>
-  </div>
-
+<div class="appearance">
+  <div class="stack">
   <fieldset>
     <legend>{t('appearance.theme')}</legend>
     <div class="choices" role="radiogroup">
@@ -125,6 +108,8 @@
       {/each}
     </div>
   </fieldset>
+
+  </div>
 
   <fieldset>
     <legend>{t('appearance.easier')}</legend>
@@ -179,8 +164,22 @@
   .check input {
     margin-top: 4px;
   }
+  /* Look (theme, size, thumbnails) beside "easier to see and use"; one column when narrow. */
+  .appearance {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px 40px;
+    align-items: start;
+  }
+  .foot,
+  .appearance > .alert {
+    grid-column: 1 / -1;
+  }
   .foot {
     gap: 12px;
     align-items: center;
+  }
+  .check:first-of-type {
+    margin-top: 0;
   }
 </style>
