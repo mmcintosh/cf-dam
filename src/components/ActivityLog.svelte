@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { t } from '@cf-dam/i18n/client'
+  import { lang, t } from '@cf-dam/i18n/client'
+  import { intlTag } from '@cf-dam/i18n/languages'
   import type { MessageKey } from '@cf-dam/i18n'
   import { onMount } from 'svelte'
   import { describeActivity, type ActivityEntry } from '../lib/activity-text'
@@ -30,8 +31,8 @@
   let loading = $state(true)
   let error = $state('')
 
-  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { timeStyle: 'short' })
+  const day = (iso: string) => new Date(iso).toLocaleDateString(intlTag(lang()), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const clock = (iso: string) => new Date(iso).toLocaleTimeString(intlTag(lang()), { timeStyle: 'short' })
   /** Entries under a heading per day, in the order they came. */
   const days = $derived.by(() => {
     const groups: { day: string; entries: ActivityEntry[] }[] = []
