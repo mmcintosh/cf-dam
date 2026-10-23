@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
@@ -48,8 +50,8 @@
   let lapse: ReturnType<typeof setTimeout> | undefined
 
   const fmt = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Never'
-  const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { timeStyle: 'short' })
+    iso ? format().dateTime(iso) : t('common.never')
+  const time = (iso: string) => format().time(iso)
   const who = (user: User) => user.name || user.email
 
   async function load() {
@@ -70,10 +72,10 @@
       await api('/api/users/policy', { method: 'PUT', body: JSON.stringify({ twoFactorRequiredFor: scope }) })
       notice =
         scope === 'nobody'
-          ? 'Two-factor sign-in is optional.'
-          : `From their next page, ${scope === 'everyone' ? 'everyone' : 'administrators'} without a code or passkey will be asked to set one up before anything else.`
+          ? t('people.optional')
+          : t(scope === 'everyone' ? 'people.requiredEveryone' : 'people.requiredAdmins')
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not change the setting.'
+      error = e instanceof Error ? e.message : t('people.settingFailed')
     }
     await load()
   }
@@ -88,12 +90,12 @@
         method: 'POST',
         body: JSON.stringify({ name: draft.name, email: draft.email, password: draft.password, roles: [draft.role] }),
       })
-      notice = `${draft.name || draft.email} can now sign in with the temporary password, and will be asked to choose their own.`
+      notice = t('people.created', { name: draft.name || draft.email })
       draft = { name: '', email: '', password: '', role: 'viewer' }
       showCreate = false
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not create the user.'
+      error = e instanceof Error ? e.message : t('people.createFailed')
     } finally {
       busy = false
     }
@@ -104,7 +106,7 @@
     try {
       await api(`/api/users/${user.id}`, { method: 'PATCH', body: JSON.stringify(patch) })
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not update the user.'
+      error = e instanceof Error ? e.message : t('people.updateFailed')
     }
     await load()
   }
@@ -135,7 +137,7 @@
       if (action === 'delete') open = null
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'That did not work.'
+      error = e instanceof Error ? e.message : t('common.didNotWork')
     } finally {
       busy = false
     }
@@ -147,44 +149,44 @@
   function setPassword(event: SubmitEvent, user: User) {
     event.preventDefault()
     const password = temporary
-    void run(user, 'password', post(user, 'password', { password }), `${who(user)} is signed out. Give them the temporary password; they'll choose their own when they sign in.`).then(
+    void run(user, 'password', post(user, 'password', { password }), t('people.passwordSet', { name: who(user) })).then(
       () => (temporary = ''),
     )
   }
 
   const signInLabel = (user: User) =>
-    [user.twoFactorEnabled ? 'Code' : null, user.passkeys > 0 ? (user.passkeys === 1 ? 'Passkey' : `${user.passkeys} passkeys`) : null].filter(Boolean).join(' · ') ||
-    'Password only'
+    [user.twoFactorEnabled ? t('people.signInCode') : null, user.passkeys > 0 ? t('people.passkeys', { count: user.passkeys }) : null].filter(Boolean).join(' · ') ||
+    t('people.passwordOnly')
 </script>
 
 {#snippet people(list: User[])}
   <div class="card table-card">
     <table class="table">
-      <thead><tr><th>Person</th><th>Role</th><th>Signs in with</th><th>Last sign-in</th><th></th></tr></thead>
+      <thead><tr><th>{t('people.person')}</th><th>{t('people.role')}</th><th>{t('people.signsInWith')}</th><th>{t('people.lastSignIn')}</th><th></th></tr></thead>
       <tbody>
         {#each list as user (user.id)}
           <tr class:inactive={!user.isActive}>
             <td>
               <div class="person">
                 <strong>{who(user)}</strong>
-                <span class="muted">{user.email}{user.id === selfId ? ' · you' : ''}</span>
+                <span class="muted">{user.email}{user.id === selfId ? ` · ${t('people.you')}` : ''}</span>
                 <span class="flags">
-                  {#if !user.isActive}<span class="badge">Deactivated</span>{/if}
-                  {#if user.lockedUntil}<span class="badge badge-warn">Password locked until {time(user.lockedUntil)}</span>{/if}
-                  {#if user.mustChangePassword}<span class="badge">Temporary password</span>{/if}
+                  {#if !user.isActive}<span class="badge">{t('people.deactivated')}</span>{/if}
+                  {#if user.lockedUntil}<span class="badge badge-warn">{t('people.lockedUntil', { time: time(user.lockedUntil) })}</span>{/if}
+                  {#if user.mustChangePassword}<span class="badge">{t('people.temporary')}</span>{/if}
                 </span>
               </div>
             </td>
             <td>
               {#if isClient(user)}
-                <span class="muted">Client</span>
+                <span class="muted">{t('role.client')}</span>
               {:else}
                 <select
-                  aria-label={`Role for ${user.email}`}
+                  aria-label={t('people.roleFor', { email: user.email })}
                   value={user.roles[0] ?? ''}
                   onchange={(e) => update(user, { roles: [e.currentTarget.value] })}
                 >
-                  {#each teamRoles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
+                  {#each teamRoles as role (role.name)}<option value={role.name}>{['admin', 'editor', 'viewer'].includes(role.name) ? t(`role.${role.name}` as MessageKey) : role.label}</option>{/each}
                 </select>
               {/if}
             </td>
@@ -195,20 +197,20 @@
             </td>
             <td class="muted">{fmt(user.lastLoginAt)}</td>
             <td class="end">
-              <button class="btn btn-sm" aria-expanded={open === user.id} onclick={() => toggle(user)}>{open === user.id ? 'Close' : 'Manage'}</button>
+              <button class="btn btn-sm" aria-expanded={open === user.id} onclick={() => toggle(user)}>{open === user.id ? t('common.close') : t('common.manage')}</button>
             </td>
           </tr>
           {#if open === user.id}
             <tr class="manage">
               <td colspan="5">
                 {#if user.id === selfId}
-                  <p class="muted">Your own password, codes, passkeys and sign-ins are on <a href="/account">Account</a>.</p>
+                  <p class="muted"><a href="/account">{t('people.ownOnAccount')}</a></p>
                 {:else}
                   <div class="actions">
                     <form class="action" onsubmit={(e) => setPassword(e, user)}>
                       <div>
-                        <strong>Temporary password</strong>
-                        <p class="muted small">Signs them out. They choose their own at the next sign-in. Also lifts a password lock.</p>
+                        <strong>{t('people.temporary')}</strong>
+                        <p class="muted small">{t('people.temporaryLead')}</p>
                       </div>
                       <div class="row">
                         <input
@@ -216,34 +218,34 @@
                           minlength="12"
                           required
                           autocomplete="new-password"
-                          placeholder="At least 12 characters"
-                          aria-label={`Temporary password for ${user.email}`}
+                          placeholder={t('people.atLeast12')}
+                          aria-label={t('people.temporaryFor', { email: user.email })}
                           bind:value={temporary}
                         />
-                        <button class="btn btn-sm" type="submit" disabled={busy}>Set</button>
+                        <button class="btn btn-sm" type="submit" disabled={busy}>{t('people.set')}</button>
                       </div>
                     </form>
 
                     <div class="action">
                       <div>
-                        <strong>Lost phone or passkey</strong>
-                        <p class="muted small">Turns their codes off{user.passkeys > 0 ? ', and optionally removes their passkeys' : ''}, and signs them out. They can set them up again on Account.</p>
+                        <strong>{t('people.lost')}</strong>
+                        <p class="muted small">{user.passkeys > 0 ? t('people.lostLeadPasskeys') : t('people.lostLead')}</p>
                       </div>
                       <div class="row">
                         <button
                           class="btn btn-sm"
                           disabled={busy || !user.twoFactorEnabled}
-                          onclick={() => run(user, 'codes', post(user, 'two-factor/reset'), `${who(user)}'s codes are off.`, true)}
+                          onclick={() => run(user, 'codes', post(user, 'two-factor/reset'), t('people.codesOff', { name: who(user) }), true)}
                         >
-                          {confirming === `codes:${user.id}` ? 'Click again to confirm' : 'Reset codes'}
+                          {confirming === `codes:${user.id}` ? t('common.clickAgainConfirm') : t('people.resetCodes')}
                         </button>
                         {#if user.passkeys > 0}
                           <button
                             class="btn btn-sm"
                             disabled={busy}
-                            onclick={() => run(user, 'passkeys', post(user, 'two-factor/reset', { passkeys: true }), `${who(user)}'s codes and passkeys are removed.`, true)}
+                            onclick={() => run(user, 'passkeys', post(user, 'two-factor/reset', { passkeys: true }), t('people.codesPasskeysRemoved', { name: who(user) }), true)}
                           >
-                            {confirming === `passkeys:${user.id}` ? 'Click again to confirm' : 'Reset codes and passkeys'}
+                            {confirming === `passkeys:${user.id}` ? t('common.clickAgainConfirm') : t('people.resetCodesPasskeys')}
                           </button>
                         {/if}
                       </div>
@@ -252,48 +254,48 @@
                     {#if user.lockedUntil}
                       <div class="action">
                         <div>
-                          <strong>Locked out</strong>
-                          <p class="muted small">Too many wrong passwords. It lifts by itself at {time(user.lockedUntil)}.</p>
+                          <strong>{t('people.lockedOut')}</strong>
+                          <p class="muted small">{t('people.lockedLead', { time: time(user.lockedUntil) })}</p>
                         </div>
-                        <div class="row"><button class="btn btn-sm" disabled={busy} onclick={() => run(user, 'unlock', post(user, 'unlock'), `${who(user)} can sign in again.`)}>Unlock now</button></div>
+                        <div class="row"><button class="btn btn-sm" disabled={busy} onclick={() => run(user, 'unlock', post(user, 'unlock'), t('people.canSignIn', { name: who(user) }))}>{t('people.unlock')}</button></div>
                       </div>
                     {/if}
 
                     <div class="action">
                       <div>
-                        <strong>Sign out everywhere</strong>
-                        <p class="muted small">{user.sessions === 0 ? 'Not signed in anywhere right now.' : `Signed in on ${user.sessions} ${user.sessions === 1 ? 'browser' : 'browsers'}.`}</p>
+                        <strong>{t('people.signOutEverywhere')}</strong>
+                        <p class="muted small">{user.sessions === 0 ? t('people.notSignedIn') : t('people.signedInOn', { count: user.sessions })}</p>
                       </div>
                       <div class="row">
-                        <button class="btn btn-sm" disabled={busy || user.sessions === 0} onclick={() => run(user, 'sign-out', post(user, 'sign-out'), `${who(user)} is signed out everywhere.`)}>Sign out</button>
+                        <button class="btn btn-sm" disabled={busy || user.sessions === 0} onclick={() => run(user, 'sign-out', post(user, 'sign-out'), t('people.signedOutEverywhere', { name: who(user) }))}>{t('common.signOut')}</button>
                       </div>
                     </div>
 
                     <div class="action">
                       <div>
-                        <strong>{user.isActive ? 'Deactivate' : 'Reactivate'}</strong>
-                        <p class="muted small">{user.isActive ? 'Stops them signing in, and keeps the account for later.' : 'Lets them sign in again.'}</p>
+                        <strong>{user.isActive ? t('people.deactivate') : t('people.reactivate')}</strong>
+                        <p class="muted small">{user.isActive ? t('people.deactivateLead') : t('people.reactivateLead')}</p>
                       </div>
                       <div class="row">
                         <button class="btn btn-sm" class:btn-danger={user.isActive} disabled={busy} onclick={() => update(user, { isActive: !user.isActive })}>
-                          {user.isActive ? 'Deactivate' : 'Reactivate'}
+                          {user.isActive ? t('people.deactivate') : t('people.reactivate')}
                         </button>
                       </div>
                     </div>
 
                     <div class="action">
                       <div>
-                        <strong>Delete</strong>
-                        <p class="muted small">Removes the person and their sign-ins. Photos, albums and galleries they made stay.</p>
+                        <strong>{t('common.delete')}</strong>
+                        <p class="muted small">{t('people.deleteLead')}</p>
                       </div>
                       <div class="row">
                         <button
                           class="btn btn-sm btn-danger"
                           disabled={busy}
                           onblur={() => confirming === `delete:${user.id}` && arm(null)}
-                          onclick={() => run(user, 'delete', () => api(`/api/users/${user.id}`, { method: 'DELETE' }), `${who(user)} is deleted.`, true)}
+                          onclick={() => run(user, 'delete', () => api(`/api/users/${user.id}`, { method: 'DELETE' }), t('people.deleted', { name: who(user) }), true)}
                         >
-                          {confirming === `delete:${user.id}` ? "Click again: can't be undone" : 'Delete'}
+                          {confirming === `delete:${user.id}` ? t('people.deleteConfirm') : t('common.delete')}
                         </button>
                       </div>
                     </div>
@@ -311,42 +313,42 @@
 <div class="stack">
   <div class="card policy">
     <div>
-      <strong>Two-factor sign-in</strong>
-      <p class="muted small">A code from an authenticator app, or a passkey. Required people without one are asked to set it up before anything else.</p>
+      <strong>{t('account.twoFactor.title')}</strong>
+      <p class="muted small">{t('people.twoFactorLead')}</p>
     </div>
     <label class="row">
-      <span class="muted">Required for</span>
+      <span class="muted">{t('people.requiredFor')}</span>
       <select value={required} onchange={(e) => setRequired(e.currentTarget.value as Scope)}>
-        <option value="nobody">Nobody</option>
-        <option value="admins">Administrators</option>
-        <option value="everyone">Everyone on the team</option>
+        <option value="nobody">{t('people.nobody')}</option>
+        <option value="admins">{t('people.admins')}</option>
+        <option value="everyone">{t('people.everyone')}</option>
       </select>
     </label>
   </div>
 
   <div class="row between">
-    <span class="muted">{team.length} {team.length === 1 ? 'person' : 'people'} on the team</span>
-    <button class="btn btn-primary" onclick={() => (showCreate = !showCreate)}>{showCreate ? 'Cancel' : 'Add person'}</button>
+    <span class="muted">{t('people.onTeam', { count: team.length })}</span>
+    <button class="btn btn-primary" onclick={() => (showCreate = !showCreate)}>{showCreate ? t('common.cancel') : t('people.add')}</button>
   </div>
 
   {#if showCreate}
     <form class="card stack" onsubmit={create}>
       <div class="grid">
-        <div class="field"><label for="u-name">Name</label><input id="u-name" type="text" required bind:value={draft.name} /></div>
-        <div class="field"><label for="u-email">Email</label><input id="u-email" type="email" required bind:value={draft.email} /></div>
+        <div class="field"><label for="u-name">{t('common.name')}</label><input id="u-name" type="text" required bind:value={draft.name} /></div>
+        <div class="field"><label for="u-email">{t('common.email')}</label><input id="u-email" type="email" required bind:value={draft.email} /></div>
         <div class="field">
-          <label for="u-password">Temporary password</label>
+          <label for="u-password">{t('people.temporary')}</label>
           <input id="u-password" type="password" minlength="12" autocomplete="new-password" required bind:value={draft.password} />
         </div>
         <div class="field">
-          <label for="u-role">Role</label>
+          <label for="u-role">{t('people.role')}</label>
           <select id="u-role" bind:value={draft.role}>
-            {#each teamRoles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
+            {#each teamRoles as role (role.name)}<option value={role.name}>{['admin', 'editor', 'viewer'].includes(role.name) ? t(`role.${role.name}` as MessageKey) : role.label}</option>{/each}
           </select>
         </div>
       </div>
-      <p class="muted small">They'll be asked to choose their own password the first time they sign in.</p>
-      <div><button class="btn btn-primary" type="submit" disabled={busy}>Create</button></div>
+      <p class="muted small">{t('people.chooseOwn')}</p>
+      <div><button class="btn btn-primary" type="submit" disabled={busy}>{t('common.create')}</button></div>
     </form>
   {/if}
 
@@ -357,10 +359,8 @@
 
   {#if clients.length > 0}
     <div>
-      <h2 class="section">Clients</h2>
-      <p class="muted small">
-        People invited to client galleries. They sign in and see only their galleries. Invite them, or take them off a gallery, under <strong>Share with clients</strong> on the album.
-      </p>
+      <h2 class="section">{t('people.clients')}</h2>
+      <p class="muted small">{t('people.clientsLead')}</p>
     </div>
     {@render people(clients)}
   {/if}

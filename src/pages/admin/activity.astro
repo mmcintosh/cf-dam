@@ -1,7 +1,9 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
 import ActivityLog from '../../components/ActivityLog.svelte'
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="alerts-and-activity" title="Activity" subtitle="Who signed in, and who changed what, newest first.">
+<AppLayout help="alerts-and-activity" title={t('activity.title')} subtitle={t('activity.subtitle')}>
   <ActivityLog client:load />
 </AppLayout>

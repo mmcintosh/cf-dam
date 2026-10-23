@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
@@ -29,7 +30,7 @@
   let busy = $state(false)
 
   const live = $derived(keys.filter((k) => !k.revokedAt))
-  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—')
+  const fmt = (iso: string | null) => (iso ? format().date(iso) : '—')
 
   async function load() {
     keys = (await api<{ keys: KeyRecord[] }>('/api/me/api-keys')).keys
@@ -51,14 +52,14 @@
       name = ''
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not create the key.'
+      error = e instanceof Error ? e.message : t('keys.createFailed')
     } finally {
       busy = false
     }
   }
 
   async function revoke(key: KeyRecord) {
-    if (!confirm(`Revoke "${key.name}"? Anything using it stops working immediately.`)) return
+    if (!confirm(t('keys.revokeConfirm', { name: key.name }))) return
     await api(`/api/me/api-keys/${key.id}`, { method: 'DELETE' })
     await load()
   }
@@ -73,19 +74,19 @@
 <div class="stack">
   {#if created}
     <div class="reveal">
-      <strong>Copy your new key for “{created.name}” now.</strong>
-      <span class="muted">It won't be shown again.</span>
+      <strong>{t('keys.copyNew', { name: created.name })}</strong>
+      <span class="muted">{t('keys.notShownAgain')}</span>
       <div class="row">
         <code class="key">{created.key}</code>
-        <button class="btn btn-sm" onclick={copy}>{copied ? 'Copied' : 'Copy'}</button>
-        <button class="btn btn-sm" onclick={() => (created = null)}>Done</button>
+        <button class="btn btn-sm" onclick={copy}>{copied ? t('share.copied') : t('common.copy')}</button>
+        <button class="btn btn-sm" onclick={() => (created = null)}>{t('common.done')}</button>
       </div>
     </div>
   {/if}
 
   {#if live.length > 0}
     <table class="table">
-      <thead><tr><th>Name</th><th>Key</th><th>Scopes</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+      <thead><tr><th>{t('common.name')}</th><th>{t('keys.key')}</th><th>{t('keys.scopes')}</th><th>{t('keys.lastUsed')}</th><th>{t('keys.expires')}</th><th></th></tr></thead>
       <tbody>
         {#each live as key (key.id)}
           <tr>
@@ -93,40 +94,40 @@
             <td><code>{key.prefix}…</code></td>
             <td><div class="row">{#each key.scopes as scope (scope)}<span class="badge">{scope}</span>{/each}</div></td>
             <td class="muted">{fmt(key.lastUsedAt)}</td>
-            <td class="muted">{key.expiresAt ? fmt(key.expiresAt) : 'Never'}</td>
-            <td><button class="btn btn-sm btn-danger" onclick={() => revoke(key)}>Revoke</button></td>
+            <td class="muted">{key.expiresAt ? fmt(key.expiresAt) : t('common.never')}</td>
+            <td><button class="btn btn-sm btn-danger" onclick={() => revoke(key)}>{t('share.revoke')}</button></td>
           </tr>
         {/each}
       </tbody>
     </table>
   {:else}
-    <p class="muted">No keys yet. Scripts and integrations use keys to reach your archive.</p>
+    <p class="muted">{t('keys.none')}</p>
   {/if}
 
   <form class="stack new" onsubmit={create}>
     <div class="row grow">
       <div class="field">
-        <label for="key-name">New key name</label>
-        <input id="key-name" type="text" placeholder="e.g. Studio NAS" required maxlength="100" bind:value={name} />
+        <label for="key-name">{t('keys.newName')}</label>
+        <input id="key-name" type="text" placeholder={t('keys.namePlaceholder')} required maxlength="100" bind:value={name} />
       </div>
       <div class="field">
-        <label for="key-expiry">Expires</label>
+        <label for="key-expiry">{t('keys.expires')}</label>
         <select id="key-expiry" bind:value={expiresInDays}>
-          <option value="30">In 30 days</option>
-          <option value="90">In 90 days</option>
-          <option value="365">In a year</option>
-          <option value="never">Never</option>
+          <option value="30">{t('keys.in30')}</option>
+          <option value="90">{t('keys.in90')}</option>
+          <option value="365">{t('keys.inYear')}</option>
+          <option value="never">{t('common.never')}</option>
         </select>
       </div>
     </div>
     <fieldset class="scopes">
-      <legend class="label">Scopes</legend>
+      <legend class="label">{t('keys.scopes')}</legend>
       {#each grantable as scope (scope)}
         <label class="scope"><input type="checkbox" value={scope} bind:group={scopes} /> <code>{scope}</code></label>
       {/each}
     </fieldset>
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-    <div><button class="btn btn-primary" type="submit" disabled={busy || scopes.length === 0}>Create key</button></div>
+    <div><button class="btn btn-primary" type="submit" disabled={busy || scopes.length === 0}>{t('keys.create')}</button></div>
   </form>
 </div>
 

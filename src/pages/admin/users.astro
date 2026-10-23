@@ -1,9 +1,11 @@
 ---
 import AppLayout from '../../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
 import UsersAdmin from '../../components/UsersAdmin.svelte'
 
 const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="people-and-roles" title="People" subtitle="Who can reach this archive, and what they can do.">
+<AppLayout help="people-and-roles" title={t('people.title')} subtitle={t('people.subtitle')}>
   <UsersAdmin client:load selfId={principal.userId} />
 </AppLayout>

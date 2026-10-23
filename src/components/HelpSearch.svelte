@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   /** The help centre: every article by section, and a search over their titles, summaries and text. */
   interface Article {
     slug: string
@@ -38,10 +39,10 @@
 </script>
 
 <div class="stack">
-  <input class="search" type="search" bind:value={query} placeholder="Search help: “connect Amazon S3”, “larger text”, “share with a client”…" aria-label="Search help" />
+  <input class="search" type="search" bind:value={query} placeholder={t('helpsearch.placeholder')} aria-label={t('helpsearch.label')} />
   {#if words.length > 0}
     <section class="stack" aria-live="polite">
-      <p class="muted small">{found.length === 0 ? 'Nothing found. Try other words, or browse the sections below.' : `${found.length} found`}</p>
+      <p class="muted small">{found.length === 0 ? t('helpsearch.nothing') : t('helpsearch.found', { count: found.length })}</p>
       {#each found as a (a.slug)}
         <a class="card result" href={`/help/${a.slug}`}><strong>{a.title}</strong><span class="muted">{a.summary}</span></a>
       {/each}

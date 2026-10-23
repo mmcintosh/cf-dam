@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { onMount } from 'svelte'
   import { describeActivity, type ActivityEntry } from '../lib/activity-text'
   import { api } from '../lib/auth-client'
@@ -9,15 +11,15 @@
     email: string
   }
 
-  const KINDS: [string, string][] = [
-    ['', 'Everything'],
-    ['sign-ins', 'Sign-ins'],
-    ['accounts', 'Accounts and people'],
-    ['photos', 'Photos'],
-    ['sharing', 'Client galleries'],
-    ['agents', 'Agents'],
-    ['backups', 'Backups'],
-    ['alerts', 'Alerts'],
+  const KINDS: [string, MessageKey][] = [
+    ['', 'activity.kind.all'],
+    ['sign-ins', 'activity.kind.signIns'],
+    ['accounts', 'activity.kind.accounts'],
+    ['photos', 'activity.kind.photos'],
+    ['sharing', 'activity.kind.sharing'],
+    ['agents', 'activity.kind.agents'],
+    ['backups', 'activity.kind.backups'],
+    ['alerts', 'activity.kind.alerts'],
   ]
 
   let entries = $state<ActivityEntry[]>([])
@@ -54,7 +56,7 @@
       entries = more ? [...entries, ...page.entries] : page.entries
       next = page.next
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not load the activity.'
+      error = e instanceof Error ? e.message : t('activity.loadFailed')
     } finally {
       loading = false
     }
@@ -69,15 +71,15 @@
 <div class="stack">
   <div class="filters">
     <label class="field">
-      <span>Kind</span>
+      <span>{t('activity.kind')}</span>
       <select bind:value={kind} onchange={() => load()}>
-        {#each KINDS as [value, label] (value)}<option {value}>{label}</option>{/each}
+        {#each KINDS as [value, label] (value)}<option {value}>{t(label)}</option>{/each}
       </select>
     </label>
     <label class="field">
-      <span>Person</span>
+      <span>{t('activity.person')}</span>
       <select bind:value={person} onchange={() => load()}>
-        <option value="">Everyone</option>
+        <option value="">{t('activity.everyone')}</option>
         {#each people as p (p.id)}<option value={p.id}>{p.name || p.email}</option>{/each}
       </select>
     </label>
@@ -105,7 +107,7 @@
   {/each}
 
   {#if next}
-    <div><button class="btn" disabled={loading} onclick={() => load(true)}>{loading ? 'Loading…' : 'Show older'}</button></div>
+    <div><button class="btn" disabled={loading} onclick={() => load(true)}>{loading ? t('common.loading') : t('activity.older')}</button></div>
   {/if}
 </div>
 
