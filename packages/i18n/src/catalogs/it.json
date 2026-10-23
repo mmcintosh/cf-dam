@@ -149,6 +149,7 @@
   "ai.backlogOn": "{count} foto non hanno ancora suggerimenti. Analizzarle tutte costa {cost} di Workers AI (i primi 10.000 neuroni al giorno sono gratuiti). Vengono elaborate in background, poche alla volta.",
   "ai.couldNotQueue": "Impossibile mettere in coda.",
   "ai.couldNotRefresh": "Impossibile aggiornare.",
+  "ai.englishOnly": "{model} scrive solo in inglese. Scegli un altro modello per avere suggerimenti in {language}.",
   "ai.estimate": "(stima)",
   "ai.failed": "non riuscite",
   "ai.footer": "Il modello vede una copia da 1024 px dell’anteprima, mai l’originale, quindi si possono analizzare anche le foto archiviate. Testo alternativo e didascalie suggeriti aspettano la tua approvazione; i tag suggeriti sono subito ricercabili e segnati come IA finché non li mantieni o li scarti.",

@@ -149,6 +149,7 @@
   "ai.backlogOn": "{count} fotos aún no tienen sugerencias. Analizarlas todas cuesta {cost} de uso de Workers AI (las primeras 10 000 neuronas de cada día son gratis). Se procesan en segundo plano, unas pocas cada vez.",
   "ai.couldNotQueue": "No se ha podido poner en cola.",
   "ai.couldNotRefresh": "No se ha podido actualizar.",
+  "ai.englishOnly": "{model} solo escribe en inglés. Elige otro modelo para tener sugerencias en {language}.",
   "ai.estimate": "(estimación)",
   "ai.failed": "con error",
   "ai.footer": "El modelo ve una copia de 1024 px de la vista previa, nunca el original, así que también se pueden analizar fotos archivadas. El texto alternativo y los pies de foto sugeridos esperan a que los aceptes; las etiquetas sugeridas se pueden buscar de inmediato y se marcan como IA hasta que las conserves o descartes.",

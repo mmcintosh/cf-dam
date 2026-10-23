@@ -23,6 +23,8 @@
     id: string
     label: string
     note: string
+    /** Writes languages other than English (spike S3). */
+    languages: boolean
   }
   interface Props {
     available: boolean
@@ -35,6 +37,14 @@
     canManage: boolean
   }
   let props: Props = $props()
+
+  // The chosen model can't write the chosen language (other than English): it will write English.
+  const englishOnly = $derived.by(() => {
+    const model = props.models.find((m) => m.id === settings.model)
+    const code = settings.language === 'site' ? props.archiveLanguage : settings.language
+    if (!model || model.languages || code === 'en') return null
+    return { model: model.label, language: LANGUAGES.find((l) => l.code === code)?.name ?? code }
+  })
 
   let settings = $state<Settings>({ ...props.initialSettings })
   let stats = $state<Stats>({ ...props.initialStats })
@@ -173,6 +183,7 @@
         {#each LANGUAGES as language (language.code)}<option value={language.code} lang={language.code}>{language.name}</option>{/each}
       </select>
       <span class="muted small">{t('ai.languageNote')}</span>
+      {#if englishOnly}<strong class="small">{t('ai.englishOnly', { model: englishOnly.model, language: englishOnly.language })}</strong>{/if}
     </div>
 
     <div class="field">

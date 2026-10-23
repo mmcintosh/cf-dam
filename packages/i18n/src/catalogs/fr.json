@@ -149,6 +149,7 @@
   "ai.backlogOn": "{count} photos n’ont pas encore de suggestions. Les analyser toutes coûte {cost} d’utilisation de Workers AI (les 10 000 premiers neurones de chaque jour sont gratuits). Elles sont traitées en arrière-plan, quelques-unes à la fois.",
   "ai.couldNotQueue": "Impossible de mettre en file.",
   "ai.couldNotRefresh": "Impossible d’actualiser.",
+  "ai.englishOnly": "{model} n’écrit qu’en anglais. Choisissez un autre modèle pour des suggestions en {language}.",
   "ai.estimate": "(estimation)",
   "ai.failed": "en échec",
   "ai.footer": "Le modèle voit une copie de 1024 px de l’aperçu, jamais l’original : les photos archivées peuvent donc aussi être analysées. Le texte alternatif et les légendes suggérés attendent votre accord ; les tags suggérés sont consultables tout de suite et marqués IA jusqu’à ce que vous les gardiez ou les retiriez.",

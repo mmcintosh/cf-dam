@@ -898,6 +898,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "ai.englishOnly": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "ai.estimate": {
     "es": "machine",
     "de": "machine",

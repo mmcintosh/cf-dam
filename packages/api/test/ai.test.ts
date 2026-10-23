@@ -199,14 +199,28 @@ describe('AI review', () => {
 describe('suggestions in the archive’s language', () => {
   it('asks for the language, keeping JSON keys and quality values in English', () => {
     const prompt = buildPrompt({ language: 'de' })
-    expect(prompt).toContain('in German (Deutsch)')
-    expect(prompt).toContain('Keep the JSON keys and the quality values in English')
-    expect(buildPrompt({})).not.toContain('Write tags')
-    expect(buildPrompt({ language: 'en' })).not.toContain('Write tags')
+    expect(prompt).toContain('in German (Deutsch), not English')
+    expect(prompt).toContain('Only the JSON keys and the quality value stay in English')
+    expect(buildPrompt({})).not.toContain('Language:')
+    expect(buildPrompt({ language: 'en' })).not.toContain('Language:')
   })
 
   it('keeps German nouns capitalised in tags, and lowercases other languages', () => {
     expect(normalizeResult({ tags: ['Eisvogel', 'Ast'] }, 'de').tags).toEqual(['Eisvogel', 'Ast'])
     expect(normalizeResult({ tags: ['Martín Pescador'] }, 'es').tags).toEqual(['martín pescador'])
+  })
+})
+
+describe('what small models get wrong', () => {
+  it('drops the prompt’s own placeholders handed back as answers', () => {
+    const result = normalizeResult({ alt: 'alt text under 125 characters', caption: 'One or two sentences', description: 'A heron' })
+    expect([result.alt, result.caption, result.description]).toEqual(['', '', 'A heron'])
+  })
+})
+
+describe('German tags', () => {
+  it('are not asked to be lowercase', () => {
+    expect(buildPrompt({ language: 'de' })).not.toContain('lowercase search keywords')
+    expect(buildPrompt({ language: 'fr' })).toContain('lowercase search keywords')
   })
 })

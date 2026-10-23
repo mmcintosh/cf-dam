@@ -129,7 +129,9 @@ export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'
       return 'skipped'
     }
     const userTags = (await getTags(db, assetId)).filter((t) => t.source !== 'ai').map((t) => t.name)
-    const language = settings.language === 'site' ? ((await siteLanguage(db)) ?? 'en') : settings.language
+    const wanted = settings.language === 'site' ? ((await siteLanguage(db)) ?? 'en') : settings.language
+    // A model that can't write the language writes English, and the review says so.
+    const language = VISION_MODELS.find((m) => m.id === settings.model)?.languages === false ? 'en' : wanted
     const result = await analyzeImage(env.AI, settings.model, image, {
       photographer: settings.context || null,
       filename: asset.filename,

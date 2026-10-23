@@ -148,6 +148,7 @@
   "ai.backlogOn": "{count} photos have no suggestions yet. Analysing them all costs {cost} in Workers AI usage (the first 10,000 neurons each day are free). They are worked through in the background, a few at a time.",
   "ai.couldNotQueue": "Could not queue.",
   "ai.couldNotRefresh": "Could not refresh.",
+  "ai.englishOnly": "{model} writes in English only. Choose another model for suggestions in {language}.",
   "ai.estimate": "(estimate)",
   "ai.failed": "failed",
   "ai.footer": "The model sees a 1024 px copy of the preview, never the original, so archived photos can be analysed too. Suggested alt text and captions wait for you to accept them; suggested tags are searchable straight away and marked as AI until you keep or drop them.",

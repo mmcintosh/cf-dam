@@ -149,6 +149,7 @@ export type MessageKey =
   | 'ai.backlogOn'
   | 'ai.couldNotQueue'
   | 'ai.couldNotRefresh'
+  | 'ai.englishOnly'
   | 'ai.estimate'
   | 'ai.failed'
   | 'ai.footer'

@@ -18,15 +18,17 @@ export interface VisionModel {
   style: 'chat' | 'moondream'
   /** Supports response_format json_schema, so the output shape is enforced by the model server. */
   jsonSchema: boolean
+  /** Writes Spanish, German, French and Italian well (spike S3, 2026-10-23); otherwise it writes English. */
+  languages: boolean
   note: string
 }
 
 export const VISION_MODELS: readonly VisionModel[] = [
   // Measured 2026-10-17 on Workers AI (one 1024 px JPEG): seconds and neurons per photo.
-  { id: '@cf/mistralai/mistral-small-3.1-24b-instruct', label: 'Mistral Small 3.1', style: 'chat', jsonSchema: false, note: 'Default. Fastest full model (~3 s), richest descriptions, ~41 neurons.' },
-  { id: '@cf/meta/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout', style: 'chat', jsonSchema: true, note: 'Concise single-word tags, ~12 s, ~56 neurons.' },
-  { id: '@cf/google/gemma-4-26b-a4b-it', label: 'Gemma 4', style: 'chat', jsonSchema: false, note: 'Cheapest full model (~26 neurons), ~16 s.' },
-  { id: '@cf/moondream/moondream3.1-9B-A2B', label: 'Moondream 3.1', style: 'moondream', jsonSchema: false, note: 'Fastest (~1.5 s, ~29 neurons); simpler tags, no quality grade.' },
+  { id: '@cf/mistralai/mistral-small-3.1-24b-instruct', label: 'Mistral Small 3.1', style: 'chat', jsonSchema: false, languages: true, note: 'Default. Fastest full model (~3 s), richest descriptions, ~41 neurons.' },
+  { id: '@cf/meta/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout', style: 'chat', jsonSchema: true, languages: true, note: 'Concise single-word tags, ~12 s, ~56 neurons.' },
+  { id: '@cf/google/gemma-4-26b-a4b-it', label: 'Gemma 4', style: 'chat', jsonSchema: false, languages: true, note: 'Cheapest full model (~26 neurons), ~16 s.' },
+  { id: '@cf/moondream/moondream3.1-9B-A2B', label: 'Moondream 3.1', style: 'moondream', jsonSchema: false, languages: false, note: 'Fastest (~1.5 s, ~29 neurons); simpler tags, no quality grade.' },
 ]
 export const DEFAULT_VISION_MODEL = VISION_MODELS[0]!.id
 /** Workers AI's published price per 1,000 neurons, for estimates shown to people. */
@@ -85,13 +87,15 @@ export function buildPrompt(context: VisionContext): string {
   return [
     'You catalogue photos for a professional photo archive. Describe only what is visible; do not guess names of people or places unless they are unmistakable or given below.',
     ...hints,
+    'Reply with JSON only, no prose, in exactly this shape:',
+    // German capitalises nouns, so its tags aren't asked to be lowercase.
+    `{"tags": ["8 to 15 ${context.language === 'de' ? '' : 'lowercase '}search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "readable text in the picture exactly as written (signs, shirts, documents), at most 500 characters, or empty"}`,
+    // Last, so it outweighs the English of the shape above (a first try left alt and tags in English).
     ...(context.language && context.language !== 'en'
       ? [
-          `Write tags, alt, caption and description in ${WRITE_IN[context.language]}.${context.language === 'de' ? ' Capitalise nouns in tags as German does.' : ''} Keep the JSON keys and the quality values in English, and copy "text" exactly as written in the picture.`,
+          `Language: write every tag, the alt text, the caption and the description in ${WRITE_IN[context.language]}, not English.${context.language === 'de' ? ' Capitalise nouns in tags as German does.' : ''} Only the JSON keys and the quality value stay in English, and "text" is copied exactly as written in the picture.`,
         ]
       : []),
-    'Reply with JSON only, no prose, in exactly this shape:',
-    '{"tags": ["8 to 15 lowercase search keywords"], "alt": "alt text under 125 characters", "caption": "one or two sentences", "description": "subjects, setting, colours, light and mood", "people": 0, "quality": "excellent | good | fair | poor", "text": "readable text in the picture exactly as written (signs, shirts, documents), at most 500 characters, or empty"}',
   ].join('\n')
 }
 
@@ -106,7 +110,12 @@ export function extractJson(text: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1))
 }
 
-const clean = (value: unknown, max: number) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '')
+// The shape's own placeholders, which a small model sometimes hands back as its answer.
+const PLACEHOLDERS = new Set(['alt text under 125 characters', 'one or two sentences', 'subjects, setting, colours, light and mood', '8 to 15 lowercase search keywords'])
+const clean = (value: unknown, max: number) => {
+  const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : ''
+  return PLACEHOLDERS.has(text.toLowerCase()) ? '' : text
+}
 
 /** German capitalises nouns, so its tags keep their case; other languages' tags are lowercased. */
 export function normalizeResult(raw: unknown, language: Language = 'en'): Omit<VisionResult, 'usage'> {

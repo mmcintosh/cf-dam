@@ -51,6 +51,7 @@ export interface AssetRow {
   ai_people: number | null
   ai_neurons: number | null
   ai_error: string | null
+  ai_language: string | null
   ai_text: string | null
   headline: string | null
   creator: string | null
@@ -221,6 +222,8 @@ export interface AssetJson {
     people: number | null
     /** Text visible in the picture (signs, documents), read by the vision model. */
     text: string | null
+    /** What the suggestions are written in (a language code); null for reviews from before, all English. */
+    language: string | null
     error: string | null
   }
   /** IPTC Core: credit, rights, contact, place, job. */
@@ -273,6 +276,7 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
       quality: row.ai_quality ?? null,
       people: row.ai_people ?? null,
       text: row.ai_text ?? null,
+      language: row.ai_language ?? null,
       error: row.ai_error ?? null,
     },
     iptc: iptcJson(row as unknown as Record<string, unknown>),
