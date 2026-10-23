@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   import { api } from '../lib/auth-client'
 
   interface Settings {
@@ -44,8 +46,19 @@
   // Before anything has been analysed here, estimate from the measured default (~41 neurons a photo).
   const perPhoto = $derived(stats.usdPerPhoto ?? (41 / 1000) * props.usdPer1000Neurons)
   const backlog = $derived(stats.waiting + stats.failed)
-  const money = (usd: number) => (usd < 0.01 ? 'less than $0.01' : `$${usd.toFixed(2)}`)
-  const cost = (usd: number) => (usd < 0.01 ? 'less than $0.01' : `about $${usd.toFixed(2)}`)
+  const noBinding = (() => {
+    const [a = '', rest = ''] = t('ai.noBinding', { config: '\u0000', file: '\u0001' }).split('\u0000')
+    const [b = '', c = ''] = rest.split('\u0001')
+    return [a, b, c]
+  })()
+  const money = (usd: number) => (usd < 0.01 ? t('ai.lessThanCent') : format().number(usd, { style: 'currency', currency: 'USD' }))
+  const cost = (usd: number) => (usd < 0.01 ? t('ai.lessThanCent') : t('ai.about', { amount: format().number(usd, { style: 'currency', currency: 'USD' }) }))
+  const MODEL_NOTES: Record<string, MessageKey> = {
+    '@cf/mistralai/mistral-small-3.1-24b-instruct': 'aiModel.mistral',
+    '@cf/meta/llama-4-scout-17b-16e-instruct': 'aiModel.llama',
+    '@cf/google/gemma-4-26b-a4b-it': 'aiModel.gemma',
+    '@cf/moondream/moondream3.1-9B-A2B': 'aiModel.moondream',
+  }
 
   async function save(patch: Partial<Settings>) {
     error = ''
@@ -53,10 +66,10 @@
       const result = await api<{ settings: Settings }>('/api/ai/settings', { method: 'PUT', body: JSON.stringify(patch) })
       settings = result.settings
       confirmed = { ...result.settings }
-      saved = 'Saved'
+      saved = t('common.saved')
       setTimeout(() => (saved = ''), 1500)
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
       settings = { ...confirmed }
       redraw++
     }
@@ -68,7 +81,7 @@
     try {
       stats = (await api<{ stats: Stats }>('/api/ai/backfill', { method: 'POST' })).stats
     } catch (e) {
-      queueError = e instanceof Error ? e.message : 'Could not queue.'
+      queueError = e instanceof Error ? e.message : t('ai.couldNotQueue')
     } finally {
       queueing = false
     }
@@ -79,7 +92,7 @@
     try {
       stats = (await api<{ stats: Stats }>('/api/ai')).stats
     } catch (e) {
-      queueError = e instanceof Error ? e.message : 'Could not refresh.'
+      queueError = e instanceof Error ? e.message : t('ai.couldNotRefresh')
     }
   }
 </script>
@@ -87,91 +100,89 @@
 <div class="stack settings">
   {#if !props.available}
     <div class="alert alert-error">
-      This deployment has no Workers AI binding. Add <code>"ai": {'{'} "binding": "AI" {'}'}</code> to <code>wrangler.jsonc</code> and deploy again.
+      {noBinding[0]}<code>"ai": {'{'} "binding": "AI" {'}'}</code>{noBinding[1]}<code>wrangler.jsonc</code>{noBinding[2]}
     </div>
   {/if}
 
   <section class="card stats">
-    <div><strong>{stats.analysed.toLocaleString()}</strong><span class="muted">analysed</span></div>
-    <div><strong>{stats.queued.toLocaleString()}</strong><span class="muted">in the queue</span></div>
-    <div><strong>{stats.waiting.toLocaleString()}</strong><span class="muted">never analysed</span></div>
-    <div><strong>{stats.failed.toLocaleString()}</strong><span class="muted">failed</span></div>
+    <div><strong>{format().number(stats.analysed)}</strong><span class="muted">{t('ai.analysed')}</span></div>
+    <div><strong>{format().number(stats.queued)}</strong><span class="muted">{t('ai.inQueue')}</span></div>
+    <div><strong>{format().number(stats.waiting)}</strong><span class="muted">{t('ai.never')}</span></div>
+    <div><strong>{format().number(stats.failed)}</strong><span class="muted">{t('ai.failed')}</span></div>
     <div>
       <strong>{money(perPhoto * 1000)}</strong>
-      <span class="muted">per 1,000 photos{stats.usdPerPhoto === null ? ' (estimate)' : ''}</span>
+      <span class="muted">{t('ai.per1000')}{stats.usdPerPhoto === null ? ` ${t('ai.estimate')}` : ''}</span>
     </div>
   </section>
 
   {#if backlog > 0 && props.available}
     <section class="card row backlog">
       <div>
-        <h2>Analyse the back catalogue</h2>
+        <h2>{t('ai.backCatalogue')}</h2>
         {#if settings.enabled}
           <p class="muted">
-            {backlog.toLocaleString()} photos have no suggestions yet. Analysing them all costs {cost(backlog * perPhoto)} in Workers
-            AI usage (the first 10,000 neurons each day are free). They are worked through in the background, a few at a time.
+            {t('ai.backlogOn', { count: backlog, cost: cost(backlog * perPhoto) })}
           </p>
         {:else}
-          <p class="muted">{backlog.toLocaleString()} photos have no suggestions yet. AI review is switched off: turn it on below to analyse them.</p>
+          <p class="muted">{t('ai.backlogOff', { count: backlog })}</p>
         {/if}
         {#if queueError}<div class="alert alert-error">{queueError}</div>{/if}
       </div>
       {#if settings.enabled}
-        <button class="btn btn-primary" type="button" onclick={backfill} disabled={queueing}>{queueing ? 'Queueing…' : `Queue ${backlog.toLocaleString()}`}</button>
+        <button class="btn btn-primary" type="button" onclick={backfill} disabled={queueing}>{queueing ? t('ai.queueing') : t('ai.queueCount', { count: backlog })}</button>
       {/if}
     </section>
   {:else if stats.queued > 0}
     <p class="muted">
-      {settings.enabled ? 'Working through the queue.' : 'AI review is switched off: the queue waits until it is on again.'}
-      <button class="link" type="button" onclick={refresh}>Refresh</button>
+      {settings.enabled ? t('ai.working') : t('ai.offWaiting')}
+      <button class="link" type="button" onclick={refresh}>{t('common.refresh')}</button>
     </p>
     {#if queueError}<div class="alert alert-error">{queueError}</div>{/if}
   {/if}
 
   <section class="card stack">
-    <h2>Settings</h2>
+    <h2>{t('ai.settings')}</h2>
     {#key redraw}
     <label class="check">
       <input type="checkbox" checked={settings.enabled} disabled={!props.canManage} onchange={(e) => save({ enabled: e.currentTarget.checked })} />
-      <span><strong>AI review</strong><br /><span class="muted">Off stops all analysis. Suggestions already made are kept.</span></span>
+      <span><strong>{t('ai.switch')}</strong><br /><span class="muted">{t('ai.switchNote')}</span></span>
     </label>
     <label class="check">
       <input type="checkbox" checked={settings.auto} disabled={!props.canManage || !settings.enabled} onchange={(e) => save({ auto: e.currentTarget.checked })} />
-      <span><strong>Analyse new uploads</strong><br /><span class="muted">Each new photo is queued once it has a preview.</span></span>
+      <span><strong>{t('ai.auto')}</strong><br /><span class="muted">{t('ai.autoNote')}</span></span>
     </label>
 
     <fieldset class="models">
-      <legend class="label">Model</legend>
+      <legend class="label">{t('ai.model')}</legend>
       {#each props.models as model (model.id)}
         <label class="model" class:on={settings.model === model.id}>
           <input type="radio" name="model" value={model.id} checked={settings.model === model.id} disabled={!props.canManage} onchange={() => save({ model: model.id })} />
-          <span><strong>{model.label}</strong><br /><span class="muted">{model.note}</span></span>
+          <span><strong>{model.label}</strong><br /><span class="muted">{MODEL_NOTES[model.id] ? t(MODEL_NOTES[model.id]!) : model.note}</span></span>
         </label>
       {/each}
     </fieldset>
 
     <div class="field">
-      <label for="context">About your work</label>
+      <label for="context">{t('ai.aboutWork')}</label>
       <textarea
         id="context"
         rows="2"
         maxlength="500"
-        placeholder="e.g. Wedding and landscape photographer in western Norway"
+        placeholder={t('ai.aboutPlaceholder')}
         bind:value={settings.context}
         disabled={!props.canManage}
         onchange={() => save({ context: settings.context })}
       ></textarea>
-      <span class="muted small">Given to the model with every photo, so its tags fit your archive.</span>
+      <span class="muted small">{t('ai.aboutNote')}</span>
     </div>
     {/key}
     {#if saved}<span class="muted small">{saved}</span>{/if}
     {#if error}<div class="alert alert-error">{error}</div>{/if}
-    {#if !props.canManage}<p class="muted small">Only administrators can change these settings.</p>{/if}
+    {#if !props.canManage}<p class="muted small">{t('ai.adminsOnly')}</p>{/if}
   </section>
 
   <p class="muted small">
-    The model sees a 1024 px copy of the preview, never the original, so archived photos can be analysed too. Suggested alt text and
-    captions wait for you to accept them; suggested tags are searchable straight away and marked as AI until you keep or drop them.
+    {t('ai.footer')}
   </p>
 </div>
 

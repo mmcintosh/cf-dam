@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { format as i18nFormat, lang, t } from '@cf-dam/i18n/client'
+  import { intlTag } from '@cf-dam/i18n/languages'
   /** Review duplicate groups: keep the best (pre-selected), merge and remove the rest, or dismiss look-alikes. */
   interface Member {
     id: string
@@ -39,13 +41,13 @@
   let busy = $state<string | null>(null)
   let message = $state('')
 
-  const size = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+  const size = (b: number) => i18nFormat().bytes(b)
   /** The file type in a word: JPEG, RAW (NEF), TIFF… */
   const format = (a: Member) => {
     const ext = a.filename.includes('.') ? a.filename.split('.').pop()!.toUpperCase() : ''
     return a.mimeType.startsWith('image/x-') ? `RAW${ext ? ` (${ext})` : ''}` : ext === 'JPG' ? 'JPEG' : ext || a.mimeType
   }
-  const date = (iso: string | null) => (iso ? new Date(`${iso}Z`).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone: 'UTC' }) : 'Undated')
+  const date = (iso: string | null) => (iso ? new Intl.DateTimeFormat(intlTag(lang()), { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${iso}Z`)) : t('dupes.undated'))
 
   async function post(path: string, body: unknown) {
     const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -60,9 +62,9 @@
     try {
       await post('/api/duplicates/resolve', { keep: kept, remove })
       groups = groups.filter((g) => g.key !== group.key)
-      message = `Kept one, removed ${remove.length}. Their tags, albums and ratings were merged into it.`
+      message = t('dupes.kept', { count: remove.length })
     } catch (e) {
-      message = e instanceof Error ? e.message : 'That did not work.'
+      message = e instanceof Error ? e.message : t('common.didNotWork')
     } finally {
       busy = null
     }
@@ -86,7 +88,7 @@
     try {
       await post('/api/duplicates/dismiss', { ids: group.assets.map((a) => a.id) })
       groups = groups.filter((g) => g.key !== group.key)
-      message = 'Marked as not duplicates.'
+      message = t('dupes.marked')
     } finally {
       busy = null
     }
@@ -97,11 +99,11 @@
 
 {#if groups.length === 0}
   <div class="card empty">
-    <h2>{kind === 'exact' ? 'No exact duplicates' : 'No look-alikes to review'}</h2>
+    <h2>{kind === 'exact' ? t('dupes.noExact') : t('dupes.noSimilar')}</h2>
     <p class="muted">
       {kind === 'exact'
-        ? 'Every file in the archive is unique by content.'
-        : 'Resized copies, re-saved JPEGs and light edits show up here as they are found. Older photos are fingerprinted in the background.'}
+        ? t('dupes.uniqueLead')
+        : t('dupes.similarLead')}
     </p>
   </div>
 {/if}
@@ -110,29 +112,29 @@
   {#each groups as group (group.key)}
     <section class="card group">
       <header class="row">
-        <strong>{group.assets.length} {kind === 'exact' ? 'identical files' : 'look-alikes'}</strong>
-        <span class="muted">Choose the one to keep. The others' tags, albums, rating and pick move to it.</span>
+        <strong>{t(kind === 'exact' ? 'dupes.identical' : 'dupes.lookalikes', { count: group.assets.length })}</strong>
+        <span class="muted">{t('dupes.choose')}</span>
       </header>
-      {#if group.reason}<p class="why small"><strong>Suggested</strong> ({group.assets[0]!.filename}): {group.reason}.</p>{/if}
+      {#if group.reason}<p class="why small">{t('dupes.suggestedWhy', { file: group.assets[0]!.filename, reason: group.reason })}</p>{/if}
       <div class="members">
         {#each group.assets as asset, i (asset.id)}
           <label class="member" class:kept={keep[group.key] === asset.id}>
             <input type="radio" name={`keep-${group.key}`} value={asset.id} bind:group={keep[group.key]} />
             <span class="thumb">
               {#if asset.renditions.includes('thumb')}<img src={`/api/assets/${asset.id}/renditions/thumb`} alt={asset.alt ?? asset.title ?? asset.filename} loading="lazy" />{/if}
-              {#if i === 0}<span class="best">Suggested</span>{/if}
+              {#if i === 0}<span class="best">{t('dupes.suggested')}</span>{/if}
             </span>
             <span class="facts">
               <a href={`/assets/${asset.id}`} class="name">{asset.title ?? asset.filename}</a>
-              <span>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'unknown size'} · {size(asset.size)} · {format(asset)}</span>
+              <span>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : t('dupes.unknownSize')} · {size(asset.size)} · {format(asset)}</span>
               <span>{date(asset.capturedAt)}{asset.camera.model ? ` · ${asset.camera.model}` : ''}</span>
               <span>
                 {asset.rating ? '★'.repeat(asset.rating) : ''}{asset.flag === 'pick' ? ' ⚑' : ''}
-                {asset.tags} tags · {asset.albums} albums{asset.storage ? ` · ${asset.storage.storageClass}` : ''}
+                {t('dupes.counts', { tags: asset.tags, albums: asset.albums })}{asset.storage ? ` · ${asset.storage.storageClass}` : ''}
               </span>
             </span>
             {#if kind === 'similar' && canEdit && keep[group.key] !== asset.id}
-              <button class="out" type="button" onclick={(e) => (e.preventDefault(), exclude(group, asset.id))} disabled={busy === group.key}>Not a duplicate</button>
+              <button class="out" type="button" onclick={(e) => (e.preventDefault(), exclude(group, asset.id))} disabled={busy === group.key}>{t('dupes.notOne')}</button>
             {/if}
           </label>
         {/each}
@@ -140,10 +142,10 @@
       <div class="row actions">
         {#if canDelete}
           <button class="btn btn-primary" onclick={() => resolve(group)} disabled={busy === group.key}>
-            Keep selected, remove {group.assets.length - 1}
+            {t('dupes.keepRemove', { count: group.assets.length - 1 })}
           </button>
         {/if}
-        {#if kind === 'similar' && canEdit}<button class="btn" onclick={() => dismiss(group)} disabled={busy === group.key}>Not duplicates</button>{/if}
+        {#if kind === 'similar' && canEdit}<button class="btn" onclick={() => dismiss(group)} disabled={busy === group.key}>{t('dupes.notAny')}</button>{/if}
       </div>
     </section>
   {/each}

@@ -1,13 +1,15 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import { aiStats, getAiSettings, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AiSettings from '../../components/AiSettings.svelte'
 
 const principal = Astro.locals.principal!
 const [settings, stats] = await Promise.all([getAiSettings(env.DB), aiStats(env.DB)])
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="ai-review" title="AI review" subtitle="Tags, alt text, captions and a searchable description for every photo, from Workers AI.">
+<AppLayout help="ai-review" title={t('ai.title')} subtitle={t('ai.subtitle')}>
   <AiSettings
     client:load
     available={Boolean(env.AI)}

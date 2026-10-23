@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { format, t } from '@cf-dam/i18n/client'
   /**
    * Where photos were taken: GPS-tagged assets for the current filters, clustered, with thumbnails.
    * Photos without a location sit in a strip below; select some and click the map to place them
@@ -33,7 +34,7 @@
   /** The "Place … here" button in an open popup: it acts on the selection as it is when clicked. */
   let placeButton = $state.raw<HTMLButtonElement | null>(null)
 
-  const photos = (n: number) => `${n} ${n === 1 ? 'photo' : 'photos'}`
+  const photos = (n: number) => t('common.photos', { count: n })
   $effect(() => {
     if (placeButton) placeButton.textContent = `Place ${photos(selected.size)} here`
   })
@@ -64,7 +65,7 @@
           canEdit ? api<{ assets: Unplaced[]; total: number }>(`/api/assets?${join(query, 'gps=none', 'limit=200')}`) : Promise.resolve({ assets: [], total: 0 }),
         ])
       } catch (e) {
-        message = e instanceof Error ? e.message : 'Could not load the map.'
+        message = e instanceof Error ? e.message : t('map.loadFailed')
         return
       }
       unplaced = list.assets
@@ -118,7 +119,7 @@
           } catch (e) {
             // Nothing changes on the map: the server didn't save it.
             button.disabled = false
-            message = e instanceof Error ? e.message : 'Could not place them.'
+            message = e instanceof Error ? e.message : t('map.placeFailed')
             return
           }
           // Photos that had no pin were waiting in the strip (and in its total); ones that had one moved.
@@ -131,7 +132,7 @@
           map!.closePopup(popup)
           const first = await api<{ iptc: { city: string | null; country: string | null } }>(`/api/assets/${ids[0]}`).catch(() => null)
           const where = first ? [first.iptc.city, first.iptc.country].filter(Boolean).join(', ') : ''
-          message = `Placed ${photos(ids.length)}${where ? ` · ${where}` : ''}`
+          message = `${t('map.placed', { photos: photos(ids.length) })}${where ? ` · ${where}` : ''}`
         }
       })
     })()
@@ -141,18 +142,18 @@
 
 <div class="map-wrap">
   <div class="map" class:placing={selected.size > 0} bind:this={container}></div>
-  {#if count === 0 && unplaced.length === 0}<p class="none card">No photos with a location match these filters.</p>{/if}
-  {#if selected.size > 0}<p class="hint card">Click the map where {selected.size === 1 ? 'this photo was' : `these ${selected.size} photos were`} taken.</p>{/if}
+  {#if count === 0 && unplaced.length === 0}<p class="none card">{t('map.none')}</p>{/if}
+  {#if selected.size > 0}<p class="hint card">{selected.size === 1 ? t('map.clickOne') : t('map.clickMany', { count: selected.size })}</p>{/if}
 </div>
 
 {#if canEdit && unplaced.length > 0}
   <section class="strip-wrap">
     <header class="row">
-      <strong>Without a location</strong>
-      <span class="muted">{unplacedTotal.toLocaleString()}{unplacedTotal > unplaced.length ? ` (showing ${unplaced.length})` : ''} · click to select, ⌘-click for more</span>
+      <strong>{t('map.without')}</strong>
+      <span class="muted">{unplacedTotal > unplaced.length ? t('map.showing', { total: unplacedTotal, shown: unplaced.length }) : format().number(unplacedTotal)} · {t('map.selectHint')}</span>
       <span class="spacer"></span>
-      {#if selected.size > 0}<button class="btn btn-sm" type="button" onclick={() => (selected = new Set())}>Clear selection</button>{/if}
-      <button class="btn btn-sm" type="button" onclick={() => (selected = new Set(unplaced.map((a) => a.id)))}>Select all</button>
+      {#if selected.size > 0}<button class="btn btn-sm" type="button" onclick={() => (selected = new Set())}>{t('map.clearSelection')}</button>{/if}
+      <button class="btn btn-sm" type="button" onclick={() => (selected = new Set(unplaced.map((a) => a.id)))}>{t('common.selectAll')}</button>
     </header>
     <div class="strip">
       {#each unplaced as a (a.id)}

@@ -1,5 +1,6 @@
 ---
 import AppLayout from '../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
 import PhotoMap from '../components/PhotoMap.svelte'
 
 const params = new URL(Astro.url).searchParams
@@ -7,7 +8,8 @@ params.delete('offset')
 const placeId = params.get('place')
 params.delete('place')
 const canEdit = Astro.locals.principal!.permissions.has('assets:edit')
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="library" wide title="Map" subtitle="Where your photos were taken. Filters from the library carry over.">
+<AppLayout help="library" wide title={t('map.title')} subtitle={t('map.subtitle')}>
   <PhotoMap client:only="svelte" query={params.toString()} placeId={placeId} canEdit={canEdit} />
 </AppLayout>

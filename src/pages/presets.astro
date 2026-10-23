@@ -1,12 +1,14 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import { IPTC_FIELDS, listPresets } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import PresetManager from '../components/PresetManager.svelte'
 
 const principal = Astro.locals.principal!
 const presets = await listPresets(env.DB)
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="presets" title="Metadata presets" subtitle="Credit, copyright and contact details you stamp on photos in one go.">
+<AppLayout help="presets" title={t('presets.title')} subtitle={t('presets.subtitle')}>
   <PresetManager client:load initial={presets} fields={[...IPTC_FIELDS]} canEdit={principal.permissions.has('assets:edit')} />
 </AppLayout>

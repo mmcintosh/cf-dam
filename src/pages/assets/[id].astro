@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { displayLabelNames } from '../../lib/label-names'
 import { createFormat, getT, intlTag } from '@cf-dam/i18n'
 import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
@@ -118,7 +119,7 @@ const facts: [string, string][] = [
           tags={tags.filter((t) => t.source !== 'ai').map((t) => t.path)}
           aiTags={tags.filter((t) => t.source === 'ai').map((t) => t.path)}
           label={asset.label}
-          labelNames={labelNames}
+          labelNames={displayLabelNames(labelNames, t)}
           ai={asset.ai}
           aiAvailable={Boolean(env.AI) && aiSettings.enabled}
           canRunAi={principal.permissions.has('ai:run')}

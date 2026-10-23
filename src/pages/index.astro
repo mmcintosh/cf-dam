@@ -1,5 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
+import { displayLabelNames } from '../lib/label-names'
 import { createFormat, getT } from '@cf-dam/i18n'
 import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
@@ -70,7 +71,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
     </div>
   ) : (
     <div class="library">
-      {facets && <Facets facets={facets} params={params} labelNames={labelNames} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} storedOnName={storedOn?.name} />}
+      {facets && <Facets facets={facets} params={params} labelNames={displayLabelNames(labelNames, t)} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} storedOnName={storedOn?.name} />}
       <section class="main">
         <Timeline months={months} params={params} />
         {(filters.meaning || filters.like) && (
@@ -111,7 +112,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
             canEdit={principal.permissions.has('assets:edit')}
             canDelete={principal.permissions.has('assets:delete')}
             canRunAi={canRunAi}
-            labelNames={labelNames}
+            labelNames={displayLabelNames(labelNames, t)}
             presets={presets.map((p) => ({ id: p.id, name: p.name }))}
           />
         ) : (

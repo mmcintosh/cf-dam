@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
   /**
    * The keyword manager: browse the tree, add, rename, move, merge, delete, set export options and
    * synonyms. Also where colour labels get their names.
@@ -100,13 +102,19 @@
       await reload(selectId === undefined ? selectedId : selectId)
       message = done
     } catch (e) {
-      error = e instanceof Error ? e.message : 'That did not work.'
+      error = e instanceof Error ? e.message : t('common.didNotWork')
     } finally {
       busy = false
     }
   }
 
-  const plural = (n: number) => `${n.toLocaleString()} photo${n === 1 ? '' : 's'}`
+  // The tip has a key symbol and an example in their own markup; split where they go.
+  const pathsTip = (() => {
+    const [a = '', rest = ''] = t('keywords.pathsTip', { separator: '\u0000', example: '\u0001' }).split('\u0000')
+    const [b = '', c = ''] = rest.split('\u0001')
+    return [a, b, c]
+  })()
+  const plural = (n: number) => t('common.photos', { count: n })
 
   function add() {
     const path = newPath.trim()
@@ -115,7 +123,7 @@
       const { keyword } = await api<{ keyword: Keyword }>('/api/tags', { method: 'POST', body: JSON.stringify({ path }) })
       newPath = ''
       selectedId = keyword.id
-      return `Added ${keyword.path}.`
+      return t('keywords.added', { path: keyword.path })
     })
   }
 
@@ -130,7 +138,7 @@
     if (Object.keys(body).length === 0) return
     void run(async () => {
       const result = await api<{ photos: number }>(`/api/tags/${k.id}`, { method: 'PATCH', body: JSON.stringify(body) })
-      return result.photos ? `Saved. ${plural(result.photos)} updated.` : 'Saved.'
+      return result.photos ? t('keywords.savedUpdated', { photos: plural(result.photos) }) : t('keywords.saved')
     })
   }
 
@@ -144,7 +152,7 @@
         box.checked = k[key]
         throw e
       }
-      return 'Saved.'
+      return t('keywords.saved')
     })
   }
 
@@ -154,7 +162,7 @@
     const target = keywords.find((x) => x.id === mergeInto)
     void run(async () => {
       const result = await api<{ photos: number }>(`/api/tags/${k.id}/merge`, { method: 'POST', body: JSON.stringify({ into: mergeInto }) })
-      return `Merged into ${target?.path}. ${plural(result.photos)} updated.`
+      return t('keywords.merged', { path: target?.path ?? '', photos: plural(result.photos) })
     }, mergeInto)
   }
 
@@ -165,7 +173,7 @@
     arm(false)
     void run(async () => {
       const result = await api<{ photos: number }>(`/api/tags/${k.id}`, { method: 'DELETE' })
-      return `Deleted ${k.path}. Removed from ${plural(result.photos)}.`
+      return t('keywords.deleted', { path: k.path, photos: plural(result.photos) })
     }, null)
   }
 
@@ -179,10 +187,10 @@
     try {
       labelNames = (await api<{ names: Record<Label, string> }>('/api/labels', { method: 'PUT', body: JSON.stringify(labelNames) })).names
       savedLabelNames = { ...labelNames }
-      labelsSaved = 'Saved'
+      labelsSaved = t('common.saved')
       setTimeout(() => (labelsSaved = ''), 1500)
     } catch (e) {
-      labelsError = `The names weren't saved: ${e instanceof Error ? e.message : 'try again.'}`
+      labelsError = t('keywords.namesNotSaved', { why: e instanceof Error ? e.message : t('common.tryAgain') })
       labelNames = { ...savedLabelNames }
     }
   }
@@ -195,13 +203,13 @@
       <li>
         <div class="node" class:on={k.id === selectedId}>
           {#if kids}
-            <button class="twisty" class:open={open.has(k.id)} type="button" aria-label={open.has(k.id) ? 'Collapse' : 'Expand'} onclick={() => toggle(k.id)}>▸</button>
+            <button class="twisty" class:open={open.has(k.id)} type="button" aria-label={open.has(k.id) ? t('keywords.collapse') : t('keywords.expand')} onclick={() => toggle(k.id)}>▸</button>
           {:else}
             <span class="twisty"></span>
           {/if}
           <button class="name" type="button" onclick={() => select(k)}>
             <span class:muted={!k.includeOnExport}>{k.name}</span>
-            <span class="count" title={`${k.count} tagged directly, ${k.total} including below`}>{k.total || ''}</span>
+            <span class="count" title={t('keywords.countTitle', { direct: k.count, total: k.total })}>{k.total || ''}</span>
           </button>
         </div>
         {#if kids && open.has(k.id)}{@render branch(k.id)}{/if}
@@ -212,24 +220,24 @@
 
 <div class="manager">
   <section class="card list">
-    <input type="text" placeholder="Find a keyword or synonym…" bind:value={filter} aria-label="Find a keyword" />
+    <input type="text" placeholder={t('keywords.findPlaceholder')} bind:value={filter} aria-label={t('keywords.find')} />
     {#if filter.trim()}
       <ul class="tree flat">
         {#each matches as k (k.id)}
           <li><div class="node" class:on={k.id === selectedId}><button class="name" type="button" onclick={() => select(k)}><span>{k.path}</span><span class="count">{k.total || ''}</span></button></div></li>
         {:else}
-          <li class="muted empty">No keyword matches.</li>
+          <li class="muted empty">{t('keywords.noMatch')}</li>
         {/each}
       </ul>
     {:else if keywords.length === 0}
-      <p class="muted empty">No keywords yet. Add one below, or tag photos: keywords already in your files come in by themselves.</p>
+      <p class="muted empty">{t('keywords.none')}</p>
     {:else}
       {@render branch(null)}
     {/if}
     {#if props.canEdit}
       <form class="row add" onsubmit={(e) => (e.preventDefault(), add())}>
-        <input type="text" placeholder="New keyword, e.g. Places > Norway > Bergen" bind:value={newPath} aria-label="New keyword path" />
-        <button class="btn btn-sm" type="submit" disabled={busy || !newPath.trim()}>Add</button>
+        <input type="text" placeholder={t('keywords.newPlaceholder')} bind:value={newPath} aria-label={t('keywords.newPath')} />
+        <button class="btn btn-sm" type="submit" disabled={busy || !newPath.trim()}>{t('common.add')}</button>
       </form>
     {/if}
   </section>
@@ -240,56 +248,55 @@
         {#if selected.parentId}<p class="crumbs muted">{selected.path.split(' › ').slice(0, -1).join(' › ')}</p>{/if}
         <h2>{selected.name}</h2>
         <p class="muted">
-          {plural(selected.count)} tagged with it{selected.total > selected.count ? `, ${plural(selected.total)} including keywords below` : ''}.
-          <a href={`/?kw=${encodeURIComponent(selected.id)}`}>Show photos</a>
+          {selected.total > selected.count ? t('keywords.taggedWithBelow', { photos: plural(selected.count), total: plural(selected.total) }) : t('keywords.taggedWith', { photos: plural(selected.count) })}
+          <a href={`/?kw=${encodeURIComponent(selected.id)}`}>{t('keywords.showPhotos')}</a>
         </p>
       </header>
 
       {#if props.canEdit}
         <form class="stack" onsubmit={(e) => (e.preventDefault(), saveEdits())}>
           <div class="field">
-            <label for="kw-name">Name</label>
+            <label for="kw-name">{t('keywords.name')}</label>
             <input id="kw-name" type="text" bind:value={editName} maxlength="80" />
           </div>
           <div class="field">
-            <label for="kw-parent">Inside</label>
+            <label for="kw-parent">{t('keywords.inside')}</label>
             <select id="kw-parent" bind:value={editParent}>
-              <option value="">(top level)</option>
+              <option value="">{t('keywords.topLevel')}</option>
               {#each moveTargets as k (k.id)}<option value={k.id}>{k.path}</option>{/each}
             </select>
           </div>
           <div class="field">
-            <label for="kw-syn">Synonyms</label>
-            <input id="kw-syn" type="text" bind:value={editSynonyms} placeholder="Comma separated: other words that should find these photos" />
+            <label for="kw-syn">{t('keywords.synonyms')}</label>
+            <input id="kw-syn" type="text" bind:value={editSynonyms} placeholder={t('keywords.synonymsPlaceholder')} />
           </div>
-          <div><button class="btn btn-primary btn-sm" type="submit" disabled={busy}>Save</button></div>
+          <div><button class="btn btn-primary btn-sm" type="submit" disabled={busy}>{t('common.save')}</button></div>
         </form>
 
         <fieldset class="options">
-          <legend class="label">When exporting (XMP, downloads)</legend>
-          <label><input type="checkbox" checked={selected.includeOnExport} onchange={(e) => setOption('includeOnExport', e.currentTarget)} /> Include this keyword</label>
-          <label><input type="checkbox" checked={selected.exportParents} onchange={(e) => setOption('exportParents', e.currentTarget)} /> Include the keywords above it</label>
-          <label><input type="checkbox" checked={selected.exportSynonyms} onchange={(e) => setOption('exportSynonyms', e.currentTarget)} /> Include its synonyms</label>
-          <p class="muted small">Untick "Include this keyword" for organising keywords such as "Places" or "People". Search always sees every level.</p>
+          <legend class="label">{t('keywords.exporting')}</legend>
+          <label><input type="checkbox" checked={selected.includeOnExport} onchange={(e) => setOption('includeOnExport', e.currentTarget)} /> {t('keywords.includeThis')}</label>
+          <label><input type="checkbox" checked={selected.exportParents} onchange={(e) => setOption('exportParents', e.currentTarget)} /> {t('keywords.includeAbove')}</label>
+          <label><input type="checkbox" checked={selected.exportSynonyms} onchange={(e) => setOption('exportSynonyms', e.currentTarget)} /> {t('keywords.includeSynonyms')}</label>
+          <p class="muted small">{t('keywords.organisingNote')}</p>
         </fieldset>
 
         <div class="row danger-zone">
-          <select bind:value={mergeInto} aria-label="Merge into">
-            <option value="">Merge into…</option>
+          <select bind:value={mergeInto} aria-label={t('keywords.mergeInto')}>
+            <option value="">{t('keywords.mergeMenu')}</option>
             {#each moveTargets as k (k.id)}<option value={k.id}>{k.path}</option>{/each}
           </select>
-          <button class="btn btn-sm" type="button" onclick={merge} disabled={busy || !mergeInto}>Merge</button>
+          <button class="btn btn-sm" type="button" onclick={merge} disabled={busy || !mergeInto}>{t('keywords.merge')}</button>
           <span class="spacer"></span>
           <button class="btn btn-sm btn-danger" type="button" onclick={remove} onblur={() => confirmDelete && arm(false)} disabled={busy}>
-            {confirmDelete ? `Delete from ${plural(selected.total)}? Click again` : 'Delete'}
+            {confirmDelete ? t('keywords.deleteConfirm', { photos: plural(selected.total) }) : t('common.delete')}
           </button>
         </div>
       {/if}
     {:else}
-      <p class="muted">Choose a keyword to see and change it.</p>
+      <p class="muted">{t('keywords.choose')}</p>
       <p class="muted small">
-        Type paths with <kbd>&gt;</kbd> anywhere you add keywords: <code>Places &gt; Norway &gt; Bergen</code>. Filtering on a keyword includes
-        everything below it, so "Norway" finds photos tagged Bergen.
+        {pathsTip[0]}<kbd>&gt;</kbd>{pathsTip[1]}<code>{t('keywords.pathExample')}</code>{pathsTip[2]}
       </p>
     {/if}
     {#if message}<p class="alert alert-success">{message}</p>{/if}
@@ -297,18 +304,18 @@
   </section>
 
   <section class="card labels">
-    <h2>Colour labels</h2>
-    <p class="muted small">Keys 6–9 set red, yellow, green and blue in the library. Name them for how you work; the names are written to XMP, as Lightroom does.</p>
+    <h2>{t('keywords.labelsTitle')}</h2>
+    <p class="muted small">{t('keywords.labelsLead')}</p>
     <div class="label-grid">
       {#each Object.keys(labelNames) as value (value)}
         <label class="label-row">
           <span class={`swatch label-${value}`}></span>
-          <input type="text" bind:value={labelNames[value as Label]} maxlength="40" disabled={!props.canManageLabels} aria-label={`Name for ${value}`} />
+          <input type="text" bind:value={labelNames[value as Label]} maxlength="40" disabled={!props.canManageLabels} aria-label={t('keywords.labelNameFor', { colour: t(`label.${value}` as MessageKey) })} />
         </label>
       {/each}
     </div>
     {#if props.canManageLabels}
-      <div class="row"><button class="btn btn-sm" type="button" onclick={saveLabels}>Save names</button><span class="muted small">{labelsSaved}</span></div>
+      <div class="row"><button class="btn btn-sm" type="button" onclick={saveLabels}>{t('keywords.saveNames')}</button><span class="muted small">{labelsSaved}</span></div>
     {/if}
     {#if labelsError}<p class="alert alert-error">{labelsError}</p>{/if}
   </section>

@@ -3,6 +3,8 @@
  * Resolving a group keeps one asset and soft-deletes the rest, after folding their tags, albums,
  * best rating and any pick into the one kept, so nothing anyone added is lost.
  */
+import { createFormat, currentLanguage } from '@cf-dam/i18n'
+import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { assetJson, CONTENT_KEY, locationsOf, primaryLocation, renditionNames, softDeleteAssets, type AssetJson, type AssetRow } from './assets'
 import { getStats } from './stats'
@@ -24,7 +26,7 @@ const formatRank = (mime: string) => (mime.startsWith('image/x-') ? 2 : mime ===
 const pixels = (a: Member) => (a.width ?? 0) * (a.height ?? 0)
 /** Within 2%: a pixel or two cropped off isn't a better photo. */
 const samePixels = (x: Member, y: Member) => Math.abs(pixels(x) - pixels(y)) <= 0.02 * Math.max(pixels(x), pixels(y))
-const bytes = (b: number) => (b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`)
+const bytes = (b: number) => createFormat(currentLanguage()).bytes(b)
 
 /**
  * What decides between two members, best first, with the reason as people would put it. Quality
@@ -32,21 +34,21 @@ const bytes = (b: number) => (b >= 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} MB
  * original format; then, the same size in the same format, the bigger file, which is the less
  * compressed one. Only then a pick, a higher rating, and the one that came in first.
  */
-function decide(x: Member, y: Member): { order: number; reason: string } {
+function decide(x: Member, y: Member): { order: number; reason: string; tie?: true } {
   if (!samePixels(x, y)) {
-    return { order: pixels(y) - pixels(x), reason: 'More pixels' }
+    return { order: pixels(y) - pixels(x), reason: say('dupes.reason.pixels') }
   }
   if (formatRank(x.mimeType) !== formatRank(y.mimeType)) {
-    return { order: formatRank(y.mimeType) - formatRank(x.mimeType), reason: Math.max(formatRank(x.mimeType), formatRank(y.mimeType)) === 2 ? 'The RAW original' : 'Lossless, not compressed' }
+    return { order: formatRank(y.mimeType) - formatRank(x.mimeType), reason: say(Math.max(formatRank(x.mimeType), formatRank(y.mimeType)) === 2 ? 'dupes.reason.raw' : 'dupes.reason.lossless') }
   }
   if (x.size !== y.size && !x.mimeType.startsWith('video/')) {
     const [big, small] = x.size > y.size ? [x, y] : [y, x]
     // Less than 5% apart: re-saved with other metadata, not a different quality.
-    if (big.size > small.size * 1.05) return { order: y.size - x.size, reason: `The same size, but less compressed (${bytes(big.size)} against ${bytes(small.size)})` }
+    if (big.size > small.size * 1.05) return { order: y.size - x.size, reason: say('dupes.reason.lessCompressed', { big: bytes(big.size), small: bytes(small.size) }) }
   }
-  if ((x.flag === 'pick') !== (y.flag === 'pick')) return { order: Number(y.flag === 'pick') - Number(x.flag === 'pick'), reason: 'Your pick' }
-  if ((x.rating ?? 0) !== (y.rating ?? 0)) return { order: (y.rating ?? 0) - (x.rating ?? 0), reason: 'Rated higher' }
-  return { order: x.createdAt.localeCompare(y.createdAt), reason: 'Otherwise alike: the one that came in first' }
+  if ((x.flag === 'pick') !== (y.flag === 'pick')) return { order: Number(y.flag === 'pick') - Number(x.flag === 'pick'), reason: say('dupes.reason.pick') }
+  if ((x.rating ?? 0) !== (y.rating ?? 0)) return { order: (y.rating ?? 0) - (x.rating ?? 0), reason: say('dupes.reason.rated') }
+  return { order: x.createdAt.localeCompare(y.createdAt), reason: say('dupes.reason.first'), tie: true }
 }
 
 /**
@@ -71,8 +73,8 @@ async function withDetails(db: D1Database, groups: { key: string; kind: Duplicat
     const assets = rows
       .map((row) => ({ ...assetJson(row, renditions.get(row.id) ?? [], primaryLocation(locations.get(row.id) ?? [])), ...counts.get(row.id)! }))
       .sort((x, y) => decide(x, y).order)
-    const reason = assets.length > 1 ? decide(assets[0]!, assets[1]!).reason : ''
-    return { key, kind, assets, reason: kind === 'exact' && reason.startsWith('Otherwise') ? 'Identical files: the one that came in first' : reason }
+    const decided = assets.length > 1 ? decide(assets[0]!, assets[1]!) : null
+    return { key, kind, assets, reason: decided ? (kind === 'exact' && decided.tie ? say('dupes.reason.identicalFirst') : decided.reason) : '' }
   })
 }
 

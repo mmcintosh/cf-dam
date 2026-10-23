@@ -1,13 +1,15 @@
 ---
 import { env } from 'cloudflare:workers'
+import { getT } from '@cf-dam/i18n'
 import { getLabelNames, keywordTree } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import KeywordManager from '../components/KeywordManager.svelte'
 
 const principal = Astro.locals.principal!
 const [keywords, labelNames] = await Promise.all([keywordTree(env.DB), getLabelNames(env.DB)])
+const t = getT(Astro.locals.lang)
 ---
-<AppLayout help="keywords" title="Keywords" subtitle={`${keywords.length.toLocaleString()} keywords. Organise them into a tree, as in Lightroom.`}>
+<AppLayout help="keywords" title={t('nav.keywords')} subtitle={t('keywords.subtitle', { count: keywords.length })}>
   <KeywordManager
     client:load
     initial={keywords}

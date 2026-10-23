@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   import { iptcGroup, iptcLabel } from '../lib/iptc-labels'
   import { api } from '../lib/auth-client'
 
@@ -51,9 +52,9 @@
           : await api<{ preset: Preset }>(`/api/presets/${editing}`, { method: 'PUT', body })
       presets = [...presets.filter((p) => p.id !== preset.id), preset].sort((a, b) => a.name.localeCompare(b.name))
       editing = null
-      message = `Saved “${preset.name}”.`
+      message = t('presets.saved', { name: preset.name })
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save.'
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
     }
   }
 
@@ -75,21 +76,21 @@
       presets = presets.filter((p) => p.id !== preset.id)
       if (editing === preset.id) editing = null
     } catch (e) {
-      error = `“${preset.name}” wasn't deleted: ${e instanceof Error ? e.message : 'try again.'}`
+      error = t('presets.notDeleted', { name: preset.name, why: e instanceof Error ? e.message : t('common.tryAgain') })
     }
   }
 
   const summary = (p: Preset) =>
     props.fields
       .filter((f) => p.fields[f.key])
-      .map((f) => f.label)
+      .map((f) => iptcLabel(f))
       .join(', ')
 </script>
 
 <div class="presets stack">
   {#if presets.length === 0 && editing === null}
     <div class="card">
-      <p>No presets yet. A preset is a set of fields, such as your copyright notice, credit line and contact details, that you apply to many photos at once from the library or the photo page.</p>
+      <p>{t('presets.none')}</p>
     </div>
   {/if}
 
@@ -97,18 +98,18 @@
     <div class="card row item">
       <div class="grow">
         <strong>{preset.name}</strong>
-        {#if preset.applyToUploads}<span class="pill">New uploads</span>{/if}
+        {#if preset.applyToUploads}<span class="pill">{t('presets.newUploads')}</span>{/if}
         <p class="muted small">{summary(preset)}</p>
       </div>
       {#if props.canEdit}
-        <button class="btn btn-sm" type="button" onclick={() => start(preset)}>Edit</button>
-        <button class="btn btn-sm btn-danger" type="button" onclick={() => remove(preset)} onblur={() => confirming === preset.id && arm(null)}>{confirming === preset.id ? 'Click again to delete' : 'Delete'}</button>
+        <button class="btn btn-sm" type="button" onclick={() => start(preset)}>{t('common.edit')}</button>
+        <button class="btn btn-sm btn-danger" type="button" onclick={() => remove(preset)} onblur={() => confirming === preset.id && arm(null)}>{confirming === preset.id ? t('common.clickAgainDelete') : t('common.delete')}</button>
       {/if}
     </div>
   {/each}
 
   {#if props.canEdit && editing === null}
-    <div><button class="btn btn-primary" type="button" onclick={() => start(null)}>New preset</button></div>
+    <div><button class="btn btn-primary" type="button" onclick={() => start(null)}>{t('presets.new')}</button></div>
   {/if}
   {#if message}<p class="alert alert-success">{message}</p>{/if}
   {#if error && editing === null}<div class="alert alert-error">{error}</div>{/if}
@@ -116,8 +117,8 @@
   {#if editing !== null}
     <form class="card stack" onsubmit={(e) => (e.preventDefault(), save())}>
       <div class="field">
-        <label for="preset-name">Preset name</label>
-        <input id="preset-name" type="text" maxlength="100" bind:value={name} required placeholder="e.g. My copyright" />
+        <label for="preset-name">{t('presets.name')}</label>
+        <input id="preset-name" type="text" maxlength="100" bind:value={name} required placeholder={t('presets.namePlaceholder')} />
       </div>
       {#each groups as group (group)}
         <fieldset>
@@ -138,13 +139,13 @@
       {/each}
       <label class="check">
         <input type="checkbox" bind:checked={applyToUploads} />
-        <span><strong>Apply to new uploads</strong><br /><span class="muted small">Fills these fields on every new photo where the file left them empty.</span></span>
+        <span><strong>{t('presets.applyUploads')}</strong><br /><span class="muted small">{t('presets.applyUploadsNote')}</span></span>
       </label>
-      <p class="muted small">Only filled-in fields are part of the preset. Applying a preset fills empty fields; choose "overwrite" in the library to replace existing values.</p>
+      <p class="muted small">{t('presets.onlyFilled')}</p>
       {#if error}<div class="alert alert-error">{error}</div>{/if}
       <div class="row">
-        <button class="btn btn-primary" type="submit">Save preset</button>
-        <button class="btn" type="button" onclick={() => (editing = null)}>Cancel</button>
+        <button class="btn btn-primary" type="submit">{t('presets.save')}</button>
+        <button class="btn" type="button" onclick={() => (editing = null)}>{t('common.cancel')}</button>
       </div>
     </form>
   {/if}
