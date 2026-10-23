@@ -1,10 +1,11 @@
 ---
 import { env } from 'cloudflare:workers'
-import { alertCount, getPreferences, isClientOnly, preferenceAttributes } from '@cf-dam/api'
+import { alertCount, getPreferences, isClientOnly, preferenceAttributes, pseudoAllowed } from '@cf-dam/api'
 import { getT } from '@cf-dam/i18n'
 import Base from './Base.astro'
 import Logo from '../components/Logo.astro'
 import SignOut from '../components/SignOut.svelte'
+import LanguageSwitch from '../components/LanguageSwitch.svelte'
 import ThemeSwitch from '../components/ThemeSwitch.svelte'
 
 interface Props {
@@ -94,6 +95,7 @@ const initials = (principal.name || principal.email)
         </div>
       </div>
       <div class="row end">
+        <LanguageSwitch client:load signedIn pseudo={pseudoAllowed(env as { I18N_PSEUDO?: string })} />
         <ThemeSwitch client:load theme={preferences.theme} />
         <SignOut client:load />
       </div>

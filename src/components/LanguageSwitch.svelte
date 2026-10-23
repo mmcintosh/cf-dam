@@ -1,19 +1,25 @@
 <script lang="ts">
   /**
-   * The language picker for pages without an account menu (sign-in, invites, client galleries). It
-   * remembers the choice in a cookie and reloads; signed-in people choose in Account → Appearance.
+   * The language picker. Signed out (sign-in, invites, client galleries) it remembers the choice in a
+   * cookie; signed in (the menu) it saves it as the person's preference, as Account → Appearance does.
+   * Either way the page reloads in the new language.
    */
   import { LANGUAGES, PSEUDO } from '@cf-dam/i18n/languages'
   import { lang, t } from '@cf-dam/i18n/client'
+  import { api } from '../lib/auth-client'
 
-  /** Offer the pseudo-language too (staging). */
-  let { pseudo = false }: { pseudo?: boolean } = $props()
+  /** Offer the pseudo-language too (staging); `signedIn` saves to the person's preferences. */
+  let { pseudo = false, signedIn = false }: { pseudo?: boolean; signedIn?: boolean } = $props()
   const current = lang()
 
-  function choose(event: Event) {
+  async function choose(event: Event) {
     const value = (event.currentTarget as HTMLSelectElement).value
-    const secure = location.protocol === 'https:' ? '; Secure' : ''
-    document.cookie = `cfdam_lang=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+    // The pseudo-language isn't a preference: follow the cookie for it.
+    if (signedIn) await api('/api/me/preferences', { method: 'PUT', body: JSON.stringify({ language: value === PSEUDO ? 'auto' : value }) }).catch(() => {})
+    if (!signedIn || value === PSEUDO) {
+      const secure = location.protocol === 'https:' ? '; Secure' : ''
+      document.cookie = `cfdam_lang=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+    }
     location.reload()
   }
 </script>
