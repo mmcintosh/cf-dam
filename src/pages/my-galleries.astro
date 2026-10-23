@@ -2,20 +2,23 @@
 /** A client's home: the galleries they were invited to (catalog/clients.ts). The team has albums instead. */
 import { env } from 'cloudflare:workers'
 import { clientGalleries, isClientOnly } from '@cf-dam/api'
+import { createFormat, getT } from '@cf-dam/i18n'
 import AppLayout from '../layouts/AppLayout.astro'
 
 const principal = Astro.locals.principal!
 if (!isClientOnly(principal.roles)) return Astro.redirect('/galleries')
 const galleries = await clientGalleries(env.DB, principal.userId)
 const open = galleries.filter((g) => !g.expired)
-const until = (iso: string) => new Date(new Date(iso).getTime() - 1).toLocaleDateString('en', { dateStyle: 'long' })
+const t = getT(Astro.locals.lang)
+// The last day it's open (expiry is the start of the next day).
+const until = (iso: string) => createFormat(Astro.locals.lang).date(new Date(iso).getTime() - 1)
 const first = (principal.name || '').split(/\s+/)[0]
 ---
-<AppLayout title="Your galleries" subtitle={first ? `Welcome, ${first}.` : undefined}>
+<AppLayout title={t('mine.title')} subtitle={first ? t('mine.welcome', { name: first }) : undefined}>
   {galleries.length === 0 ? (
     <div class="card empty">
-      <h2>No galleries yet</h2>
-      <p class="muted">When your photographer shares a gallery with you, it appears here. You'll find it the next time you sign in.</p>
+      <h2>{t('mine.empty.title')}</h2>
+      <p class="muted">{t('mine.empty.lead')}</p>
     </div>
   ) : (
     <ul class="galleries">
@@ -23,12 +26,12 @@ const first = (principal.name || '').split(/\s+/)[0]
         <li class:list={['gallery', { expired: g.expired }]}>
           <a href={`/s/${g.token}`}>
             <span class="cover">
-              {g.coverId && !g.expired ? <img src={`/api/public/galleries/${g.token}/assets/${g.coverId}/thumb`} alt="" loading="lazy" /> : <span class="muted">{g.expired ? 'Closed' : 'No photos yet'}</span>}
+              {g.coverId && !g.expired ? <img src={`/api/public/galleries/${g.token}/assets/${g.coverId}/thumb`} alt="" loading="lazy" /> : <span class="muted">{g.expired ? t('mine.closed') : t('mine.noPhotos')}</span>}
             </span>
             <strong>{g.title}</strong>
             <span class="muted small">
-              {g.photos} {g.photos === 1 ? 'photo' : 'photos'}
-              {g.expired ? ' · closed' : g.expiresAt ? ` · open until ${until(g.expiresAt)}` : ''}
+              {t('common.photos', { count: g.photos })}
+              {g.expired ? ` · ${t('mine.closedSuffix')}` : g.expiresAt ? ` · ${t('gallery.openUntil', { date: until(g.expiresAt) })}` : ''}
             </span>
             {g.message && !g.expired && <span class="message small">{g.message}</span>}
           </a>
@@ -37,9 +40,7 @@ const first = (principal.name || '').split(/\s+/)[0]
     </ul>
   )}
   {open.length > 0 && (
-    <p class="muted small hint">
-      Open a gallery to look through it. Tap ♥ on the photos you like, then press <strong>I'm done</strong> to let your photographer know. Your favourites are kept with your account, so you can carry on from any device.
-    </p>
+    <p class="muted small hint">{t('mine.hint')}</p>
   )}
 </AppLayout>
 

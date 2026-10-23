@@ -9,11 +9,12 @@ import { acceptInvite, readInvite } from '../catalog/clients'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredString } from '../lib/http'
+import { say } from '../lib/language'
 
 export const inviteRoutes = new Hono<DamEnv>()
 
 const RULE = { max: 10, windowMs: 60_000, keyPrefix: 'invite' }
-const GONE = { error: 'gone', message: 'This invite has been used or has expired. Ask the photographer for a new one.' }
+const gone = () => ({ error: 'gone', message: say('invite.api.gone') })
 
 inviteRoutes.use('*', async (c, next) => {
   await next()
@@ -25,7 +26,7 @@ inviteRoutes.get('/:token', async (c) => {
   const limited = await consumeRateLimit(c, RULE)
   if (limited) return limited
   const invite = await readInvite(c.env.DB, c.req.param('token'))
-  return invite ? c.json({ name: invite.name, email: invite.email }) : c.json(GONE, 404)
+  return invite ? c.json({ name: invite.name, email: invite.email }) : c.json(gone(), 404)
 })
 
 inviteRoutes.post('/:token', async (c) => {
@@ -34,7 +35,7 @@ inviteRoutes.post('/:token', async (c) => {
   try {
     const password = requiredString(await readJsonObject(c), 'password', 256)
     const joined = await acceptInvite(c.env.DB, c.req.param('token'), password)
-    if (!joined) return c.json(GONE, 404)
+    if (!joined) return c.json(gone(), 404)
     await logActivity(c.env.DB, { userId: joined.userId, action: 'client.joined', targetType: 'user', targetId: joined.userId, ipAddress: c.req.header('cf-connecting-ip') })
     return c.json({ email: joined.email })
   } catch (error) {

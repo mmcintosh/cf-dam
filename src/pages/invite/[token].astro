@@ -2,6 +2,7 @@
 /** A client's invite link (catalog/clients.ts): choose a password, and in. */
 import { env } from 'cloudflare:workers'
 import { readInvite } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
 import AuthLayout from '../../layouts/AuthLayout.astro'
 import InviteForm from '../../components/InviteForm.svelte'
 import SignOut from '../../components/SignOut.svelte'
@@ -9,21 +10,23 @@ import SignOut from '../../components/SignOut.svelte'
 const token = Astro.params.token ?? ''
 const invite = await readInvite(env.DB, token)
 const principal = Astro.locals.principal
+const t = getT(Astro.locals.lang)
 Astro.response.headers.set('Referrer-Policy', 'no-referrer')
 Astro.response.headers.set('Cache-Control', 'private, no-store')
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow')
 if (!invite) Astro.response.status = 404
 ---
-<AuthLayout title={invite ? 'Your photos' : 'Invite not available'}>
+<AuthLayout title={invite ? t('invite.pageTitle') : t('invite.gone.pageTitle')}>
   {!invite ? (
     <div class="stack">
-      <h1>This invite can't be used</h1>
-      <p class="muted">It has already been used, or it has expired (invites last two weeks). If you chose a password, <a href="/login">sign in</a>. Otherwise, ask your photographer for a new invite.</p>
+      <h1>{t('invite.gone.title')}</h1>
+      <p class="muted">{t('invite.gone.lead')}</p>
+      <p><a class="btn" href="/login">{t('invite.signIn')}</a></p>
     </div>
   ) : principal ? (
     <div class="stack">
-      <h1>You're signed in as someone else</h1>
-      <p class="muted">This invite is for <strong>{invite.email}</strong>, but this browser is signed in as {principal.email}. Sign out first, or open the invite in a private window.</p>
+      <h1>{t('invite.other.title')}</h1>
+      <p class="muted">{t('invite.other.lead', { invited: invite.email, current: principal.email })}</p>
       <div class="row"><SignOut client:load to={Astro.url.pathname} /></div>
     </div>
   ) : (

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '@cf-dam/i18n/client'
   /** Light or dark, in one click: switches at once and is kept with the person's other choices. */
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
@@ -21,7 +22,7 @@
   }
 </script>
 
-<button class="btn btn-sm switch" type="button" onclick={toggle} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
+<button class="btn btn-sm switch" type="button" onclick={toggle} aria-label={dark ? t('theme.toLight') : t('theme.toDark')} title={dark ? t('theme.light') : t('theme.dark')}>
   {#if dark}
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4V2 M12 22v-2 M4 12H2 M22 12h-2 M5.6 5.6 4.2 4.2 M19.8 19.8l-1.4-1.4 M5.6 18.4l-1.4 1.4 M19.8 4.2l-1.4 1.4 M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" /></svg>
   {:else}

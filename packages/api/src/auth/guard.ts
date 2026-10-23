@@ -8,6 +8,7 @@
  * reveals an account only after ten tries, from IPs already held to five a minute). A passkey still
  * signs in while passwords are locked, so a stranger can't lock the owner out.
  */
+import { say } from '../lib/language'
 import type { Context } from 'hono'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -41,7 +42,7 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
     if (limited) return limited
   }
   // Mid-restore, people from the backup exist but nobody may sign in until the restore is finished.
-  if (await setupNeeded(c.env.DB)) return c.json({ code: 'SETUP_NEEDED', message: 'This install is still being set up.' }, 403)
+  if (await setupNeeded(c.env.DB)) return c.json({ code: 'SETUP_NEEDED', message: say('auth.guard.setup') }, 403)
   const auth = createAuth(c.env, c.req.raw)
   const sub = authSubPath(c.req.path)
   if (sub === '/sign-in/email' && c.req.method === 'POST') return passwordSignIn(c, auth)
@@ -53,7 +54,7 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
       .catch(() => null)
     // A temporary password has to be replaced, not confirmed.
     if (typeof body?.newPassword === 'string' && body.newPassword === body.currentPassword) {
-      return c.json({ code: 'SAME_PASSWORD', message: 'Choose a password different from the current one.' }, 400)
+      return c.json({ code: 'SAME_PASSWORD', message: say('auth.guard.samePassword') }, 400)
     }
   }
 
@@ -112,7 +113,7 @@ async function passwordSignIn(c: Context<DamEnv>, auth: ReturnType<typeof create
     return c.json(
       {
         code: 'ACCOUNT_LOCKED',
-        message: `Too many wrong passwords. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, sign in with a passkey, or ask an administrator to unlock it.`,
+        message: say('auth.guard.locked', { count: minutes }),
       },
       403,
     )
@@ -144,7 +145,7 @@ async function passwordSignIn(c: Context<DamEnv>, auth: ReturnType<typeof create
       // The session Better Auth just made is withdrawn, and its cookie never sent.
       await db.prepare('DELETE FROM session WHERE token = ?').bind(signedIn.token).run()
       await logActivity(db, { userId: user.id, action: 'auth.passkey_required', targetType: 'user', targetId: user.id, ipAddress: ip })
-      return c.json({ code: 'USE_PASSKEY', message: 'This account signs in with a passkey. Choose "Sign in with a passkey".' }, 403)
+      return c.json({ code: 'USE_PASSKEY', message: say('auth.guard.usePasskey') }, 403)
     }
   }
   return response

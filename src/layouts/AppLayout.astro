@@ -1,6 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { alertCount, getPreferences, isClientOnly, preferenceAttributes } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
 import Base from './Base.astro'
 import Logo from '../components/Logo.astro'
 import SignOut from '../components/SignOut.svelte'
@@ -16,6 +17,7 @@ interface Props {
 }
 const { title, subtitle, wide = false, help } = Astro.props
 const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
 const path = Astro.url.pathname
 
 interface NavItem {
@@ -46,9 +48,9 @@ const nav: NavItem[] = [
 // A client sees their galleries, their account and their own help, and no archive search.
 const client = isClientOnly(principal.roles)
 const clientNav: NavItem[] = [
-  { href: '/my-galleries', label: 'Your galleries', icon: 'M5 7h14v12H5z M8 4h8' },
-  { href: '/account', label: 'Account', icon: nav.find((n) => n.href === '/account')!.icon },
-  { href: '/help/for-clients', label: 'Help', icon: nav.find((n) => n.href === '/help')!.icon },
+  { href: '/my-galleries', label: t('mine.title'), icon: 'M5 7h14v12H5z M8 4h8' },
+  { href: '/account', label: t('common.account'), icon: nav.find((n) => n.href === '/account')!.icon },
+  { href: '/help/for-clients', label: t('common.help'), icon: nav.find((n) => n.href === '/help')!.icon },
 ]
 const helpPage = client ? 'for-clients' : help
 const preferences = Astro.locals.preferences ?? (await getPreferences(env.DB, principal.userId))
@@ -62,7 +64,7 @@ const initials = (principal.name || principal.email)
   .join('')
 ---
 <Base title={title} attributes={preferenceAttributes(preferences)}>
-  <a class="skip" href="#main">Skip to content</a>
+  <a class="skip" href="#main">{t('layout.skip')}</a>
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href={client ? '/my-galleries' : '/'}><Logo /><span>cf-dam</span></a>
@@ -88,7 +90,7 @@ const initials = (principal.name || principal.email)
         <span class="avatar">{initials}</span>
         <div class="who">
           <strong>{principal.name || principal.email}</strong>
-          <span class="muted">{client ? 'Client' : principal.roles.join(', ')}</span>
+          <span class="muted">{client ? t('role.client') : principal.roles.join(', ')}</span>
         </div>
       </div>
       <div class="row end">
@@ -111,7 +113,7 @@ const initials = (principal.name || principal.email)
         <div>
           <h1>
             {title}
-            {helpPage && <a class="help-link" href={`/help/${helpPage}`} title="Help with this page" aria-label={`Help with ${title}`}>?</a>}
+            {helpPage && <a class="help-link" href={`/help/${helpPage}`} title={t('layout.helpThisPage')} aria-label={t('layout.helpWith', { page: title })}>?</a>}
           </h1>
           {subtitle && <p class="muted">{subtitle}</p>}
         </div>

@@ -2,19 +2,21 @@
 import Base from './Base.astro'
 import { env } from 'cloudflare:workers'
 import { pseudoAllowed } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
 import Logo from '../components/Logo.astro'
 import LanguageSwitch from '../components/LanguageSwitch.svelte'
 interface Props {
   title: string
 }
 const { title } = Astro.props
+const t = getT(Astro.locals.lang)
 ---
 <Base title={title}>
   <div class="aurora" aria-hidden="true"></div>
   <main class="center">
     <a class="brand" href="/"><Logo size={36} /><span>cf-dam</span></a>
     <div class="card panel"><slot /></div>
-    <p class="foot muted">Open-source digital asset management on Cloudflare</p>
+    <p class="foot muted">{t('auth.tagline')}</p>
     <LanguageSwitch client:load pseudo={pseudoAllowed(env as { I18N_PSEUDO?: string })} />
   </main>
 </Base>

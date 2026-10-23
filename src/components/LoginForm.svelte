@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { authClient, safeNext } from '../lib/auth-client'
+  import { t } from '@cf-dam/i18n/client'
 
   let email = $state('')
   let password = $state('')
@@ -22,10 +23,10 @@
     busy = false
     if (failure) {
       error =
-        failure.status === 429 ? 'Too many attempts. Wait a minute and try again.'
-        : failure.code === 'ACCOUNT_LOCKED' ? (failure.message ?? 'Too many wrong passwords. Try again later, or sign in with a passkey.')
-        : failure.code === 'USE_PASSKEY' ? (failure.message ?? 'This account signs in with a passkey.')
-        : 'Wrong email or password.'
+        failure.status === 429 ? t('auth.error.tooMany')
+        : failure.code === 'ACCOUNT_LOCKED' ? (failure.message ?? t('auth.error.locked'))
+        : failure.code === 'USE_PASSKEY' ? (failure.message ?? t('auth.error.usePasskey'))
+        : t('auth.error.wrong')
       return
     }
     if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) {
@@ -44,9 +45,9 @@
     if (data) return done()
     if (failure) {
       error =
-        failure.status === 429 ? 'Too many attempts. Wait a minute and try again.'
-        : failure.status === 401 ? (failure.message ?? 'That passkey is not one this archive knows.')
-        : 'No passkey was used. Try again, or sign in with your password.'
+        failure.status === 429 ? t('auth.error.tooMany')
+        : failure.status === 401 ? t('auth.passkey.unknown')
+        : t('auth.passkey.none')
     }
   }
 
@@ -68,7 +69,7 @@
       : await authClient.twoFactor.verifyTotp({ code: code.replace(/\s/g, '') })
     busy = false
     if (result.error) {
-      error = result.error.status === 429 ? 'Too many attempts. Wait a minute.' : 'That code did not work.'
+      error = result.error.status === 429 ? t('auth.twoFactor.tooMany') : t('auth.twoFactor.wrong')
       return
     }
     done()
@@ -78,32 +79,32 @@
 {#if step === 'password'}
   <form class="stack" onsubmit={signIn}>
     <div>
-      <h2>Sign in</h2>
-      <p class="lead">Welcome back to your archive.</p>
+      <h2>{t('auth.signIn.title')}</h2>
+      <p class="lead">{t('auth.signIn.lead')}</p>
     </div>
     <div class="field">
-      <label for="email">Email</label>
+      <label for="email">{t('common.email')}</label>
       <input id="email" type="email" autocomplete="username webauthn" required bind:value={email} />
     </div>
     <div class="field">
-      <label for="password">Password</label>
+      <label for="password">{t('common.password')}</label>
       <input id="password" type="password" autocomplete="current-password" required bind:value={password} />
     </div>
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-    <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-    <div class="or" aria-hidden="true"><span>or</span></div>
-    <button class="btn" type="button" onclick={passkey} disabled={busy}>Sign in with a passkey</button>
+    <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('auth.signIn.busy') : t('auth.signIn.submit')}</button>
+    <div class="or" aria-hidden="true"><span>{t('common.or')}</span></div>
+    <button class="btn" type="button" onclick={passkey} disabled={busy}>{t('auth.signIn.passkey')}</button>
   </form>
 {:else}
   <form class="stack" onsubmit={verify}>
     <div>
-      <h2>Two-factor check</h2>
+      <h2>{t('auth.twoFactor.title')}</h2>
       <p class="lead">
-        {useBackupCode ? 'Enter one of your backup codes.' : 'Enter the six-digit code from your authenticator app.'}
+        {useBackupCode ? t('auth.twoFactor.backupLead') : t('auth.twoFactor.codeLead')}
       </p>
     </div>
     <div class="field">
-      <label for="code">{useBackupCode ? 'Backup code' : 'Code'}</label>
+      <label for="code">{useBackupCode ? t('auth.twoFactor.backupLabel') : t('auth.twoFactor.codeLabel')}</label>
       <input
         id="code"
         type="text"
@@ -114,9 +115,9 @@
       />
     </div>
     {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-    <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Verify'}</button>
+    <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('auth.twoFactor.busy') : t('auth.twoFactor.verify')}</button>
     <button class="btn btn-sm" type="button" onclick={() => ((useBackupCode = !useBackupCode), (code = ''))}>
-      {useBackupCode ? 'Use the authenticator code' : 'Use a backup code instead'}
+      {useBackupCode ? t('auth.twoFactor.useCode') : t('auth.twoFactor.useBackup')}
     </button>
   </form>
 {/if}

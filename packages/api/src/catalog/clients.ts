@@ -17,6 +17,7 @@ import { setUserRoles } from '../auth/roles'
 import type { DamBindings } from '../env'
 import { randomBase62, randomId, sha256Hex } from '../lib/crypto'
 import { BadRequest } from '../lib/http'
+import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { shareStatus, type ShareRow, type VisitorRow } from './shares'
 
@@ -130,8 +131,8 @@ export async function readInvite(db: D1Database, token: string): Promise<{ userI
 
 /** Use an invite: set the client's password and spend the link. Returns their email, to sign in with. */
 export async function acceptInvite(db: D1Database, token: string, password: string): Promise<{ userId: string; email: string } | null> {
-  if (password.length < 12) throw new BadRequest('Choose a password of at least 12 characters.')
-  if (password.length > 256) throw new BadRequest('That password is too long.')
+  if (password.length < 12) throw new BadRequest(say('invite.api.short'))
+  if (password.length > 256) throw new BadRequest(say('invite.api.long'))
   const invite = await readInvite(db, token)
   if (!invite) return null
   // Spent first, by its hash, so two tabs racing on one link can't both set a password.
