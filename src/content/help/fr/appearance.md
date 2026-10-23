@@ -4,10 +4,16 @@ summary: "Clair ou sombre, texte plus grand, contraste renforcé, une police plu
 section: Settings
 order: 1
 review: machine
-source: 113321fd03b7
+source: be805092e49a
 ---
 
 cf-dam doit être confortable pour tout le monde, y compris les personnes malvoyantes, daltoniennes, sensibles aux mouvements, ou qui utilisent un clavier ou un lecteur d’écran. Vos choix sont conservés dans votre compte : ils vous suivent sur tous les ordinateurs où vous vous connectez.
+
+## Langue
+
+cf-dam parle français, anglais, espagnol, allemand et italien. Choisissez la vôtre dans la **liste des langues en bas du menu**, ou dans **Compte → Langue**, où **Celle de mon navigateur** suit la langue de votre navigateur. Le choix est conservé avec votre compte.
+
+Les détails de vos photos, les mots-clés et les albums restent tels qu’ils ont été écrits. Les suggestions de l’IA sont rédigées dans la langue choisie dans **Analyse par IA**.
 
 ## Clair ou sombre
 

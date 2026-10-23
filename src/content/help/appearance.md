@@ -7,6 +7,12 @@ order: 1
 
 cf-dam should be comfortable for everyone to use, including people with low vision, colour blindness, motion sensitivity or who use a keyboard or screen reader. Your choices are kept with your account, so they follow you to any computer you sign in on.
 
+## Language
+
+cf-dam speaks English, Spanish, German, French and Italian. Choose yours from the **language list at the bottom of the menu**, or under **Account → Language**, where **Same as my browser** follows your browser's own language. The choice is kept with your account.
+
+Your photos' details, keywords and albums stay as they were written. AI suggestions are written in the language set under **AI review**.
+
 ## Light or dark
 
 The **sun / moon button** at the bottom of the menu switches between light and dark at once. Dark suits looking at photos; light can be easier for reading and in bright rooms.

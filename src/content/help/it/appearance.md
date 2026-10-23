@@ -4,10 +4,16 @@ summary: "Chiaro o scuro, testo più grande, contrasto più forte, un carattere 
 section: Settings
 order: 1
 review: machine
-source: 113321fd03b7
+source: be805092e49a
 ---
 
 cf-dam dovrebbe essere comodo da usare per tutti, anche per chi ha una vista ridotta, un daltonismo o una sensibilità al movimento, o usa la tastiera o uno screen reader. Le tue scelte restano legate al tuo account, quindi ti seguono su ogni computer da cui accedi.
+
+## Lingua
+
+cf-dam parla italiano, inglese, spagnolo, tedesco e francese. Scegli la tua dall’**elenco delle lingue in fondo al menu**, oppure in **Account → Lingua**, dove **Come il mio browser** segue la lingua del browser. La scelta resta con il tuo account.
+
+Dettagli delle foto, parole chiave e album restano come sono stati scritti. I suggerimenti IA vengono scritti nella lingua impostata in **Revisione IA**.
 
 ## Chiaro o scuro
 

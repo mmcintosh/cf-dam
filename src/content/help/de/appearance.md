@@ -4,10 +4,16 @@ summary: "Hell oder dunkel, größere Schrift, stärkerer Kontrast, eine leichte
 section: Settings
 order: 1
 review: machine
-source: 113321fd03b7
+source: be805092e49a
 ---
 
 cf-dam soll für alle angenehm zu bedienen sein, auch für Menschen mit Sehschwäche, Farbenblindheit oder Bewegungsempfindlichkeit und für alle, die eine Tastatur oder einen Screenreader nutzen. Deine Einstellungen werden mit deinem Konto gespeichert und gelten so auf jedem Computer, an dem du dich anmeldest.
+
+## Sprache
+
+cf-dam spricht Deutsch, Englisch, Spanisch, Französisch und Italienisch. Wähle deine Sprache in der **Sprachliste unten im Menü** oder unter **Konto → Sprache**, wo **Wie mein Browser** der Sprache deines Browsers folgt. Die Wahl wird mit deinem Konto gespeichert.
+
+Fotodetails, Stichwörter und Alben bleiben so, wie sie geschrieben wurden. KI-Vorschläge werden in der Sprache geschrieben, die unter **KI-Prüfung** eingestellt ist.
 
 ## Hell oder dunkel
 

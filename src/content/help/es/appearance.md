@@ -4,10 +4,16 @@ summary: "Claro u oscuro, texto más grande, más contraste, un tipo de letra m�
 section: Settings
 order: 1
 review: machine
-source: 113321fd03b7
+source: be805092e49a
 ---
 
 cf-dam debería ser cómodo de usar para todo el mundo, también para personas con baja visión, daltonismo o sensibilidad al movimiento, o que usan el teclado o un lector de pantalla. Tus preferencias se guardan en tu cuenta, así que te acompañan en cualquier ordenador donde inicies sesión.
+
+## Idioma
+
+cf-dam habla español, inglés, alemán, francés e italiano. Elige el tuyo en la **lista de idiomas al pie del menú**, o en **Cuenta → Idioma**, donde **El de mi navegador** sigue el idioma de tu navegador. La elección se guarda con tu cuenta.
+
+Los datos de tus fotos, las palabras clave y los álbumes se quedan como se escribieron. Las sugerencias de la IA se escriben en el idioma elegido en **Revisión con IA**.
 
 ## Claro u oscuro
 
