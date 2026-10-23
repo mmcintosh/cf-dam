@@ -1,12 +1,14 @@
 ---
-import { getCollection } from 'astro:content'
+import { getT } from '@cf-dam/i18n'
 import AppLayout from '../../layouts/AppLayout.astro'
 import HelpSearch from '../../components/HelpSearch.svelte'
 import { HELP_SECTIONS } from '../../lib/help'
+import { helpArticles } from '../../lib/help-articles'
 
-const articles = (await getCollection('help')).sort((a, b) => a.data.order - b.data.order)
-const index = articles.map((a) => ({ slug: a.id, title: a.data.title, summary: a.data.summary, section: a.data.section, text: a.body ?? '' }))
+const t = getT(Astro.locals.lang)
+const articles = await helpArticles(Astro.locals.lang)
+const index = articles.map(({ slug, entry }) => ({ slug, title: entry.data.title, summary: entry.data.summary, section: entry.data.section, text: entry.body ?? '' }))
 ---
-<AppLayout title="Help" subtitle="How cf-dam works, and how to do each thing in it. Every page has a ? that opens its own part.">
+<AppLayout title={t('common.help')} subtitle={t('help.subtitle')}>
   <HelpSearch client:load articles={index} sections={[...HELP_SECTIONS]} />
 </AppLayout>

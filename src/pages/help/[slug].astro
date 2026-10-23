@@ -1,45 +1,50 @@
 ---
-import { getCollection, getEntry, render } from 'astro:content'
+import { render } from 'astro:content'
 import { isClientOnly } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
 import AppLayout from '../../layouts/AppLayout.astro'
 import { HELP_SECTIONS } from '../../lib/help'
+import { helpArticles } from '../../lib/help-articles'
 
-const entry = await getEntry('help', Astro.params.slug ?? '')
-if (!entry) return Astro.redirect('/help')
+const t = getT(Astro.locals.lang)
+const articles = await helpArticles(Astro.locals.lang)
+const article = articles.find((a) => a.slug === Astro.params.slug)
+if (!article) return Astro.redirect('/help')
+const entry = article.entry
 const { Content, headings } = await render(entry)
-const all = (await getCollection('help')).sort((a, b) => a.data.order - b.data.order)
-const siblings = all.filter((a) => a.data.section === entry.data.section)
+const siblings = articles.filter((a) => a.entry.data.section === entry.data.section)
 const contents = headings.filter((h) => h.depth === 2)
 // A client reads only their own article (the middleware sees to that), so no list of the rest.
 const client = isClientOnly(Astro.locals.principal!.roles)
 ---
 <AppLayout title={entry.data.title} subtitle={entry.data.summary}>
   <div class:list={['help', { solo: client }]}>
-    {!client && <nav class="side" aria-label="Help">
-      <a class="back" href="/help">← All help</a>
+    {!client && <nav class="side" aria-label={t('common.help')}>
+      <a class="back" href="/help">{t('help.all')}</a>
       {HELP_SECTIONS.map((section) => (
         <details open={section === entry.data.section}>
           <summary>{section}</summary>
           <ul>
-            {all.filter((a) => a.data.section === section).map((a) => (
-              <li><a href={`/help/${a.id}`} aria-current={a.id === entry.id ? 'page' : undefined}>{a.data.title}</a></li>
+            {articles.filter((a) => a.entry.data.section === section).map((a) => (
+              <li><a href={`/help/${a.slug}`} aria-current={a.slug === article.slug ? 'page' : undefined}>{a.entry.data.title}</a></li>
             ))}
           </ul>
         </details>
       ))}
     </nav>}
-    <article class="card prose">
+    <article class="card prose" lang={article.translated ? undefined : 'en'}>
+      {!article.translated && <p class="untranslated muted">{t('help.notTranslated')}</p>}
       {contents.length > 2 && (
-        <nav class="toc" aria-label="On this page">
-          <strong>On this page</strong>
+        <nav class="toc" aria-label={t('help.onThisPage')}>
+          <strong>{t('help.onThisPage')}</strong>
           <ul>{contents.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ul>
         </nav>
       )}
       <Content />
       {!client && siblings.length > 1 && (
         <footer class="more">
-          <strong>More in {entry.data.section}</strong>
-          <ul>{siblings.filter((a) => a.id !== entry.id).map((a) => <li><a href={`/help/${a.id}`}>{a.data.title}</a>: {a.data.summary}</li>)}</ul>
+          <strong>{t('help.moreIn', { section: entry.data.section })}</strong>
+          <ul>{siblings.filter((a) => a.slug !== article.slug).map((a) => <li><a href={`/help/${a.slug}`}>{a.entry.data.title}</a>: {a.entry.data.summary}</li>)}</ul>
         </footer>
       )}
     </article>
@@ -52,6 +57,10 @@ const client = isClientOnly(Astro.locals.principal!.roles)
     grid-template-columns: 230px minmax(0, 1fr);
     gap: 28px;
     align-items: start;
+  }
+  .untranslated {
+    font-size: 0.85rem;
+    margin-top: 0;
   }
   .help.solo {
     grid-template-columns: minmax(0, 1fr);
