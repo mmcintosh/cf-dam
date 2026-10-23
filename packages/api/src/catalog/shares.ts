@@ -6,6 +6,7 @@
  * favourites give a name and get a visitor id (random, so it needs no signature). What a client sees
  * is limited to the album's photos, their sizes, title, caption and (if allowed) filename.
  */
+import { asLanguage, type Language } from '@cf-dam/i18n'
 import { editedSize, imageVersion, readEdit } from './edits'
 import { galleryMember, memberVisitor } from './clients'
 import type { DamBindings } from '../env'
@@ -39,6 +40,8 @@ export interface ShareRow {
   watermark: number
   proofing: number
   show_filenames: number
+  /** The gallery's fixed language, or null for each visitor's own. */
+  language: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -84,6 +87,7 @@ export interface ShareJson {
   watermark: boolean
   proofing: boolean
   showFilenames: boolean
+  language: Language | null
   status: ShareStatus
   createdAt: string
   updatedAt: string
@@ -123,6 +127,7 @@ function shareJson(row: ListedShareRow): ShareJson {
     watermark: row.watermark === 1,
     proofing: row.proofing === 1,
     showFilenames: row.show_filenames === 1,
+    language: (asLanguage(row.language) as Language | null) ?? null,
     status: shareStatus(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -156,6 +161,8 @@ export interface ShareInput {
   watermark?: boolean
   proofing?: boolean
   showFilenames?: boolean
+  /** null: each visitor's own language. */
+  language?: Language | null
 }
 
 function optionalBoolean(body: Record<string, unknown>, field: string): boolean | undefined {
@@ -176,6 +183,12 @@ export function parseShareInput(body: Record<string, unknown>, creating: boolean
     showFilenames: optionalBoolean(body, 'showFilenames'),
   }
   if (input.name === '') throw new BadRequest('name is required.')
+  if (body.language === null) input.language = null
+  else if (body.language !== undefined) {
+    const language = asLanguage(body.language) as Language | null
+    if (!language) throw new BadRequest('language must be one of the languages cf-dam speaks, or null.')
+    input.language = language
+  }
   if (body.password === null) input.password = null
   else if (body.password !== undefined) {
     if (typeof body.password !== 'string' || body.password.length < 4 || body.password.length > 200) {
@@ -204,8 +217,8 @@ export async function createShare(db: D1Database, albumId: string, input: ShareI
   const now = nowIso()
   await db
     .prepare(
-      `INSERT INTO shares (id, token, album_id, name, title, message, password_hash, expires_at, download_sizes, watermark, proofing, show_filenames, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO shares (id, token, album_id, name, title, message, password_hash, expires_at, download_sizes, watermark, proofing, show_filenames, language, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -220,6 +233,7 @@ export async function createShare(db: D1Database, albumId: string, input: ShareI
       input.watermark ? 1 : 0,
       input.proofing === false ? 0 : 1,
       input.showFilenames === false ? 0 : 1,
+      input.language ?? null,
       userId,
       now,
       now,
@@ -245,6 +259,7 @@ export async function updateShare(db: D1Database, id: string, input: ShareInput)
   if (input.watermark !== undefined) set('watermark', input.watermark ? 1 : 0)
   if (input.proofing !== undefined) set('proofing', input.proofing ? 1 : 0)
   if (input.showFilenames !== undefined) set('show_filenames', input.showFilenames ? 1 : 0)
+  if (input.language !== undefined) set('language', input.language)
   set('updated_at', nowIso())
   const result = await db
     .prepare(`UPDATE shares SET ${sets.join(', ')} WHERE id = ? AND revoked_at IS NULL`)

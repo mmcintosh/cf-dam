@@ -31,6 +31,7 @@ import {
 import { galleryImage, getWatermark } from '../catalog/watermark'
 import type { DamEnv } from '../env'
 import { BadRequest, optionalString, readJsonObject, requiredString } from '../lib/http'
+import { applyGalleryLanguage, say } from '../lib/language'
 import { attachmentDisposition, StorageError } from '../storage/types'
 import { originalResponse } from '../storage/original'
 
@@ -51,13 +52,14 @@ type Open = Extract<GalleryAccess, { state: 'open' }>
 /** The gallery if this request may see it, or the response saying why not. */
 async function access(c: Context<DamEnv>): Promise<Open | Response> {
   const gallery = await openGallery(c.env, c.req.param('token') ?? '', c.req.raw)
+  if (gallery.state !== 'gone') applyGalleryLanguage(c.req.raw, gallery.share.language, c.env)
   switch (gallery.state) {
     case 'gone':
-      return c.json({ error: 'gone', message: 'This gallery is no longer available.' }, 404)
+      return c.json({ error: 'gone', message: say('gallery.api.gone') }, 404)
     case 'expired':
-      return c.json({ error: 'expired', message: 'This gallery has expired.', expiredAt: gallery.share.expires_at }, 410)
+      return c.json({ error: 'expired', message: say('gallery.api.expired'), expiredAt: gallery.share.expires_at }, 410)
     case 'locked':
-      return c.json({ error: 'locked', message: 'This gallery needs a password.', title: gallery.share.title }, 401)
+      return c.json({ error: 'locked', message: say('gallery.api.locked'), title: gallery.share.title }, 401)
     default:
       return gallery
   }
@@ -102,8 +104,9 @@ galleryRoutes.get('/:token', async (c) => {
 
 galleryRoutes.post('/:token/unlock', async (c) => {
   const gallery = await openGallery(c.env, c.req.param('token'), c.req.raw)
-  if (gallery.state === 'gone') return c.json({ error: 'gone', message: 'This gallery is no longer available.' }, 404)
-  if (gallery.state === 'expired') return c.json({ error: 'expired', message: 'This gallery has expired.' }, 410)
+  if (gallery.state !== 'gone') applyGalleryLanguage(c.req.raw, gallery.share.language, c.env)
+  if (gallery.state === 'gone') return c.json({ error: 'gone', message: say('gallery.api.gone') }, 404)
+  if (gallery.state === 'expired') return c.json({ error: 'expired', message: say('gallery.api.expired') }, 410)
   const share = gallery.share
   if (!share.password_hash) return c.json({ ok: true })
   const limited = await consumeRateLimit(c, { ...UNLOCK_RULE, keyPrefix: `gallery-unlock:${share.id}` })
@@ -111,7 +114,7 @@ galleryRoutes.post('/:token/unlock', async (c) => {
   try {
     const password = requiredString(await readJsonObject(c), 'password', 200)
     if (!(await verifyPassword(password, share.password_hash)) || !c.env.BETTER_AUTH_SECRET) {
-      return c.json({ error: 'wrong_password', message: 'That password is not right.' }, 401)
+      return c.json({ error: 'wrong_password', message: say('gallery.error.password') }, 401)
     }
     const cookie = await unlockCookieValue(c.env.BETTER_AUTH_SECRET, share)
     c.header('Set-Cookie', cookieHeader(c.req.raw, unlockCookieName(share.id), cookie.value, cookie.maxAge))
@@ -126,7 +129,7 @@ galleryRoutes.post('/:token/unlock', async (c) => {
 galleryRoutes.post('/:token/visitor', async (c) => {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
-  if (gallery.share.proofing !== 1) return c.json({ error: 'forbidden', message: 'This gallery does not take favourites.' }, 403)
+  if (gallery.share.proofing !== 1) return c.json({ error: 'forbidden', message: say('gallery.api.noFavourites') }, 403)
   const limited = await consumeRateLimit(c, VISITOR_RULE)
   if (limited) return limited
   try {
@@ -145,8 +148,8 @@ galleryRoutes.post('/:token/visitor', async (c) => {
 async function pick(c: Context<DamEnv>, picked: boolean) {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
-  if (gallery.share.proofing !== 1) return c.json({ error: 'forbidden', message: 'This gallery does not take favourites.' }, 403)
-  if (!gallery.visitor) return c.json({ error: 'no_visitor', message: 'Tell us your name first.' }, 409)
+  if (gallery.share.proofing !== 1) return c.json({ error: 'forbidden', message: say('gallery.api.noFavourites') }, 403)
+  if (!gallery.visitor) return c.json({ error: 'no_visitor', message: say('gallery.api.nameFirst') }, 409)
   const assetId = c.req.param('assetId') ?? ''
   if (!(await inGallery(c.env.DB, gallery.share, assetId))) return c.json({ error: 'not_found' }, 404)
   await setPick(c.env.DB, gallery.share, gallery.visitor.id, assetId, picked)
@@ -160,7 +163,7 @@ galleryRoutes.delete('/:token/picks/:assetId', (c) => pick(c, false))
 galleryRoutes.post('/:token/submit', async (c) => {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
-  if (!gallery.visitor) return c.json({ error: 'no_visitor', message: 'Tell us your name first.' }, 409)
+  if (!gallery.visitor) return c.json({ error: 'no_visitor', message: say('gallery.api.nameFirst') }, 409)
   await submitPicks(c.env.DB, gallery.visitor.id)
   return c.json({ ok: true })
 })
@@ -191,7 +194,7 @@ galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
   if (gallery instanceof Response) return gallery
   const { assetId, size } = c.req.param()
   const share = gallery.share
-  if (!isDownloadSize(size) || !downloadSizes(share).includes(size)) return c.json({ error: 'forbidden', message: 'That size is not offered here.' }, 403)
+  if (!isDownloadSize(size) || !downloadSizes(share).includes(size)) return c.json({ error: 'forbidden', message: say('gallery.api.sizeNotOffered') }, 403)
   if (!(await inGallery(c.env.DB, share, assetId))) return c.json({ error: 'not_found' }, 404)
   const asset = await getAsset(c.env.DB, assetId)
   if (!asset) return c.json({ error: 'not_found' }, 404)
@@ -200,21 +203,21 @@ galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
   if (size === 'original') {
     const { results: nas } = await c.env.DB.prepare("SELECT id FROM storage_connections WHERE provider = 'nas'").all<{ id: string }>()
     const location = reachable(await getLocations(c.env.DB, assetId), new Set(nas.map((n) => n.id)))
-    if (!location) return c.json({ error: 'unavailable', message: 'The original of this photo is not available here. Ask the photographer for it.' }, 409)
+    if (!location) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
     try {
       const response = await originalResponse(c.env, c.req.raw, asset, location)
-      if (!response) return c.json({ error: 'unavailable', message: 'The original of this photo is not available here. Ask the photographer for it.' }, 409)
+      if (!response) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
       if (!c.req.header('Range')) await recordEvent(c.env.DB, share, { kind: 'download', visitorId: gallery.visitor?.id, assetId, size })
       return response
     } catch (error) {
-      if (error instanceof StorageError) return c.json({ error: 'unavailable', message: 'The original could not be fetched just now. Try again later.' }, 502)
+      if (error instanceof StorageError) return c.json({ error: 'unavailable', message: say('gallery.api.originalLater') }, 502)
       throw error
     }
   }
 
-  if (asset.mime_type.startsWith('video/')) return c.json({ error: 'forbidden', message: 'Videos can only be downloaded as originals.' }, 403)
+  if (asset.mime_type.startsWith('video/')) return c.json({ error: 'forbidden', message: say('gallery.api.videoOriginalOnly') }, 403)
   const image = await galleryImage(c.env, assetId, size, { watermark: share.watermark === 1, longEdge: JPEG_LONG_EDGE[size] })
-  if (!image) return c.json({ error: 'unavailable', message: 'This photo has no preview to download yet.' }, 409)
+  if (!image) return c.json({ error: 'unavailable', message: say('gallery.api.noPreview') }, 409)
   await recordEvent(c.env.DB, share, { kind: 'download', visitorId: gallery.visitor?.id, assetId, size })
   return new Response(image.body, {
     headers: {

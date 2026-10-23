@@ -4,12 +4,17 @@
  * The data comes from the same functions as /api/public/galleries, so the page and the API agree.
  */
 import { env } from 'cloudflare:workers'
-import { galleryJson, openGallery, recordEvent } from '@cf-dam/api'
+import { applyGalleryLanguage, galleryJson, openGallery, pseudoAllowed, recordEvent } from '@cf-dam/api'
+import { createFormat, getT } from '@cf-dam/i18n'
 import Base from '../../layouts/Base.astro'
 import ClientGallery from '../../components/ClientGallery.svelte'
+import LanguageSwitch from '../../components/LanguageSwitch.svelte'
 
 const token = Astro.params.token ?? ''
 const access = await openGallery(env, token, Astro.request)
+// The link's own language for visitors who haven't picked one (a signed-in client's choice is in their
+// language cookie, so it still wins).
+if (access.state !== 'gone') Astro.locals.lang = applyGalleryLanguage(Astro.request, access.share.language, env as { I18N_PSEUDO?: string })
 Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow')
 Astro.response.headers.set('Referrer-Policy', 'no-referrer')
 Astro.response.headers.set('Cache-Control', 'private, no-store')
@@ -21,23 +26,32 @@ if (access.state === 'open') {
 }
 if (access.state === 'gone') Astro.response.status = 404
 if (access.state === 'expired') Astro.response.status = 410
-const title = access.state === 'gone' ? 'Gallery not available' : access.share.title
-const expiredOn = access.state === 'expired' && access.share.expires_at ? new Date(access.share.expires_at).toLocaleDateString('en', { dateStyle: 'long' }) : null
+const t = getT(Astro.locals.lang)
+const title = access.state === 'gone' ? t('gallery.gone.pageTitle') : access.share.title
+// The last day it was open (expiry is the start of the next day).
+const expiredOn = access.state === 'expired' && access.share.expires_at ? createFormat(Astro.locals.lang).date(new Date(access.share.expires_at).getTime() - 1) : null
 ---
 <Base title={title} bare>
   {access.state === 'gone' || access.state === 'expired' ? (
     <main class="notice">
-      <h1>{access.state === 'gone' ? 'This gallery is no longer available' : 'This gallery has expired'}</h1>
+      <h1>{access.state === 'gone' ? t('gallery.gone.title') : t('gallery.expired.title')}</h1>
       <p class="muted">
-        {expiredOn ? `It was open until ${expiredOn}. ` : ''}If you still need these photos, ask the photographer who sent you the link.
+        {expiredOn ? `${t('gallery.expired.wasOpen', { date: expiredOn })} ` : ''}{t('gallery.gone.ask')}
       </p>
     </main>
   ) : (
     <ClientGallery client:load token={token} title={access.share.title} initial={initial} />
   )}
+  <div class="language"><LanguageSwitch client:load pseudo={pseudoAllowed(env as { I18N_PSEUDO?: string })} /></div>
 </Base>
 
 <style>
+  .language {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 5;
+  }
   .notice {
     min-height: 100vh;
     display: grid;

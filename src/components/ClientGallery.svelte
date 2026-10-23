@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import type { GalleryItem } from '@cf-dam/api'
+  import { format, t } from '@cf-dam/i18n/client'
+  import type { MessageKey } from '@cf-dam/i18n'
 
   type Size = 'small' | 'large' | 'original'
   interface GalleryData {
@@ -20,7 +22,7 @@
   let { token, title, initial }: Props = $props()
 
   const base = `/api/public/galleries/${token}`
-  const SIZE_LABELS: Record<Size, string> = { small: 'Small (1024 px)', large: 'Large (2048 px)', original: 'Original file' }
+  const SIZE_LABELS: Record<Size, MessageKey> = { small: 'gallery.size.small', large: 'gallery.size.large', original: 'gallery.size.original' }
 
   let data = $state<GalleryData | null>(initial)
   let password = $state('')
@@ -40,13 +42,14 @@
   const ratio = (i: GalleryItem) => (i.width && i.height ? Math.min(Math.max(i.width / i.height, 0.4), 3) : 1.5)
   const label = (i: GalleryItem) => i.title || i.filename || ''
   const sizesFor = (i: GalleryItem) => (data?.gallery.downloadSizes ?? []).filter((s) => (s === 'original' ? i.originalReachable : !i.video))
-  const expires = $derived(data?.gallery.expiresAt ? new Date(data.gallery.expiresAt).toLocaleDateString(undefined, { dateStyle: 'long' }) : null)
+  // The last day it's open (expiry is the start of the next day).
+  const expires = $derived(data?.gallery.expiresAt ? format().date(new Date(data.gallery.expiresAt).getTime() - 1) : null)
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await fetch(`${base}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } })
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { message?: string }
-      throw new Error(body.message ?? `Something went wrong (${response.status}).`)
+      throw new Error(body.message ?? t('common.error.generic', { status: String(response.status) }))
     }
     return (response.status === 204 ? undefined : await response.json()) as T
   }
@@ -64,7 +67,7 @@
       await request('/unlock', { method: 'POST', body: JSON.stringify({ password }) })
       await load()
     } catch (e) {
-      error = e instanceof Error ? e.message : 'That password is not right.'
+      error = e instanceof Error ? e.message : t('gallery.error.password')
     } finally {
       busy = false
     }
@@ -91,7 +94,7 @@
       if (picked) back.delete(item.id)
       else back.add(item.id)
       picks = back
-      note = e instanceof Error ? e.message : 'That favourite was not saved.'
+      note = e instanceof Error ? e.message : t('gallery.error.favourite')
     }
   }
 
@@ -110,7 +113,7 @@
       asking = null
       if (first) await toggle(first)
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not save your name.'
+      error = e instanceof Error ? e.message : t('gallery.error.name')
     } finally {
       busy = false
     }
@@ -126,9 +129,9 @@
     try {
       await request('/submit', { method: 'POST' })
       if (data?.visitor) data.visitor.submittedAt = new Date().toISOString()
-      note = 'Thank you. The photographer can see your favourites now.'
+      note = t('gallery.thanks')
     } catch (e) {
-      note = e instanceof Error ? e.message : 'Could not send your selection.'
+      note = e instanceof Error ? e.message : t('gallery.error.send')
     } finally {
       busy = false
     }
@@ -173,23 +176,23 @@
   <main class="lock">
     <form class="card stack" onsubmit={unlock}>
       <h1>{title}</h1>
-      <p class="muted">This gallery is private. Enter the password you were given.</p>
+      <p class="muted">{t('gallery.lock.lead')}</p>
       <div class="field">
-        <label for="gallery-password">Password</label>
+        <label for="gallery-password">{t('common.password')}</label>
         <input id="gallery-password" type="password" autocomplete="current-password" required bind:value={password} use:focus />
       </div>
       {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-      <button class="btn btn-primary" type="submit" disabled={busy}>Open the gallery</button>
+      <button class="btn btn-primary" type="submit" disabled={busy}>{t('gallery.lock.open')}</button>
     </form>
   </main>
 {:else}
   {#if data.member}
-    <nav class="member" aria-label="Your account">
-      <a href="/my-galleries">← Your galleries</a>
+    <nav class="member" aria-label={t('gallery.member.nav')}>
+      <a href="/my-galleries">{t('gallery.member.back')}</a>
       <span class="row">
-        <a href="/account">Account</a>
-        <a href="/help/for-clients">Help</a>
-        <button class="link" onclick={signOut}>Sign out</button>
+        <a href="/account">{t('common.account')}</a>
+        <a href="/help/for-clients">{t('common.help')}</a>
+        <button class="link" onclick={signOut}>{t('common.signOut')}</button>
       </span>
     </nav>
   {/if}
@@ -199,23 +202,24 @@
         <h1>{data.gallery.title}</h1>
         {#if data.gallery.message}<p class="message">{data.gallery.message}</p>{/if}
         <p class="muted small">
-          {data.items.length} {data.items.length === 1 ? 'photo' : 'photos'}{expires ? ` · open until ${expires}` : ''}
+          {t('common.photos', { count: data.items.length })}{expires ? ` · ${t('gallery.openUntil', { date: expires })}` : ''}
         </p>
       </div>
       {#if data.gallery.proofing}
         <div class="proofing">
           {#if data.visitor}
-            <span class="muted small">Picking as <strong>{data.visitor.name}</strong>{#if !data.member} · <button class="link" onclick={() => (asking = '')}>not you?</button>{/if}</span>
+            {@const [before, after = ''] = t('gallery.pickingAs', { name: '\u0000' }).split('\u0000')}
+            <span class="muted small">{before}<strong>{data.visitor.name}</strong>{after}{#if !data.member} · <button class="link" onclick={() => (asking = '')}>{t('gallery.notYou')}</button>{/if}</span>
           {:else}
-            <span class="muted small">Tap ♥ on the photos you like.</span>
+            <span class="muted small">{t('gallery.tapHeart')}</span>
           {/if}
           <div class="row">
             <button class="btn btn-sm" class:on={onlyPicks} onclick={() => ((onlyPicks = !onlyPicks), (open = null))} aria-pressed={onlyPicks}>
-              ♥ Favourites ({picks.size})
+              {t('gallery.favourites', { count: picks.size })}
             </button>
             {#if data.visitor && picks.size > 0}
               <button class="btn btn-sm btn-primary" onclick={submit} disabled={busy || Boolean(data.visitor.submittedAt)}>
-                {data.visitor.submittedAt ? 'Sent to the photographer' : "I'm done"}
+                {data.visitor.submittedAt ? t('gallery.sent') : t('gallery.done')}
               </button>
             {/if}
           </div>
@@ -225,58 +229,58 @@
     {#if note}<p class="note" role="status">{note}</p>{/if}
 
     {#if shown.length === 0}
-      <p class="muted">{onlyPicks ? 'No favourites yet.' : 'There are no photos in this gallery yet.'}</p>
+      <p class="muted">{onlyPicks ? t('gallery.noFavourites') : t('gallery.empty')}</p>
     {:else}
       <div class="justified">
         {#each shown as item, i (item.id)}
           <div class="tile" style={`--ar:${ratio(item).toFixed(4)}`}>
             <i class="spacer" style={`padding-bottom:${(100 / ratio(item)).toFixed(4)}%`}></i>
-            <button class="open" onclick={() => (open = i)} aria-label={`Open ${label(item) || `photo ${i + 1}`}`}>
+            <button class="open" onclick={() => (open = i)} aria-label={t('gallery.openPhoto', { name: label(item) || t('gallery.photoNumber', { number: i + 1 }) })}>
               {#if item.hasThumb}
                 <img src={image(item, 'thumb')} alt={item.alt ?? label(item)} loading="lazy" decoding="async" draggable="false" oncontextmenu={(e) => e.preventDefault()} />
               {:else}
-                <span class="placeholder">No preview yet</span>
+                <span class="placeholder">{t('gallery.noPreview')}</span>
               {/if}
-              {#if item.video}<span class="video" aria-label="Video">▶</span>{/if}
+              {#if item.video}<span class="video" aria-label={t('gallery.video')}>▶</span>{/if}
             </button>
             {#if data.gallery.proofing}
-              <button class="heart" class:picked={picks.has(item.id)} onclick={() => toggle(item)} aria-pressed={picks.has(item.id)} aria-label={picks.has(item.id) ? 'Remove from favourites' : 'Add to favourites'}>♥</button>
+              <button class="heart" class:picked={picks.has(item.id)} onclick={() => toggle(item)} aria-pressed={picks.has(item.id)} aria-label={picks.has(item.id) ? t('gallery.removeFavourite') : t('gallery.addFavourite')}>♥</button>
             {/if}
             {#if data.gallery.showFilenames && item.filename}<span class="name">{item.filename}</span>{/if}
           </div>
         {/each}
       </div>
     {/if}
-    <footer class="muted small">Shared with cf-dam</footer>
+    <footer class="muted small">{t('gallery.footer')}</footer>
   </main>
 
   {#if current}
-    <div class="viewer" role="dialog" aria-modal="true" aria-label={label(current) || 'Photo'} ontouchstart={touchStart} ontouchend={touchEnd}>
+    <div class="viewer" role="dialog" aria-modal="true" aria-label={label(current) || t('gallery.photo')} ontouchstart={touchStart} ontouchend={touchEnd}>
       <div class="bar">
         <span class="small">{open! + 1} / {shown.length}{label(current) ? ` · ${label(current)}` : ''}</span>
         <div class="row">
           {#if data.gallery.proofing}
             <button class="btn btn-sm" class:on={picks.has(current.id)} onclick={() => toggle(current)} aria-pressed={picks.has(current.id)}>
-              ♥ {picks.has(current.id) ? 'Favourite' : 'Add to favourites'}
+              ♥ {picks.has(current.id) ? t('gallery.isFavourite') : t('gallery.addFavourite')}
             </button>
           {/if}
           {#each sizesFor(current) as size (size)}
-            <a class="btn btn-sm" href={`${base}/assets/${current.id}/download/${size}`} download>⤓ {SIZE_LABELS[size]}</a>
+            <a class="btn btn-sm" href={`${base}/assets/${current.id}/download/${size}`} download>⤓ {t(SIZE_LABELS[size])}</a>
           {/each}
           {#if data.gallery.downloadSizes.includes('original') && !current.originalReachable}
-            <span class="muted small">Original: ask the photographer</span>
+            <span class="muted small">{t('gallery.originalAsk')}</span>
           {/if}
-          <button class="btn btn-sm" onclick={() => (open = null)} aria-label="Close">✕</button>
+          <button class="btn btn-sm" onclick={() => (open = null)} aria-label={t('common.close')}>✕</button>
         </div>
       </div>
       <div class="stage">
-        <button class="nav prev" onclick={() => step(-1)} aria-label="Previous photo">‹</button>
+        <button class="nav prev" onclick={() => step(-1)} aria-label={t('gallery.previous')}>‹</button>
         {#if current.hasPreview}
           <img src={image(current, 'preview')} alt={current.alt ?? label(current)} draggable="false" oncontextmenu={(e) => e.preventDefault()} />
         {:else}
-          <span class="placeholder">No preview yet</span>
+          <span class="placeholder">{t('gallery.noPreview')}</span>
         {/if}
-        <button class="nav next" onclick={() => step(1)} aria-label="Next photo">›</button>
+        <button class="nav next" onclick={() => step(1)} aria-label={t('gallery.next')}>›</button>
       </div>
       {#if current.caption}<p class="caption">{current.caption}</p>{/if}
     </div>
@@ -285,20 +289,20 @@
   {#if asking !== null}
     <div class="viewer modal" role="dialog" aria-modal="true" aria-labelledby="who-title">
       <form class="card stack who" onsubmit={introduce}>
-        <h2 id="who-title">Who's picking?</h2>
-        <p class="muted small">Your name goes with your favourites, so the photographer knows whose they are.</p>
+        <h2 id="who-title">{t('gallery.who.title')}</h2>
+        <p class="muted small">{t('gallery.who.lead')}</p>
         <div class="field">
-          <label for="who-name">Your name</label>
+          <label for="who-name">{t('gallery.who.name')}</label>
           <input id="who-name" type="text" required maxlength="100" bind:value={name} use:focus />
         </div>
         <div class="field">
-          <label for="who-email">Email (optional)</label>
+          <label for="who-email">{t('gallery.who.email')}</label>
           <input id="who-email" type="email" maxlength="254" bind:value={email} />
         </div>
         {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
         <div class="row">
-          <button class="btn btn-primary" type="submit" disabled={busy}>Start picking</button>
-          <button class="btn" type="button" onclick={() => (asking = null)}>Cancel</button>
+          <button class="btn btn-primary" type="submit" disabled={busy}>{t('gallery.who.start')}</button>
+          <button class="btn" type="button" onclick={() => (asking = null)}>{t('common.cancel')}</button>
         </div>
       </form>
     </div>

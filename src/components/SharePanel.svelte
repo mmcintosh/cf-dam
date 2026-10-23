@@ -3,6 +3,7 @@
   import type { ShareJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
   import ShareClients from './ShareClients.svelte'
+  import { LANGUAGES } from '@cf-dam/i18n/languages'
 
   interface Props {
     albumId: string
@@ -30,8 +31,10 @@
     watermark: boolean
     proofing: boolean
     showFilenames: boolean
+    /** '' for each visitor's own language. */
+    language: string
   }
-  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true })
+  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true, language: '' })
 
   let shares = $state<ShareJson[]>([])
   let editing = $state<string | null>(null)
@@ -71,6 +74,7 @@
       watermark: share.watermark,
       proofing: share.proofing,
       showFilenames: share.showFilenames,
+      language: share.language ?? '',
     }
   }
 
@@ -90,6 +94,7 @@
         watermark: draft.watermark,
         proofing: draft.proofing,
         showFilenames: draft.showFilenames,
+        language: draft.language || null,
       }
       if (draft.password) body.password = draft.password
       else if (draft.removePassword) body.password = null
@@ -143,6 +148,7 @@
               {#if share.status === 'expired'}<span class="badge">Expired {fmt(share.expiresAt)}</span>{:else if share.expiresAt}<span class="badge">Until {fmt(new Date(new Date(share.expiresAt).getTime() - 1).toISOString())}</span>{/if}
               {#if share.hasPassword}<span class="badge">Password</span>{/if}
               {#if share.watermark}<span class="badge">Watermark</span>{/if}
+              {#if share.language}<span class="badge">In {LANGUAGES.find((l) => l.code === share.language)?.name}</span>{/if}
               {#if share.downloadSizes.length > 0}<span class="badge">Downloads: {share.downloadSizes.join(', ')}</span>{/if}
             </span>
             <span class="muted small">
@@ -193,6 +199,21 @@
         <div class="field">
           <label for="share-expires">Open until (optional)</label>
           <input id="share-expires" type="date" bind:value={draft.expires} />
+        </div>
+        <div class="field">
+          <label for="share-language">Gallery language</label>
+          <select id="share-language" bind:value={draft.language}>
+            <option value="">Each visitor's own (their browser)</option>
+            {#each LANGUAGES as language (language.code)}<option value={language.code}>{language.name}</option>{/each}
+          </select>
+          {#if editing !== 'new'}
+            {@const share = shares.find((s) => s.id === editing)}
+            {#if share}
+              <span class="muted small">Preview:
+                {#each LANGUAGES as language, i (language.code)}{i ? ' · ' : ''}<a href={`/s/${share.token}?lang=${language.code}`} target="_blank" rel="noopener">{language.name}</a>{/each}
+              </span>
+            {/if}
+          {/if}
         </div>
       </div>
       <fieldset>

@@ -4,7 +4,7 @@
  * request's language costs no database read. A signed-in person's own choice is copied into the
  * `cfdam_lang` cookie when they save it, and pages put it right if the cookie is missing (src/middleware.ts).
  */
-import { asLanguage, LANGUAGE_COOKIE, resolveLanguage, type Language, type UiLanguage } from '@cf-dam/i18n'
+import { asLanguage, currentLanguage, getT, setLanguage, LANGUAGE_COOKIE, resolveLanguage, type Language, type MessageKey, type Params, type UiLanguage } from '@cf-dam/i18n'
 import type { DamBindings } from '../env'
 import { nowIso } from './time'
 
@@ -72,4 +72,20 @@ export function languageCookie(request: Request, lang: UiLanguage | 'auto'): str
   return lang === 'auto'
     ? `${LANGUAGE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
     : `${LANGUAGE_COOKIE}=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
+}
+
+/** A message for the person making this request, in their language (src/fetch.ts sets it for the request). */
+export const say = (key: MessageKey, params?: Params): string => getT(currentLanguage())(key, params)
+
+/**
+ * A client gallery in its link's fixed language, for visitors who haven't chosen one themselves (no
+ * language cookie). `?lang=` previews it in any language (the photographer's "Preview in…"), without
+ * remembering it. Returns the language now in force.
+ */
+export function applyGalleryLanguage(request: Request, fixed: string | null, env: Pick<DamBindings, 'I18N_PSEUDO'>): UiLanguage {
+  const preview = asLanguage(new URL(request.url).searchParams.get('lang'), { pseudo: pseudoAllowed(env) })
+  const gallery = readCookie(request, LANGUAGE_COOKIE) ? null : asLanguage(fixed)
+  const lang = preview ?? gallery
+  if (lang) setLanguage(lang)
+  return currentLanguage()
 }

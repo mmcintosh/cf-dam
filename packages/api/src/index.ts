@@ -20,6 +20,8 @@ import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { galleryRoutes } from './routes/gallery'
 import { inviteRoutes } from './routes/invites'
+import { runInLanguage } from '@cf-dam/i18n'
+import { requestLanguage } from './lib/language'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
 import { shareRoutes } from './routes/shares'
@@ -36,7 +38,7 @@ export { runSweep, type SweepResult } from './catalog/sweeper'
 export { alertCount } from './catalog/alerts'
 export { currentRestore as currentRestoreView } from './catalog/restore'
 export { securityHeaders } from './lib/security-headers'
-export { languageCookie, readCookie, requestLanguage, setSiteLanguage, siteLanguage, pseudoAllowed, SITE_LANGUAGE_KEY, TIME_ZONE_COOKIE } from './lib/language'
+export { applyGalleryLanguage, languageCookie, readCookie, say, requestLanguage, setSiteLanguage, siteLanguage, pseudoAllowed, SITE_LANGUAGE_KEY, TIME_ZONE_COOKIE } from './lib/language'
 export { wellKnownRoutes } from './routes/well-known'
 
 export const API_VERSION = '0.1.0'
@@ -48,6 +50,10 @@ export function createDamApi() {
   // Cookie-authenticated form posts from another origin are refused. JSON requests can't be sent
   // cross-origin without a CORS preflight, which this API never grants.
   api.use('*', csrf())
+
+  // Messages in the caller's language (packages/i18n). The site's Worker entry does the same for pages;
+  // here too so the API on its own (tests, other mounts) speaks it.
+  api.use('*', async (c, next) => runInLanguage(await requestLanguage(c.env, c.req.raw), next))
 
   api.get('/health', (c) =>
     c.json({
