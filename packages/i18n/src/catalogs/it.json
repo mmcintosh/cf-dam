@@ -1,0 +1,10 @@
+{
+  "common.cancel": "Annulla",
+  "common.close": "Chiudi",
+  "common.save": "Salva",
+  "common.photos.one": "{count} foto",
+  "common.photos.other": "{count} foto",
+  "common.photos.many": "{count} di foto",
+  "language.label": "Lingua",
+  "language.browser": "Come il mio browser"
+}
