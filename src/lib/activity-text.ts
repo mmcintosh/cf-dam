@@ -55,6 +55,16 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const num = (v: unknown) => (typeof v === 'number' ? format().number(v) : '?')
 const roles = (v: unknown[]) => format().list(v.map((r) => (ROLES.includes(String(r)) ? t(`role.${r}` as MessageKey) : String(r))))
 
+/** An alert's sentence as stored with it (packages/api/src/catalog/alerts.ts), in the reader's language. */
+function alertText(v: unknown): string {
+  const text = v as { key?: string; params?: Record<string, string | number> } | null
+  if (typeof text?.key !== 'string') return ''
+  const stage = text.params?.stage
+  const params = typeof stage === 'string' ? { ...text.params, stage: t(`alert.stage.${stage}` as MessageKey) } : text.params
+  const sentence = t(text.key as MessageKey, params)
+  return sentence === text.key ? '' : sentence.replace(`alert.stage.${String(stage)}`, String(stage))
+}
+
 export function describeActivity(e: ActivityEntry): string {
   const who = nameOf(e.actor)
   // Done to an account: the person, or, once deleted, the email the entry kept.
@@ -180,8 +190,10 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.previewsCheckStarted', { who })
     case 'previews.checked':
       return t('act.previewsChecked', { checked: num(d.checked), missing: num(d.missing) })
-    case 'alert.dismissed':
-      return str(d.message) ? t('act.alertDismissedWhy', { who, message: str(d.message) }) : t('act.alertDismissed', { who })
+    case 'alert.dismissed': {
+      const message = alertText(d.text) || str(d.message)
+      return message ? t('act.alertDismissedWhy', { who, message }) : t('act.alertDismissed', { who })
+    }
   }
   if (e.action.startsWith('asset.bulk_')) {
     const kind = e.action.slice('asset.bulk_'.length)

@@ -10,6 +10,7 @@
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { getT, type MessageKey, type Params, type Translate } from '@cf-dam/i18n'
 import { parseConfig } from './backups'
 
 /** How often the sweep looks for problems. */
@@ -24,12 +25,38 @@ export const SWEEP_RECOVERED_MS = 15 * 60_000
 export const SWEEP_STALLED_MS = 20 * 60_000
 const CHECKED_KEY = 'alerts.checked_at'
 
+/** A sentence to show in the reader's language: a translation key and its values. */
+export interface AlertText {
+  key: MessageKey
+  params?: Params
+}
+
 export interface Finding {
   key: string
   kind: string
-  message: string
+  text: AlertText
   link: string | null
 }
+
+/** The sentence in one language; a sweep stage is named in that language too. */
+export function alertSentence(text: AlertText, t: Translate): string {
+  const stage = text.params?.stage
+  const params = typeof stage === 'string' && SWEEP_STAGES.includes(stage) ? { ...text.params, stage: t(`alert.stage.${stage}` as MessageKey) } : text.params
+  return t(text.key, params)
+}
+
+/** The English sentence, kept in `message` for older readers and the activity log. */
+export const alertMessage = (text: AlertText) => alertSentence(text, getT('en')).slice(0, 500)
+
+/** A stored alert in the reader's language: its sentence if it has one this version knows, else as stored. */
+export function readAlert(stored: { message: string; text: string | null }, t: Translate): string {
+  const text = json<AlertText | null>(stored.text, null)
+  if (!text?.key) return stored.message
+  const sentence = alertSentence(text, t)
+  return sentence === text.key ? stored.message : sentence
+}
+/** Error text from elsewhere, kept short enough for the sentence around it. */
+const clip = (s: string) => s.slice(0, 400)
 
 interface SourceRow {
   id: string
@@ -54,8 +81,6 @@ const json = <T>(text: string | null | undefined, fallback: T): T => {
     return fallback
   }
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en')} ${n === 1 ? one : many}`
 
 /** What's wrong now, from what the catalog holds. */
 export async function findProblems(db: D1Database, now = new Date()): Promise<{ findings: Finding[]; open: OpenRow[] }> {
@@ -83,9 +108,7 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
       findings.push({
         key: `agent.offline:${s.id}`,
         kind: 'agent.offline',
-        message: s.last_seen_at
-          ? `“${s.name}” hasn’t checked in for over ${desktop ? 'a day' : 'half an hour'}. Is the ${desktop ? 'computer on, and the helper running' : 'agent running, and the NAS online'}?`
-          : `“${s.name}” was connected but has never checked in.`,
+        text: { key: s.last_seen_at ? (desktop ? 'alert.offlineDesktop' : 'alert.offlineServer') : 'alert.neverCheckedIn', params: { name: s.name } },
         link: '/sources',
       })
       // Whatever it said last is out of date.
@@ -93,38 +116,38 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     }
     const status = json<{ denied?: string[]; archive?: { lastError?: string | null } }>(s.status, {})
     if (status.denied?.length) {
-      findings.push({ key: `agent.denied:${s.id}`, kind: 'agent.denied', message: `“${s.name}” isn’t allowed to read ${status.denied[0]}${status.denied.length > 1 ? ` and ${plural(status.denied.length - 1, 'other folder')}` : ''}.`, link: '/sources' })
+      findings.push({ key: `agent.denied:${s.id}`, kind: 'agent.denied', text: status.denied.length > 1 ? { key: 'alert.deniedMore', params: { name: s.name, folder: status.denied[0]!, count: status.denied.length - 1 } } : { key: 'alert.denied', params: { name: s.name, folder: status.denied[0]! } }, link: '/sources' })
     }
     const archiving = json<{ connectionId?: string | null }>(s.archive, {}).connectionId
     if (archiving && status.archive?.lastError) {
-      findings.push({ key: `agent.archive:${s.id}`, kind: 'agent.archive', message: `Archiving from “${s.name}” failed: ${status.archive.lastError}`.slice(0, 500), link: '/sources' })
+      findings.push({ key: `agent.archive:${s.id}`, kind: 'agent.archive', text: { key: 'alert.archiveFailed', params: { name: s.name, error: clip(status.archive.lastError) } }, link: '/sources' })
     }
   }
 
   const counts = new Map((checks!.results as { result: string; n: number }[]).map((r) => [r.result, r.n]))
   const gone = (counts.get('missing') ?? 0) + (counts.get('changed') ?? 0)
   if (gone > 0) {
-    findings.push({ key: 'storage.problems', kind: 'storage.problems', message: `${plural(gone, 'original')} ${gone === 1 ? 'is' : 'are'} missing or changed in storage.`, link: '/settings/storage' })
+    findings.push({ key: 'storage.problems', kind: 'storage.problems', text: { key: 'alert.storageProblems', params: { count: gone } }, link: '/settings/storage' })
   }
   const unreadable = counts.get('unreadable') ?? 0
   if (unreadable > 0) {
-    findings.push({ key: 'storage.unreadable', kind: 'storage.unreadable', message: `${plural(unreadable, 'original')} couldn’t be checked: the store didn’t answer, or refused the credentials.`, link: '/settings/storage' })
+    findings.push({ key: 'storage.unreadable', kind: 'storage.unreadable', text: { key: 'alert.storageUnreadable', params: { count: unreadable } }, link: '/settings/storage' })
   }
 
   const b = backup!.results[0] as { config: string | null; last_done: string | null; last_status: string | null; last_error: string | null }
   if (parseConfig(b.config).connectionId) {
     if (b.last_status === 'failed') {
-      findings.push({ key: 'backup.failed', kind: 'backup.failed', message: `The last catalog backup failed${b.last_error ? `: ${b.last_error}` : '.'}`.slice(0, 500), link: '/settings/storage' })
+      findings.push({ key: 'backup.failed', kind: 'backup.failed', text: b.last_error ? { key: 'alert.backupFailedWhy', params: { error: clip(b.last_error) } } : { key: 'alert.backupFailed' }, link: '/settings/storage' })
     }
     const since = b.last_done ?? (install!.results[0] as { at: string | null }).at
     if (since && now.getTime() - Date.parse(since) > BACKUP_OVERDUE_MS) {
-      findings.push({ key: 'backup.overdue', kind: 'backup.overdue', message: b.last_done ? 'No catalog backup has finished in over two days.' : 'No catalog backup has finished yet.', link: '/settings/storage' })
+      findings.push({ key: 'backup.overdue', kind: 'backup.overdue', text: { key: b.last_done ? 'alert.backupOverdue' : 'alert.backupNever' }, link: '/settings/storage' })
     }
   }
 
   const noPreview = (previews!.results[0] as { n: number }).n
   if (noPreview > 0) {
-    findings.push({ key: 'previews.stuck', kind: 'previews.stuck', message: `${plural(noPreview, 'photo')} ${noPreview === 1 ? 'has' : 'have'} no preview, and cf-dam can’t make ${noPreview === 1 ? 'one' : 'them'} yet.`, link: '/settings/storage' })
+    findings.push({ key: 'previews.stuck', kind: 'previews.stuck', text: { key: 'alert.previewsStuck', params: { count: noPreview } }, link: '/settings/storage' })
   }
 
   return { findings, open: open!.results as unknown as OpenRow[] }
@@ -133,10 +156,10 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
 const openStatement = (db: D1Database, f: Finding, at: string) =>
   db
     .prepare(
-      `INSERT INTO alerts (id, key, kind, message, link, opened_at, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (key) WHERE resolved_at IS NULL DO UPDATE SET message = excluded.message, seen_at = excluded.seen_at`,
+      `INSERT INTO alerts (id, key, kind, message, text, link, opened_at, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (key) WHERE resolved_at IS NULL DO UPDATE SET message = excluded.message, text = excluded.text, seen_at = excluded.seen_at`,
     )
-    .bind(randomId(), f.key, f.kind, f.message, f.link, at, at)
+    .bind(randomId(), f.key, f.kind, alertMessage(f.text), JSON.stringify(f.text), f.link, at, at)
 
 /** Open alerts for new problems, update those still there, resolve those gone. Two round trips. */
 export async function checkAlerts(env: DamBindings, now = new Date()): Promise<{ opened: number; resolved: number }> {
@@ -168,23 +191,13 @@ export const alertsDue = (now = new Date()) => now.getUTCMinutes() % ALERT_EVERY
 /** A stage of the sweep failed: open (or keep open) its alert. Never throws. */
 export async function noteSweepFailure(db: D1Database, stage: string, error: unknown): Promise<void> {
   const reason = error instanceof Error ? error.message : String(error)
-  await openStatement(db, { key: `sweep:${stage}`, kind: 'sweep.failed', message: `Background work (${SWEEP_STAGE_NAMES[stage] ?? stage}) is failing: ${reason}`.slice(0, 500), link: null }, nowIso())
+  await openStatement(db, { key: `sweep:${stage}`, kind: 'sweep.failed', text: { key: 'alert.sweepFailed', params: { stage, reason: clip(reason) } }, link: null }, nowIso())
     .run()
     .catch((e) => console.warn('[alerts] could not record a sweep failure', e))
 }
 
-const SWEEP_STAGE_NAMES: Record<string, string> = {
-  recover: 'finishing interrupted photos',
-  archive: 'tidying archive uploads',
-  restores: 'restores from Glacier',
-  gallery: 'gallery clean-up',
-  checks: 'storage checks',
-  backup: 'catalog backups',
-  stats: 'archive totals',
-  previews: 'making missing previews',
-  meaning: 'search by meaning',
-  alerts: 'looking for problems',
-}
+/** A sweep stage's name, for "Background work (…) is failing". */
+export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'alerts']
 
 /** When the sweep last ran, if that's long enough ago to mean it has stopped. */
 export async function sweepStalledSince(db: D1Database, now = new Date()): Promise<string | null> {

@@ -5,7 +5,8 @@
  */
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { sweepStalledSince } from '../catalog/alerts'
+import { getT, currentLanguage } from '@cf-dam/i18n'
+import { readAlert, sweepStalledSince } from '../catalog/alerts'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { nowIso } from '../lib/time'
@@ -18,6 +19,7 @@ interface AlertRow {
   id: string
   kind: string
   message: string
+  text: string | null
   link: string | null
   opened_at: string
   seen_at: string
@@ -29,7 +31,7 @@ interface AlertRow {
 const toAlert = (r: AlertRow) => ({
   id: r.id,
   kind: r.kind,
-  message: r.message,
+  message: readAlert(r, getT(currentLanguage())),
   link: r.link,
   openedAt: r.opened_at,
   seenAt: r.seen_at,
@@ -44,7 +46,7 @@ alertRoutes.use('*', requirePermission('alerts:read'))
 
 alertRoutes.get('/', async (c) => {
   const db = c.env.DB
-  const select = `SELECT a.id, a.kind, a.message, a.link, a.opened_at, a.seen_at, a.dismissed_at, COALESCE(u.name, u.email) AS dismissed_by_name, a.resolved_at
+  const select = `SELECT a.id, a.kind, a.message, a.text, a.link, a.opened_at, a.seen_at, a.dismissed_at, COALESCE(u.name, u.email) AS dismissed_by_name, a.resolved_at
                   FROM alerts a LEFT JOIN users u ON u.id = a.dismissed_by`
   const [open, resolved] = await db.batch([
     db.prepare(`${select} WHERE a.resolved_at IS NULL ORDER BY a.dismissed_at IS NOT NULL, a.opened_at DESC`),
@@ -59,11 +61,11 @@ alertRoutes.get('/', async (c) => {
 
 alertRoutes.post('/:id/dismiss', async (c) => {
   const principal = c.get('principal')!
-  const row = await c.env.DB.prepare('UPDATE alerts SET dismissed_at = ?, dismissed_by = ? WHERE id = ? AND resolved_at IS NULL AND dismissed_at IS NULL RETURNING kind, message')
+  const row = await c.env.DB.prepare('UPDATE alerts SET dismissed_at = ?, dismissed_by = ? WHERE id = ? AND resolved_at IS NULL AND dismissed_at IS NULL RETURNING kind, message, text')
     .bind(nowIso(), principal.userId, c.req.param('id'))
-    .first<{ kind: string; message: string }>()
+    .first<{ kind: string; message: string; text: string | null }>()
   if (!row) return c.json({ error: 'not_found' }, 404)
-  await logActivity(c.env.DB, { userId: principal.userId, action: 'alert.dismissed', targetType: 'alert', targetId: c.req.param('id'), details: { kind: row.kind, message: row.message } })
+  await logActivity(c.env.DB, { userId: principal.userId, action: 'alert.dismissed', targetType: 'alert', targetId: c.req.param('id'), details: { kind: row.kind, message: row.message, ...(row.text ? { text: JSON.parse(row.text) } : {}) } })
   return c.body(null, 204)
 })
 

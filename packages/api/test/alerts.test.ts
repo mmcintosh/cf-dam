@@ -137,6 +137,9 @@ describe('alerts', () => {
       await noteSweepFailure(h.env.DB, 'backup', new Error('D1 is still down'))
       const { open } = await list()
       expect(open.map((a) => a.message)).toEqual(['Background work (catalog backups) is failing: D1 is still down'])
+      // Each reader sees it in their own language, the stage's name too.
+      const german = (await (await h.fetch('/api/alerts', { cookie: `${admin}; cfdam_lang=de` })).json()) as { open: AlertJson[] }
+      expect(german.open.map((a) => a.message)).toEqual(['Hintergrundarbeit (Katalogsicherungen) schlägt fehl: D1 is still down'])
       expect(open[0]!.openedAt).toBe(NOW.toISOString())
       await checkAlerts(h.env, new Date(NOW.getTime() + 15 * MIN))
       expect(await kinds()).toEqual(['sweep.failed'])

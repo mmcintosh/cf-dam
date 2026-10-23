@@ -287,6 +287,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.bulk.changed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.bulk.delete": {
     "es": "machine",
     "de": "machine",
@@ -306,12 +312,6 @@
     "it": "machine"
   },
   "act.bulk.label": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
-  },
-  "act.bulk.changed": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -1208,6 +1208,194 @@
     "it": "machine"
   },
   "albums.title": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.archiveFailed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.backupFailed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.backupFailedWhy": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.backupNever": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.backupOverdue": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.denied": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.deniedMore.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.deniedMore.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.deniedMore.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.neverCheckedIn": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.offlineDesktop": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.offlineServer": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.previewsStuck.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.previewsStuck.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.previewsStuck.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.alerts": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.archive": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.backup": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.checks": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.gallery": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.meaning": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.previews": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.recover": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.restores": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.stats": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageProblems.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageProblems.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageProblems.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageUnreadable.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageUnreadable.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.storageUnreadable.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.sweepFailed": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
