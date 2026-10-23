@@ -69,6 +69,23 @@ After the next deploy, the background work turns each photo's words (title, capt
 place, what the AI saw) into vectors with Workers AI, and the library offers "Search by meaning"
 and each photo "More like this". Without the index both are simply absent.
 
+### A staging copy (optional)
+
+A second, separate cf-dam in the same Cloudflare account, for trying changes before they go live. It has
+its own Worker (`cf-dam-staging`), database, bucket, KV, queue and Vectorize index, made by its first deploy
+(the index once, by hand); it never sees the real archive.
+
+```sh
+npx wrangler vectorize create cf-dam-staging-meaning --dimensions=1024 --metric=cosine   # once
+npm run deploy:staging
+npx wrangler secret put BETTER_AUTH_SECRET --name cf-dam-staging                          # once
+npx wrangler secret put SETUP_TOKEN --name cf-dam-staging                                 # once, then /setup
+```
+
+Every deploy checks it is going where you meant (`scripts/deploy-target.mjs`): a staging build won't deploy
+as production, and a production build won't touch a staging resource. Keep real photos, production backups,
+real storage connections and NAS helpers off staging.
+
 ## License
 
 [Apache-2.0](LICENSE). cf-dam includes code derived from the Infowall CMS and SonicJS; see

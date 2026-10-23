@@ -24,5 +24,24 @@
   // Secrets, set with `wrangler secret put` (the Deploy button prompts for them from .dev.vars.example):
   //   BETTER_AUTH_SECRET  signs sessions; 32+ random characters
   //   SETUP_TOKEN         needed once, to create the first administrator
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // A second, separate copy for trying changes before they go live: `npm run deploy:staging`. Bindings
+  // aren't inherited, so each is named again, with its own resources: staging never sees the real archive.
+  // Its search-by-meaning index is cf-dam-staging-meaning (scripts/optional-bindings.mjs).
+  "env": {
+    "staging": {
+      "name": "cf-dam-staging",
+      "d1_databases": [{ "binding": "DB", "database_name": "cf-dam-staging" }],
+      "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "cf-dam-staging-media" }],
+      "kv_namespaces": [{ "binding": "CACHE_KV" }],
+      "images": { "binding": "IMAGES" },
+      "ai": { "binding": "AI", "remote": true },
+      "triggers": { "crons": ["* * * * *"] },
+      "queues": {
+        "producers": [{ "binding": "WORK", "queue": "cf-dam-staging-work" }],
+        "consumers": [{ "queue": "cf-dam-staging-work", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 1, "max_concurrency": 4 }]
+      }
+    }
+  }
 }
