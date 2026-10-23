@@ -32,6 +32,7 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   account: 'password hashes',
   session: 'signed-in sessions',
   verification: 'single-use codes and links',
+  client_invites: 'single-use invite links',
   two_factor: 'sign-in code secrets',
   api_keys: 'API key hashes',
   signing_keys: 'private keys for keyless AWS (new ones are made)',

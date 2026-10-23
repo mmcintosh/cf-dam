@@ -25,7 +25,7 @@ describe('migrate', () => {
     h = await createHarness() // the harness has already migrated
     expect(await migrate(h.env.DB)).toEqual([])
     const roles = await h.env.DB.prepare('SELECT name FROM roles ORDER BY name').all<{ name: string }>()
-    expect(roles.results.map((r) => r.name)).toEqual(['admin', 'editor', 'viewer'])
+    expect(roles.results.map((r) => r.name)).toEqual(['admin', 'client', 'editor', 'viewer'])
   })
 
   it('seeds the admin role with every permission except agent:sync, which no role holds', async () => {

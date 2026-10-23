@@ -64,7 +64,7 @@ async function access(c: Context<DamEnv>): Promise<Open | Response> {
 }
 
 /** What the gallery page shows: the gallery's settings, its photos, and this visitor's picks. */
-export async function galleryJson(db: D1Database, share: ShareRow, visitor: VisitorRow | null) {
+export async function galleryJson(db: D1Database, share: ShareRow, visitor: VisitorRow | null, member: { name: string } | null = null) {
   const [items, picks, watermark] = await Promise.all([
     galleryItems(db, share),
     visitor ? visitorPicks(db, visitor.id) : Promise.resolve([]),
@@ -87,6 +87,8 @@ export async function galleryJson(db: D1Database, share: ShareRow, visitor: Visi
     },
     items,
     visitor: visitor ? { name: visitor.name, submittedAt: visitor.submitted_at } : null,
+    /** A client signed in to their account: picks are theirs, and there's a way back to their galleries. */
+    member: member ? { name: member.name } : null,
     picks,
   }
 }
@@ -95,7 +97,7 @@ galleryRoutes.get('/:token', async (c) => {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
   await recordEvent(c.env.DB, gallery.share, { kind: 'open', visitorId: gallery.visitor?.id })
-  return c.json(await galleryJson(c.env.DB, gallery.share, gallery.visitor))
+  return c.json(await galleryJson(c.env.DB, gallery.share, gallery.visitor, gallery.member))
 })
 
 galleryRoutes.post('/:token/unlock', async (c) => {

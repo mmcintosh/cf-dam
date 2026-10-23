@@ -19,6 +19,7 @@ import { backupRoutes } from './routes/backups'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { galleryRoutes } from './routes/gallery'
+import { inviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
 import { shareRoutes } from './routes/shares'
@@ -65,6 +66,8 @@ export function createDamApi() {
   api.route('/setup', setupRoutes)
   // Client galleries: no account, the link is the key (routes/gallery.ts).
   api.route('/public/galleries', galleryRoutes)
+  // A new client choosing their password from their invite link (routes/invites.ts).
+  api.route('/invites', inviteRoutes)
 
   api.use('*', authenticate())
   api.route('/me', meRoutes)
@@ -114,6 +117,7 @@ export { DEFAULT_PREFERENCES, getPreferences, preferenceAttributes, type Prefere
 export { handleWork, type WorkMessage } from './catalog/work'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
 export { galleryJson } from './routes/gallery'
+export { CLIENT_ROLE, clientGalleries, isClientOnly, readInvite, type ClientGalleryJson, type MemberJson } from './catalog/clients'
 export { getStats, type StatsSnapshot } from './catalog/stats'
 export { listShares, getShare, openGallery, recordEvent, shareVisitors, sharePicks, shareDownloads, DOWNLOAD_SIZES, type ShareJson, type VisitorJson, type GalleryItem, type DownloadSize } from './catalog/shares'
 export { getWatermark, WATERMARK_POSITIONS, type WatermarkSettings } from './catalog/watermark'

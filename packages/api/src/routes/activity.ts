@@ -14,7 +14,7 @@ export const ACTIVITY_KINDS: Readonly<Record<string, readonly string[]>> = {
   'sign-ins': ['auth'],
   accounts: ['account', 'user', 'policy', 'api_key', 'setup'],
   photos: ['asset', 'album', 'duplicates', 'keyword', 'storage', 'ai', 'previews'],
-  sharing: ['share', 'watermark'],
+  sharing: ['share', 'client', 'watermark'],
   agents: ['source'],
   backups: ['backup'],
   alerts: ['alert'],

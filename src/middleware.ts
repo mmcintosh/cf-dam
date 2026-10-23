@@ -5,12 +5,16 @@
  *  - Signed out → /login, remembering where they were headed.
  *  - Someone with setup to do (a temporary password, a second factor) → /account.
  *  - Some pages need a permission (PAGE_PERMISSIONS).
+ *  - A client (only the Client role) sees their galleries, Account and their help page, nothing else.
+ *  - An invite link (/invite/<token>) opens signed in or not; the page says what to do either way.
  */
 import { defineMiddleware } from 'astro:middleware'
 import { env } from 'cloudflare:workers'
-import { resolvePrincipal, setupNeeded } from '@cf-dam/api'
+import { clientGalleries, isClientOnly, resolvePrincipal, setupNeeded } from '@cf-dam/api'
 
 const SIGNED_OUT_PAGES = new Set(['/login'])
+/** All a client can open (client galleries themselves are under /s/, open to anyone with the link). */
+const CLIENT_PAGES = new Set(['/my-galleries', '/account', '/help/for-clients'])
 
 /** Pages that need more than being signed in. First matching prefix wins. */
 const PAGE_PERMISSIONS: [string, string][] = [
@@ -45,6 +49,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const principal = await resolvePrincipal(env, context.request)
   context.locals.principal = principal
 
+  if (pathname.startsWith('/invite/')) return next()
   if (!principal) {
     if (SIGNED_OUT_PAGES.has(pathname)) return next()
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)
@@ -52,6 +57,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (SIGNED_OUT_PAGES.has(pathname)) return context.redirect('/')
   // A temporary password to replace, or a second factor to set up: Account until it's done.
   if (principal.setup) return pathname === '/account' ? next() : context.redirect('/account')
+  if (isClientOnly(principal.roles)) {
+    if (CLIENT_PAGES.has(pathname)) return next()
+    // Straight into the gallery when there's just one open; otherwise the list.
+    if (pathname === '/') {
+      const open = (await clientGalleries(env.DB, principal.userId)).filter((g) => !g.expired)
+      if (open.length === 1) return context.redirect(`/s/${open[0]!.token}`)
+    }
+    return context.redirect('/my-galleries')
+  }
   const needed = PAGE_PERMISSIONS.find(([prefix]) => pathname.startsWith(prefix))?.[1]
   if (needed && !principal.permissions.has(needed)) {
     return new Response('Forbidden', { status: 403 })

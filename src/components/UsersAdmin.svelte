@@ -30,6 +30,11 @@
   let users = $state<User[]>([])
   let required = $state<Scope>('nobody')
   let roles = $state<Role[]>([])
+  /** Clients (only the Client role) are listed apart; they're invited from an album's sharing panel. */
+  const isClient = (user: User) => user.roles.length > 0 && user.roles.every((r) => r === 'client')
+  const team = $derived(users.filter((u) => !isClient(u)))
+  const clients = $derived(users.filter(isClient))
+  const teamRoles = $derived(roles.filter((r) => r.name !== 'client'))
   let showCreate = $state(false)
   let draft = $state({ name: '', email: '', password: '', role: 'viewer' })
   let error = $state('')
@@ -152,56 +157,12 @@
     'Password only'
 </script>
 
-<div class="stack">
-  <div class="card policy">
-    <div>
-      <strong>Two-factor sign-in</strong>
-      <p class="muted small">A code from an authenticator app, or a passkey. Required people without one are asked to set it up before anything else.</p>
-    </div>
-    <label class="row">
-      <span class="muted">Required for</span>
-      <select value={required} onchange={(e) => setRequired(e.currentTarget.value as Scope)}>
-        <option value="nobody">Nobody</option>
-        <option value="admins">Administrators</option>
-        <option value="everyone">Everyone</option>
-      </select>
-    </label>
-  </div>
-
-  <div class="row between">
-    <span class="muted">{users.length} {users.length === 1 ? 'person' : 'people'}</span>
-    <button class="btn btn-primary" onclick={() => (showCreate = !showCreate)}>{showCreate ? 'Cancel' : 'Add person'}</button>
-  </div>
-
-  {#if showCreate}
-    <form class="card stack" onsubmit={create}>
-      <div class="grid">
-        <div class="field"><label for="u-name">Name</label><input id="u-name" type="text" required bind:value={draft.name} /></div>
-        <div class="field"><label for="u-email">Email</label><input id="u-email" type="email" required bind:value={draft.email} /></div>
-        <div class="field">
-          <label for="u-password">Temporary password</label>
-          <input id="u-password" type="password" minlength="12" autocomplete="new-password" required bind:value={draft.password} />
-        </div>
-        <div class="field">
-          <label for="u-role">Role</label>
-          <select id="u-role" bind:value={draft.role}>
-            {#each roles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
-          </select>
-        </div>
-      </div>
-      <p class="muted small">They'll be asked to choose their own password the first time they sign in.</p>
-      <div><button class="btn btn-primary" type="submit" disabled={busy}>Create</button></div>
-    </form>
-  {/if}
-
-  {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-  {#if notice}<div class="alert alert-success" role="status">{notice}</div>{/if}
-
+{#snippet people(list: User[])}
   <div class="card table-card">
     <table class="table">
       <thead><tr><th>Person</th><th>Role</th><th>Signs in with</th><th>Last sign-in</th><th></th></tr></thead>
       <tbody>
-        {#each users as user (user.id)}
+        {#each list as user (user.id)}
           <tr class:inactive={!user.isActive}>
             <td>
               <div class="person">
@@ -215,13 +176,17 @@
               </div>
             </td>
             <td>
-              <select
-                aria-label={`Role for ${user.email}`}
-                value={user.roles[0] ?? ''}
-                onchange={(e) => update(user, { roles: [e.currentTarget.value] })}
-              >
-                {#each roles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
-              </select>
+              {#if isClient(user)}
+                <span class="muted">Client</span>
+              {:else}
+                <select
+                  aria-label={`Role for ${user.email}`}
+                  value={user.roles[0] ?? ''}
+                  onchange={(e) => update(user, { roles: [e.currentTarget.value] })}
+                >
+                  {#each teamRoles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
+                </select>
+              {/if}
             </td>
             <td>
               <span class="badge" class:badge-ok={user.twoFactorEnabled || user.passkeys > 0} class:badge-off={!user.twoFactorEnabled && user.passkeys === 0}>
@@ -341,9 +306,71 @@
       </tbody>
     </table>
   </div>
+{/snippet}
+
+<div class="stack">
+  <div class="card policy">
+    <div>
+      <strong>Two-factor sign-in</strong>
+      <p class="muted small">A code from an authenticator app, or a passkey. Required people without one are asked to set it up before anything else.</p>
+    </div>
+    <label class="row">
+      <span class="muted">Required for</span>
+      <select value={required} onchange={(e) => setRequired(e.currentTarget.value as Scope)}>
+        <option value="nobody">Nobody</option>
+        <option value="admins">Administrators</option>
+        <option value="everyone">Everyone on the team</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="row between">
+    <span class="muted">{team.length} {team.length === 1 ? 'person' : 'people'} on the team</span>
+    <button class="btn btn-primary" onclick={() => (showCreate = !showCreate)}>{showCreate ? 'Cancel' : 'Add person'}</button>
+  </div>
+
+  {#if showCreate}
+    <form class="card stack" onsubmit={create}>
+      <div class="grid">
+        <div class="field"><label for="u-name">Name</label><input id="u-name" type="text" required bind:value={draft.name} /></div>
+        <div class="field"><label for="u-email">Email</label><input id="u-email" type="email" required bind:value={draft.email} /></div>
+        <div class="field">
+          <label for="u-password">Temporary password</label>
+          <input id="u-password" type="password" minlength="12" autocomplete="new-password" required bind:value={draft.password} />
+        </div>
+        <div class="field">
+          <label for="u-role">Role</label>
+          <select id="u-role" bind:value={draft.role}>
+            {#each teamRoles as role (role.name)}<option value={role.name}>{role.label}</option>{/each}
+          </select>
+        </div>
+      </div>
+      <p class="muted small">They'll be asked to choose their own password the first time they sign in.</p>
+      <div><button class="btn btn-primary" type="submit" disabled={busy}>Create</button></div>
+    </form>
+  {/if}
+
+  {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
+  {#if notice}<div class="alert alert-success" role="status">{notice}</div>{/if}
+
+  {@render people(team)}
+
+  {#if clients.length > 0}
+    <div>
+      <h2 class="section">Clients</h2>
+      <p class="muted small">
+        People invited to client galleries. They sign in and see only their galleries. Invite them, or take them off a gallery, under <strong>Share with clients</strong> on the album.
+      </p>
+    </div>
+    {@render people(clients)}
+  {/if}
 </div>
 
 <style>
+  .section {
+    font-size: 1.1rem;
+    margin: 12px 0 4px;
+  }
   .between {
     justify-content: space-between;
   }

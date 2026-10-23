@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { alertCount, getPreferences, preferenceAttributes } from '@cf-dam/api'
+import { alertCount, getPreferences, isClientOnly, preferenceAttributes } from '@cf-dam/api'
 import Base from './Base.astro'
 import Logo from '../components/Logo.astro'
 import SignOut from '../components/SignOut.svelte'
@@ -43,8 +43,16 @@ const nav: NavItem[] = [
   { href: '/account', label: 'Account', icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21c1-4 4.3-6 8-6s7 2 8 6' },
   { href: '/help', label: 'Help', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6 M12 17h.01' },
 ]
+// A client sees their galleries, their account and their own help, and no archive search.
+const client = isClientOnly(principal.roles)
+const clientNav: NavItem[] = [
+  { href: '/my-galleries', label: 'Your galleries', icon: 'M5 7h14v12H5z M8 4h8' },
+  { href: '/account', label: 'Account', icon: nav.find((n) => n.href === '/account')!.icon },
+  { href: '/help/for-clients', label: 'Help', icon: nav.find((n) => n.href === '/help')!.icon },
+]
+const helpPage = client ? 'for-clients' : help
 const preferences = await getPreferences(env.DB, principal.userId)
-const visible = nav.filter((item) => !item.needs || principal.permissions.has(item.needs))
+const visible = client ? clientNav : nav.filter((item) => !item.needs || principal.permissions.has(item.needs))
 // Problems that need someone, for those who see alerts: one small query.
 const alerts = principal.permissions.has('alerts:read') ? await alertCount(env.DB).catch(() => 0) : 0
 const initials = (principal.name || principal.email)
@@ -57,7 +65,7 @@ const initials = (principal.name || principal.email)
   <a class="skip" href="#main">Skip to content</a>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="/"><Logo /><span>cf-dam</span></a>
+      <a class="brand" href={client ? '/my-galleries' : '/'}><Logo /><span>cf-dam</span></a>
       <nav>
         {visible.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href)
@@ -80,7 +88,7 @@ const initials = (principal.name || principal.email)
         <span class="avatar">{initials}</span>
         <div class="who">
           <strong>{principal.name || principal.email}</strong>
-          <span class="muted">{principal.roles.join(', ')}</span>
+          <span class="muted">{client ? 'Client' : principal.roles.join(', ')}</span>
         </div>
       </div>
       <div class="row end">
@@ -103,15 +111,15 @@ const initials = (principal.name || principal.email)
         <div>
           <h1>
             {title}
-            {help && <a class="help-link" href={`/help/${help}`} title="Help with this page" aria-label={`Help with ${title}`}>?</a>}
+            {helpPage && <a class="help-link" href={`/help/${helpPage}`} title="Help with this page" aria-label={`Help with ${title}`}>?</a>}
           </h1>
           {subtitle && <p class="muted">{subtitle}</p>}
         </div>
-        <form class="search" action="/" method="get" role="search">
+        {!client && <form class="search" action="/" method="get" role="search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M20 20l-4-4" /></svg>
           <input id="global-search" type="search" name="q" placeholder="Search the archive" value={Astro.url.searchParams.get('q') ?? ''} aria-label="Search the archive" />
           <kbd>⌘K</kbd>
-        </form>
+        </form>}
       </header>
       <slot />
     </main>

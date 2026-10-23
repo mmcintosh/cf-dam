@@ -17,7 +17,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store')
 let initial = null
 if (access.state === 'open') {
   await recordEvent(env.DB, access.share, { kind: 'open', visitorId: access.visitor?.id })
-  initial = await galleryJson(env.DB, access.share, access.visitor)
+  initial = await galleryJson(env.DB, access.share, access.visitor, access.member)
 }
 if (access.state === 'gone') Astro.response.status = 404
 if (access.state === 'expired') Astro.response.status = 410

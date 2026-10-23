@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import type { ShareJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
+  import ShareClients from './ShareClients.svelte'
 
   interface Props {
     albumId: string
@@ -127,7 +128,7 @@
   <div class="row head">
     <div>
       <h2>Share with clients</h2>
-      <p class="muted small">A link shows this album to someone without an account. Each link has its own password, expiry and downloads.</p>
+      <p class="muted small">A link shows this album to someone without an account. Each link has its own password, expiry and downloads. You can also invite clients to sign in and see it.</p>
     </div>
     {#if editing === null}<button class="btn btn-primary btn-sm" onclick={() => start(null)}>New link</button>{/if}
   </div>
@@ -157,6 +158,7 @@
               {confirming === share.id ? 'Click again to revoke' : 'Revoke'}
             </button>
           </div>
+          {#if share.status === 'active'}<ShareClients shareId={share.id} />{/if}
         </li>
       {/each}
     </ul>

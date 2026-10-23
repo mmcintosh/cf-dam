@@ -1,0 +1,102 @@
+---
+/** A client's home: the galleries they were invited to (catalog/clients.ts). The team has albums instead. */
+import { env } from 'cloudflare:workers'
+import { clientGalleries, isClientOnly } from '@cf-dam/api'
+import AppLayout from '../layouts/AppLayout.astro'
+
+const principal = Astro.locals.principal!
+if (!isClientOnly(principal.roles)) return Astro.redirect('/galleries')
+const galleries = await clientGalleries(env.DB, principal.userId)
+const open = galleries.filter((g) => !g.expired)
+const until = (iso: string) => new Date(new Date(iso).getTime() - 1).toLocaleDateString('en', { dateStyle: 'long' })
+const first = (principal.name || '').split(/\s+/)[0]
+---
+<AppLayout title="Your galleries" subtitle={first ? `Welcome, ${first}.` : undefined}>
+  {galleries.length === 0 ? (
+    <div class="card empty">
+      <h2>No galleries yet</h2>
+      <p class="muted">When your photographer shares a gallery with you, it appears here. You'll find it the next time you sign in.</p>
+    </div>
+  ) : (
+    <ul class="galleries">
+      {galleries.map((g) => (
+        <li class:list={['gallery', { expired: g.expired }]}>
+          <a href={`/s/${g.token}`}>
+            <span class="cover">
+              {g.coverId && !g.expired ? <img src={`/api/public/galleries/${g.token}/assets/${g.coverId}/thumb`} alt="" loading="lazy" /> : <span class="muted">{g.expired ? 'Closed' : 'No photos yet'}</span>}
+            </span>
+            <strong>{g.title}</strong>
+            <span class="muted small">
+              {g.photos} {g.photos === 1 ? 'photo' : 'photos'}
+              {g.expired ? ' · closed' : g.expiresAt ? ` · open until ${until(g.expiresAt)}` : ''}
+            </span>
+            {g.message && !g.expired && <span class="message small">{g.message}</span>}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+  {open.length > 0 && (
+    <p class="muted small hint">
+      Open a gallery to look through it. Tap ♥ on the photos you like, then press <strong>I'm done</strong> to let your photographer know. Your favourites are kept with your account, so you can carry on from any device.
+    </p>
+  )}
+</AppLayout>
+
+<style>
+  .galleries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 24px;
+  }
+  .gallery a {
+    display: grid;
+    gap: 6px;
+    color: var(--text);
+  }
+  .gallery a:hover {
+    text-decoration: none;
+  }
+  .cover {
+    aspect-ratio: 3 / 2;
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    transition: transform 200ms var(--ease);
+  }
+  .gallery a:hover .cover {
+    transform: translateY(-3px);
+  }
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .expired {
+    opacity: 0.6;
+  }
+  .message {
+    color: var(--text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .small {
+    font-size: 0.875rem;
+  }
+  .empty h2 {
+    margin-bottom: 6px;
+  }
+  .hint {
+    margin-top: 28px;
+    max-width: 640px;
+  }
+</style>

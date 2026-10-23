@@ -1,0 +1,38 @@
+---
+/** A client's invite link (catalog/clients.ts): choose a password, and in. */
+import { env } from 'cloudflare:workers'
+import { readInvite } from '@cf-dam/api'
+import AuthLayout from '../../layouts/AuthLayout.astro'
+import InviteForm from '../../components/InviteForm.svelte'
+import SignOut from '../../components/SignOut.svelte'
+
+const token = Astro.params.token ?? ''
+const invite = await readInvite(env.DB, token)
+const principal = Astro.locals.principal
+Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+Astro.response.headers.set('Cache-Control', 'private, no-store')
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+if (!invite) Astro.response.status = 404
+---
+<AuthLayout title={invite ? 'Your photos' : 'Invite not available'}>
+  {!invite ? (
+    <div class="stack">
+      <h1>This invite can't be used</h1>
+      <p class="muted">It has already been used, or it has expired (invites last two weeks). If you chose a password, <a href="/login">sign in</a>. Otherwise, ask your photographer for a new invite.</p>
+    </div>
+  ) : principal ? (
+    <div class="stack">
+      <h1>You're signed in as someone else</h1>
+      <p class="muted">This invite is for <strong>{invite.email}</strong>, but this browser is signed in as {principal.email}. Sign out first, or open the invite in a private window.</p>
+      <div class="row"><SignOut client:load to={Astro.url.pathname} /></div>
+    </div>
+  ) : (
+    <InviteForm client:load token={token} name={invite.name} email={invite.email} />
+  )}
+</AuthLayout>
+
+<style>
+  h1 {
+    font-size: 1.4rem;
+  }
+</style>

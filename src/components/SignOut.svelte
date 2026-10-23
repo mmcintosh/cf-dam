@@ -1,12 +1,14 @@
 <script lang="ts">
   import { authClient } from '../lib/auth-client'
 
+  /** Where to go after: the sign-in page, or (on an invite) back to the same page. */
+  let { to = '/login' }: { to?: string } = $props()
   let busy = $state(false)
 
   async function signOut() {
     busy = true
     await authClient.signOut()
-    window.location.href = '/login'
+    window.location.href = to
   }
 </script>
 

@@ -82,11 +82,11 @@ describe('a temporary password', () => {
 
   it('keeps every API route but /api/me closed until it is replaced', async () => {
     const editor = await createEditor()
-    // Mounted at /api by src/fetch.ts. Sign-in, first-run setup, client galleries and the health
+    // Mounted at /api by src/fetch.ts. Sign-in, first-run setup, client galleries, client invites and the health
     // check are before sign-in; GET /api/me is how the pages learn there's a step to do.
     const open = new Set(['GET /me', 'GET /health', 'GET /'])
     const routes = createDamApi()
-      .routes.filter((r) => r.method !== 'ALL' && !/^\/(auth|setup|public)(\/|$)/.test(r.path) && !open.has(`${r.method} ${r.path}`))
+      .routes.filter((r) => r.method !== 'ALL' && !/^\/(auth|setup|public|invites)(\/|$)/.test(r.path) && !open.has(`${r.method} ${r.path}`))
     expect(routes.length).toBeGreaterThan(40)
     const answered: string[] = []
     for (const route of routes) {

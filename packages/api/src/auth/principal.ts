@@ -26,7 +26,9 @@ export type TwoFactorScope = 'nobody' | 'admins' | 'everyone'
 export const TWO_FACTOR_SCOPES: readonly TwoFactorScope[] = ['nobody', 'admins', 'everyone']
 export const REQUIRE_2FA_KEY = 'auth.require_2fa'
 
+/** Clients (only the Client role) are never made to: "everyone" means everyone on the team. */
 export function twoFactorRequired(scope: string | null, roles: readonly string[]): boolean {
+  if (roles.length > 0 && roles.every((r) => r === 'client')) return false
   return scope === 'everyone' || (scope === 'admins' && roles.includes('admin'))
 }
 

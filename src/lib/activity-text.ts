@@ -140,6 +140,12 @@ export function describeActivity(e: ActivityEntry): string {
       return `${who} made a client gallery link`
     case 'share.revoke':
       return `${who} revoked a client gallery link`
+    case 'client.invited':
+      return `${who} invited ${str(d.email) || 'a client'} to a client gallery`
+    case 'client.joined':
+      return `${who} chose a password and joined as a client`
+    case 'client.removed':
+      return `${who} took ${whom || 'a client'} off a client gallery`
     case 'watermark.set':
       return `${who} changed the watermark`
     case 'ai.settings_changed':

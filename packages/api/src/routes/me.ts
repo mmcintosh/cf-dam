@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { createApiKey, listApiKeys, revokeApiKey } from '../auth/api-keys'
 import { principalJson, requireAuth, requirePermission } from '../auth/principal'
+import { clientGalleries } from '../catalog/clients'
 import { getPreferences, savePreferences } from '../catalog/preferences'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -23,6 +24,9 @@ meRoutes.get('/', async (c) => {
     lastLoginAt: row?.last_login_at ?? null,
   })
 })
+
+/** The client galleries you were invited to (catalog/clients.ts). Empty for the team, who see albums instead. */
+meRoutes.get('/galleries', async (c) => c.json({ galleries: await clientGalleries(c.env.DB, c.get('principal')!.userId) }))
 
 /** Appearance and accessibility choices (catalog/preferences.ts). */
 meRoutes.get('/preferences', async (c) => c.json(await getPreferences(c.env.DB, c.get('principal')!.userId)))

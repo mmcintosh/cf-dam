@@ -1,11 +1,11 @@
 ---
 title: "Client galleries"
-summary: "Sharing an album with a client through a private link: passwords, expiry, downloads, watermarks and favourites."
+summary: "Sharing an album with a client by private link or by inviting them to an account: passwords, expiry, downloads, watermarks and favourites."
 section: Sharing
 order: 1
 ---
 
-A **client gallery** shows one album to someone who has no account: a couple choosing their wedding photos, an art director picking shots, a family downloading prints. You send them a link; they see only that album, nothing else in your archive.
+A **client gallery** shows one album to someone outside your team: a couple choosing their wedding photos, an art director picking shots, a family downloading prints. You send them a link; they see only that album, nothing else in your archive.
 
 ## Making a link
 
@@ -46,3 +46,22 @@ The same watermark is used by every link that has it turned on, and by **Downloa
 ## The Client galleries page
 
 **Client galleries** lists every link: which album, whether it's open, expired or protected by a password, how many times it was opened, how many favourites and downloads it has had.
+
+## Clients with an account
+
+A link is enough for a one-off job. For clients you'll work with again, or who'll want to come back, **invite them to an account** instead: they sign in and see only their own galleries, never the rest of your archive.
+
+1. Make a link as above, with the downloads, watermark and expiry you want for them.
+2. Under the link, press **Invite a client**, give their name and email, and press **Invite**.
+3. cf-dam shows an **invite link** once. Copy it into your own email or message (cf-dam doesn't send email). It works once, for two weeks.
+4. They open it, choose a password, and land in the gallery. Next time they sign in at your cf-dam's address.
+
+What changes for a client with an account:
+
+- **No gallery password.** Signed in, they skip the link's password. (Anyone else with the link still needs it.)
+- **Their own favourites.** Their picks are kept with their account, on any device, and show under **Picks and stats** with their name.
+- **Your galleries.** Every link you invite them to is listed for them on one page; with just one, signing in takes them straight there. A revoked link disappears from their list; an expired one shows as closed.
+- **Nothing else.** The menu shows only their galleries, Account and their help page ([Your galleries](/help/for-clients)). Every other page sends them back to their galleries.
+
+Under each link, its clients show whether they've joined. **New invite link** replaces an invite that was lost or expired (the old one stops working). **Take off this gallery** stops them seeing it; their account stays for other galleries. Clients are listed apart from your team on [People](/help/people-and-roles), where you can give them a temporary password, deactivate or delete them.
+

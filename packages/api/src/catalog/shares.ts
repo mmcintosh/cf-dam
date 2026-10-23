@@ -7,6 +7,8 @@
  * is limited to the album's photos, their sizes, title, caption and (if allowed) filename.
  */
 import { editedSize, imageVersion, readEdit } from './edits'
+import { galleryMember, memberVisitor } from './clients'
+import type { DamBindings } from '../env'
 import { hashPassword } from '../auth/password'
 import { randomBase62, randomId, timingSafeEqual, toHex } from '../lib/crypto'
 import { BadRequest, optionalString, requiredString } from '../lib/http'
@@ -312,6 +314,8 @@ export function cookieHeader(request: Request, name: string, value: string, maxA
 export interface VisitorRow {
   id: string
   share_id: string
+  /** Set for a client signed in to their account. */
+  user_id?: string | null
   name: string
   email: string | null
   created_at: string
@@ -323,16 +327,19 @@ export type GalleryAccess =
   | { state: 'gone' }
   | { state: 'expired'; share: ShareRow }
   | { state: 'locked'; share: ShareRow }
-  | { state: 'open'; share: ShareRow; visitor: VisitorRow | null }
+  | { state: 'open'; share: ShareRow; visitor: VisitorRow | null; member: { userId: string; name: string } | null }
 
 /** What this request may see of the gallery behind `token`. */
-export async function openGallery(env: { DB: D1Database; BETTER_AUTH_SECRET?: string }, token: string, request: Request): Promise<GalleryAccess> {
+export async function openGallery(env: DamBindings, token: string, request: Request): Promise<GalleryAccess> {
   if (!/^[0-9A-Za-z]{22}$/.test(token)) return { state: 'gone' }
   const share = await env.DB.prepare('SELECT * FROM shares WHERE token = ?').bind(token).first<ShareRow>()
   if (!share) return { state: 'gone' }
   const status = shareStatus(share)
   if (status === 'revoked') return { state: 'gone' }
   if (status === 'expired') return { state: 'expired', share }
+  // A client signed in to their account (catalog/clients.ts): no password, and favourites of their own.
+  const member = await galleryMember(env, share, request)
+  if (member) return { state: 'open', share, visitor: await memberVisitor(env.DB, share, member), member: { userId: member.userId, name: member.name } }
   const cookies = readCookies(request)
   if (share.password_hash) {
     if (!env.BETTER_AUTH_SECRET || !(await unlockCookieValid(env.BETTER_AUTH_SECRET, share, cookies.get(unlockCookieName(share.id))))) {
@@ -341,9 +348,9 @@ export async function openGallery(env: { DB: D1Database; BETTER_AUTH_SECRET?: st
   }
   const visitorId = cookies.get(visitorCookieName(share.id))
   const visitor = visitorId && /^[0-9a-f]{32}$/.test(visitorId)
-    ? await env.DB.prepare('SELECT * FROM share_visitors WHERE id = ? AND share_id = ?').bind(visitorId, share.id).first<VisitorRow>()
+    ? await env.DB.prepare('SELECT * FROM share_visitors WHERE id = ? AND share_id = ? AND user_id IS NULL').bind(visitorId, share.id).first<VisitorRow>()
     : null
-  return { state: 'open', share, visitor }
+  return { state: 'open', share, visitor, member: null }
 }
 
 export interface GalleryItem {

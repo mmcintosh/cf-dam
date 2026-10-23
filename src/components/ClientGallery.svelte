@@ -7,6 +7,8 @@
     gallery: { title: string; message: string; expiresAt: string | null; downloadSizes: Size[]; proofing: boolean; showFilenames: boolean; watermark: boolean; imageVersion: string }
     items: GalleryItem[]
     visitor: { name: string; submittedAt: string | null } | null
+    /** A client signed in to their account: a way back to their galleries, and no "not you?". */
+    member: { name: string } | null
     picks: string[]
   }
   interface Props {
@@ -114,6 +116,11 @@
     }
   }
 
+  async function signOut() {
+    await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    window.location.href = '/login'
+  }
+
   async function submit() {
     busy = true
     try {
@@ -176,6 +183,16 @@
     </form>
   </main>
 {:else}
+  {#if data.member}
+    <nav class="member" aria-label="Your account">
+      <a href="/my-galleries">← Your galleries</a>
+      <span class="row">
+        <a href="/account">Account</a>
+        <a href="/help/for-clients">Help</a>
+        <button class="link" onclick={signOut}>Sign out</button>
+      </span>
+    </nav>
+  {/if}
   <main class="gallery">
     <header>
       <div>
@@ -188,7 +205,7 @@
       {#if data.gallery.proofing}
         <div class="proofing">
           {#if data.visitor}
-            <span class="muted small">Picking as <strong>{data.visitor.name}</strong> · <button class="link" onclick={() => (asking = '')}>not you?</button></span>
+            <span class="muted small">Picking as <strong>{data.visitor.name}</strong>{#if !data.member} · <button class="link" onclick={() => (asking = '')}>not you?</button>{/if}</span>
           {:else}
             <span class="muted small">Tap ♥ on the photos you like.</span>
           {/if}
@@ -305,6 +322,21 @@
     max-width: 1400px;
     margin: 0 auto;
     padding: 32px 24px 48px;
+  }
+  .member {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 14px 24px 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 0.9rem;
+  }
+  .member .row {
+    gap: 16px;
+  }
+  .member + .gallery {
+    padding-top: 16px;
   }
   header {
     display: flex;

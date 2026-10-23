@@ -17,7 +17,7 @@ order: 9
 
 **Catalogue.** Everything cf-dam knows about your photos: details, keywords, captions, ratings, albums, thumbnails and previews. Not the originals themselves.
 
-**Client gallery.** An album shared with someone through a private link, with its own password, expiry and downloads. See [Client galleries](/help/client-galleries).
+**Client gallery.** An album shared with a client through a private link, with its own password, expiry and downloads, or with a client who signs in to an account that shows only their galleries. See [Client galleries](/help/client-galleries).
 
 **Docker.** A standard way to run small programs, such as cf-dam's helper, on a NAS. Each program runs in its own sealed "container".
 

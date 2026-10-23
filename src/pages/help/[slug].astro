@@ -1,5 +1,6 @@
 ---
 import { getCollection, getEntry, render } from 'astro:content'
+import { isClientOnly } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import { HELP_SECTIONS } from '../../lib/help'
 
@@ -9,10 +10,12 @@ const { Content, headings } = await render(entry)
 const all = (await getCollection('help')).sort((a, b) => a.data.order - b.data.order)
 const siblings = all.filter((a) => a.data.section === entry.data.section)
 const contents = headings.filter((h) => h.depth === 2)
+// A client reads only their own article (the middleware sees to that), so no list of the rest.
+const client = isClientOnly(Astro.locals.principal!.roles)
 ---
 <AppLayout title={entry.data.title} subtitle={entry.data.summary}>
-  <div class="help">
-    <nav class="side" aria-label="Help">
+  <div class:list={['help', { solo: client }]}>
+    {!client && <nav class="side" aria-label="Help">
       <a class="back" href="/help">← All help</a>
       {HELP_SECTIONS.map((section) => (
         <details open={section === entry.data.section}>
@@ -24,7 +27,7 @@ const contents = headings.filter((h) => h.depth === 2)
           </ul>
         </details>
       ))}
-    </nav>
+    </nav>}
     <article class="card prose">
       {contents.length > 2 && (
         <nav class="toc" aria-label="On this page">
@@ -33,7 +36,7 @@ const contents = headings.filter((h) => h.depth === 2)
         </nav>
       )}
       <Content />
-      {siblings.length > 1 && (
+      {!client && siblings.length > 1 && (
         <footer class="more">
           <strong>More in {entry.data.section}</strong>
           <ul>{siblings.filter((a) => a.id !== entry.id).map((a) => <li><a href={`/help/${a.id}`}>{a.data.title}</a>: {a.data.summary}</li>)}</ul>
@@ -49,6 +52,10 @@ const contents = headings.filter((h) => h.depth === 2)
     grid-template-columns: 230px minmax(0, 1fr);
     gap: 28px;
     align-items: start;
+  }
+  .help.solo {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 860px;
   }
   .side {
     position: sticky;

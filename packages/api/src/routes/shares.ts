@@ -17,11 +17,12 @@ import {
   updateShare,
   type ShareRow,
 } from '../catalog/shares'
+import { inviteClient, newInvite, removeMember, shareMembers } from '../catalog/clients'
 import { getWatermark, MAX_WATERMARK_BYTES, removeWatermarkImage, setWatermarkImage, updateWatermark, watermarkKey, WatermarkRejected, type WatermarkPosition } from '../catalog/watermark'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { randomId } from '../lib/crypto'
-import { BadRequest, readJsonObject, requiredString, stringArray } from '../lib/http'
+import { BadRequest, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
 
@@ -140,4 +141,57 @@ shareRoutes.post('/:id/picks/album', async (c) => {
   } catch (error) {
     return c.json(invalid(error), 400)
   }
+})
+
+// ---------------------------------------------------------------------------------------------------
+// Clients with accounts on a link (catalog/clients.ts).
+
+shareRoutes.get('/:id/members', async (c) => {
+  const id = c.req.param('id')
+  if (!(await c.env.DB.prepare('SELECT 1 FROM shares WHERE id = ?').bind(id).first())) return c.json({ error: 'not_found' }, 404)
+  return c.json({ members: await shareMembers(c.env.DB, id) })
+})
+
+/** Invite a client to this link. The answer carries a one-time invite token when they still need to choose a password. */
+shareRoutes.post('/:id/members', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const body = await readJsonObject(c)
+    const name = requiredString(body, 'name', 100)
+    const email = requiredEmail(body)
+    const share = await c.env.DB.prepare('SELECT id, revoked_at FROM shares WHERE id = ?').bind(id).first<Pick<ShareRow, 'id' | 'revoked_at'>>()
+    if (!share || share.revoked_at) return c.json({ error: 'not_found', message: 'No such link, or it was revoked.' }, 404)
+    const principal = c.get('principal')!
+    const outcome = await inviteClient(c.env, c.req.raw, share, { name, email }, principal.userId)
+    if (outcome.kind === 'team') return c.json({ error: 'on_the_team', message: outcome.message }, 409)
+    await logActivity(c.env.DB, {
+      userId: principal.userId,
+      action: 'client.invited',
+      targetType: 'user',
+      targetId: outcome.member.userId,
+      details: { email, shareId: id },
+      ipAddress: c.req.header('cf-connecting-ip'),
+    })
+    return c.json({ member: outcome.member, invite: outcome.invite }, 201)
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
+})
+
+/** A new invite link for a client who hasn't joined yet (the old one stops working). */
+shareRoutes.post('/:id/members/:userId/invite', async (c) => {
+  const { id, userId } = c.req.param()
+  const member = (await shareMembers(c.env.DB, id)).find((m) => m.userId === userId)
+  if (!member) return c.json({ error: 'not_found' }, 404)
+  if (member.joined) return c.json({ error: 'joined', message: 'They have already chosen a password. They sign in as usual.' }, 409)
+  const invite = await newInvite(c.env.DB, userId, c.get('principal')!.userId)
+  return c.json({ invite })
+})
+
+/** Take a client off this link. Their account stays (for other galleries); People is where accounts are removed. */
+shareRoutes.delete('/:id/members/:userId', async (c) => {
+  const { id, userId } = c.req.param()
+  if (!(await removeMember(c.env.DB, id, userId))) return c.json({ error: 'not_found' }, 404)
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'client.removed', targetType: 'user', targetId: userId, details: { shareId: id }, ipAddress: c.req.header('cf-connecting-ip') })
+  return c.body(null, 204)
 })

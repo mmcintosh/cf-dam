@@ -5,7 +5,9 @@ section: People and security
 order: 1
 ---
 
-Everyone who signs in to cf-dam has their own account, and a **role** that decides what they can do. (Clients don't need an account: you share galleries with them by link. See [Client galleries](/help/client-galleries).)
+Everyone who signs in to cf-dam has their own account, and a **role** that decides what they can do.
+
+**Clients** are different: they see only the client galleries you invite them to, nothing else. You invite them from an album's **Share with clients**, not from here, and they're listed apart, under **Clients**, at the bottom of **People**. A client can also just be sent a link, without an account. See [Client galleries](/help/client-galleries).
 
 ## The roles
 
@@ -26,7 +28,7 @@ On **People**, press **Add person**, and give their **Name**, **Email**, a **Tem
 
 ## Two-step sign-in for everyone
 
-At the top of **People**, **Two-factor sign-in → Required for** can be **Nobody**, **Administrators** or **Everyone**. People who must have it and don't are asked to set up a passkey or an authenticator app before they can do anything else. **Everyone** is the safest choice. See [Your account and sign-in](/help/account-security).
+At the top of **People**, **Two-factor sign-in → Required for** can be **Nobody**, **Administrators** or **Everyone on the team** (clients are never made to, though they can turn it on themselves). People who must have it and don't are asked to set up a passkey or an authenticator app before they can do anything else. **Everyone on the team** is the safest choice. See [Your account and sign-in](/help/account-security).
 
 ## Helping someone
 
