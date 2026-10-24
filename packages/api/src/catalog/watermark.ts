@@ -7,6 +7,7 @@
  * the watermark version and the preview they were made from, so a gallery viewed many times costs
  * one transform per photo and size, and a new watermark or a re-made preview is never served stale.
  */
+import { countedImages } from '../lib/images'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
@@ -82,7 +83,7 @@ export class WatermarkRejected extends Error {}
 /** Set the watermark image. It is decoded and re-encoded as PNG (keeping transparency) through Images. */
 export async function setWatermarkImage(env: DamBindings, bytes: ArrayBuffer): Promise<WatermarkSettings> {
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_WATERMARK_BYTES) throw new WatermarkRejected('A watermark must be an image of at most 2 MB.')
-  const images = env.IMAGES
+  const images = countedImages(env)
   if (!images) throw new WatermarkRejected('This deployment has no Images binding, so it cannot make watermarks.')
   let png: ArrayBuffer
   try {
@@ -204,7 +205,7 @@ export async function galleryImage(
   const cached = await store.get(key)
   if (cached) return { body: cached.body, size: cached.size, contentType }
 
-  const images = env.IMAGES
+  const images = countedImages(env)
   const original = await store.get(renditionKey(assetId, sourceName))
   if (!images || !original) return null
   let image = images.input(original.body)

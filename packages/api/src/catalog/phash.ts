@@ -15,6 +15,7 @@
  * within MAX_DISTANCE bits must agree exactly on at least one band (pigeonhole: 5 differing bits can
  * touch at most 5 of 6 bands), so a new photo is checked only against photos sharing a band.
  */
+import { countedImages } from '../lib/images'
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
@@ -132,7 +133,7 @@ export async function hashFromThumbnail(env: DamBindings, assetId: string): Prom
   const store = renditionStore(env)
   const thumb = (await store.get(baseKey(assetId, 'thumb'))) ?? (await store.get(renditionKey(assetId, 'thumb')))
   if (!thumb) return null
-  const png = await env.IMAGES.input(thumb.body).output({ format: 'image/png' })
+  const png = await countedImages(env)!.input(thumb.body).output({ format: 'image/png' })
   return hashPixels(await decodePng(new Uint8Array(await png.response().arrayBuffer())))
 }
 

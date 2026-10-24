@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono'
+import { countedImages } from '../lib/images'
 import { requirePermission } from '../auth/principal'
 import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
 import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
@@ -333,7 +334,7 @@ assetRoutes.get('/:id/download/:size', requirePermission('assets:read'), async (
     if (!image) return c.json({ error: 'unavailable', message: say('err.noPreviewCopy') }, 409)
     return new Response(image.body, { headers: headers(image.size) })
   }
-  const images = c.env.IMAGES
+  const images = countedImages(c.env)
   if (size === 'cutout') {
     const preview = (await renditionStore(c.env).get(renditionKey(id, 'preview'))) ?? (await renditionStore(c.env).get(renditionKey(id, 'thumb')))
     if (!images || !preview) return c.json({ error: 'unavailable', message: say('err.noPreviewCutout') }, 409)

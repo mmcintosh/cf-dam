@@ -7,6 +7,7 @@
  * (settings); two input styles are supported: chat messages with an image part (Llama 4 Scout,
  * Mistral Small 3.1, Gemma 4) and Moondream's query task.
  */
+import { countedImages } from '../lib/images'
 import type { DamBindings } from '../env'
 import { renditionStore } from '../storage/connections'
 import { renditionKey } from './renditions'
@@ -146,8 +147,9 @@ function base64(bytes: ArrayBuffer): string {
 export async function modelImage(env: DamBindings, assetId: string): Promise<string | null> {
   const store = renditionStore(env)
   const source = (await store.get(renditionKey(assetId, 'preview'))) ?? (await store.get(renditionKey(assetId, 'thumb')))
-  if (!source || !env.IMAGES) return null
-  const jpeg = await env.IMAGES.input(source.body)
+  const images = countedImages(env)
+  if (!source || !images) return null
+  const jpeg = await images.input(source.body)
     .transform({ width: 1024, height: 1024, fit: 'scale-down' })
     .output({ format: 'image/jpeg', quality: 82 })
   return `data:image/jpeg;base64,${base64(await jpeg.response().arrayBuffer())}`

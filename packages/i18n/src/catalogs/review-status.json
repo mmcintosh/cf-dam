@@ -1434,6 +1434,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.imagesUsage": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.neverCheckedIn": {
     "es": "ai-reviewed",
     "de": "machine",
@@ -1494,6 +1500,12 @@
     "it": "machine"
   },
   "alert.stage.gallery": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.jobs": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -5447,6 +5459,42 @@
     "it": "machine"
   },
   "helpsearch.placeholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.alertAt": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.lead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.note": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.ofLimit": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.thisMonth": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "imagesUsage.title": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

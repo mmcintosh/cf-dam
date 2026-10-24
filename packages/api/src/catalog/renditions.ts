@@ -4,6 +4,7 @@
  * up transform costs (a finding from the Infowall audit).
  */
 import type { DamBindings } from '../env'
+import { countedImages } from '../lib/images'
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
 import { baseKey, editImage, getEdit } from './edits'
@@ -47,9 +48,10 @@ async function store(
   source: RenditionSource,
 ): Promise<void> {
   const edit = name === 'sheet' ? null : await getEdit(env.DB, assetId)
-  if (edit && env.IMAGES && dims.width && dims.height) {
+  const images = countedImages(env)
+  if (edit && images && dims.width && dims.height) {
     await renditionStore(env).put(baseKey(assetId, name), bytes, { contentType: mimeType })
-    const edited = editImage(env.IMAGES, new Blob([bytes]).stream(), { width: dims.width, height: dims.height }, edit)
+    const edited = editImage(images, new Blob([bytes]).stream(), { width: dims.width, height: dims.height }, edit)
     bytes = await (await edited.image.output({ format: 'image/webp', quality: RENDITIONS[name].quality })).response().arrayBuffer()
     mimeType = 'image/webp'
     dims = { width: edited.width, height: edited.height }
@@ -87,7 +89,7 @@ export async function generateRenditions(
   assetId: string,
   original: ReadableStream,
 ): Promise<{ width: number; height: number } | null> {
-  const images = env.IMAGES
+  const images = countedImages(env)
   if (!images) return null
   const [forInfo, forPreview] = original.tee()
   const infoPromise = images.info(forInfo).catch(() => null)
@@ -101,7 +103,7 @@ export async function generateRenditions(
 
 /** A thumbnail from the small JPEG embedded in many camera files (RAW included). */
 export async function storeEmbeddedThumbnail(env: DamBindings, assetId: string, jpeg: Uint8Array): Promise<boolean> {
-  const images = env.IMAGES
+  const images = countedImages(env)
   if (!images) return false
   try {
     const thumb = await transform(images, new Blob([new Uint8Array(jpeg)]).stream(), 'thumb')
@@ -123,7 +125,7 @@ export async function storeClientRendition(env: DamBindings, assetId: string, na
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_CLIENT_RENDITION_BYTES) {
     throw new RenditionRejected(`A ${name} must be between 1 byte and ${MAX_CLIENT_RENDITION_BYTES / 1024 / 1024} MB.`)
   }
-  const images = env.IMAGES
+  const images = countedImages(env)
   if (!images) throw new RenditionRejected('This deployment has no Images binding to verify uploaded previews.')
   try {
     const result = await transform(images, new Blob([bytes]).stream(), name)

@@ -7,6 +7,7 @@
  * gone a quarter of an hour without failing again. The sweep stopping altogether can't be noticed by
  * the sweep, so the page works it out from when alerts were last checked (`sweepStalledSince`).
  */
+import { imageUsage } from '../lib/images'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
@@ -150,6 +151,13 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     findings.push({ key: 'previews.stuck', kind: 'previews.stuck', text: { key: 'alert.previewsStuck', params: { count: noPreview } }, link: '/settings/storage' })
   }
 
+  // Cloudflare Images used this month past the threshold set on the Storage page (lib/images.ts). The key has
+  // the month in it, so next month the alert resolves by itself.
+  const images = await imageUsage(db)
+  if (images.alertAt > 0 && images.count >= images.alertAt) {
+    findings.push({ key: `images.usage:${images.month}`, kind: 'images.usage', text: { key: 'alert.imagesUsage', params: { count: images.count, limit: images.alertAt } }, link: '/settings/storage' })
+  }
+
   return { findings, open: open!.results as unknown as OpenRow[] }
 }
 
@@ -197,7 +205,7 @@ export async function noteSweepFailure(db: D1Database, stage: string, error: unk
 }
 
 /** A sweep stage's name, for "Background work (…) is failing". */
-export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'alerts']
+export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'jobs', 'alerts']
 
 /** When the sweep last ran, if that's long enough ago to mean it has stopped. */
 export async function sweepStalledSince(db: D1Database, now = new Date()): Promise<string | null> {

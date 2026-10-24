@@ -5,6 +5,7 @@ import Connections from '../../components/Connections.svelte'
 import BackupSettings from '../../components/BackupSettings.svelte'
 import StorageChecks from '../../components/StorageChecks.svelte'
 import PreviewHealth from '../../components/PreviewHealth.svelte'
+import ImagesUsage from '../../components/ImagesUsage.svelte'
 const t = getT(Astro.locals.lang)
 ---
 <AppLayout help="storage" title={t('nav.storage')} subtitle={t('storagePage.subtitle')}>
@@ -12,6 +13,7 @@ const t = getT(Astro.locals.lang)
     <Connections client:load origin={Astro.url.origin} />
     <StorageChecks client:load />
     <PreviewHealth client:load />
+    <ImagesUsage client:load />
     <BackupSettings client:load />
   </div>
 </AppLayout>

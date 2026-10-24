@@ -18,6 +18,7 @@ import { assetRoutes } from './routes/assets'
 import { backupRoutes } from './routes/backups'
 import { clientRoutes } from './routes/clients'
 import { jobRoutes } from './routes/jobs'
+import { usageRoutes } from './routes/usage'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { galleryRoutes } from './routes/gallery'
@@ -94,6 +95,7 @@ export function createDamApi() {
   api.route('/shares', shareRoutes)
   api.route('/clients', clientRoutes)
   api.route('/jobs', jobRoutes)
+  api.route('/usage', usageRoutes)
   api.route('/tags', tagRoutes)
   api.route('/labels', labelRoutes)
   api.route('/presets', presetRoutes)
