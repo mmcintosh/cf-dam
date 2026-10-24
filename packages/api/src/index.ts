@@ -19,6 +19,7 @@ import { backupRoutes } from './routes/backups'
 import { clientRoutes } from './routes/clients'
 import { jobRoutes } from './routes/jobs'
 import { usageRoutes } from './routes/usage'
+import { archiveRoutes } from './routes/archive'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
 import { galleryRoutes } from './routes/gallery'
@@ -96,6 +97,7 @@ export function createDamApi() {
   api.route('/clients', clientRoutes)
   api.route('/jobs', jobRoutes)
   api.route('/usage', usageRoutes)
+  api.route('/archive', archiveRoutes)
   api.route('/tags', tagRoutes)
   api.route('/labels', labelRoutes)
   api.route('/presets', presetRoutes)
@@ -132,6 +134,7 @@ export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog
 export { galleryJson } from './routes/gallery'
 export { CLIENT_ROLE, clientGalleries, isClientOnly, readInvite, type ClientGalleryJson, type MemberJson } from './catalog/clients'
 export { clientDownloads, clientPeople, countPastClients, getClient, listClients, type ClientDownloadJson, type ClientJson, type ClientPersonJson, type ClientSummary } from './catalog/client-records'
+export { jobArchiveStatus, ARCHIVE_JOB_CLASSES } from './catalog/archive-jobs'
 export { albumStorage, jobRestoreStatus, jobStorage, type JobRestoreStatus, type JobStorage } from './catalog/job-storage'
 export { filterSummary, getJob, jobAlbums, listJobs, needsAttention, KINDS, OPEN_STAGES, OPTIONAL_STAGES, STAGES, type AttentionJson, type JobAlbumJson, type JobJson, type JobSummary, type Kind, type Stage } from './catalog/jobs'
 export { getStats, type StatsSnapshot } from './catalog/stats'

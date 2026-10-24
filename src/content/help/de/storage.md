@@ -4,7 +4,7 @@ summary: "Der Unterschied zwischen dem Katalog und den Originalen, und die Orte,
 section: Where photos are kept
 order: 1
 review: machine
-source: 56c3bc77ccf9
+source: b58b424e45f6
 ---
 
 cf-dam bewahrt zwei verschiedene Dinge an zwei verschiedenen Orten auf.
@@ -60,5 +60,7 @@ Ein einzelnes Foto kannst du auf seiner Seite zwischen Klassen verschieben (**Ve
 ## Die anderen Teile der Seite Speicher
 
 - **Prüfungen:** cf-dam stellt regelmäßig sicher, dass die Originale, die es kennt, noch dort sind, wo es sie vermutet. Probleme erscheinen hier und als Warnung.
+- **Gelieferte Aufträge archivieren:** eine kalte Kopie der Originale jedes gelieferten Auftrags in S3, einige Tage nach der Lieferung. Siehe [Aufträge](/help/jobs).
+- **Cloudflare Images in diesem Monat:** wie viele Bilder Cloudflare in diesem Monat für Vorschauen, Vorschaubilder, KI und Wasserzeichen erstellt hat, was Cloudflare über das Kontingent deines Tarifs hinaus berechnet, mit einer Warnung, wenn die Zahl über dem Wert liegt, den du festlegst.
 - **Vorschauen:** prüft, ob jedes Vorschaubild und jede Vorschau wirklich da ist, und erstellt fehlende neu. Siehe [Sicherungen und den Katalog wiederherstellen](/help/backups).
 - **Katalogsicherungen:** tägliche Kopien des Katalogs selbst. Siehe [Sicherungen und den Katalog wiederherstellen](/help/backups).

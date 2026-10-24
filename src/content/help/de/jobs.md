@@ -4,7 +4,7 @@ summary: "Jede Arbeit für einen Kunden von der Buchung bis zur Lieferung verfol
 section: Sharing
 order: 4
 review: machine
-source: 5793403dfd06
+source: 3c44ab054383
 ---
 
 Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** steht im Menü unter **Kunden**; wie Kunden sehen das nur **Administratoren**.
@@ -57,6 +57,20 @@ Vor einer Nachbestellung von Abzügen zum Beispiel drückst du **n Originale wie
 Wiederherstellen braucht die Berechtigung, Speicherklassen zu verwalten (Administratorrechte schließen sie ein).
 
 Wenn eine Galerie Originale anbietet und einige Originale des Albums archiviert sind oder nur auf einem NAS liegen, weist das Galerieformular darauf hin, bevor du den Link erstellst.
+
+## Archivieren nach der Lieferung
+
+Wenn **Gelieferte Aufträge archivieren** eingeschaltet ist (auf der Seite **Speicher**: Wähle die S3-Verbindung, **Deep Archive** oder **Glacier Flexible** und wie viele Tage nach der Lieferung), bekommt jedes Original in den Alben eines gelieferten Auftrags eine Kopie in dieser kalten Klasse, sobald die Tage vorbei sind. Die Kopie im eigenen Speicher von cf-dam bleibt, also öffnet sich nichts langsamer: Die kalte Kopie ist eine Sicherung, deren Aufbewahrung sehr wenig kostet.
+
+- Bevor du es einschaltest, zeigt **Was würde jetzt archiviert?**, wie viele Aufträge, Originale und GB auf einmal kopiert würden (jeder Auftrag, der schon lange genug geliefert ist, zählt mit), was das Aufbewahren im Monat kostet und was das Hochladen einmalig kostet.
+- Jeder Teil einer Kopie wird beim Ankommen geprüft, und am Ende wird die Größe der Kopie verglichen. Eine unterbrochene Kopie macht dort weiter, wo sie stehen geblieben ist.
+- Wenn du einen Auftrag erneut lieferst, etwa nachdem du ihn zurück auf **Bearbeitung** gesetzt hast, beginnen seine Tage von vorn.
+- **Warm halten** auf der Seite eines Auftrags sorgt dafür, dass er nie automatisch archiviert wird (Nachbestellungen, Alben in Arbeit).
+- **Jetzt archivieren** kopiert einen Auftrag sofort, in der Klasse, die du wählst (braucht die Berechtigung, Speicherverbindungen zu verwalten).
+- Originale, die nur auf einem Computer oder NAS liegen, archiviert dessen Helfer, wenn dieser Ordner nach S3 archiviert (**Computer und NAS**); sonst zeigt der Auftrag, wie viele außen vor bleiben.
+- Originale, die nach drei Versuchen nicht kopiert werden konnten, erscheinen als Warnung.
+
+Unter **Originale** auf der Seite des Auftrags zeigt **Kalte Sicherung**, wie es steht: wann er archiviert wird, wie weit eine Kopie ist, wann er archiviert wurde oder was im Weg ist.
 
 ## Was Aufmerksamkeit braucht
 

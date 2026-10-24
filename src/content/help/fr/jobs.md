@@ -4,7 +4,7 @@ summary: "Suivre chaque travail pour un client, de la réservation à la livrais
 section: Sharing
 order: 4
 review: machine
-source: 5793403dfd06
+source: 3c44ab054383
 ---
 
 Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** se trouve dans le menu, sous **Clients** ; comme les clients, seuls les **administrateurs** le voient.
@@ -57,6 +57,20 @@ Avant une commande de retirages, par exemple, appuyez sur **Restaurer n originau
 Restaurer demande le droit de gérer les niveaux de stockage (les administrateurs l’ont).
 
 Quand une galerie propose les originaux et que certains originaux de l’album sont archivés ou seulement sur un NAS, le formulaire de la galerie le signale avant que vous créiez le lien.
+
+## Archiver après la livraison
+
+Quand **Archiver les travaux livrés** est activé (sur la page **Stockage** : choisissez la connexion S3, **Deep Archive** ou **Glacier Flexible**, et combien de jours après la livraison), chaque original des albums d’un travail livré reçoit une copie dans cette classe à froid une fois ces jours passés. La copie gardée dans le stockage propre de cf-dam reste, donc rien ne devient plus lent à ouvrir : la copie à froid est une sauvegarde qui coûte très peu à garder.
+
+- Avant de l’activer, **Qu’archiverait-il maintenant ?** montre combien de travaux, d’originaux et de Go il copierait d’un coup (chaque travail déjà livré depuis assez longtemps compte), ce que cela coûte par mois à garder et une fois à envoyer.
+- Chaque partie d’une copie est vérifiée à son arrivée, et la taille de la copie est comparée à la fin. Une copie interrompue reprend là où elle s’est arrêtée.
+- Livrer à nouveau un travail, après l’avoir ramené en **Retouche** par exemple, fait repartir ses jours de zéro.
+- **Garder à chaud** sur la page d’un travail fait qu’il n’est jamais archivé automatiquement (retirages, albums en cours).
+- **Archiver maintenant** copie un travail tout de suite, dans la classe que vous choisissez (demande le droit de gérer les connexions de stockage).
+- Les originaux qui ne sont que sur un ordinateur ou un NAS sont archivés par son assistant quand ce dossier s’archive vers S3 (**Ordinateurs et NAS**) ; sinon, le travail indique combien sont laissés de côté.
+- Les originaux qui n’ont pas pu être copiés après trois essais s’affichent sous forme d’alerte.
+
+Sous **Originaux**, sur la page du travail, **Sauvegarde à froid** indique où il en est : quand il sera archivé, où en est une copie, quand il a été archivé, ou ce qui bloque.
 
 ## Ce qui est à traiter
 

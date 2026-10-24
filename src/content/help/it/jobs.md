@@ -4,7 +4,7 @@ summary: "Seguire ogni lavoro per un cliente dalla prenotazione alla consegna: d
 section: Sharing
 order: 4
 review: machine
-source: 5793403dfd06
+source: 3c44ab054383
 ---
 
 Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è nel menu, sotto **Clienti**; come per i clienti, lo vedono solo gli **amministratori**.
@@ -57,6 +57,20 @@ Prima di un ordine di ristampe, per esempio, premi **Ripristina n originali…**
 Il ripristino richiede il permesso di gestire i livelli di archiviazione (gli amministratori ce l’hanno).
 
 Quando una galleria offre gli originali e alcuni originali dell’album sono archiviati o solo su un NAS, il modulo della galleria lo segnala prima che tu crei il link.
+
+## Archiviare dopo la consegna
+
+Quando **Archivia i lavori consegnati** è attivo (nella pagina **Archiviazione**: scegli la connessione S3, **Deep Archive** o **Glacier Flexible** e quanti giorni dopo la consegna), ogni originale negli album di un lavoro consegnato riceve una copia in quella classe a freddo, passati quei giorni. La copia nello spazio di archiviazione di cf-dam resta, quindi niente diventa più lento da aprire: la copia a freddo è un backup che costa pochissimo tenere.
+
+- Prima di attivarlo, **Cosa archivierebbe ora?** mostra quanti lavori, originali e GB copierebbe in una volta (conta ogni lavoro già consegnato da abbastanza tempo), quanto costa al mese tenerli e quanto costa caricarli una volta.
+- Ogni parte di una copia viene controllata quando arriva, e alla fine si confronta la dimensione della copia. Una copia interrotta riprende da dove si era fermata.
+- Se consegni di nuovo un lavoro, per esempio dopo averlo riportato a **Editing**, i suoi giorni ripartono da capo.
+- **Tieni caldo** nella pagina di un lavoro fa sì che non venga mai archiviato automaticamente (ristampe, album in lavorazione).
+- **Archivia ora** copia subito un lavoro, nella classe che scegli (richiede il permesso di gestire le connessioni di archiviazione).
+- Gli originali che sono solo su un computer o NAS li archivia il suo assistente quando quella cartella archivia su S3 (**Computer e NAS**); altrimenti il lavoro indica quanti ne restano fuori.
+- Gli originali che non è stato possibile copiare dopo tre tentativi compaiono come avviso.
+
+Sotto **Originali**, nella pagina del lavoro, **Backup a freddo** dice a che punto è: quando verrà archiviato, a che punto è una copia, quando è stato archiviato o cosa lo blocca.
 
 ## Cosa c’è da seguire
 

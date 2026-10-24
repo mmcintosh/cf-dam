@@ -167,8 +167,8 @@ export async function createJob(db: D1Database, input: JobInput, actorId: string
   const stage = input.stage ?? 'booked'
   await db
     .prepare(
-      `INSERT INTO jobs (id, client_id, title, client_title, kind, kind_other, shoot_start, shoot_end, place, stage, stage_at, due_on, delivered_at, notes, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO jobs (id, client_id, title, client_title, kind, kind_other, shoot_start, shoot_end, place, stage, stage_at, due_on, delivered_at, notes, created_by, created_at, updated_at, archive_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -188,6 +188,7 @@ export async function createJob(db: D1Database, input: JobInput, actorId: string
       actorId,
       now,
       now,
+      stage === 'delivered' || stage === 'completed' ? now : null,
     )
     .run()
   await refreshJobSearch(db, id)
@@ -260,13 +261,19 @@ export async function setStage(db: D1Database, id: string, stage: Stage): Promis
   if (!job) return null
   if (job.stage === stage) return { from: job.stage, title: job.title }
   const now = nowIso()
+  // The archive clock (archive-jobs.ts): starts when the job enters Delivered or Completed from an open stage, again
+  // on each re-delivery; stops when it goes back to an open stage.
+  const finished = stage === 'delivered' || stage === 'completed'
+  const wasOpen = OPEN_STAGES.includes(job.stage)
   await db
     .prepare(
       `UPDATE jobs SET stage = ?, stage_at = ?, updated_at = ?,
-         delivered_at = CASE WHEN ? IN ('delivered', 'completed') THEN COALESCE(delivered_at, ?) ELSE delivered_at END
-       WHERE id = ?`,
+         delivered_at = CASE WHEN ? IN ('delivered', 'completed') THEN COALESCE(delivered_at, ?) ELSE delivered_at END,
+         archive_from = CASE WHEN ?7 = 1 AND ?8 = 1 THEN ?2 WHEN ?7 = 1 THEN archive_from ELSE NULL END,
+         archive_state = CASE WHEN ?7 = 1 AND ?8 = 0 THEN archive_state ELSE NULL END
+       WHERE id = ?6`,
     )
-    .bind(stage, now, now, stage, now, id)
+    .bind(stage, now, now, stage, now, id, finished ? 1 : 0, wasOpen ? 1 : 0)
     .run()
   return { from: job.stage, title: job.title }
 }

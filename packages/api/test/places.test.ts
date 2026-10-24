@@ -125,8 +125,9 @@ describe('filling in places from GPS', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-20T10:31:00Z'))
     const quiet = await h.count(() => runSweep(h.env)).finally(() => vi.useRealTimers())
-    // One look per stage that might have work (missing previews, the last added), none rereading photos.
-    expect(quiet.roundTrips).toBeLessThan(16)
+    // One look per stage that might have work (missing previews, the last added, jobs to move or archive), none
+    // rereading photos.
+    expect(quiet.roundTrips).toBeLessThan(17)
     expect((await h.env.DB.prepare('SELECT place_checked_at FROM assets WHERE id = ?').bind(a).first<{ place_checked_at: string | null }>())?.place_checked_at).toBeNull()
   })
 })

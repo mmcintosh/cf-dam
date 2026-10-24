@@ -58,5 +58,7 @@ You can move one photo between classes from its page (**Move**), and get a photo
 ## The other parts of the Storage page
 
 - **Checks:** cf-dam regularly makes sure the originals it knows about are still where it thinks. Problems show here and as an alert.
+- **Archive delivered jobs:** a cold copy of each delivered job's originals in S3, some days after delivery. See [Jobs](/help/jobs).
+- **Cloudflare Images this month:** how many images Cloudflare made for previews, thumbnails, AI and watermarks this month, which Cloudflare bills beyond your plan's allowance, with an alert when it passes the number you set.
 - **Previews:** checks that every thumbnail and preview is really there, and makes missing ones again. See [Backups and restoring the catalogue](/help/backups).
 - **Catalog backups:** daily copies of the catalogue itself. See [Backups and restoring the catalogue](/help/backups).

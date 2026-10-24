@@ -4,7 +4,7 @@ summary: "La differenza tra il catalogo e gli originali, e i posti in cui cf-dam
 section: Where photos are kept
 order: 1
 review: machine
-source: 56c3bc77ccf9
+source: b58b424e45f6
 ---
 
 cf-dam conserva due cose diverse in due posti diversi.
@@ -60,5 +60,7 @@ Puoi spostare una foto tra le classi dalla sua pagina (**Sposta**) e riavere una
 ## Le altre parti della pagina Archiviazione
 
 - **Controlli:** cf-dam verifica regolarmente che gli originali che conosce siano ancora dove pensa. I problemi compaiono qui e come avviso.
+- **Archivia i lavori consegnati:** una copia a freddo in S3 degli originali di ogni lavoro consegnato, qualche giorno dopo la consegna. Vedi [Lavori](/help/jobs).
+- **Cloudflare Images questo mese:** quante immagini Cloudflare ha creato questo mese per anteprime, miniature, IA e filigrane, che Cloudflare fa pagare oltre quanto incluso nel tuo piano, con un avviso quando si supera il numero che imposti.
 - **Anteprime:** controlla che ogni miniatura e anteprima ci sia davvero e ricrea quelle mancanti. Vedi [Backup e ripristino del catalogo](/help/backups).
 - **Backup del catalogo:** copie giornaliere del catalogo stesso. Vedi [Backup e ripristino del catalogo](/help/backups).

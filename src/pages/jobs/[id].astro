@@ -1,19 +1,22 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { getJob, jobAlbums, jobRestoreStatus, jobShares, jobStorage } from '@cf-dam/api'
+import { getJob, jobAlbums, jobArchiveStatus, jobRestoreStatus, jobShares, jobStorage } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import JobAlbums from '../../components/JobAlbums.svelte'
 import JobDetails from '../../components/JobDetails.svelte'
 import JobStage from '../../components/JobStage.svelte'
 import JobStorage from '../../components/JobStorage.svelte'
+import JobArchive from '../../components/JobArchive.svelte'
 
 const id = Astro.params.id!
 const job = await getJob(env.DB, id)
 if (!job) return Astro.redirect('/jobs')
 const [albums, galleries, storage, restore] = await Promise.all([jobAlbums(env.DB, id), jobShares(env.DB, id), jobStorage(env.DB, [id]), jobRestoreStatus(env.DB, id)])
 const canRestore = Astro.locals.principal!.permissions.has('lifecycle:manage')
+const canArchive = Astro.locals.principal!.permissions.has('sources:manage')
+const archive = (await jobArchiveStatus(env.DB, id))!
 const { results: clients } = await env.DB.prepare('SELECT id, name FROM clients WHERE past_at IS NULL OR id = ? ORDER BY name COLLATE NOCASE LIMIT 2000')
   .bind(job.client.id)
   .all<{ id: string; name: string }>()
@@ -40,6 +43,8 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
   <section class="card stack">
     <h2>{t('jobStorage.title')}</h2>
     <JobStorage client:load jobId={job.id} initial={storage.get(job.id)!} initialRestore={restore} canRestore={canRestore} />
+    <h3>{t('jobArchive.title')}</h3>
+    <JobArchive client:load jobId={job.id} initial={archive} canArchive={canArchive} />
   </section>
 
   <section class="card stack">
@@ -96,6 +101,10 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
   h2 {
     font-size: 1.05rem;
     margin: 0;
+  }
+  h3 {
+    font-size: 0.95rem;
+    margin: 8px 0 0;
   }
   .scroll {
     overflow-x: auto;

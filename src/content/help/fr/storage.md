@@ -4,7 +4,7 @@ summary: "La différence entre le catalogue et les originaux, et les endroits o�
 section: Where photos are kept
 order: 1
 review: machine
-source: 56c3bc77ccf9
+source: b58b424e45f6
 ---
 
 cf-dam garde deux choses différentes à deux endroits différents.
@@ -60,5 +60,7 @@ Vous pouvez déplacer une photo d’une classe à une autre depuis sa page (**D�
 ## Les autres parties de la page Stockage
 
 - **Vérifications :** cf-dam s’assure régulièrement que les originaux qu’il connaît sont toujours là où il le pense. Les problèmes s’affichent ici et sous forme d’alerte.
+- **Archiver les travaux livrés :** une copie à froid dans S3 des originaux de chaque travail livré, quelques jours après la livraison. Voir [Travaux](/help/jobs).
+- **Cloudflare Images ce mois-ci :** combien d’images Cloudflare a créées ce mois-ci pour les aperçus, les vignettes, l’IA et les filigranes, que Cloudflare facture au-delà de ce que comprend votre offre, avec une alerte quand ce nombre dépasse celui que vous avez fixé.
 - **Aperçus :** vérifie que chaque vignette et chaque aperçu existe bien, et recrée ceux qui manquent. Voir [Sauvegarder et restaurer le catalogue](/help/backups).
 - **Sauvegardes du catalogue :** des copies quotidiennes du catalogue lui-même. Voir [Sauvegarder et restaurer le catalogue](/help/backups).

@@ -56,6 +56,20 @@ Restoring needs the permission to manage storage tiers (administrators have it).
 
 When a gallery offers originals and some of the album's originals are archived or only on a NAS, the gallery form says so before you make the link.
 
+## Archiving after delivery
+
+When **Archive delivered jobs** is on (on the **Storage** page: choose the S3 connection, **Deep Archive** or **Glacier Flexible**, and how many days after delivery), every original in a delivered job's albums gets a copy in that cold class once the days have passed. The copy kept in cf-dam's own storage stays, so nothing becomes slower to open: the cold copy is a backup that costs very little to keep.
+
+- Before you switch it on, **What would it archive now?** shows how many jobs, originals and GB it would copy at once (every job already delivered long enough counts), what that costs a month to keep and once to upload.
+- Each part of a copy is checked as it arrives, and the copy's size is compared at the end. A copy interrupted carries on where it stopped.
+- Delivering a job again, after taking it back to **Editing** say, starts its days again.
+- **Keep hot** on a job's page never archives it automatically (reprints, albums in progress).
+- **Archive now** copies a job straight away, in the class you choose (needs the permission to manage storage connections).
+- Originals that are only on a computer or NAS are archived by its helper when that folder archives to S3 (**Computers and NAS**); if it doesn't, the job says how many are left out.
+- Originals that couldn't be copied after three tries show as an alert.
+
+Under **Originals**, **Cold backup** on the job's page says where it stands: when it will be archived, how far a copy has got, when it was archived, or what's in the way.
+
 ## What needs attention
 
 At the top of **Jobs**, **Needs attention** lists:

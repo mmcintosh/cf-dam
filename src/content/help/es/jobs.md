@@ -4,7 +4,7 @@ summary: "Seguir cada trabajo para un cliente desde la reserva hasta la entrega:
 section: Sharing
 order: 4
 review: machine
-source: 5793403dfd06
+source: 3c44ab054383
 ---
 
 Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** está en el menú, debajo de **Clientes**; como los clientes, solo lo ven los **administradores**.
@@ -57,6 +57,20 @@ Antes de un pedido de reimpresión, por ejemplo, pulsa **Restaurar n originales�
 Restaurar requiere el permiso para gestionar los niveles de almacenamiento (los administradores lo tienen).
 
 Cuando una galería ofrece originales y algunos originales del álbum están archivados o solo en un NAS, el formulario de la galería lo indica antes de que crees el enlace.
+
+## Archivar después de la entrega
+
+Cuando **Archivar trabajos entregados** está activado (en la página **Almacenamiento**: elige la conexión S3, **Deep Archive** o **Glacier Flexible**, y cuántos días después de la entrega), cada original de los álbumes de un trabajo entregado recibe una copia en esa clase en frío cuando pasan esos días. La copia guardada en el almacenamiento propio de cf-dam se queda, así que nada tarda más en abrirse: la copia en frío es una copia de seguridad que cuesta muy poco mantener.
+
+- Antes de activarlo, **¿Qué archivaría ahora?** muestra cuántos trabajos, originales y GB copiaría de una vez (cuenta cada trabajo que ya lleva entregado el tiempo suficiente), cuánto cuesta al mes mantenerlo y cuánto cuesta subirlo una vez.
+- Cada parte de una copia se comprueba al llegar, y al final se compara el tamaño de la copia. Una copia interrumpida sigue donde se quedó.
+- Si vuelves a entregar un trabajo, por ejemplo después de devolverlo a **Edición**, sus días empiezan de nuevo.
+- **Mantener caliente**, en la página de un trabajo, hace que nunca se archive automáticamente (reimpresiones, álbumes en curso).
+- **Archivar ahora** copia un trabajo en el momento, en la clase que elijas (requiere el permiso para gestionar las conexiones de almacenamiento).
+- Los originales que solo están en un ordenador o NAS los archiva su asistente cuando esa carpeta archiva en S3 (**Ordenadores y NAS**); si no, el trabajo indica cuántos quedan fuera.
+- Los originales que no se han podido copiar tras tres intentos aparecen como aviso.
+
+En **Originales**, en la página del trabajo, **Copia en frío** indica cómo va: cuándo se archivará, cuánto ha avanzado una copia, cuándo se archivó o qué lo impide.
 
 ## Lo que requiere atención
 

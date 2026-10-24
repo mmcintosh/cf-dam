@@ -151,6 +151,12 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     findings.push({ key: 'previews.stuck', kind: 'previews.stuck', text: { key: 'alert.previewsStuck', params: { count: noPreview } }, link: '/settings/storage' })
   }
 
+  // Originals that couldn't be copied to the archive after three tries (archive-jobs.ts).
+  const failedArchive = await db.prepare("SELECT COUNT(*) AS n, MAX(error) AS error FROM archive_items WHERE state = 'failed'").first<{ n: number; error: string | null }>()
+  if ((failedArchive?.n ?? 0) > 0) {
+    findings.push({ key: 'archive.failed', kind: 'archive.failed', text: { key: 'alert.archiveCopyFailed', params: { count: failedArchive!.n, error: clip(failedArchive!.error ?? '') } }, link: '/jobs' })
+  }
+
   // Cloudflare Images used this month past the threshold set on the Storage page (lib/images.ts). The key has
   // the month in it, so next month the alert resolves by itself.
   const images = await imageUsage(db)

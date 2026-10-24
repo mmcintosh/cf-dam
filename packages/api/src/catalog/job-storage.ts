@@ -18,6 +18,8 @@ import type { DamBindings } from '../env'
 import { readableNow } from './assets'
 
 const COLD = JSON.stringify([...ARCHIVE_CLASSES])
+/** A copy in any of these is a backup in the archive (Glacier Instant Retrieval reads at once, so needs no restore). */
+const BACKUP = JSON.stringify([...ARCHIVE_CLASSES, 'GLACIER_IR'])
 /** A restore item is given up after this many failed asks. */
 const MAX_ATTEMPTS = 3
 /** How long until a restore that isn't ready is looked at (the sweep's restore check). */
@@ -47,6 +49,7 @@ const empty = (): JobStorage => ({ photos: 0, readable: 0, offerable: 0, nasOnly
 async function storageBy(db: D1Database, photos: string, binds: unknown[]): Promise<Map<string, JobStorage>> {
   const readable = `l.state NOT IN ('pending', 'gone') AND (l.storage_class NOT IN (SELECT value FROM json_each(?2)) OR (l.state = 'restored' AND l.restore_expires_at > ?1))`
   const cold = `l.state NOT IN ('pending', 'gone') AND l.storage_class IN (SELECT value FROM json_each(?2))`
+  const backup = `l.state NOT IN ('pending', 'gone') AND l.storage_class IN (SELECT value FROM json_each(?4))`
   const { results } = await db
     .prepare(
       `WITH photos AS (${photos}),
@@ -55,18 +58,19 @@ async function storageBy(db: D1Database, photos: string, binds: unknown[]): Prom
            MAX(CASE WHEN ${readable} THEN 1 ELSE 0 END) AS readable,
            MAX(CASE WHEN c.provider != 'nas' AND ${readable} THEN 1 ELSE 0 END) AS offerable,
            MAX(CASE WHEN ${cold} THEN 1 ELSE 0 END) AS cold,
+           MAX(CASE WHEN ${backup} THEN 1 ELSE 0 END) AS backup,
            MAX(CASE WHEN ${cold} THEN l.size END) AS cold_size,
            MAX(CASE WHEN l.state = 'restoring' THEN 1 ELSE 0 END) AS restoring
          FROM photos p LEFT JOIN asset_locations l ON l.asset_id = p.asset_id LEFT JOIN storage_connections c ON c.id = l.connection_id
          GROUP BY p.scope, p.asset_id)
-       SELECT scope, COUNT(*) AS photos, SUM(readable) AS readable, SUM(offerable) AS offerable, SUM(cold) AS cold,
+       SELECT scope, COUNT(*) AS photos, SUM(readable) AS readable, SUM(offerable) AS offerable, SUM(backup) AS cold,
          SUM(CASE WHEN readable = 1 AND offerable = 0 THEN 1 ELSE 0 END) AS nas_only,
          SUM(CASE WHEN readable = 0 AND cold = 1 THEN 1 ELSE 0 END) AS needs_restore,
          SUM(CASE WHEN readable = 0 AND cold = 1 AND restoring = 1 THEN 1 ELSE 0 END) AS restoring,
          SUM(CASE WHEN readable = 0 AND cold = 1 THEN COALESCE(cold_size, 0) ELSE 0 END) AS restore_bytes
        FROM per GROUP BY scope`,
     )
-    .bind(nowIso(), COLD, ...binds)
+    .bind(nowIso(), COLD, ...binds, BACKUP)
     .all<{ scope: string; photos: number; readable: number; offerable: number; cold: number; nas_only: number; needs_restore: number; restoring: number; restore_bytes: number }>()
   return new Map(
     results.map((r) => [

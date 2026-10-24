@@ -251,6 +251,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.archiveSettings": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.assetDeleted": {
     "es": "machine",
     "de": "machine",
@@ -498,6 +504,18 @@
     "it": "machine"
   },
   "act.jobAlbumAdded": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.jobArchiveNow": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.jobArchived": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -1387,6 +1405,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.archiveCopyFailed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.archiveFailed": {
     "es": "machine",
     "de": "machine",
@@ -2023,6 +2047,72 @@
     "de": "ai-reviewed",
     "fr": "machine",
     "it": "ai-reviewed"
+  },
+  "archiveJobs.afterDays": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.check": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.class": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.enabled": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.lead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.noS3": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.note": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.preview": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.title": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.to": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "archiveJobs.whatNow": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
   },
   "auth.error.locked": {
     "es": "machine",
@@ -4186,6 +4276,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "err.archiveNotSetUp": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "err.archived": {
     "es": "machine",
     "de": "machine",
@@ -4217,6 +4313,12 @@
     "it": "machine"
   },
   "err.builtInConnection": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "err.cantArchive": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -5915,6 +6017,94 @@
     "it": "machine"
   },
   "job.stage.shot": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.blocked.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.blocked.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.blocked.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.copying": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.done": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.due": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.failed.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.failed.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.failed.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.keepHot": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.keepHotLead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.keptHot": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.notDue": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.now": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobArchive.title": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

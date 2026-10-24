@@ -66,6 +66,8 @@ export interface PutOptions {
   storageClass?: StorageClass
   /** Multipart only: every part carries its SHA-256, which the store checks on arrival (S3). */
   checksumSha256?: boolean
+  /** A single put: the body's SHA-256 (base64), which the store checks on arrival (S3). */
+  sha256?: string
 }
 
 /** A request the browser or agent sends straight to storage. Signed headers must be sent as given. */
@@ -108,7 +110,7 @@ export interface StorageProvider {
 
   createMultipart(key: string, options?: PutOptions): Promise<string>
   /** Upload one part through the Worker (used when the provider can't presign). */
-  uploadPart(key: string, uploadId: string, partNumber: number, body: ReadableStream | ArrayBuffer, size: number): Promise<{ etag: string }>
+  uploadPart(key: string, uploadId: string, partNumber: number, body: ReadableStream | ArrayBuffer, size: number, options?: { checksumSha256?: string }): Promise<{ etag: string }>
   completeMultipart(key: string, uploadId: string, parts: CompletedPart[]): Promise<{ etag: string }>
   abortMultipart(key: string, uploadId: string): Promise<void>
 

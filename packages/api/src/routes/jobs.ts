@@ -25,6 +25,7 @@ import {
   updateJob,
   type Stage,
 } from '../catalog/jobs'
+import { ARCHIVE_JOB_CLASSES, getArchiveJobSettings, jobArchiveStatus, queueJobArchive, setKeepHot, type ArchiveJobClass } from '../catalog/archive-jobs'
 import { JOB_RESTORE_TIERS, jobRestoreStatus, jobStorage, restoreEstimate, startJobRestore, type JobRestoreTier } from '../catalog/job-storage'
 import { jobShares } from '../catalog/shares'
 import { nudge } from '../catalog/work'
@@ -211,6 +212,43 @@ jobRoutes.post('/:id/restore', async (c) => {
   } catch (error) {
     return c.json(invalid(error), 400)
   }
+})
+
+/** Where the job's archive stands (archive-jobs.ts). */
+jobRoutes.get('/:id/archive', async (c) => {
+  const status = await jobArchiveStatus(c.env.DB, c.req.param('id'))
+  return status ? c.json({ archive: status }) : c.json(notFound(), 404)
+})
+
+/** `{ keepHot }`: never archive this job automatically (reprints, albums in progress). */
+jobRoutes.post('/:id/keep-hot', async (c) => {
+  const id = c.req.param('id')
+  const body = await readJsonObject(c).catch(() => ({}) as Record<string, unknown>)
+  if (typeof body.keepHot !== 'boolean') return c.json({ error: 'invalid_request', message: 'keepHot must be true or false.' }, 400)
+  if (!(await setKeepHot(c.env.DB, id, body.keepHot))) return c.json(notFound(), 404)
+  return c.json({ archive: await jobArchiveStatus(c.env.DB, id) })
+})
+
+/**
+ * Archive the job now, without waiting for its day (also needs `sources:manage`): `{ storageClass }` may choose
+ * another cold class than the settings' for this job.
+ */
+jobRoutes.post('/:id/archive-now', async (c) => {
+  const principal = c.get('principal')!
+  if (!principal.permissions.has('sources:manage')) return c.json({ error: 'forbidden', message: say('err.cantArchive') }, 403)
+  const id = c.req.param('id')
+  const job = await getJob(c.env.DB, id)
+  if (!job) return c.json(notFound(), 404)
+  const body = await readJsonObject(c).catch(() => ({}) as Record<string, unknown>)
+  const settings = await getArchiveJobSettings(c.env.DB)
+  if (!settings.connectionId) return c.json({ error: 'not_set_up', message: say('err.archiveNotSetUp') }, 409)
+  const storageClass = (body.storageClass ?? settings.storageClass) as ArchiveJobClass
+  if (!ARCHIVE_JOB_CLASSES.includes(storageClass)) return c.json({ error: 'invalid_request', message: `storageClass is one of ${ARCHIVE_JOB_CLASSES.join(', ')}.` }, 400)
+  await c.env.DB.prepare('UPDATE jobs SET archive_state = NULL WHERE id = ?').bind(id).run()
+  const note = await queueJobArchive(c.env.DB, id, settings, storageClass)
+  await nudge(c.env, 'archive', note.copy + note.move)
+  await log(c, 'job.archive_now', id, { title: job.title, storageClass, ...note })
+  return c.json({ archive: await jobArchiveStatus(c.env.DB, id) }, 202)
 })
 
 /** Take an album out of the job. The album and its galleries stay. */

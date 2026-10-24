@@ -14,20 +14,23 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { aiAvailable, analyzeAsset } from './ai'
+import { archiveOne } from './archive-jobs'
 import { askRestores } from './job-storage'
 import { processAsset } from './process'
 
-export type WorkKind = 'ai' | 'process' | 'restore'
+export type WorkKind = 'ai' | 'process' | 'restore' | 'archive'
 export interface WorkMessage {
   kind: WorkKind
 }
 
 /** Photos one message takes: a few model calls' time, well inside one invocation's limits. */
-export const CLAIM = { ai: 8, process: 4, restore: 20 } as const
+export const CLAIM = { ai: 8, process: 4, restore: 20, archive: 1 } as const
 /** Model calls at once within one message. */
 const AI_PARALLEL = 4
 /** Chains started for a lot of waiting work; each carries on until nothing is left. */
 export const MAX_CHAINS = 4
+/** Archive copies hold a 16 MiB part each and run for minutes: two at most, so imports and AI keep moving. */
+const KIND_CHAINS: Partial<Record<WorkKind, number>> = { archive: 2 }
 
 /**
  * Say that work of this kind is waiting: one chain per CLAIM photos, at most MAX_CHAINS. Best effort:
@@ -35,7 +38,7 @@ export const MAX_CHAINS = 4
  */
 export async function nudge(env: DamBindings, kind: WorkKind, waiting = 1): Promise<void> {
   if (!env.WORK || waiting <= 0) return
-  const chains = Math.min(MAX_CHAINS, Math.ceil(waiting / CLAIM[kind]))
+  const chains = Math.min(KIND_CHAINS[kind] ?? MAX_CHAINS, Math.ceil(waiting / CLAIM[kind]))
   try {
     await env.WORK.sendBatch(Array.from({ length: chains }, () => ({ body: { kind } satisfies WorkMessage })))
   } catch (error) {
@@ -85,6 +88,12 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
     if (ids.length === CLAIM.ai) await nudge(env, 'ai')
     return ids.length
   }
+  if (kind === 'archive') {
+    // One original copied (or carried on) per message (archive-jobs.ts).
+    const result = await archiveOne(env)
+    if (result !== 'none') await nudge(env, 'archive')
+    return result === 'none' ? 0 : 1
+  }
   if (kind === 'restore') {
     // A job restore's photos, asked of S3 a handful at a time (job-storage.ts).
     const asked = await askRestores(env, CLAIM.restore)
@@ -105,7 +114,7 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
 export async function handleWork(env: DamBindings, batch: MessageBatch<WorkMessage>): Promise<void> {
   for (const message of batch.messages) {
     const kind = message.body?.kind
-    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore') {
+    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore' && kind !== 'archive') {
       message.ack()
       continue
     }

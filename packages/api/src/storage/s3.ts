@@ -136,6 +136,7 @@ export class S3Provider implements StorageProvider {
       headers['x-amz-storage-class'] = options.storageClass
     }
     if (options?.checksumSha256) headers['x-amz-checksum-algorithm'] = 'SHA256'
+    if (options?.sha256) headers['x-amz-checksum-sha256'] = options.sha256
     return headers
   }
 
@@ -220,9 +221,12 @@ export class S3Provider implements StorageProvider {
     return uploadId
   }
 
-  async uploadPart(key: string, uploadId: string, partNumber: number, body: ReadableStream | ArrayBuffer, size: number) {
+  async uploadPart(key: string, uploadId: string, partNumber: number, body: ReadableStream | ArrayBuffer, size: number, options?: { checksumSha256?: string }) {
+    const headers: Record<string, string> = { 'Content-Length': String(size) }
+    // Sent through the Worker, a part carries its SHA-256 the same way a presigned one does: S3 refuses other bytes.
+    if (options?.checksumSha256) headers['x-amz-checksum-sha256'] = options.checksumSha256
     const response = await this.send('PUT', this.url(key, { partNumber: String(partNumber), uploadId }), {
-      headers: { 'Content-Length': String(size) },
+      headers,
       body: body as BodyInit,
     })
     if (!response.ok) await this.fail(response, `Uploading part ${partNumber}`)

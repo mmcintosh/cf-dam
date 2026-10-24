@@ -30,6 +30,7 @@ import { logActivity } from '../lib/activity'
 import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
 import { sweepShot } from './jobs'
+import { archiveStep, jobsLook } from './archive-jobs'
 import { recoverRestoreItems } from './job-storage'
 import { nudge } from './work'
 import { getConnection, providerFor } from '../storage/connections'
@@ -52,7 +53,7 @@ import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 255 },
+  process: { ms: 15_000, queries: 245 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -66,7 +67,7 @@ export const SLICES = {
   stats: { ms: 10_000, queries: 30 },
   previews: { ms: 10_000, queries: 40 },
   alerts: { ms: 3_000, queries: 10 },
-  jobs: { ms: 2_000, queries: 5 },
+  jobs: { ms: 5_000, queries: 15 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -279,13 +280,26 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   const restoring = slice('restores')
   if (restoring.more()) {
     const now = nowIso()
-    await db.prepare("UPDATE asset_locations SET state = 'archived', restore_expires_at = NULL, updated_at = ? WHERE state = 'restored' AND restore_expires_at <= ?")
-      .bind(now, now)
-      .run()
+    // One look at what there is to do, so a quiet minute costs one query.
+    const todo = (await db
+      .prepare(
+        `SELECT EXISTS (SELECT 1 FROM asset_locations WHERE state = 'restored' AND restore_expires_at <= ?1) AS expired,
+           EXISTS (SELECT 1 FROM asset_locations WHERE state = 'restoring' AND (next_check_at IS NULL OR next_check_at <= ?1)) AS due,
+           EXISTS (SELECT 1 FROM restore_items WHERE state IN ('waiting', 'asking')) AS items`,
+      )
+      .bind(now)
+      .first<{ expired: number; due: number; items: number }>())!
+    if (todo.expired) {
+      await db.prepare("UPDATE asset_locations SET state = 'archived', restore_expires_at = NULL, updated_at = ? WHERE state = 'restored' AND restore_expires_at <= ?")
+        .bind(now, now)
+        .run()
+    }
     // Job restores (job-storage.ts) are asked of S3 by the work queue; if a message was lost, nudge it again.
-    const waiting = await recoverRestoreItems(db)
-    if (waiting > 0) await nudge(env, 'restore', waiting)
-    const { results: locations } = await db
+    if (todo.items) {
+      const waiting = await recoverRestoreItems(db)
+      if (waiting > 0) await nudge(env, 'restore', waiting)
+    }
+    const { results: locations } = !todo.due ? { results: [] } : await db
       .prepare(
         `SELECT asset_id, connection_id, key FROM asset_locations
          WHERE state = 'restoring' AND (next_check_at IS NULL OR next_check_at <= ?) ORDER BY next_check_at LIMIT ?`,
@@ -384,11 +398,20 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     }
   }
 
-  // 11. Booked jobs whose shoot dates now have photos move to Shot (catalog/jobs.ts).
-  if (slice('jobs').more()) {
+  // 11. Jobs (jobs.ts, archive-jobs.ts): one look, then booked jobs whose shoot dates now have photos move to Shot,
+  // and delivered jobs due for archiving get their originals listed for the work queue to copy.
+  const working = slice('jobs')
+  if (working.more()) {
     try {
-      for (const job of await sweepShot(db)) {
-        await logActivity(db, { userId: null, action: 'job.stage', targetType: 'job', targetId: job.id, details: { title: job.title, from: 'booked', to: 'shot', by: 'photos' } })
+      const todo = await jobsLook(db)
+      if (todo.shot) {
+        for (const job of await sweepShot(db)) {
+          await logActivity(db, { userId: null, action: 'job.stage', targetType: 'job', targetId: job.id, details: { title: job.title, from: 'booked', to: 'shot', by: 'photos' } })
+        }
+      }
+      if (working.more()) {
+        const waiting = await archiveStep(env, working.more, todo)
+        if (waiting > 0) await nudge(env, 'archive', waiting)
       }
     } catch (error) {
       console.warn('[sweep] jobs failed', error)

@@ -189,6 +189,12 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.jobUpdated', { who, title: str(d.title) || t('act.aJob') })
     case 'job.deleted':
       return t('act.jobDeleted', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.archived':
+      return t('act.jobArchived', { count: num(d.photos), title: str(d.title) || t('act.aJob') })
+    case 'job.archive_now':
+      return t('act.jobArchiveNow', { who, title: str(d.title) || t('act.aJob') })
+    case 'archive.settings_changed':
+      return t('act.archiveSettings', { who })
     case 'job.restore':
       return t('act.jobRestore', { who, count: num(d.photos), title: str(d.title) || t('act.aJob') })
     case 'job.album_added':
