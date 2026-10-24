@@ -10,8 +10,10 @@ interface Props {
   /** Or a keyword typed by name or path (`tag=`): every keyword it means is lit. */
   activeTag: string | null
   link: (id: string | null) => string
+  /** Top level only: keywords from this index on start folded away ("Show all"), unless the chosen one is there. */
+  fold?: number
 }
-const { nodes, all, activeId, activeTag, link } = Astro.props
+const { nodes, all, activeId, activeTag, link, fold = Infinity } = Astro.props
 const children = (id: string) => all.filter((k) => k.parentId === id)
 const typed = activeTag?.toLowerCase().replace(/\s*(?:>|\||›)\s*/g, ' › ')
 const chosenPath = all.find((k) => k.id === activeId)?.path.toLowerCase() ?? typed
@@ -20,15 +22,16 @@ const isActive = (k: KeywordFacet) => k.id === activeId || (!activeId && !!typed
 const contains = (k: KeywordFacet) => !!chosenPath && chosenPath.startsWith(`${k.path.toLowerCase()} › `)
 ---
 <ul class="kw">
-  {nodes.map((k) => {
+  {nodes.map((k, index) => {
     const kids = children(k.id)
+    const folded = index >= fold && !isActive(k) && !contains(k)
     const row = (
       <a href={link(k.id === activeId ? null : k.id)} class:list={['kw-link', { on: isActive(k) }]} title={k.path}>
         <span>{k.name}</span><span class="count">{k.count}</span>
       </a>
     )
     return (
-      <li>
+      <li data-more={folded ? '' : undefined} hidden={folded}>
         {kids.length > 0 ? (
           <details open={contains(k) || isActive(k)}>
             <summary class="kw-summary">{row}</summary>

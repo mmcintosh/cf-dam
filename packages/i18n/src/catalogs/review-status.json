@@ -4726,6 +4726,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "facets.allKeywords": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "facets.andUp": {
     "es": "machine",
     "de": "machine",
@@ -4768,7 +4774,19 @@
     "fr": "machine",
     "it": "machine"
   },
+  "facets.fewerKeywords": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "facets.filters": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.findKeyword": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -4841,6 +4859,12 @@
     "it": "machine"
   },
   "facets.month": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.noKeyword": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

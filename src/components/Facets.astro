@@ -80,7 +80,11 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
   { key: 'city', title: t('facets.city'), values: facets.city, open: false },
   { key: 'creator', title: t('facets.creator'), values: facets.creator, open: false },
 ]
-const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
+// Most used first; past KEYWORDS_SHOWN they wait behind "Show all", and the box finds any of them.
+const KEYWORDS_SHOWN = 15
+const rootKeywords = facets.tag
+  .filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
+  .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
 ---
 <aside class="facets" aria-label={t('facets.filters')}>
   {active.length > 0 && (
@@ -146,10 +150,58 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
   {facets.tag.length > 0 && (
     <details open>
       <summary>{t('facets.keywords')}</summary>
-      <div class="values"><KeywordTree nodes={rootKeywords} all={facets.tag} activeId={params.get('kw')} activeTag={params.get('tag')} link={(id) => link({ kw: id, tag: null })} /></div>
+      <div class="values keywords" data-keywords>
+        {facets.tag.length > KEYWORDS_SHOWN && (
+          <input type="search" class="kw-find" placeholder={t('facets.findKeyword')} aria-label={t('facets.findKeyword')} />
+        )}
+        <KeywordTree nodes={rootKeywords} all={facets.tag} activeId={params.get('kw')} activeTag={params.get('tag')} link={(id) => link({ kw: id, tag: null })} fold={KEYWORDS_SHOWN} />
+        <p class="kw-none" data-none hidden>{t('facets.noKeyword')}</p>
+        {rootKeywords.length > KEYWORDS_SHOWN && (
+          <button type="button" class="kw-more" data-more-button data-all={t('facets.allKeywords', { count: rootKeywords.length })} data-fewer={t('facets.fewerKeywords')}>
+            {t('facets.allKeywords', { count: rootKeywords.length })}
+          </button>
+        )}
+      </div>
     </details>
   )}
 </aside>
+
+<script>
+  // Keywords: typing narrows the tree to the keywords whose path matches (opening the branches they're in);
+  // "Show all" unfolds the less used ones.
+  for (const box of document.querySelectorAll<HTMLElement>('[data-keywords]')) {
+    const find = box.querySelector<HTMLInputElement>('.kw-find')
+    const more = box.querySelector<HTMLButtonElement>('[data-more-button]')
+    const none = box.querySelector<HTMLElement>('[data-none]')!
+    const items = [...box.querySelectorAll<HTMLLIElement>('li')].map((li) => ({
+      li,
+      paths: [...li.querySelectorAll('a')].map((a) => a.title.toLowerCase()),
+      details: li.querySelector(':scope > details') as HTMLDetailsElement | null,
+    }))
+    for (const { details } of items) if (details) details.dataset.wasOpen = String(details.open)
+    let all = false
+    const apply = () => {
+      const q = find?.value.trim().toLowerCase() ?? ''
+      let shown = 0
+      for (const { li, paths, details } of items) {
+        const match = q ? paths.some((p) => p.includes(q)) : !(li.dataset.more !== undefined && !all)
+        li.hidden = !match
+        if (match && li.parentElement?.closest('li') === null) shown++
+        if (details) details.open = q ? match && paths.slice(1).some((p) => p.includes(q)) : details.dataset.wasOpen === 'true'
+      }
+      none.hidden = !q || shown > 0
+      if (more) {
+        more.hidden = q !== ''
+        more.textContent = all ? more.dataset.fewer! : more.dataset.all!
+      }
+    }
+    find?.addEventListener('input', apply)
+    more?.addEventListener('click', () => {
+      all = !all
+      apply()
+    })
+  }
+</script>
 
 <style>
   .facets {
@@ -225,6 +277,29 @@ const rootKeywords = facets.tag.filter((k) => k.parentId === null || !facets.tag
   .values a.on {
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .kw-find {
+    width: 100%;
+    margin: 2px 0 6px;
+    padding: 5px 8px;
+    font-size: 0.82rem;
+  }
+  .kw-none {
+    margin: 4px 8px;
+    color: var(--text-faint);
+  }
+  .kw-more {
+    justify-self: start;
+    margin: 4px 0 0 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+  .kw-more:hover {
+    text-decoration: underline;
   }
   .uncounted {
     margin: 0 0 12px;
