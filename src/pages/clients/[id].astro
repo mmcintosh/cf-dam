@@ -1,0 +1,117 @@
+---
+import { env } from 'cloudflare:workers'
+import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
+import { clientDownloads, clientPeople, clientShares, getClient } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+import ActivityLog from '../../components/ActivityLog.svelte'
+import ClientDetails from '../../components/ClientDetails.svelte'
+import ClientErase from '../../components/ClientErase.svelte'
+import ClientPeople from '../../components/ClientPeople.svelte'
+
+const id = Astro.params.id!
+const client = await getClient(env.DB, id)
+if (!client) return Astro.redirect('/clients')
+const [people, galleries, downloads] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id)])
+const t = getT(Astro.locals.lang)
+const fmt = createFormat(Astro.locals.lang)
+const day = (iso: string | null) => (iso ? fmt.date(iso) : '—')
+const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
+const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { date: day(client.pastAt) }) : t('clientsPage.since', { date: day(client.createdAt) })].filter(Boolean).join(' · ')
+---
+<AppLayout help="clients" title={client.name} subtitle={subtitle}>
+  <div class="row top"><a class="btn btn-sm" href="/clients">← {t('nav.clients')}</a></div>
+
+  <section class="card stack">
+    <h2>{t('clientsPage.details')}</h2>
+    <ClientDetails client:load client={client} />
+  </section>
+
+  <section class="card stack">
+    <h2>{t('clientsPage.peopleTitle')}</h2>
+    <ClientPeople client:load clientId={client.id} initial={people} />
+  </section>
+
+  <section class="card stack">
+    <h2>{t('clientsPage.galleries')}</h2>
+    {galleries.length === 0 ? (
+      <p class="muted">{t('clientsPage.noGalleries')}</p>
+    ) : (
+      <div class="scroll">
+        <table class="table">
+          <thead><tr><th>{t('galleries.link')}</th><th>{t('galleries.album')}</th><th>{t('common.status')}</th><th>{t('galleries.expires')}</th><th>{t('galleries.opens')}</th><th>{t('common.favourites')}</th><th>{t('common.downloads')}</th><th>{t('galleries.lastOpened')}</th></tr></thead>
+          <tbody>
+            {galleries.map((s) => (
+              <tr>
+                <td><a href={`/galleries/${s.id}`}>{s.name}</a></td>
+                <td><a href={`/albums/${s.albumId}`}>{s.albumName}</a></td>
+                <td><span class:list={['badge', { 'badge-ok': s.status === 'active' }]}>{STATUS[s.status]}</span></td>
+                <td class="muted">{s.expiresAt ? day(s.expiresAt) : t('galleries.never')}</td>
+                <td>{s.stats.opens}</td>
+                <td>{s.stats.picks}</td>
+                <td>{s.stats.downloads}</td>
+                <td class="muted">{day(s.stats.lastOpenedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+    <p class="muted small">{t('clientsPage.galleriesLead')} <a href="/galleries">{t('nav.galleries')}</a></p>
+  </section>
+
+  <section class="card stack">
+    <h2>{t('clientsPage.downloads')}</h2>
+    {downloads.length === 0 ? (
+      <p class="muted">{t('clientsPage.noDownloads')}</p>
+    ) : (
+      <div class="scroll">
+        <table class="table">
+          <thead><tr><th>{t('clientsPage.when')}</th><th>{t('clientsPage.who')}</th><th>{t('clientsPage.photo')}</th><th>{t('clientsPage.size')}</th><th>{t('galleries.link')}</th></tr></thead>
+          <tbody>
+            {downloads.map((d) => (
+              <tr>
+                <td class="muted">{fmt.dateTime(d.at)}</td>
+                <td>{d.person}</td>
+                <td>{d.assetId ? <a href={`/assets/${d.assetId}`}>{d.filename}</a> : <span class="muted">{t('clientsPage.wholeGallery')}</span>}</td>
+                <td class="muted">{d.size ? t(`share.size.${d.size}` as MessageKey) : '—'}</td>
+                <td><a href={`/galleries/${d.shareId}`}>{d.shareName}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+
+  <section class="card stack">
+    <h2>{t('clientsPage.history')}</h2>
+    <ActivityLog client:load client={client.id} />
+  </section>
+
+  <section class="card stack danger">
+    <h2>{t('clientsPage.eraseTitle')}</h2>
+    <ClientErase client:load clientId={client.id} name={client.name} />
+  </section>
+</AppLayout>
+
+<style>
+  .top {
+    margin-bottom: 16px;
+  }
+  section + section {
+    margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+  .danger {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  }
+</style>

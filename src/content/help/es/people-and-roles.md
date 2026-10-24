@@ -4,12 +4,12 @@ summary: "Invitar a compañeros, qué puede hacer cada función y cómo ayudar a
 section: People and security
 order: 1
 review: machine
-source: db2ca999caa7
+source: 25b86cd4ced7
 ---
 
 Cada persona que inicia sesión en cf-dam tiene su propia cuenta y una **función** que decide lo que puede hacer.
 
-Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde **Compartir con clientes** en un álbum, no desde aquí, y aparecen aparte, en la pestaña **Clientes** de **Personas**, que tiene un buscador como la pestaña **Equipo**. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries).
+Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde una galería o desde la página de un cliente en **Clientes**, no desde aquí, y aparecen aparte, en la pestaña **Clientes** de **Personas**, que tiene un buscador como la pestaña **Equipo** y muestra a qué cliente pertenece cada acceso. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries) y [Clientes](/help/clients).
 
 ## Las funciones
 
@@ -20,6 +20,7 @@ Los **clientes** son distintos: solo ven las galerías de cliente a las que los 
 | Eliminar fotos, resolver duplicados | ✓ | ✓ | |
 | Lanzar la revisión con IA en fotos | ✓ | ✓ | |
 | Compartir galerías con clientes | ✓ | ✓ | |
+| Clientes: datos de contacto, notas, historial | ✓ | | |
 | Cambiar los ajustes de la revisión con IA | ✓ | | |
 | Almacenamiento, asistentes, copias de seguridad | ✓ | | |
 | Personas, actividad, avisos | ✓ | | |

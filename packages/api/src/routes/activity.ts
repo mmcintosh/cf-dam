@@ -1,6 +1,6 @@
 /**
  * The activity log, for administrators (`activity:read`): newest first, a page at a time, by person
- * and by kind. Entries are returned as stored, with the names of the people involved; the page turns
+ * by kind and by client. Entries are returned as stored, with the names of the people involved; the page turns
  * them into sentences.
  */
 import { Hono } from 'hono'
@@ -41,6 +41,7 @@ activityRoutes.use('*', requirePermission('activity:read'))
 
 activityRoutes.get('/', async (c) => {
   const person = c.req.query('person')
+  const client = c.req.query('client')
   const kind = c.req.query('kind')
   const before = c.req.query('before')
   const where: string[] = []
@@ -57,6 +58,13 @@ activityRoutes.get('/', async (c) => {
     // Things they did, and things done to their account (a failed sign-in has no one doing it).
     where.push("(a.user_id = ? OR (a.target_type = 'user' AND a.target_id = ?))")
     binds.push(person, person)
+  }
+  if (client) {
+    // Done to the client's record, and things done by or to the logins linked to them.
+    where.push(
+      "((a.target_type = 'client' AND a.target_id = ?) OR (a.target_type = 'user' AND a.target_id IN (SELECT user_id FROM client_people WHERE client_id = ?)) OR a.user_id IN (SELECT user_id FROM client_people WHERE client_id = ?))",
+    )
+    binds.push(client, client, client)
   }
   if (before) {
     const [at, id] = before.split('|')

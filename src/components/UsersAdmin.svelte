@@ -21,6 +21,8 @@
     lockedUntil: string | null
     lastLoginAt: string | null
     roles: string[]
+    /** The client this login belongs to, if any. */
+    client: { id: string; name: string } | null
   }
   interface Role {
     name: string
@@ -32,7 +34,7 @@
   let users = $state<User[]>([])
   let required = $state<Scope>('nobody')
   let roles = $state<Role[]>([])
-  /** Clients (only the Client role) are listed apart; they're invited from an album's sharing panel. */
+  /** Clients (only the Client role) are listed apart; they're invited from a gallery or a client's page. */
   const isClient = (user: User) => user.roles.length > 0 && user.roles.every((r) => r === 'client')
   const team = $derived(users.filter((u) => !isClient(u)))
   const clients = $derived(users.filter(isClient))
@@ -189,6 +191,7 @@
             <td>
               {#if isClient(user)}
                 <span class="muted">{t('role.client')}</span>
+                {#if user.client}<a class="small" href={`/clients/${user.client.id}`}>{user.client.name}</a>{/if}
               {:else}
                 <select
                   aria-label={t('people.roleFor', { email: user.email })}

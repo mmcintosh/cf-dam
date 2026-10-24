@@ -168,6 +168,20 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.clientJoined', { who })
     case 'client.removed':
       return t('act.clientRemoved', { who, whom: whom || t('act.aClient') })
+    case 'client.created':
+      return t('act.clientCreated', { who, name: str(d.name) || t('act.aClient') })
+    case 'client.updated':
+      return t('act.clientUpdated', { who, name: str(d.name) || t('act.aClient') })
+    case 'client.past':
+      return t('act.clientPast', { who, name: str(d.name) || t('act.aClient') })
+    case 'client.current':
+      return t('act.clientCurrent', { who, name: str(d.name) || t('act.aClient') })
+    case 'client.linked':
+      return t('act.clientLinked', { who, whom: whom || t('act.aClient') })
+    case 'client.unlinked':
+      return t('act.clientUnlinked', { who, whom: whom || t('act.aClient') })
+    case 'client.erased':
+      return t('act.clientErased', { who })
     case 'watermark.set':
       return t('act.watermarkSet', { who })
     case 'ai.settings_changed':

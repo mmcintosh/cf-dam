@@ -4,12 +4,12 @@ summary: "Kollegen einladen, was jede Rolle darf, und jemandem helfen, der sich 
 section: People and security
 order: 1
 review: machine
-source: db2ca999caa7
+source: 25b86cd4ced7
 ---
 
 Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, die festlegt, was er tun kann.
 
-**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie über **Mit Kunden teilen** in einem Album ein, nicht hier, und sie stehen getrennt im Reiter **Kunden** auf **Personen**, der wie der Reiter **Team** eine Suche hat. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries).
+**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie aus einer Galerie oder von der Seite eines Kunden unter **Kunden** ein, nicht hier, und sie stehen getrennt im Reiter **Kunden** auf **Personen**, der wie der Reiter **Team** eine Suche hat und zeigt, zu welchem Kunden jede Anmeldung gehört. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries) und [Kunden](/help/clients).
 
 ## Die Rollen
 
@@ -20,6 +20,7 @@ Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, d
 | Fotos löschen, Duplikate auflösen | ✓ | ✓ | |
 | KI-Prüfung für Fotos starten | ✓ | ✓ | |
 | Galerien mit Kunden teilen | ✓ | ✓ | |
+| Kunden: Kontaktdaten, Notizen, Verlauf | ✓ | | |
 | Einstellungen der KI-Prüfung ändern | ✓ | | |
 | Speicher, Helfer, Sicherungen | ✓ | | |
 | Personen, Aktivität, Warnungen | ✓ | | |

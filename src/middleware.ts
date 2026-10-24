@@ -23,6 +23,7 @@ const PAGE_PERMISSIONS: [string, string][] = [
   ['/admin/alerts', 'alerts:read'],
   ['/admin', 'users:manage'],
   ['/galleries', 'shares:manage'],
+  ['/clients', 'clients:manage'],
   ['/settings/storage', 'sources:manage'],
   ['/settings/ai', 'ai:run'],
   ['/sources', 'sources:manage'],

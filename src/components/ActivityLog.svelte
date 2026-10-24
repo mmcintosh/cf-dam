@@ -23,6 +23,9 @@
     ['alerts', 'activity.kind.alerts'],
   ]
 
+  /** A client's page: only their history, without the filters. */
+  let { client = null }: { client?: string | null } = $props()
+
   let entries = $state<ActivityEntry[]>([])
   let next = $state<string | null>(null)
   let people = $state<Person[]>([])
@@ -51,6 +54,7 @@
     const query = new URLSearchParams()
     if (kind) query.set('kind', kind)
     if (person) query.set('person', person)
+    if (client) query.set('client', client)
     if (more && next) query.set('before', next)
     try {
       const page = await api<{ entries: ActivityEntry[]; next: string | null }>(`/api/activity?${query}`)
@@ -65,12 +69,12 @@
 
   onMount(async () => {
     await load()
-    people = (await api<{ users: Person[] }>('/api/users')).users
+    if (!client) people = (await api<{ users: Person[] }>('/api/users')).users
   })
 </script>
 
 <div class="stack">
-  <div class="filters">
+  {#if !client}<div class="filters">
     <label class="field">
       <span>{t('activity.kind')}</span>
       <select bind:value={kind} onchange={() => load()}>
@@ -84,12 +88,12 @@
         {#each people as p (p.id)}<option value={p.id}>{p.name || p.email}</option>{/each}
       </select>
     </label>
-  </div>
+  </div>{/if}
 
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
 
   {#if !loading && entries.length === 0 && !error}
-    <p class="muted">Nothing recorded{kind || person ? ' that matches' : ' yet'}.</p>
+    <p class="muted">{kind || person ? t('activity.noneMatch') : t('activity.none')}</p>
   {/if}
 
   {#each days as group (group.day)}

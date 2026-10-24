@@ -24,13 +24,17 @@ interface UserRow {
   roles: string | null
   passkeys: number
   sessions: number
+  client_id: string | null
+  client_name: string | null
 }
 
 const USER_SELECT = `
   SELECT u.id, u.name, u.email, u.is_active, u.two_factor_enabled, u.must_change_password, u.locked_until,
          u.last_login_at, u.created_at, group_concat(r.name) AS roles,
          (SELECT COUNT(*) FROM passkey p WHERE p.user_id = u.id) AS passkeys,
-         (SELECT COUNT(*) FROM session s WHERE s.user_id = u.id AND s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS sessions
+         (SELECT COUNT(*) FROM session s WHERE s.user_id = u.id AND s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS sessions,
+         (SELECT c.id FROM client_people cp JOIN clients c ON c.id = cp.client_id WHERE cp.user_id = u.id) AS client_id,
+         (SELECT c.name FROM client_people cp JOIN clients c ON c.id = cp.client_id WHERE cp.user_id = u.id) AS client_name
   FROM users u
   LEFT JOIN user_roles ur ON ur.user_id = u.id
   LEFT JOIN roles r ON r.id = ur.role_id`
@@ -49,6 +53,8 @@ function userJson(row: UserRow) {
     lastLoginAt: row.last_login_at,
     createdAt: row.created_at,
     roles: row.roles ? row.roles.split(',').sort() : [],
+    /** The client a client login belongs to (catalog/client-records.ts). */
+    client: row.client_id ? { id: row.client_id, name: row.client_name ?? '' } : null,
   }
 }
 

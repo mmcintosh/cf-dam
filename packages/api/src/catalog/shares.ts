@@ -145,6 +145,18 @@ export async function listShares(db: D1Database, albumId?: string): Promise<Shar
   return results.map(shareJson)
 }
 
+/** The links any of a client's people were invited to (catalog/client-records.ts), newest first. */
+export async function clientShares(db: D1Database, clientId: string): Promise<ShareJson[]> {
+  const { results } = await db
+    .prepare(
+      `${SHARE_SELECT} WHERE s.id IN (SELECT m.share_id FROM share_members m JOIN client_people p ON p.user_id = m.user_id WHERE p.client_id = ?)
+       ORDER BY s.revoked_at IS NOT NULL, s.created_at DESC`,
+    )
+    .bind(clientId)
+    .all<ListedShareRow>()
+  return results.map(shareJson)
+}
+
 export async function getShare(db: D1Database, id: string): Promise<ShareJson | null> {
   const row = await db.prepare(`${SHARE_SELECT} WHERE s.id = ?`).bind(id).first<ListedShareRow>()
   return row ? shareJson(row) : null

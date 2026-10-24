@@ -4,12 +4,12 @@ summary: "Invitare i colleghi, cosa può fare ogni ruolo e aiutare chi è rimast
 section: People and security
 order: 1
 review: machine
-source: db2ca999caa7
+source: 25b86cd4ced7
 ---
 
 Chiunque acceda a cf-dam ha il proprio account e un **ruolo** che decide cosa può fare.
 
-I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nient’altro. Li inviti da **Condividi con i clienti** di un album, non da qui, e sono elencati a parte, nella scheda **Clienti** di **Persone**, che ha una ricerca come la scheda **Team**. A un cliente puoi anche mandare solo un link, senza account. Vedi [Gallerie clienti](/help/client-galleries).
+I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nient’altro. Li inviti da una galleria o dalla pagina di un cliente in **Clienti**, non da qui, e sono elencati a parte, nella scheda **Clienti** di **Persone**, che ha una ricerca come la scheda **Team** e mostra a quale cliente appartiene ogni accesso. A un cliente puoi anche mandare solo un link, senza account. Vedi [Gallerie clienti](/help/client-galleries) e [Clienti](/help/clients).
 
 ## I ruoli
 
@@ -20,6 +20,7 @@ I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nie
 | Eliminare foto, risolvere duplicati | ✓ | ✓ | |
 | Avviare la revisione IA sulle foto | ✓ | ✓ | |
 | Condividere gallerie con i clienti | ✓ | ✓ | |
+| Clienti: recapiti, note, cronologia | ✓ | | |
 | Cambiare le impostazioni della revisione IA | ✓ | | |
 | Archiviazione, assistenti, backup | ✓ | | |
 | Persone, attività, avvisi | ✓ | | |

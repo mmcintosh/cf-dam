@@ -1,0 +1,123 @@
+---
+import { env } from 'cloudflare:workers'
+import { createFormat, getT } from '@cf-dam/i18n'
+import { countPastClients, listClients } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+import NewClient from '../../components/NewClient.svelte'
+
+// Current clients by default; ?past=1 lists past clients. ?q= searches names, companies, emails and phones,
+// and the names and emails of their people, without minding accents.
+const q = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 200)
+const past = Astro.url.searchParams.get('past') === '1'
+const [clients, pastCount] = await Promise.all([listClients(env.DB, { q, past }), countPastClients(env.DB)])
+const t = getT(Astro.locals.lang)
+const fmt = createFormat(Astro.locals.lang)
+const here = (params: Record<string, string>) => {
+  const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v))
+  return `/clients${query.size ? `?${query}` : ''}`
+}
+---
+<AppLayout help="clients" title={t('nav.clients')} subtitle={t('clientsPage.subtitle')}>
+  <NewClient client:load />
+
+  <div class="bar">
+    <form method="get" action="/clients" class="search" role="search">
+      {past && <input type="hidden" name="past" value="1" />}
+      <input type="search" name="q" value={q} aria-label={t('clientsPage.search')} placeholder={t('clientsPage.searchPlaceholder')} />
+      <button class="btn" type="submit">{t('clientsPage.searchButton')}</button>
+    </form>
+    <nav class="filters" aria-label={t('clientsPage.which')}>
+      <a href={here({ q })} class:list={['chip', { on: !past }]} aria-current={!past ? 'page' : undefined}>{t('clientsPage.current')}</a>
+      <a href={here({ q, past: '1' })} class:list={['chip', { on: past }]} aria-current={past ? 'page' : undefined}>
+        {t('clientsPage.past')} <span class="count">{pastCount}</span>
+      </a>
+    </nav>
+  </div>
+
+  <section class="card">
+    {clients.length === 0 ? (
+      <p class="muted">{q ? t('clientsPage.noMatch', { q }) : past ? t('clientsPage.noPast') : t('clientsPage.none')}</p>
+    ) : (
+      <div class="scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{t('clientsPage.name')}</th>
+              <th>{t('clientsPage.contact')}</th>
+              <th>{t('clientsPage.people')}</th>
+              <th>{t('clientsPage.openGalleries')}</th>
+              <th>{t('clientsPage.lastSeen')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c) => (
+              <tr>
+                <td>
+                  <a href={`/clients/${c.id}`}><strong>{c.name}</strong></a>
+                  {c.company && <span class="muted small"> · {c.company}</span>}
+                </td>
+                <td class="muted small">{[c.email, c.phone].filter(Boolean).join(' · ') || '—'}</td>
+                <td>{c.people}</td>
+                <td>{c.openGalleries}</td>
+                <td class="muted">{c.lastSeenAt ? fmt.date(c.lastSeenAt) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+</AppLayout>
+
+<style>
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .search {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 320px;
+    max-width: 520px;
+  }
+  .search input {
+    flex: 1;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    padding: 5px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 99px;
+    font-size: 0.85rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .chip.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .count {
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+</style>

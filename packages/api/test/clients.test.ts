@@ -149,3 +149,123 @@ describe('client accounts', () => {
     expect((await h.fetch(`/api/shares/${link.id}/members`, { cookie: admin }).then((r) => r.json())) as { members: unknown[] }).toEqual({ members: [] })
   })
 })
+
+describe('clients (the Clients section)', () => {
+  interface ClientPage {
+    client: { id: string; name: string; people: number; openGalleries: number; pastAt: string | null; lastSeenAt: string | null }
+    people: { userId: string; email: string; joined: boolean; galleries: number }[]
+    galleries: { id: string; name: string }[]
+    downloads: { shareName: string; person: string; filename: string | null; size: string | null }[]
+  }
+  const create = async (body: Record<string, unknown>) => {
+    const response = await h.fetch('/api/clients', { ...json(body), cookie: admin })
+    expect(response.status).toBe(201)
+    return ((await response.json()) as ClientPage).client
+  }
+  const page = async (id: string) => (await (await h.fetch(`/api/clients/${id}`, { cookie: admin })).json()) as ClientPage
+  const search = async (q: string, past = false) =>
+    ((await (await h.fetch(`/api/clients?q=${encodeURIComponent(q)}${past ? '&past=1' : ''}`, { cookie: admin })).json()) as { clients: { name: string }[] }).clients.map((c) => c.name)
+
+  it('is for administrators only', async () => {
+    const editor = await createUser(h, admin, { name: 'Eddie Editor', email: 'eddie@example.com', password: 'an editor password', roles: ['editor'] })
+    expect(editor).toBeTruthy()
+    const cookie = cookiesFrom(await signIn(h, 'eddie@example.com', 'an editor password'))
+    expect((await h.fetch('/api/clients', { cookie })).status).toBe(403)
+    expect((await h.fetch('/api/clients', { ...json({ name: 'Hansen' }), cookie })).status).toBe(403)
+  })
+
+  it('searches without minding accents, hides past clients, and needs a name', async () => {
+    expect((await h.fetch('/api/clients', { ...json({ name: '  ' }), cookie: admin })).status).toBe(400)
+    expect((await h.fetch('/api/clients', { ...json({ name: 'X', email: 'not an email' }), cookie: admin })).status).toBe(400)
+    const muller = await create({ name: 'Jürgen Müller', company: 'Brücke GmbH', email: 'JM@Bruecke.example' })
+    await create({ name: 'Anna Hansen', phone: '+45 1234' })
+    expect(await search('muller')).toEqual(['Jürgen Müller'])
+    expect(await search('brucke jurgen')).toEqual(['Jürgen Müller'])
+    expect(await search('jm@bruecke')).toEqual(['Jürgen Müller'])
+    expect(await search('1234')).toEqual(['Anna Hansen'])
+    expect(await search('')).toEqual(['Anna Hansen', 'Jürgen Müller'])
+    expect(await search('100%')).toEqual([])
+
+    expect((await h.fetch(`/api/clients/${muller.id}/past`, { ...json({ past: true }), cookie: admin })).status).toBe(200)
+    expect(await search('')).toEqual(['Anna Hansen'])
+    expect(await search('', true)).toEqual(['Jürgen Müller'])
+    const changed = await h.fetch(`/api/clients/${muller.id}`, { method: 'PATCH', body: JSON.stringify({ notes: 'Prefers matte prints', language: 'de' }), cookie: admin })
+    expect(await changed.json()).toMatchObject({ client: { notes: 'Prefers matte prints', language: 'de', pastAt: expect.any(String) } })
+  })
+
+  it('links logins to one client, finds them by their people, and shows their galleries and downloads', async () => {
+    const hansen = await create({ name: 'The Hansens', email: 'anna@example.com' })
+    const other = await create({ name: 'Someone else' })
+    const link = await share()
+    const { member, invite: inv } = await invite(link.id, 'anna@example.com', 'Anna Hansen')
+
+    // An unlinked login with the client's email is offered first.
+    const { candidates } = (await (await h.fetch(`/api/clients/${hansen.id}/candidates`, { cookie: admin })).json()) as { candidates: { userId: string; suggested: boolean }[] }
+    expect(candidates[0]).toMatchObject({ userId: member.userId, suggested: true })
+
+    expect((await h.fetch(`/api/clients/${hansen.id}/people`, { ...json({ userId: member.userId }), cookie: admin })).status).toBe(201)
+    // One client per login; the team can't be linked.
+    const elsewhere = await h.fetch(`/api/clients/${other.id}/people`, { ...json({ userId: member.userId }), cookie: admin })
+    expect(elsewhere.status).toBe(409)
+    expect(((await elsewhere.json()) as { message: string }).message).toContain('The Hansens')
+    const adminId = ((await (await h.fetch('/api/me', { cookie: admin })).json()) as { id: string }).id
+    expect((await h.fetch(`/api/clients/${other.id}/people`, { ...json({ userId: adminId }), cookie: admin })).status).toBe(409)
+
+    // A new person made from the client's page gets an invite; asking again gives a new one.
+    const added = await h.fetch(`/api/clients/${hansen.id}/people`, { ...json({ name: 'Tom Hansen', email: 'tom@example.com' }), cookie: admin })
+    expect(added.status).toBe(201)
+    const first = ((await added.json()) as { invite: { token: string } }).invite.token
+    const again = ((await (await h.fetch(`/api/clients/${hansen.id}/people`, { ...json({ name: 'Tom Hansen', email: 'tom@example.com' }), cookie: admin })).json()) as { invite: { token: string } }).invite.token
+    expect(again).not.toBe(first)
+    expect(await search('tom@example')).toEqual(['The Hansens'])
+
+    // Anna joins, opens the gallery and downloads; it all shows on the client's page.
+    const client = await join(inv!.token, 'anna@example.com')
+    expect((await h.fetch(`/api/public/galleries/${link.token}`, { cookie: client })).status).toBe(200)
+    const visitor = await h.env.DB.prepare('SELECT id FROM share_visitors WHERE user_id = ?').bind(member.userId).first<{ id: string }>()
+    await h.env.DB.prepare("INSERT INTO share_events (share_id, visitor_id, kind, asset_id, size, created_at) VALUES (?, ?, 'download', ?, 'large', ?)").bind(link.id, visitor!.id, ids[0], new Date().toISOString()).run()
+    const shown = await page(hansen.id)
+    expect(shown.client).toMatchObject({ people: 2, openGalleries: 1, lastSeenAt: expect.any(String) })
+    expect(shown.people.map((p) => [p.email, p.joined, p.galleries])).toEqual([['anna@example.com', true, 1], ['tom@example.com', false, 0]])
+    expect(shown.galleries.map((g) => g.id)).toEqual([link.id])
+    expect(shown.downloads).toEqual([expect.objectContaining({ shareName: 'For the Smiths', person: 'Anna Hansen', filename: 'a.jpg', size: 'large' })])
+
+    // Their history: what was done to the client and to their people.
+    const history = (await (await h.fetch(`/api/activity?client=${hansen.id}`, { cookie: admin })).json()) as { entries: { action: string }[] }
+    expect(history.entries.map((e) => e.action)).toEqual(expect.arrayContaining(['client.created', 'client.linked', 'client.invited', 'client.joined']))
+
+    // Unlinking keeps the login and its gallery.
+    expect((await h.fetch(`/api/clients/${hansen.id}/people/${member.userId}`, { method: 'DELETE', cookie: admin })).status).toBe(204)
+    expect((await h.fetch(`/api/public/galleries/${link.token}`, { cookie: client })).status).toBe(200)
+    expect((await page(hansen.id)).galleries).toEqual([])
+  })
+
+  it('erases a client: their logins, the names they gave, and their history details, but not the galleries', async () => {
+    const hansen = await create({ name: 'The Hansens', email: 'anna@example.com', notes: 'Private notes' })
+    const link = await share()
+    const { member, invite: inv } = await invite(link.id, 'anna@example.com', 'Anna Hansen')
+    await h.fetch(`/api/clients/${hansen.id}/people`, { ...json({ userId: member.userId }), cookie: admin })
+    const client = await join(inv!.token, 'anna@example.com')
+    await h.fetch(`/api/public/galleries/${link.token}`, { cookie: client })
+    await h.fetch(`/api/public/galleries/${link.token}/picks/${ids[0]}`, { method: 'PUT', cookie: client })
+
+    expect((await h.fetch(`/api/clients/${hansen.id}/erase`, { ...json({ confirm: 'Hansens' }), cookie: admin })).status).toBe(400)
+    const erased = await h.fetch(`/api/clients/${hansen.id}/erase`, { ...json({ confirm: 'the hansens' }), cookie: admin })
+    expect(await erased.json()).toEqual({ people: 1 })
+
+    expect((await h.fetch(`/api/clients/${hansen.id}`, { cookie: admin })).status).toBe(404)
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE id = ?').bind(member.userId).first<{ n: number }>()).toEqual({ n: 0 })
+    // The session is gone with the login.
+    expect((await h.fetch('/api/me/galleries', { cookie: client })).status).toBe(401)
+    // The gallery and the picks stay, without who made them.
+    const visitors = await h.env.DB.prepare('SELECT name, email FROM share_visitors WHERE share_id = ?').bind(link.id).all<{ name: string; email: string | null }>()
+    expect(visitors.results).toEqual([{ name: '(erased)', email: null }])
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM share_picks WHERE share_id = ?').bind(link.id).first<{ n: number }>()).toEqual({ n: 1 })
+    // No name or email left in the log about them.
+    const log = await h.env.DB.prepare("SELECT action, details FROM activity_log WHERE target_id IN (?, ?) OR user_id = ?").bind(hansen.id, member.userId, member.userId).all<{ action: string; details: string | null }>()
+    for (const row of log.results) {
+      expect(row.details ?? '', row.action).not.toMatch(/anna|hansen/i)
+    }
+    expect(log.results.map((r) => r.action)).toContain('client.erased')
+  })
+})

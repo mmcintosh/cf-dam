@@ -32,6 +32,7 @@ interface NavItem {
 const nav: NavItem[] = [
   { href: '/', label: t('nav.library'), icon: 'M4 5h16v14H4z M4 15l4.5-4.5 4 4 2.5-2.5L20 17' },
   { href: '/albums', label: t('nav.albums'), icon: 'M5 7h14v12H5z M8 4h8' },
+  { href: '/clients', label: t('nav.clients'), icon: 'M5 4h12v16H5z M11 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M7.5 16.5c.6-1.7 1.9-2.6 3.5-2.6s2.9.9 3.5 2.6 M19 7v2 M19 12v2', needs: 'clients:manage' },
   { href: '/galleries', label: t('nav.galleries'), icon: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1', needs: 'shares:manage' },
   { href: '/keywords', label: t('nav.keywords'), icon: 'M3 12V4h8l9 9-8 8z M7.5 7.5h.01', needs: 'assets:read' },
   { href: '/presets', label: t('nav.presets'), icon: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5', needs: 'assets:read' },

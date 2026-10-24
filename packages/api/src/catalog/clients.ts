@@ -80,6 +80,26 @@ export async function newInvite(db: D1Database, userId: string, createdBy: strin
   return { token, expiresAt }
 }
 
+/**
+ * The client login for this email, made (with no password yet) if there's none. Null when the email belongs
+ * to someone on the team: they can already see every album, so they aren't made a client.
+ */
+export async function clientAccount(env: DamBindings, request: Request, input: { name: string; email: string }): Promise<{ id: string } | null> {
+  const db = env.DB
+  const email = input.email.trim().toLowerCase()
+  const user = await db
+    .prepare(`SELECT u.id, (SELECT group_concat(r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id) AS roles FROM users u WHERE lower(u.email) = ?`)
+    .bind(email)
+    .first<{ id: string; roles: string | null }>()
+  if (user) return isClientOnly(user.roles ? user.roles.split(',') : []) ? { id: user.id } : null
+  const auth = createAuth(env, request, { allowSignUp: true, role: CLIENT_ROLE })
+  const ctx = await auth.$context
+  // The internal adapter runs sign-up's hooks (which give the role) without signing anyone in.
+  const created = await ctx.internalAdapter.createUser({ name: input.name, email, emailVerified: false }, { method: 'email-password' })
+  await setUserRoles(db, created.id, [CLIENT_ROLE])
+  return { id: created.id }
+}
+
 export type InviteOutcome =
   | { kind: 'added'; member: MemberJson; invite: { token: string; expiresAt: string } | null }
   | { kind: 'team'; message: string }
@@ -91,22 +111,8 @@ export type InviteOutcome =
  */
 export async function inviteClient(env: DamBindings, request: Request, share: Pick<ShareRow, 'id'>, input: { name: string; email: string }, actorId: string): Promise<InviteOutcome> {
   const db = env.DB
-  const email = input.email.trim().toLowerCase()
-  let user = await db
-    .prepare(`SELECT u.id, (SELECT group_concat(r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id) AS roles FROM users u WHERE lower(u.email) = ?`)
-    .bind(email)
-    .first<{ id: string; roles: string | null }>()
-  if (user && !isClientOnly(user.roles ? user.roles.split(',') : [])) {
-    return { kind: 'team', message: say('err.teamMember') }
-  }
-  if (!user) {
-    const auth = createAuth(env, request, { allowSignUp: true, role: CLIENT_ROLE })
-    const ctx = await auth.$context
-    // The internal adapter runs sign-up's hooks (which give the role) without signing anyone in.
-    const created = await ctx.internalAdapter.createUser({ name: input.name, email, emailVerified: false }, { method: 'email-password' })
-    await setUserRoles(db, created.id, [CLIENT_ROLE])
-    user = { id: created.id, roles: CLIENT_ROLE }
-  }
+  const user = await clientAccount(env, request, input)
+  if (!user) return { kind: 'team', message: say('err.teamMember') }
   await db.prepare('INSERT OR IGNORE INTO share_members (share_id, user_id, added_by, created_at) VALUES (?, ?, ?, ?)').bind(share.id, user.id, actorId, nowIso()).run()
   const member = (await shareMembers(db, share.id)).find((m) => m.userId === user.id)!
   return { kind: 'added', member, invite: member.joined ? null : await newInvite(db, user.id, actorId) }

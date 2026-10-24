@@ -4,12 +4,12 @@ summary: "Inviter des collègues, ce que chaque rôle peut faire, et aider quelq
 section: People and security
 order: 1
 review: machine
-source: db2ca999caa7
+source: 25b86cd4ced7
 ---
 
 Chaque personne qui se connecte à cf-dam a son propre compte, et un **rôle** qui décide de ce qu’elle peut faire.
 
-**Les clients** sont à part : ils ne voient que les galeries clients auxquelles vous les invitez, rien d’autre. Vous les invitez depuis **Partager avec des clients** dans un album, pas d’ici, et ils sont listés à part, dans l’onglet **Clients** de **Personnes**, qui a une recherche comme l’onglet **Équipe**. Un client peut aussi simplement recevoir un lien, sans compte. Voir [Galeries clients](/help/client-galleries).
+**Les clients** sont à part : ils ne voient que les galeries clients auxquelles vous les invitez, rien d’autre. Vous les invitez depuis une galerie ou depuis la page d’un client sous **Clients**, pas d’ici, et ils sont listés à part, dans l’onglet **Clients** de **Personnes**, qui a une recherche comme l’onglet **Équipe** et indique à quel client appartient chaque compte. Un client peut aussi simplement recevoir un lien, sans compte. Voir [Galeries clients](/help/client-galleries) et [Clients](/help/clients).
 
 ## Les rôles
 
@@ -20,6 +20,7 @@ Chaque personne qui se connecte à cf-dam a son propre compte, et un **rôle** q
 | Supprimer des photos, traiter les doublons | ✓ | ✓ | |
 | Lancer l’analyse par IA sur des photos | ✓ | ✓ | |
 | Partager des galeries avec des clients | ✓ | ✓ | |
+| Clients : coordonnées, notes, historique | ✓ | | |
 | Modifier les réglages de l’analyse par IA | ✓ | | |
 | Stockage, assistants, sauvegardes | ✓ | | |
 | Personnes, activité, alertes | ✓ | | |
