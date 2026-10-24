@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { countedImages } from '../lib/images'
 import { requirePermission } from '../auth/principal'
-import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags, listAssets, parseListFilters, primaryLocation, softDeleteAsset, updateAsset } from '../catalog/assets'
+import { assetJson, getAsset, isLabel, LABELS, type Label, getLocations, getTags, listAssets, parseListFilters, primaryLocation, readableNow, softDeleteAsset, updateAsset } from '../catalog/assets'
 import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
@@ -381,7 +381,7 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
   const asset = await getAsset(c.env.DB, id)
   const location = asset && primaryLocation(await getLocations(c.env.DB, id))
   if (!asset || !location) return c.json({ error: 'not_found' }, 404)
-  if (ARCHIVE_CLASSES.has(location.storage_class) && location.state !== 'restored') {
+  if (!readableNow(location)) {
     return c.json({ error: 'archived', message: say('err.archived'), storageClass: location.storage_class }, 409)
   }
   try {
@@ -391,12 +391,25 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
   }
 })
 
-async function locationFor(c: Context<DamEnv>, id: string) {
-  const location = primaryLocation(await getLocations(c.env.DB, id))
-  const connection = location && (await getConnection(c.env.DB, location.connection_id))
-  if (!location || !connection) return null
-  return { location, connection, provider: providerFor(c.env, connection) }
+/**
+ * The S3 copy of an original, which restores, class changes and refreshes act on (never a NAS or R2 copy): a cold
+ * one first, or the one in `connectionId`.
+ */
+async function s3LocationFor(c: Context<DamEnv>, id: string, connectionId?: string) {
+  const locations = (await getLocations(c.env.DB, id))
+    .filter((l) => l.state !== 'pending' && l.state !== 'gone' && (!connectionId || l.connection_id === connectionId))
+    .sort((a, b) => Number(ARCHIVE_CLASSES.has(b.storage_class)) - Number(ARCHIVE_CLASSES.has(a.storage_class)))
+  for (const location of locations) {
+    const connection = await getConnection(c.env.DB, location.connection_id)
+    if (connection?.provider === 's3') return { location, connection, provider: providerFor(c.env, connection) }
+  }
+  return null
 }
+
+const optionalConnection = (body: Record<string, unknown>) => (typeof body.connectionId === 'string' ? body.connectionId : undefined)
+
+/** A restore is looked at again this long after it's asked for, and between looks. */
+const RESTORE_CHECK_MS = 20 * 60_000
 
 assetRoutes.post('/:id/storage-class', requirePermission('lifecycle:manage'), async (c) => {
   const id = c.req.param('id')
@@ -404,7 +417,7 @@ assetRoutes.post('/:id/storage-class', requirePermission('lifecycle:manage'), as
     const body = await readJsonObject(c)
     const target = body.storageClass
     if (!isStorageClass(target)) throw new BadRequest('storageClass is not an S3 storage class.')
-    const found = await locationFor(c, id)
+    const found = await s3LocationFor(c, id, optionalConnection(body))
     if (!found) return c.json({ error: 'not_found' }, 404)
     const { location, connection, provider } = found
     if (!provider.setStorageClass || !connection.storageClasses.includes(target)) {
@@ -412,8 +425,10 @@ assetRoutes.post('/:id/storage-class', requirePermission('lifecycle:manage'), as
     }
     await provider.setStorageClass(location.key, target)
     const state = ARCHIVE_CLASSES.has(target) ? 'archived' : 'present'
-    await c.env.DB.prepare('UPDATE asset_locations SET storage_class = ?, state = ?, restore_expires_at = NULL, updated_at = ? WHERE asset_id = ? AND connection_id = ?')
-      .bind(target, state, nowIso(), id, location.connection_id).run()
+    // The copy in place gives the object a new ETag: keep it, or the storage checks report the original as changed.
+    const head = await provider.head(location.key)
+    await c.env.DB.prepare('UPDATE asset_locations SET storage_class = ?, state = ?, restore_expires_at = NULL, next_check_at = NULL, etag = COALESCE(?, etag), size = COALESCE(?, size), updated_at = ? WHERE asset_id = ? AND connection_id = ?')
+      .bind(target, state, head?.etag ?? null, head?.size ?? null, nowIso(), id, location.connection_id).run()
     await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'asset.storage_class_changed', targetType: 'asset', targetId: id, details: { from: location.storage_class, to: target } })
     return c.json({ storageClass: target, state })
   } catch (error) {
@@ -429,15 +444,15 @@ assetRoutes.post('/:id/restore', requirePermission('lifecycle:manage'), async (c
     const tier = (body.tier ?? 'Standard') as RestoreTier
     if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > 30) throw new BadRequest('days is 1 to 30.')
     if (!RESTORE_TIERS.includes(tier)) throw new BadRequest(`tier is one of ${RESTORE_TIERS.join(', ')}.`)
-    const found = await locationFor(c, id)
+    const found = await s3LocationFor(c, id, optionalConnection(body))
     if (!found) return c.json({ error: 'not_found' }, 404)
     const { location, provider } = found
     if (!ARCHIVE_CLASSES.has(location.storage_class) || !provider.restore) {
       return c.json({ error: 'not_archived', message: say('err.notArchived') }, 409)
     }
     const result = await provider.restore(location.key, { days: days as number, tier })
-    await c.env.DB.prepare("UPDATE asset_locations SET state = 'restoring', updated_at = ? WHERE asset_id = ? AND connection_id = ?")
-      .bind(nowIso(), id, location.connection_id).run()
+    await c.env.DB.prepare("UPDATE asset_locations SET state = 'restoring', next_check_at = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?")
+      .bind(new Date(Date.now() + RESTORE_CHECK_MS).toISOString(), nowIso(), id, location.connection_id).run()
     await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'asset.restore_requested', targetType: 'asset', targetId: id, details: { days, tier, result } })
     return c.json({ result, state: 'restoring' }, 202)
   } catch (error) {
@@ -449,7 +464,7 @@ assetRoutes.post('/:id/restore', requirePermission('lifecycle:manage'), async (c
 assetRoutes.post('/:id/refresh', requirePermission('assets:read'), async (c) => {
   const id = c.req.param('id')
   try {
-    const found = await locationFor(c, id)
+    const found = await s3LocationFor(c, id, c.req.query('connectionId'))
     if (!found) return c.json({ error: 'not_found' }, 404)
     const { location, provider } = found
     const head = await provider.head(location.key)
@@ -462,7 +477,7 @@ assetRoutes.post('/:id/refresh', requirePermission('assets:read'), async (c) => 
     if (ARCHIVE_CLASSES.has(head.storageClass)) {
       state = head.restore?.ongoing ? 'restoring' : head.restore?.expiresAt ? 'restored' : 'archived'
     }
-    await c.env.DB.prepare('UPDATE asset_locations SET state = ?, storage_class = ?, restore_expires_at = ?, size = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?')
+    await c.env.DB.prepare('UPDATE asset_locations SET state = ?, storage_class = ?, restore_expires_at = ?, size = ?, next_check_at = NULL, updated_at = ? WHERE asset_id = ? AND connection_id = ?')
       .bind(state, head.storageClass, head.restore?.expiresAt ?? null, head.size, nowIso(), id, location.connection_id).run()
     return c.json({ state, storageClass: head.storageClass, restoreExpiresAt: head.restore?.expiresAt ?? null })
   } catch (error) {

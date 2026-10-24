@@ -1,6 +1,7 @@
 /** Asset records, their locations, tags and the list query. */
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { ARCHIVE_CLASSES } from '../storage/types'
 import { editedSize, imageVersion, readEdit, type ImageEdit } from './edits'
 import { GPS_PLACE_BITS, iptcJson, iptcUpdate, type IptcKey, type IptcValues } from './iptc'
 import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeywords } from './keywords'
@@ -113,10 +114,21 @@ export async function locationsOf(db: D1Database, assetIds: string[]): Promise<M
   return map
 }
 
-/** The location to read the original from: a present one, the built-in R2 first. */
+/**
+ * Whether this copy of an original can be read now: there, and either in a warm class (R2, a NAS, S3 Standard…)
+ * or restored from a cold class and not yet expired. Coldness is the class, not the state: the agent archive
+ * records its Deep Archive copies as 'present'.
+ */
+export function readableNow(location: Pick<LocationRow, 'state' | 'storage_class' | 'restore_expires_at'>, now = nowIso()): boolean {
+  if (location.state === 'pending' || location.state === 'gone') return false
+  if (!ARCHIVE_CLASSES.has(location.storage_class)) return true
+  return location.state === 'restored' && location.restore_expires_at !== null && location.restore_expires_at > now
+}
+
+/** The location to read the original from: the built-in R2 first, then any copy readable now, then any there. */
 export function primaryLocation(locations: LocationRow[]): LocationRow | null {
   const usable = locations.filter((l) => l.state !== 'pending' && l.state !== 'gone')
-  return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
+  return usable.find((l) => l.connection_id === 'r2') ?? usable.find((l) => readableNow(l)) ?? usable[0] ?? null
 }
 
 export interface AssetTag {

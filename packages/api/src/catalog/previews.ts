@@ -19,7 +19,7 @@ import { logActivity } from '../lib/activity'
 import { nowIso } from '../lib/time'
 import { getConnection, providerFor, renditionStore } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
-import { getAsset, getLocations, type LocationRow } from './assets'
+import { getAsset, getLocations, readableNow, type LocationRow } from './assets'
 import { METADATA_HEAD_BYTES, RENDERABLE_TYPES } from './metadata'
 import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThumbnail } from './renditions'
 
@@ -157,9 +157,7 @@ export async function checkStep(env: DamBindings, more: () => boolean): Promise<
 
 /** A location the Worker can read the original from: the built-in R2 first (no egress), not archived. */
 export function readableLocation(locations: LocationRow[]): LocationRow | null {
-  const usable = locations.filter(
-    (l) => l.storage_class !== 'NAS' && ((l.state === 'present' && !ARCHIVE_CLASSES.has(l.storage_class)) || l.state === 'restored'),
-  )
+  const usable = locations.filter((l) => l.storage_class !== 'NAS' && readableNow(l))
   return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
 }
 

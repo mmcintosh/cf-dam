@@ -76,6 +76,8 @@ const RESTORE_SLICE = { ms: 25_000, queries: 800 }
 const MAX_PER_RUN = 25
 const AI_CONCURRENCY = 4
 const RESTORE_CHECKS_PER_RUN = 50
+/** How long until a restore that isn't ready is looked at again. */
+const RESTORE_CHECK_MS = 20 * 60_000
 /** Nothing takes this long in 'processing'; an asset still there was abandoned. */
 const STALE_PROCESSING_MS = 60 * 60_000
 
@@ -270,32 +272,50 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     if (filling !== undefined && hashing.more()) await fillQuickHashes(db, hashing.more, filling)
   }
 
-  // 5. Archived originals being restored: ready yet?
+  // 5. Archived originals being restored: ready yet? Each is looked at when its next check comes (20 minutes
+  // apart), so a long restore doesn't hold up the others; restored copies whose time is up are cold again.
   const restoring = slice('restores')
   if (restoring.more()) {
+    const now = nowIso()
+    await db.prepare("UPDATE asset_locations SET state = 'archived', restore_expires_at = NULL, updated_at = ? WHERE state = 'restored' AND restore_expires_at <= ?")
+      .bind(now, now)
+      .run()
     const { results: locations } = await db
-      .prepare("SELECT asset_id, connection_id, key FROM asset_locations WHERE state = 'restoring' ORDER BY updated_at LIMIT ?")
-      .bind(RESTORE_CHECKS_PER_RUN)
+      .prepare(
+        `SELECT asset_id, connection_id, key FROM asset_locations
+         WHERE state = 'restoring' AND (next_check_at IS NULL OR next_check_at <= ?) ORDER BY next_check_at LIMIT ?`,
+      )
+      .bind(now, RESTORE_CHECKS_PER_RUN)
       .all<{ asset_id: string; connection_id: string; key: string }>()
     const connections = new Map<string, Awaited<ReturnType<typeof getConnection>>>()
     const restored: string[] = []
+    const later = new Date(Date.now() + RESTORE_CHECK_MS).toISOString()
     for (const location of locations) {
       if (!restoring.more()) break
       if (!connections.has(location.connection_id)) connections.set(location.connection_id, await getConnection(db, location.connection_id))
       const connection = connections.get(location.connection_id)
-      if (!connection) continue
+      const set = (state: string, fields: { expires?: string | null; storageClass?: string; next?: string | null }) =>
+        db
+          .prepare('UPDATE asset_locations SET state = ?, restore_expires_at = ?, storage_class = COALESCE(?, storage_class), next_check_at = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?')
+          .bind(state, fields.expires ?? null, fields.storageClass ?? null, fields.next ?? null, nowIso(), location.asset_id, location.connection_id)
+          .run()
       try {
+        if (!connection) {
+          await set('gone', {})
+          continue
+        }
         const head = await providerFor(env, connection).head(location.key)
         result.restoresChecked++
-        if (head && ARCHIVE_CLASSES.has(head.storageClass) && head.restore && !head.restore.ongoing && head.restore.expiresAt) {
-          await db.prepare("UPDATE asset_locations SET state = 'restored', restore_expires_at = ?, updated_at = ? WHERE asset_id = ? AND connection_id = ?")
-            .bind(head.restore.expiresAt, nowIso(), location.asset_id, location.connection_id)
-            .run()
+        if (!head) await set('gone', {})
+        else if (!ARCHIVE_CLASSES.has(head.storageClass)) await set('present', { storageClass: head.storageClass })
+        else if (head.restore && !head.restore.ongoing && head.restore.expiresAt) {
+          await set('restored', { expires: head.restore.expiresAt })
           restored.push(location.asset_id)
           result.restored++
-        }
+        } else await set('restoring', { next: later })
       } catch (error) {
         console.warn('[sweep] restore check failed', location.asset_id, error)
+        await set('restoring', { next: later }).catch(() => {})
         await noteSweepFailure(db, 'restores', error)
       }
     }

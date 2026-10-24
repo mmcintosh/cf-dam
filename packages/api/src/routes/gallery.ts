@@ -7,7 +7,7 @@
 import { Hono, type Context } from 'hono'
 import { consumeRateLimit } from '../auth/rate-limit'
 import { verifyPassword } from '../auth/password'
-import { getAsset, getLocations, type LocationRow } from '../catalog/assets'
+import { getAsset, getLocations, readableNow, type LocationRow } from '../catalog/assets'
 import {
   addVisitor,
   cookieHeader,
@@ -183,9 +183,7 @@ galleryRoutes.get('/:token/assets/:assetId/:name{thumb|preview}', async (c) => {
 
 /** Where the original can be read from for a client: never a NAS, never deep storage that isn't restored. */
 function reachable(locations: LocationRow[], nas: Set<string>): LocationRow | null {
-  const usable = locations.filter(
-    (l) => !nas.has(l.connection_id) && l.state !== 'pending' && l.state !== 'gone' && (!['GLACIER', 'DEEP_ARCHIVE'].includes(l.storage_class) || l.state === 'restored'),
-  )
+  const usable = locations.filter((l) => !nas.has(l.connection_id) && readableNow(l))
   return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
 }
 
