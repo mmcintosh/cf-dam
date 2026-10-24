@@ -39,7 +39,7 @@ Abre el enlace, escribe la contraseña si la hay y ve la galería: tu título y 
 
 Con **Los clientes pueden elegir favoritas** activado, el cliente toca **♥** en las fotos que le gustan. La primera vez se le pregunta **¿Quién elige?**: un nombre (y un correo electrónico, si quiere), para que sepas de quién son las favoritas. Cuando termina, pulsa **He terminado** y te llegan sus favoritas.
 
-En **Elecciones y estadísticas** del enlace (o en la página **Galerías de clientes**), **Quién eligió qué** muestra cada persona, cuántas favoritas tiene, sus descargas, si está **aún eligiendo** o ya ha enviado su selección, y cuándo se la vio por última vez. Puedes ver las fotos elegidas por cualquiera de las personas que marques, o por todas, y **Crear un álbum con estas** con un clic, listo para editar o entregar.
+En **Fotos elegidas y estadísticas** del enlace (o en la página **Galerías de clientes**), **Quién eligió qué** muestra cada persona, cuántas favoritas tiene, sus descargas, si está **aún eligiendo** o ya ha enviado su selección, y cuándo se la vio por última vez. Puedes ver las fotos elegidas por cualquiera de las personas que marques, o por todas, y **Crear un álbum con estas** con un clic, listo para editar o entregar.
 
 ## Tu marca de agua
 
@@ -63,7 +63,7 @@ Para un trabajo puntual basta con un enlace. Para clientes con los que vas a vol
 Qué cambia para un cliente con cuenta:
 
 - **Sin contraseña de galería.** Con la sesión iniciada, no necesita la contraseña del enlace. (Cualquier otra persona con el enlace sí la necesita.)
-- **Sus propias favoritas.** Sus elecciones se guardan en su cuenta, en cualquier dispositivo, y aparecen en **Elecciones y estadísticas** con su nombre.
+- **Sus propias favoritas.** Las fotos que elige se guardan en su cuenta, en cualquier dispositivo, y aparecen en **Fotos elegidas y estadísticas** con su nombre.
 - **Tus galerías.** Todos los enlaces a los que le invites aparecen en una sola página; si solo hay uno, al iniciar sesión va directamente a él. Un enlace revocado desaparece de su lista; uno caducado aparece como cerrado.
 - **Nada más.** El menú solo muestra sus galerías, Cuenta y su página de ayuda ([Tus galerías](/help/for-clients)). Cualquier otra página le devuelve a sus galerías.
 

@@ -225,7 +225,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "act.anotherClass": {
     "es": "machine",
@@ -348,13 +348,13 @@
     "it": "machine"
   },
   "act.bulk.label": {
-    "es": "machine",
-    "de": "machine",
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "act.bulk.preset": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -498,28 +498,28 @@
     "it": "machine"
   },
   "act.part.deactivated": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "act.part.reactivated": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "act.part.renamed": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "act.part.roles": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "act.passkeyAdded": {
     "es": "machine",
@@ -578,7 +578,7 @@
   "act.restoreRequested": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "act.scope.admins": {
@@ -621,13 +621,13 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "act.signInFailedRow": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "act.signedIn": {
     "es": "machine",
@@ -659,7 +659,7 @@
     "it": "machine"
   },
   "act.signedOutUser": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -756,7 +756,7 @@
   },
   "act.userUpdatedParts": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -857,7 +857,7 @@
     "it": "machine"
   },
   "ai.about": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -998,7 +998,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "ai.noBinding": {
     "es": "machine",
@@ -1019,10 +1019,10 @@
     "it": "machine"
   },
   "ai.queueCount": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "ai.queueing": {
     "es": "machine",
@@ -1216,13 +1216,13 @@
   },
   "albumTools.takeOutCount.one": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "albumTools.takeOutCount.other": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -1247,7 +1247,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "albums.create": {
     "es": "machine",
@@ -1327,7 +1327,7 @@
     "it": "machine"
   },
   "alert.neverCheckedIn": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -1410,7 +1410,7 @@
     "it": "machine"
   },
   "alert.stage.restores": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -1487,8 +1487,8 @@
   },
   "alerts.dismissedBy": {
     "es": "machine",
-    "de": "machine",
-    "fr": "machine",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "alerts.dismissedLead": {
@@ -1499,8 +1499,8 @@
   },
   "alerts.dismissedOn": {
     "es": "machine",
-    "de": "machine",
-    "fr": "machine",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "alerts.fromTo": {
@@ -1519,7 +1519,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "alerts.link.storage": {
     "es": "machine",
@@ -1542,8 +1542,8 @@
   "alerts.putRight": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "alerts.since": {
     "es": "machine",
@@ -1608,7 +1608,7 @@
   "appearance.font": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "appearance.fontNote": {
@@ -1644,8 +1644,8 @@
   "appearance.reset": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "appearance.size.large": {
     "es": "machine",
@@ -1757,7 +1757,7 @@
   },
   "archive.carriesOn": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -1788,7 +1788,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "archive.from": {
     "es": "machine",
@@ -1827,10 +1827,10 @@
     "it": "machine"
   },
   "archive.settled": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "archive.speedLimit": {
     "es": "machine",
@@ -1870,13 +1870,13 @@
   },
   "archive.toGo": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "archive.toGoEta": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -1894,9 +1894,9 @@
   },
   "archive.waiting": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "auth.error.locked": {
     "es": "machine",
@@ -1978,7 +1978,7 @@
   "auth.signIn.lead": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "auth.signIn.passkey": {
@@ -2048,7 +2048,7 @@
     "it": "machine"
   },
   "auth.twoFactor.useBackup": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -2370,10 +2370,10 @@
     "it": "machine"
   },
   "clients.inviteFailed": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "clients.invited": {
     "es": "machine",
@@ -2418,10 +2418,10 @@
     "it": "machine"
   },
   "clients.removeFailed": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "clients.removed": {
     "es": "machine",
@@ -2444,14 +2444,14 @@
   "clients.takeOff": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "clients.takeOffTitle": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "clients.theirEmail": {
     "es": "machine",
@@ -2730,7 +2730,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "common.processing": {
     "es": "machine",
@@ -2914,7 +2914,7 @@
   "conn.catalogueLead": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "conn.classes": {
@@ -2954,7 +2954,7 @@
     "it": "machine"
   },
   "conn.howReach": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -2979,7 +2979,7 @@
   },
   "conn.importStopped": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -3147,7 +3147,7 @@
   "conn.step2": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "conn.step3": {
@@ -3184,7 +3184,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "dupes.exact": {
     "es": "machine",
@@ -3196,7 +3196,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "dupes.keepRemove": {
     "es": "machine",
@@ -3207,8 +3207,8 @@
   "dupes.kept": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "dupes.kind": {
     "es": "machine",
@@ -3219,7 +3219,7 @@
   "dupes.lookalikes": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "dupes.marked": {
@@ -3307,10 +3307,10 @@
     "it": "machine"
   },
   "dupes.similarLead": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "dupes.subtitle": {
     "es": "machine",
@@ -3388,7 +3388,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "editor.albums": {
     "es": "machine",
@@ -3488,7 +3488,7 @@
   },
   "editor.lookingLead": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -3529,7 +3529,7 @@
     "it": "machine"
   },
   "editor.notSaved": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -3702,13 +3702,13 @@
     "it": "machine"
   },
   "err.chooseScope": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
   },
   "err.clientJoined": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -3720,10 +3720,10 @@
     "it": "machine"
   },
   "err.connectionInUse": {
-    "es": "machine",
-    "de": "machine",
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "err.coverInAlbum": {
     "es": "machine",
@@ -4299,7 +4299,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "galleries.expires": {
     "es": "machine",
@@ -4322,7 +4322,7 @@
   "galleries.filter.expiring": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "galleries.filter.live": {
@@ -4345,8 +4345,8 @@
   },
   "galleries.fromLibrary": {
     "es": "machine",
-    "de": "machine",
-    "fr": "machine",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "galleries.lastOpened": {
@@ -4441,7 +4441,7 @@
   },
   "galleries.whoPicked": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -4477,7 +4477,7 @@
   },
   "gallery.api.noFavourites": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -4772,7 +4772,7 @@
   "help.moreIn": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "help.notTranslated": {
@@ -4797,7 +4797,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "helpSection.gettingStarted": {
     "es": "machine",
@@ -4863,7 +4863,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "invite.api.gone": {
     "es": "machine",
@@ -5084,7 +5084,7 @@
   "iptc.field.jobId": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "iptc.field.source": {
@@ -5307,7 +5307,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "keywords.find": {
     "es": "machine",
@@ -5486,7 +5486,7 @@
   "keywords.taggedWith": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "keywords.taggedWithBelow": {
@@ -5581,7 +5581,7 @@
   },
   "libpage.hint": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -5747,7 +5747,7 @@
     "it": "machine"
   },
   "library.allShown": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -5813,13 +5813,13 @@
   },
   "library.editsAtATime": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "library.editsAtATimeTitle": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -5899,7 +5899,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "library.presetMenu": {
     "es": "machine",
@@ -5959,10 +5959,10 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "library.say.firstOnly": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -5974,14 +5974,14 @@
     "it": "machine"
   },
   "library.say.labelCleared": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
   },
   "library.say.labelled": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -5992,7 +5992,7 @@
     "it": "machine"
   },
   "library.say.notSaved": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -6030,7 +6030,7 @@
   "library.say.ratingCleared": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "library.say.rejected": {
@@ -6053,7 +6053,7 @@
   },
   "library.say.tagsKept": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -6082,7 +6082,7 @@
     "it": "machine"
   },
   "library.selected": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -6180,7 +6180,7 @@
   "map.showing": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "map.subtitle": {
@@ -6337,7 +6337,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "nav.storage": {
     "es": "machine",
@@ -6444,8 +6444,8 @@
   "people.chooseOwn": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.clients": {
     "es": "machine",
@@ -6460,10 +6460,10 @@
     "it": "machine"
   },
   "people.codesOff": {
-    "es": "machine",
-    "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.codesPasskeysRemoved": {
     "es": "machine",
@@ -6553,19 +6553,19 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "people.lostLead": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.lostLeadPasskeys": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.noClients": {
     "es": "machine",
@@ -6588,7 +6588,7 @@
   "people.notSignedIn": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "people.onTeam.many": {
@@ -6635,7 +6635,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "people.passwordOnly": {
     "es": "machine",
@@ -6664,8 +6664,8 @@
   "people.reactivateLead": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.requiredAdmins": {
     "es": "machine",
@@ -6801,8 +6801,8 @@
   "people.temporaryLead": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "people.title": {
     "es": "machine",
@@ -6836,7 +6836,7 @@
   },
   "photo.credit": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -6901,9 +6901,9 @@
     "it": "machine"
   },
   "photo.xmpDownload": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "photo.xmpTitle": {
@@ -6919,10 +6919,10 @@
     "it": "machine"
   },
   "picks.all": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "picks.any": {
     "es": "machine",
@@ -7000,7 +7000,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "presets.name": {
     "es": "machine",
@@ -7057,13 +7057,13 @@
     "it": "machine"
   },
   "presets.subtitle": {
-    "es": "machine",
-    "de": "machine",
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "presets.title": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7123,7 +7123,7 @@
     "it": "machine"
   },
   "previews.waitingAgent": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7166,12 +7166,12 @@
   },
   "restore.backLead": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "restore.choose": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7189,7 +7189,7 @@
     "it": "machine"
   },
   "restore.keysNote": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7226,8 +7226,8 @@
   },
   "restore.phase.reseed": {
     "es": "machine",
-    "de": "machine",
-    "fr": "machine",
+    "de": "ai-reviewed",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "restore.phase.tables": {
@@ -7249,7 +7249,7 @@
     "it": "machine"
   },
   "restore.restoreThis": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7382,12 +7382,12 @@
   },
   "sessions.couldNotOthers": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "sessions.signOutAll": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7402,7 +7402,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "sessions.signedOutOthers.many": {
     "es": "machine",
@@ -7508,7 +7508,7 @@
   "setup.tabNew": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "setup.tabRestore": {
@@ -7563,7 +7563,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "share.expiredOn": {
     "es": "machine",
@@ -7579,7 +7579,7 @@
   },
   "share.in": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -7638,21 +7638,21 @@
     "it": "machine"
   },
   "share.opens.many": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "share.opens.one": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "share.opens.other": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "share.options": {
     "es": "machine",
@@ -7679,7 +7679,7 @@
     "it": "machine"
   },
   "share.picksStats": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -7766,7 +7766,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "share.title": {
     "es": "machine",
@@ -7800,7 +7800,7 @@
   },
   "share.whoForPlaceholder": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -7826,7 +7826,7 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "sources.anyNas": {
     "es": "machine",
@@ -8183,9 +8183,9 @@
     "it": "machine"
   },
   "sources.scanned": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "sources.scanning": {
@@ -8281,14 +8281,14 @@
   "sources.thisScanFailed": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "sources.title": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "sources.unzipMac": {
     "es": "machine",
@@ -8305,13 +8305,13 @@
   "sources.waitingAgent": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "sources.waitingAgentOn": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "sources.whereRuns": {
@@ -8579,7 +8579,7 @@
     "it": "machine"
   },
   "storage.tier.Bulk": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
     "fr": "machine",
     "it": "machine"
@@ -8634,25 +8634,25 @@
   },
   "storageClass.ONEZONE_IA": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "storageClass.STANDARD": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "storageClass.STANDARD_IA": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
   "storagePage.subtitle": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -8747,9 +8747,9 @@
     "it": "machine"
   },
   "tools.moreLike": {
-    "es": "machine",
+    "es": "ai-reviewed",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "tools.ratio.free": {
@@ -8909,10 +8909,10 @@
     "it": "machine"
   },
   "twoFactor.startFailed": {
-    "es": "machine",
-    "de": "machine",
+    "es": "ai-reviewed",
+    "de": "ai-reviewed",
     "fr": "machine",
-    "it": "machine"
+    "it": "ai-reviewed"
   },
   "twoFactor.turnOff": {
     "es": "machine",
@@ -8947,12 +8947,12 @@
   "upload.close": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
-    "it": "machine"
+    "fr": "ai-reviewed",
+    "it": "ai-reviewed"
   },
   "upload.deep": {
     "es": "machine",
-    "de": "machine",
+    "de": "ai-reviewed",
     "fr": "machine",
     "it": "machine"
   },
@@ -8983,7 +8983,7 @@
   "upload.failed": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "upload.finishing": {
@@ -9013,7 +9013,7 @@
   "upload.noPreview": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "upload.noPreviewVideo": {
@@ -9037,7 +9037,7 @@
   "upload.progress": {
     "es": "machine",
     "de": "machine",
-    "fr": "machine",
+    "fr": "ai-reviewed",
     "it": "machine"
   },
   "upload.refresh": {
