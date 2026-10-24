@@ -129,6 +129,33 @@ describe('restore', () => {
     })
   })
 
+  it('says why a HEAD was refused, from a one-byte GET', async () => {
+    const { provider, calls } = recordingProvider((req) =>
+      req.method === 'HEAD'
+        ? new Response(null, { status: 403, statusText: 'Forbidden' })
+        : new Response('<Error><Code>ExpiredToken</Code><Message>The provided token has expired.</Message></Error>', { status: 400 }),
+    )
+    await expect(provider.head('a')).rejects.toMatchObject({ message: 'Head failed: ExpiredToken (The provided token has expired.)', status: 403 })
+    expect(calls.map((c) => [c.method, c.headers.get('range')])).toEqual([['HEAD', null], ['HEAD', null], ['GET', 'bytes=0-0']])
+  })
+
+  it('asks again without checksum mode when that is what S3 refuses', async () => {
+    const { provider, calls } = recordingProvider((req) =>
+      req.headers.get('x-amz-checksum-mode')
+        ? new Response(null, { status: 403 })
+        : new Response(null, { status: 200, headers: { 'Content-Length': '7', ETag: '"e1"', 'x-amz-storage-class': 'GLACIER_IR' } }),
+    )
+    expect(await provider.head('a')).toMatchObject({ size: 7, etag: 'e1', storageClass: 'GLACIER_IR', sha256: null })
+    expect(calls.map((c) => c.headers.get('x-amz-checksum-mode'))).toEqual(['ENABLED', null])
+  })
+
+  it("keeps the HEAD's status when the GET only says the object is archived", async () => {
+    const { provider } = recordingProvider((req) =>
+      req.method === 'HEAD' ? new Response(null, { status: 403, statusText: 'Forbidden' }) : new Response('<Error><Code>InvalidObjectState</Code></Error>', { status: 403 }),
+    )
+    await expect(provider.head('a')).rejects.toMatchObject({ message: 'Head failed: HTTP403 (Forbidden)' })
+  })
+
   it('parses an ongoing restore header', () => {
     expect(parseRestoreHeader('ongoing-request="true"')).toEqual({ ongoing: true, expiresAt: null })
     expect(parseRestoreHeader(null)).toBeNull()

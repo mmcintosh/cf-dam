@@ -119,6 +119,23 @@ export class S3Provider implements StorageProvider {
     return this.fetchImpl(signed)
   }
 
+  /**
+   * A refused HEAD has no body, so no reason: ask for one byte to read S3's error code (AccessDenied, ExpiredToken,
+   * SignatureDoesNotMatch…). An archived object answers that GET with InvalidObjectState, which says nothing about
+   * the HEAD, so then the HEAD's own status stands.
+   */
+  private async reason(key: string, response: Response): Promise<Response> {
+    if (response.status !== 400 && response.status !== 403) return response
+    const probe = await this.send('GET', this.url(key), { headers: { Range: 'bytes=0-0' } }).catch(() => null)
+    if (!probe || probe.ok) {
+      await probe?.body?.cancel()
+      return response
+    }
+    const text = await probe.text().catch(() => '')
+    const code = xmlValue(text, 'Code')
+    return code && code !== 'InvalidObjectState' ? new Response(text, { status: response.status, statusText: response.statusText }) : response
+  }
+
   private async fail(response: Response, action: string): Promise<never> {
     const text = await response.text().catch(() => '')
     const code = xmlValue(text, 'Code') ?? `HTTP${response.status}`
@@ -148,10 +165,12 @@ export class S3Provider implements StorageProvider {
 
   async head(key: string): Promise<ObjectHead | null> {
     // Checksum mode asks S3 for the checksum it verified at upload, if there was one. Services
-    // that don't know the header ignore it.
-    const response = await this.send('HEAD', this.url(key), { headers: { 'x-amz-checksum-mode': 'ENABLED' } })
+    // that don't know the header ignore it. AWS has refused it (403) to a keyless role whose plain HEAD
+    // and GET of the same object work: then ask without it, and the size and etag still answer.
+    let response = await this.send('HEAD', this.url(key), { headers: { 'x-amz-checksum-mode': 'ENABLED' } })
+    if (response.status === 403) response = await this.send('HEAD', this.url(key))
     if (response.status === 404) return null
-    if (!response.ok) await this.fail(response, 'Head')
+    if (!response.ok) await this.fail(await this.reason(key, response), 'Head')
     const modified = response.headers.get('Last-Modified')
     const checksum = response.headers.get('x-amz-checksum-sha256')
     // A multipart object's checksum is of its parts' checksums ("…-N"), not of the whole file.
