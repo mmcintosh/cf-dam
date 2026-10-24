@@ -106,7 +106,6 @@
             <select id="aj-class" bind:value={form.storageClass}>
               <option value="DEEP_ARCHIVE">{t('storageClass.DEEP_ARCHIVE')}</option>
               <option value="GLACIER">{t('storageClass.GLACIER')}</option>
-        <option value="GLACIER_IR">{t('storageClass.GLACIER_IR')}</option>
               <option value="GLACIER_IR">{t('storageClass.GLACIER_IR')}</option>
             </select>
           </div>
