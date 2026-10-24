@@ -4,7 +4,7 @@ summary: "Jede Arbeit für einen Kunden von der Buchung bis zur Lieferung verfol
 section: Sharing
 order: 4
 review: machine
-source: e5012922eb58
+source: 5793403dfd06
 ---
 
 Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** steht im Menü unter **Kunden**; wie Kunden sehen das nur **Administratoren**.
@@ -38,6 +38,25 @@ Auf der Seite des Auftrags listet **Alben** seine Alben mit ihren Fotos und Gale
 - **Aus dem Auftrag nehmen** lässt das Album und seine Galerien, wie sie sind.
 
 Ein Album, das zu einem Auftrag gehört, zeigt oben auf seiner Seite einen Link zum Auftrag.
+
+## Originale
+
+**Originale** auf der Seite des Auftrags zeigt, wo die Originaldateien seiner Fotos liegen:
+
+- wie viele **jetzt lesbar** sind (aus dem eigenen Speicher des Archivs, von einem Computer oder NAS oder als wiederhergestellte Kopie);
+- wie viele **wiederhergestellt werden müssen**: Sie liegen nur in einem kalten Archiv (Glacier oder Deep Archive), daher kann sie niemand herunterladen, bis sie zurückgeholt sind;
+- wie viele **nur auf einem Computer oder NAS** liegen: Du kannst sie öffnen, aber eine Kundengalerie kann sie nicht als Originale anbieten;
+- wie viele eine **kalte Sicherung** haben, also eine Kopie in Glacier oder Deep Archive. Solange die eigene Kopie des Archivs bleibt, macht eine kalte Sicherung ein Foto nicht unlesbar.
+
+Die Liste unter **Aufträge** zeigt dasselbe in Kurzform: *Lesbar* oder *n wiederherzustellen*, und *kalte Sicherung*, wenn jedes Foto eine hat.
+
+### Einen Auftrag wiederherstellen
+
+Vor einer Nachbestellung von Abzügen zum Beispiel drückst du **n Originale wiederherstellen…**. Wähle die **Geschwindigkeit** (*Bulk*: am günstigsten, bis zu 48 Stunden; *Standard*: schneller, bis zu 12 Stunden) und wie viele Tage die Kopien bleiben sollen, dann **Kosten anzeigen**: das Holen aus dem Archiv, das Behalten der Kopien und was es kostet, wenn Kunden alle einmal herunterladen (oft der größte Teil). Dann bestätige. Die Seite zeigt, wie weit die Wiederherstellung ist und bis wann die Kopien bereitstehen. Die Originale bleiben im Archiv; die wiederhergestellten Kopien verschwinden nach den gewählten Tagen.
+
+Wiederherstellen braucht die Berechtigung, Speicherklassen zu verwalten (Administratorrechte schließen sie ein).
+
+Wenn eine Galerie Originale anbietet und einige Originale des Albums archiviert sind oder nur auf einem NAS liegen, weist das Galerieformular darauf hin, bevor du den Link erstellst.
 
 ## Was Aufmerksamkeit braucht
 

@@ -132,6 +132,7 @@ export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog
 export { galleryJson } from './routes/gallery'
 export { CLIENT_ROLE, clientGalleries, isClientOnly, readInvite, type ClientGalleryJson, type MemberJson } from './catalog/clients'
 export { clientDownloads, clientPeople, countPastClients, getClient, listClients, type ClientDownloadJson, type ClientJson, type ClientPersonJson, type ClientSummary } from './catalog/client-records'
+export { albumStorage, jobRestoreStatus, jobStorage, type JobRestoreStatus, type JobStorage } from './catalog/job-storage'
 export { filterSummary, getJob, jobAlbums, listJobs, needsAttention, KINDS, OPEN_STAGES, OPTIONAL_STAGES, STAGES, type AttentionJson, type JobAlbumJson, type JobJson, type JobSummary, type Kind, type Stage } from './catalog/jobs'
 export { getStats, type StatsSnapshot } from './catalog/stats'
 export { clientShares, jobShares, listShares, getShare, openGallery, recordEvent, shareVisitors, sharePicks, shareDownloads, DOWNLOAD_SIZES, type ShareJson, type VisitorJson, type GalleryItem, type DownloadSize } from './catalog/shares'

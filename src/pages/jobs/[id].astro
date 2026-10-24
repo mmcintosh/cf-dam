@@ -1,17 +1,19 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { getJob, jobAlbums, jobShares } from '@cf-dam/api'
+import { getJob, jobAlbums, jobRestoreStatus, jobShares, jobStorage } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import JobAlbums from '../../components/JobAlbums.svelte'
 import JobDetails from '../../components/JobDetails.svelte'
 import JobStage from '../../components/JobStage.svelte'
+import JobStorage from '../../components/JobStorage.svelte'
 
 const id = Astro.params.id!
 const job = await getJob(env.DB, id)
 if (!job) return Astro.redirect('/jobs')
-const [albums, galleries] = await Promise.all([jobAlbums(env.DB, id), jobShares(env.DB, id)])
+const [albums, galleries, storage, restore] = await Promise.all([jobAlbums(env.DB, id), jobShares(env.DB, id), jobStorage(env.DB, [id]), jobRestoreStatus(env.DB, id)])
+const canRestore = Astro.locals.principal!.permissions.has('lifecycle:manage')
 const { results: clients } = await env.DB.prepare('SELECT id, name FROM clients WHERE past_at IS NULL OR id = ? ORDER BY name COLLATE NOCASE LIMIT 2000')
   .bind(job.client.id)
   .all<{ id: string; name: string }>()
@@ -33,6 +35,11 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
     <h2>{t('jobs.stage')}</h2>
     <JobStage client:load jobId={job.id} stage={job.stage} />
     {job.deliveredAt && <p class="muted small">{t('jobs.deliveredOn', { date: day(job.deliveredAt) })}</p>}
+  </section>
+
+  <section class="card stack">
+    <h2>{t('jobStorage.title')}</h2>
+    <JobStorage client:load jobId={job.id} initial={storage.get(job.id)!} initialRestore={restore} canRestore={canRestore} />
   </section>
 
   <section class="card stack">

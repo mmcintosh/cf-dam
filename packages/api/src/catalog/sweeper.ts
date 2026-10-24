@@ -30,6 +30,8 @@ import { logActivity } from '../lib/activity'
 import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
 import { sweepShot } from './jobs'
+import { recoverRestoreItems } from './job-storage'
+import { nudge } from './work'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
@@ -280,6 +282,9 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     await db.prepare("UPDATE asset_locations SET state = 'archived', restore_expires_at = NULL, updated_at = ? WHERE state = 'restored' AND restore_expires_at <= ?")
       .bind(now, now)
       .run()
+    // Job restores (job-storage.ts) are asked of S3 by the work queue; if a message was lost, nudge it again.
+    const waiting = await recoverRestoreItems(db)
+    if (waiting > 0) await nudge(env, 'restore', waiting)
     const { results: locations } = await db
       .prepare(
         `SELECT asset_id, connection_id, key FROM asset_locations

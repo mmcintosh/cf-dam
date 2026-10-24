@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { listJobs, needsAttention, OPEN_STAGES, STAGES, type JobSummary, type Stage } from '@cf-dam/api'
+import { jobStorage, listJobs, needsAttention, OPEN_STAGES, STAGES, type JobSummary, type Stage } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 
 // Open work by stage (the default), finished work (?show=done), or everything; ?q= searches titles, places
@@ -14,6 +14,7 @@ const [jobs, attention] = await Promise.all([
   listJobs(env.DB, { q, stages: show === 'open' ? OPEN_STAGES : show === 'done' ? DONE : undefined }),
   show === 'open' && !q ? needsAttention(env.DB) : Promise.resolve([]),
 ])
+const storage = await jobStorage(env.DB, jobs.map((j) => j.id))
 const t = getT(Astro.locals.lang)
 const fmt = createFormat(Astro.locals.lang)
 const day = (d: string | null) => (d ? fmt.date(`${d.slice(0, 10)}T12:00:00Z`) : '')
@@ -81,6 +82,7 @@ const here = (params: Record<string, string>) => {
                 <th>{t('jobs.dueOn')}</th>
                 <th>{t('nav.albums')}</th>
                 <th>{t('clientsPage.openGalleries')}</th>
+                <th>{t('jobStorage.originals')}</th>
               </tr>
             </thead>
             <tbody>
@@ -93,6 +95,14 @@ const here = (params: Record<string, string>) => {
                   <td class="muted">{j.dueOn ? day(j.dueOn) : '—'}</td>
                   <td>{j.albums}</td>
                   <td>{j.openGalleries}</td>
+                  <td class="small">{(() => {
+                    const s = storage.get(j.id)!
+                    if (s.photos === 0) return <span class="muted">—</span>
+                    return <>
+                      {s.needsRestore > 0 ? <span class="warn">{t('jobStorage.listRestore', { count: s.needsRestore })}</span> : <span>{t('jobStorage.listReadable')}</span>}
+                      {s.coldBackup === s.photos && <span class="muted"> · {t('jobStorage.listCold')}</span>}
+                    </>
+                  })()}</td>
                 </tr>
               ))}
             </tbody>
@@ -172,5 +182,8 @@ const here = (params: Record<string, string>) => {
   }
   .small {
     font-size: 0.85rem;
+  }
+  .warn {
+    color: var(--danger);
   }
 </style>

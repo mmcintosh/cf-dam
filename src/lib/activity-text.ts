@@ -189,6 +189,8 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.jobUpdated', { who, title: str(d.title) || t('act.aJob') })
     case 'job.deleted':
       return t('act.jobDeleted', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.restore':
+      return t('act.jobRestore', { who, count: num(d.photos), title: str(d.title) || t('act.aJob') })
     case 'job.album_added':
       return t('act.jobAlbumAdded', { who, title: str(d.title) || t('act.aJob') })
     case 'job.stage': {

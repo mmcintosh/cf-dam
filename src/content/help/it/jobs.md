@@ -4,7 +4,7 @@ summary: "Seguire ogni lavoro per un cliente dalla prenotazione alla consegna: d
 section: Sharing
 order: 4
 review: machine
-source: e5012922eb58
+source: 5793403dfd06
 ---
 
 Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è nel menu, sotto **Clienti**; come per i clienti, lo vedono solo gli **amministratori**.
@@ -38,6 +38,25 @@ Nella pagina del lavoro, **Album** elenca i suoi album con le loro foto e galler
 - **Togli dal lavoro** lascia l’album e le sue gallerie come sono.
 
 Un album che fa parte di un lavoro mostra un link al lavoro in cima alla sua pagina.
+
+## Originali
+
+**Originali**, nella pagina del lavoro, dice dove sono i file originali delle sue foto:
+
+- quanti **sono leggibili ora** (dallo spazio di archiviazione dell’archivio, da un computer o NAS, o da una copia ripristinata);
+- quanti **vanno ripristinati**: sono solo in un archivio a freddo (Glacier o Deep Archive), quindi nessuno può scaricarli finché non vengono recuperati;
+- quanti sono **solo su un computer o NAS**: puoi aprirli, ma una galleria clienti non può offrirli come originali;
+- quanti hanno un **backup a freddo**, cioè una copia in Glacier o Deep Archive. Se la copia dell’archivio resta, un backup a freddo non rende una foto illeggibile.
+
+L’elenco **Lavori** mostra lo stesso in breve: *Leggibili* o *n da ripristinare*, e *backup a freddo* quando ogni foto ne ha uno.
+
+### Ripristinare un lavoro
+
+Prima di un ordine di ristampe, per esempio, premi **Ripristina n originali…**. Scegli la **Velocità** (*Bulk*: la più economica, fino a 48 ore; *Standard*: più veloce, fino a 12 ore) e per quanti giorni tenere le copie, poi **Vedi il costo**: tirarli fuori dall’archivio, tenere le copie e quanto costa se i clienti li scaricano tutti una volta (spesso la parte maggiore). Poi conferma. La pagina mostra a che punto è il ripristino e fino a quando le copie sono pronte. Gli originali restano nell’archivio; le copie ripristinate spariscono dopo i giorni scelti.
+
+Il ripristino richiede il permesso di gestire i livelli di archiviazione (gli amministratori ce l’hanno).
+
+Quando una galleria offre gli originali e alcuni originali dell’album sono archiviati o solo su un NAS, il modulo della galleria lo segnala prima che tu crei il link.
 
 ## Cosa c’è da seguire
 

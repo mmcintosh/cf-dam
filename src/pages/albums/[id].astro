@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { getWatermark, listAssets } from '@cf-dam/api'
+import { albumStorage, getWatermark, listAssets } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetGrid from '../../components/AssetGrid.astro'
 import SharePanel from '../../components/SharePanel.svelte'
@@ -26,13 +26,15 @@ const items = assets.map((a) => ({ id: a.id, name: a.title ?? a.filename, alt: a
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 // Job names are client work: shown to those who manage clients; anyone sharing still gets the Final delivery tick.
 const canJobs = Astro.locals.principal!.permissions.has('clients:manage')
+// Originals clients couldn't download now (archived, or only on a NAS): the gallery form says so when they're offered.
+const originals = canShare ? await albumStorage(env.DB, id) : null
 ---
 <AppLayout help="albums" wide title={album.name} subtitle={album.description || (totalExact ? t('common.items', { count: total }) : t('libpage.itemsMore', { count: total }))}>
   {canJobs && album.job_id && <p class="job"><a class="btn btn-sm" href={`/jobs/${album.job_id}`}>{t('album.partOfJob', { job: album.job_title ?? '' })}</a></p>}
   {canEdit && <AlbumTools client:load albumId={album.id} name={album.name} description={album.description} links={album.links} items={items} coverId={album.cover} />}
   {canShare && (
     <div class="share">
-      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} />
+      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} originals={originals ? { needsRestore: originals.needsRestore, nasOnly: originals.nasOnly } : null} />
     </div>
   )}
   {assets.length > 0 ? (

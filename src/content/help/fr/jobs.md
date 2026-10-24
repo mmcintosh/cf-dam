@@ -4,7 +4,7 @@ summary: "Suivre chaque travail pour un client, de la réservation à la livrais
 section: Sharing
 order: 4
 review: machine
-source: e5012922eb58
+source: 5793403dfd06
 ---
 
 Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** se trouve dans le menu, sous **Clients** ; comme les clients, seuls les **administrateurs** le voient.
@@ -38,6 +38,25 @@ Sur la page du travail, **Albums** liste ses albums avec leurs photos et leurs g
 - **Retirer du travail** laisse l’album et ses galeries tels quels.
 
 Un album qui fait partie d’un travail affiche un lien vers ce travail en haut de sa page.
+
+## Originaux
+
+**Originaux**, sur la page du travail, indique où se trouvent les fichiers originaux de ses photos :
+
+- combien **sont lisibles maintenant** (depuis le stockage propre de l’archive, un ordinateur ou un NAS, ou une copie restaurée) ;
+- combien **doivent être restaurés** : ils ne sont que dans une archive à froid (Glacier ou Deep Archive), donc personne ne peut les télécharger avant qu’ils soient récupérés ;
+- combien ne sont **que sur un ordinateur ou un NAS** : vous pouvez les ouvrir, mais une galerie client ne peut pas les proposer en original ;
+- combien ont une **sauvegarde à froid**, une copie dans Glacier ou Deep Archive. Tant que la copie propre de l’archive est conservée, une sauvegarde à froid ne rend pas une photo illisible.
+
+La liste **Travaux** montre la même chose en bref : *Lisibles* ou *n à restaurer*, et *sauvegarde à froid* quand chaque photo en a une.
+
+### Restaurer un travail
+
+Avant une commande de retirages, par exemple, appuyez sur **Restaurer n originaux…**. Choisissez la **Vitesse** (*Bulk* : le moins cher, jusqu’à 48 heures ; *Standard* : plus rapide, jusqu’à 12 heures) et combien de jours garder les copies, puis **Voir le coût** : les sortir de l’archive, garder les copies, et ce que cela coûte si les clients les téléchargent tous une fois (souvent la plus grosse part). Puis confirmez. La page montre où en est la restauration, et jusqu’à quand les copies sont prêtes. Les originaux restent dans l’archive ; les copies restaurées disparaissent après les jours choisis.
+
+Restaurer demande le droit de gérer les niveaux de stockage (les administrateurs l’ont).
+
+Quand une galerie propose les originaux et que certains originaux de l’album sont archivés ou seulement sur un NAS, le formulaire de la galerie le signale avant que vous créiez le lien.
 
 ## Ce qui est à traiter
 

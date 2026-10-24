@@ -4,7 +4,7 @@ summary: "Seguir cada trabajo para un cliente desde la reserva hasta la entrega:
 section: Sharing
 order: 4
 review: machine
-source: e5012922eb58
+source: 5793403dfd06
 ---
 
 Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** está en el menú, debajo de **Clientes**; como los clientes, solo lo ven los **administradores**.
@@ -38,6 +38,25 @@ En la página del trabajo, **Álbumes** muestra sus álbumes con sus fotos y gal
 - **Quitar del trabajo** deja el álbum y sus galerías como están.
 
 Un álbum que forma parte de un trabajo muestra un enlace a él arriba de su página.
+
+## Originales
+
+**Originales**, en la página del trabajo, indica dónde están los archivos originales de sus fotos:
+
+- cuántos **se pueden leer ahora** (desde el almacenamiento propio del archivo, un ordenador o NAS, o una copia restaurada);
+- cuántos **necesitan una restauración**: solo están en un archivo en frío (Glacier o Deep Archive), así que nadie puede descargarlos hasta que se recuperen;
+- cuántos están **solo en un ordenador o NAS**: puedes abrirlos, pero una galería de clientes no puede ofrecerlos como originales;
+- cuántos tienen **copia en frío**, una copia en Glacier o Deep Archive. Si se conserva la copia propia del archivo, una copia en frío no impide leer la foto.
+
+La lista de **Trabajos** muestra lo mismo en corto: *Disponibles* o *n necesitan restaurar*, y *copia en frío* cuando todas las fotos tienen una.
+
+### Restaurar un trabajo
+
+Antes de un pedido de reimpresión, por ejemplo, pulsa **Restaurar n originales…**. Elige la **Velocidad** (*Masiva*: la más barata, hasta 48 horas; *Estándar*: más rápida, hasta 12 horas) y cuántos días mantener las copias, y luego **Ver el coste**: sacarlos del archivo, mantener las copias y lo que cuesta si los clientes los descargan todos una vez (a menudo la parte mayor). Después confirma. La página muestra cuánto ha avanzado la restauración y hasta cuándo están listas las copias. Los originales siguen en el archivo; las copias restauradas desaparecen tras los días elegidos.
+
+Restaurar requiere el permiso para gestionar los niveles de almacenamiento (los administradores lo tienen).
+
+Cuando una galería ofrece originales y algunos originales del álbum están archivados o solo en un NAS, el formulario de la galería lo indica antes de que crees el enlace.
 
 ## Lo que requiere atención
 

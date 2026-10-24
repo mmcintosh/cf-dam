@@ -521,6 +521,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.jobRestore": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.jobStage": {
     "es": "machine",
     "de": "machine",
@@ -4216,6 +4222,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "err.cantRestore": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "err.checkRunning": {
     "es": "machine",
     "de": "machine",
@@ -4463,6 +4475,12 @@
     "it": "machine"
   },
   "err.nothingToChange": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "err.nothingToRestore": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -5897,6 +5915,278 @@
     "it": "machine"
   },
   "job.stage.shot": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.askAdmin": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.bulk": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.cold.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.cold.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.cold.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.confirm.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.confirm.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.confirm.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.costDownloading": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.costKeeping": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.costNote": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.costRetrieval": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.days": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.estimate.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.estimate.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.estimate.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.listCold": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.listReadable": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.listRestore.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.listRestore.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.listRestore.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.nasOnly.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.nasOnly.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.nasOnly.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.needsRestore.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.needsRestore.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.needsRestore.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.none": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.originals": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.readable.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.readable.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.readable.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.readyUntil": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restore.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restore.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restore.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoreFailed.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoreFailed.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoreFailed.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoreStatus": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoring.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoring.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.restoring.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.seeCost": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.speed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.standard": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "jobStorage.title": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -8866,6 +9156,40 @@
     "it": "ai-reviewed"
   },
   "share.options": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsArchived.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsArchived.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsArchived.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsNasOnly.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsNasOnly.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsNasOnly.other": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

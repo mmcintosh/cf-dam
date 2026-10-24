@@ -37,6 +37,25 @@ On the job's page, **Albums** lists its albums with their photos and galleries:
 
 An album that's part of a job shows a link to it at the top of its page.
 
+## Originals
+
+**Originals** on the job's page says where its photos' original files are:
+
+- how many **can be read now** (from the archive's own storage, a computer or NAS, or a restored copy);
+- how many **need a restore**: they're only in a cold archive (Glacier or Deep Archive), so nobody can download them until they're brought back;
+- how many are **only on a computer or NAS**: you can open them, but a client gallery can't offer them as originals;
+- how many have a **cold backup**, a copy in Glacier or Deep Archive. With the archive's own copy kept, a cold backup doesn't make a photo unreadable.
+
+The **Jobs** list shows the same in short: *Readable* or *n need a restore*, and *cold backup* when every photo has one.
+
+### Restoring a job
+
+Before a reprint order, say, press **Restore n originals…**. Choose the **Speed** (*Bulk*: cheapest, up to 48 hours; *Standard*: faster, up to 12 hours) and how many days to keep the copies, then **See the cost**: getting them out of the archive, keeping the copies, and what it costs if clients download them all once (often the biggest part). Then confirm. The page shows how far the restore has got, and until when the copies are ready. The originals stay in the archive; the restored copies disappear after the days you chose.
+
+Restoring needs the permission to manage storage tiers (administrators have it).
+
+When a gallery offers originals and some of the album's originals are archived or only on a NAS, the gallery form says so before you make the link.
+
 ## What needs attention
 
 At the top of **Jobs**, **Needs attention** lists:

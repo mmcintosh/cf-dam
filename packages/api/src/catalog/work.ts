@@ -14,15 +14,16 @@
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { aiAvailable, analyzeAsset } from './ai'
+import { askRestores } from './job-storage'
 import { processAsset } from './process'
 
-export type WorkKind = 'ai' | 'process'
+export type WorkKind = 'ai' | 'process' | 'restore'
 export interface WorkMessage {
   kind: WorkKind
 }
 
 /** Photos one message takes: a few model calls' time, well inside one invocation's limits. */
-export const CLAIM = { ai: 8, process: 4 } as const
+export const CLAIM = { ai: 8, process: 4, restore: 20 } as const
 /** Model calls at once within one message. */
 const AI_PARALLEL = 4
 /** Chains started for a lot of waiting work; each carries on until nothing is left. */
@@ -84,6 +85,12 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
     if (ids.length === CLAIM.ai) await nudge(env, 'ai')
     return ids.length
   }
+  if (kind === 'restore') {
+    // A job restore's photos, asked of S3 a handful at a time (job-storage.ts).
+    const asked = await askRestores(env, CLAIM.restore)
+    if (asked === CLAIM.restore) await nudge(env, 'restore')
+    return asked
+  }
   const ids = await claimProcess(env.DB, CLAIM.process)
   for (const id of ids) await processAsset(env, id)
   if (ids.length === CLAIM.process) await nudge(env, 'process')
@@ -98,7 +105,7 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
 export async function handleWork(env: DamBindings, batch: MessageBatch<WorkMessage>): Promise<void> {
   for (const message of batch.messages) {
     const kind = message.body?.kind
-    if (kind !== 'ai' && kind !== 'process') {
+    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore') {
       message.ack()
       continue
     }

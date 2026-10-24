@@ -16,8 +16,10 @@
     startNew?: boolean
     /** The album belongs to a job: offer "Final delivery", which moves the job to Delivered. */
     inJob?: boolean
+    /** Originals in the album clients couldn't download now: archived, or only on a NAS. */
+    originals?: { needsRestore: number; nasOnly: number } | null
   }
-  let { albumId, albumName, hasWatermark, startNew = false, inJob = false }: Props = $props()
+  let { albumId, albumName, hasWatermark, startNew = false, inJob = false, originals = null }: Props = $props()
   let panel: HTMLElement | undefined = $state()
 
   type Size = 'small' | 'large' | 'original'
@@ -240,6 +242,8 @@
         {/each}
         {#if draft.downloadSizes.includes('original')}
           <p class="muted small">{t('share.originalsNote')}</p>
+          {#if originals && originals.needsRestore > 0}<p class="warn small" role="note">{t('share.originalsArchived', { count: originals.needsRestore })}</p>{/if}
+          {#if originals && originals.nasOnly > 0}<p class="warn small" role="note">{t('share.originalsNasOnly', { count: originals.nasOnly })}</p>{/if}
         {/if}
       </fieldset>
       <fieldset>
@@ -333,5 +337,8 @@
     font-size: 0.9rem;
     color: var(--text);
     font-weight: 400;
+  }
+  .warn {
+    color: var(--danger);
   }
 </style>

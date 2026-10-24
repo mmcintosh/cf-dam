@@ -25,7 +25,9 @@ import {
   updateJob,
   type Stage,
 } from '../catalog/jobs'
+import { JOB_RESTORE_TIERS, jobRestoreStatus, jobStorage, restoreEstimate, startJobRestore, type JobRestoreTier } from '../catalog/job-storage'
 import { jobShares } from '../catalog/shares'
+import { nudge } from '../catalog/work'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, optionalString, readJsonObject } from '../lib/http'
@@ -160,6 +162,52 @@ jobRoutes.post('/:id/albums', async (c) => {
     const album = (await albumForJob(c.env.DB, id, name, filters, c.get('principal')!.userId))!
     await log(c, 'job.album_added', id, { title: job.title, albumId: album.albumId })
     return c.json({ albums: await jobAlbums(c.env.DB, id), album }, 201)
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
+})
+
+/** Where the job's originals are, and its latest restore. */
+jobRoutes.get('/:id/storage', async (c) => {
+  const id = c.req.param('id')
+  if (!(await getJob(c.env.DB, id))) return c.json(notFound(), 404)
+  const [storage, restore] = await Promise.all([jobStorage(c.env.DB, [id]), jobRestoreStatus(c.env.DB, id)])
+  return c.json({ storage: storage.get(id), restore })
+})
+
+function restoreChoice(tier: unknown, days: unknown): { tier: JobRestoreTier; days: number } {
+  const t = (tier ?? 'Bulk') as JobRestoreTier
+  const d = Number(days ?? 7)
+  if (!JOB_RESTORE_TIERS.includes(t)) throw new BadRequest(`tier is one of ${JOB_RESTORE_TIERS.join(', ')}.`)
+  if (!Number.isInteger(d) || d < 1 || d > 30) throw new BadRequest('days is 1 to 30.')
+  return { tier: t, days: d }
+}
+
+/** What restoring the job would cost and take: `?tier=Bulk|Standard&days=7`. */
+jobRoutes.get('/:id/restore-estimate', async (c) => {
+  try {
+    const { tier, days } = restoreChoice(c.req.query('tier'), c.req.query('days'))
+    return c.json({ estimate: await restoreEstimate(c.env.DB, c.req.param('id'), tier, days) })
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
+})
+
+/** Restore every photo of the job that needs it (also needs `lifecycle:manage`). */
+jobRoutes.post('/:id/restore', async (c) => {
+  const principal = c.get('principal')!
+  if (!principal.permissions.has('lifecycle:manage')) return c.json({ error: 'forbidden', message: say('err.cantRestore') }, 403)
+  const id = c.req.param('id')
+  try {
+    const body = await readJsonObject(c)
+    const { tier, days } = restoreChoice(body.tier, body.days)
+    const job = await getJob(c.env.DB, id)
+    if (!job) return c.json(notFound(), 404)
+    const started = await startJobRestore(c.env.DB, id, tier, days, principal.userId)
+    if (!started) return c.json({ error: 'nothing_to_restore', message: say('err.nothingToRestore') }, 409)
+    await nudge(c.env, 'restore', started.photos)
+    await log(c, 'job.restore', id, { title: job.title, photos: started.photos, tier, days })
+    return c.json({ restore: await jobRestoreStatus(c.env.DB, id) }, 202)
   } catch (error) {
     return c.json(invalid(error), 400)
   }
