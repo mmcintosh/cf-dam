@@ -273,6 +273,12 @@
     if (await bulk({ action: 'preset', presetId: id, overwrite: mode === 'overwrite' })) say(t(mode === 'overwrite' ? 'library.say.presetOverwrote' : 'library.say.presetApplied', { preset: preset.name, count: targets().length }))
   }
 
+  /** People in the photo set by hand, or back to TypeSafe's Jev's answer (jev-facets.ts). */
+  async function setPeople(value: string) {
+    const count = targets().length
+    if (await bulk({ action: 'people', people: value })) say(t(value === 'jev' ? 'library.say.peopleJev' : 'library.say.peopleSet', { count }))
+  }
+
   async function aiAction(choice: string) {
     const count = targets().length
     if (choice === 'queue') {
@@ -486,6 +492,14 @@
         <option value="">{t('library.labelMenu')}</option>
         {#each Object.entries(labelNames) as [value, name] (value)}<option {value}>{name}</option>{/each}
         <option value="clear">{t('library.noLabel')}</option>
+      </select>
+      <select aria-label={t('library.people')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) setPeople(v) }}>
+        <option value="">{t('library.peopleMenu')}</option>
+        <option value="none">{t('photoPeople.none')}</option>
+        <option value="one">{t('photoPeople.onePerson')}</option>
+        <option value="two_to_five">{t('photoPeople.twoToFive')}</option>
+        <option value="six_or_more">{t('photoPeople.sixOrMore')}</option>
+        <option value="jev">{t('photoPeople.backToJev')}</option>
       </select>
       {#if presets.length > 0}
         <select aria-label={t('library.applyPreset')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>

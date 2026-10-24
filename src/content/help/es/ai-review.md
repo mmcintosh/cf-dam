@@ -4,7 +4,7 @@ summary: "Dejar que un modelo de IA describa tus fotos, cuánto cuesta y cómo s
 section: Your photos
 order: 5
 review: machine
-source: bd70af3f3fd8
+source: 48fdc91af68c
 ---
 
 La revisión con IA mira cada foto y escribe sugerencias: **texto alternativo**, un **pie de foto**, una descripción más larga de **lo que vio**, cualquier **texto en la imagen** (carteles, documentos), **palabras clave** sugeridas y una nota sobre la calidad. Hace que un archivo grande se pueda buscar de una forma que nadie tiene tiempo de hacer a mano, y es lo que lee la [búsqueda por significado](/help/search).
@@ -41,7 +41,10 @@ Si hay fotos que nunca se han analizado, **Analizar el archivo existente** dice 
 Junto a la revisión con IA, **Jev**, de TypeSafe, busca personas en cada foto nueva, y cuántas hay, para el filtro **Personas** de la biblioteca. Es más rápido y más barato que la revisión con IA (unos 9 céntimos por 1000 fotos), y en una prueba con 805 fotos encontró personas en 87 donde la revisión con IA encontró 47, casi siempre figuras pequeñas al fondo. No escribe texto.
 
 - **Qué se envía:** una copia de 1024 px de cada foto, sin nombre de archivo, datos de cámara ni ubicación, va a TypeSafe (api.typesafe.ai). TypeSafe dice que no entrena con ella.
-- **Fotos anteriores:** el panel **Personas en las fotos** de esta página dice cuántas se han revisado; **Buscar personas en el resto** se encarga de las demás.
+- **Fotos anteriores:** el panel **Personas en las fotos** de esta página cuenta lo encontrado (cada número abre esas fotos en la biblioteca) y **Mirar N fotos aún sin mirar** se encarga del resto.
+- **Interruptores:** con **Buscar personas** desactivado no se envía nada más a TypeSafe (las respuestas ya obtenidas se quedan y el filtro sigue funcionando); con **En las fotos nuevas al llegar** desactivado, las fotos nuevas esperan al botón.
+- **Respuestas equivocadas:** corrige una en la página de la foto, o muchas a la vez en la biblioteca (selecciónalas y elige **Personas…**). Jev nunca cambia una respuesta puesta a mano, y **Volver a la respuesta de Jev** la deshace.
+- **Las fotos que no se pudieron mirar** aparecen en una lista con el motivo: demasiado pequeñas, rechazadas por TypeSafe o fallidas tres veces (con **Volver a intentar**).
 - No se revisan los vídeos ni las fotos de menos de 280 píxeles por lado.
 
 ## Cuánto cuesta

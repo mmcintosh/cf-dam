@@ -4,7 +4,7 @@ summary: "Todo sobre una foto: sus detalles, palabras clave, crédito y derechos
 section: Your photos
 order: 4
 review: machine
-source: 6acff1bd2ab3
+source: 096a1c31007b
 ---
 
 Abre una foto en la biblioteca y pulsa **Abrir detalles** (o haz clic en una foto en cualquier sitio donde tenga enlace) para ir a su propia página. La foto está a la izquierda; todo lo demás sobre ella, a la derecha.
@@ -26,6 +26,10 @@ Si la [revisión con IA](/help/ai-review) ya ha mirado la foto, **Sugerencias de
 - **Usar este** copia una sugerencia en un campo vacío; **Sustituir el mío** sobrescribe lo que escribiste.
 - Las etiquetas sugeridas se pueden buscar enseguida: **✓** conserva una como tuya, **×** la descarta y **Conservar todas** las conserva todas.
 - **Analizar** pide a la IA que la mire (otra vez).
+
+## Personas
+
+Si [Personas en las fotos](/help/ai-review) está configurado, **Personas** dice si Jev de TypeSafe vio a alguien, y a cuántos: **Sin personas**, **Una persona**, **2–5 personas**, **6 o más**, o que aún no la ha mirado. Si se equivoca, pulsa la respuesta correcta: es la que usa desde entonces el filtro **Personas** de la biblioteca, y Jev no la cambiará. **Volver a la respuesta de Jev** lo deshace.
 
 ## Crédito, derechos y lugar
 

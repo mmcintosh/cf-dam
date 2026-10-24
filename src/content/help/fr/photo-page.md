@@ -4,7 +4,7 @@ summary: "Tout sur une photo : ses détails, ses mots-clés, crédit et droits, 
 section: Your photos
 order: 4
 review: machine
-source: 6acff1bd2ab3
+source: 096a1c31007b
 ---
 
 Ouvrez une photo dans la photothèque et appuyez sur **Ouvrir les détails** (ou cliquez sur une photo partout où elle sert de lien) pour accéder à sa propre page. La photo est à gauche ; tout ce qui la concerne est à droite.
@@ -26,6 +26,10 @@ Si l’[analyse par IA](/help/ai-review) a examiné la photo, **Suggestions de l
 - **Utiliser celui-ci** copie une suggestion dans un champ vide ; **Remplacer le mien** écrase ce que vous avez écrit.
 - Les tags suggérés sont consultables tout de suite : **✓** en garde un comme le vôtre, **×** le retire, **Tout garder** les garde tous.
 - **Analyser** demande à l’IA de regarder (à nouveau).
+
+## Personnes
+
+Quand [Personnes sur les photos](/help/ai-review) est configuré, **Personnes** indique si Jev de TypeSafe a vu quelqu’un, et combien : **Personne**, **Une personne**, **2 à 5 personnes**, **6 ou plus**, ou qu’il n’a pas encore regardé. Si c’est faux, appuyez sur la bonne réponse : c’est elle que le filtre **Personnes** de la photothèque utilise ensuite, et Jev ne la changera pas. **Revenir à la réponse de Jev** l’annule.
 
 ## Crédit, droits et lieu
 

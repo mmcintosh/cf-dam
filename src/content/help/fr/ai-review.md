@@ -4,7 +4,7 @@ summary: "Laisser un modèle d’IA décrire vos photos, ce que cela coûte, et 
 section: Your photos
 order: 5
 review: machine
-source: bd70af3f3fd8
+source: 48fdc91af68c
 ---
 
 L’analyse par IA examine chaque photo et rédige des suggestions : un **texte alternatif**, une **légende**, une description plus longue de **ce qu’elle a vu**, tout **texte dans l’image** (panneaux, documents), des **mots-clés** suggérés et une note sur la qualité. Elle rend de grandes archives consultables d’une façon que personne n’a le temps de faire à la main, et c’est ce que lit la [recherche par le sens](/help/search).
@@ -41,7 +41,10 @@ Si certaines photos n’ont jamais été analysées, **Analyser le fonds existan
 À côté de l’analyse par IA, **Jev**, de TypeSafe, cherche les personnes sur chaque nouvelle photo, et combien il y en a, pour le filtre **Personnes** de la photothèque. Il est plus rapide et moins cher que l’analyse par IA (environ 9 cents pour 1 000 photos) et, lors d’un test sur 805 photos, il a trouvé des personnes sur 87 là où l’analyse par IA en trouvait 47, surtout de petites silhouettes à l’arrière-plan. Il n’écrit aucun texte.
 
 - **Ce qui est envoyé :** une copie de 1 024 px de chaque photo, sans nom de fichier, données de l’appareil ni lieu, part chez TypeSafe (api.typesafe.ai). TypeSafe dit ne pas s’en servir pour l’entraînement.
-- **Photos plus anciennes :** le panneau **Personnes sur les photos** de cette page indique combien ont été examinées ; **Chercher les personnes dans le reste** s’occupe des autres.
+- **Photos plus anciennes :** le panneau **Personnes sur les photos** de cette page compte ce qui a été trouvé (chaque nombre ouvre ces photos dans la photothèque) et **Regarder N photos pas encore regardées** s’occupe du reste.
+- **Interrupteurs :** **Chercher les personnes** désactivé, plus rien n’est envoyé à TypeSafe (les réponses déjà obtenues restent et le filtre continue de fonctionner) ; **Sur les nouvelles photos dès leur arrivée** désactivé, les nouvelles photos attendent le bouton.
+- **Mauvaises réponses :** corrigez-en une sur la page de la photo, ou plusieurs à la fois dans la photothèque (sélectionnez-les, puis **Personnes…**). Jev ne modifie jamais une réponse donnée à la main, et **Revenir à la réponse de Jev** l’annule.
+- **Les photos qui n’ont pas pu être regardées** sont listées avec la raison : trop petites, refusées par TypeSafe ou en échec trois fois (avec **Réessayer**).
 - Les vidéos ne sont pas examinées, ni les photos de moins de 280 pixels de côté.
 
 ## Ce que ça coûte

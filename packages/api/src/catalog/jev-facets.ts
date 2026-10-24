@@ -32,19 +32,28 @@ const ASKABLE = "deleted_at IS NULL AND (mime_type IS NULL OR mime_type NOT LIKE
 
 export const facetsAvailable = (env: Pick<DamBindings, 'TYPESAFE_API_KEY'>) => !!env.TYPESAFE_API_KEY
 
+/** Not set by hand: Jev isn't asked about a photo someone has answered (plans/PLAN-F2-v2.md). */
+const NOT_BY_HAND = 'facet_people_by IS NULL'
+const HAS_PREVIEW = "EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id AND r.name IN ('preview', 'thumb'))"
+
 /**
- * Queue photos for facets: those given, or every photo never asked or failed. Only photos with a preview or
- * thumbnail; the rest wait for one. Returns how many were queued.
+ * Queue photos for facets. Only photos with a preview or thumbnail (the rest wait for one), and never one set by hand.
+ * - ids: those given, asked again whatever they had (Try again);
+ * - ids with `onlyNew`: those given that were never asked (new uploads, a reprocess: no second call for a photo
+ *   Jev has answered);
+ * - 'unasked': every photo never asked; 'failed': every photo that failed for good.
+ * Returns how many were queued.
  */
-export async function queueFacets(db: D1Database, ids: string[] | 'unasked'): Promise<number> {
-  const which = ids === 'unasked' ? "(facet_status IS NULL OR facet_status = 'failed')" : 'id IN (SELECT value FROM json_each(?))'
+export async function queueFacets(db: D1Database, ids: string[] | 'unasked' | 'failed', options: { onlyNew?: boolean } = {}): Promise<number> {
+  const which =
+    ids === 'unasked'
+      ? 'facet_status IS NULL'
+      : ids === 'failed'
+        ? "facet_status = 'failed'"
+        : `id IN (SELECT value FROM json_each(?)) AND ${options.onlyNew ? 'facet_status IS NULL' : "(facet_status IS NULL OR facet_status IN ('failed', 'done', 'skipped'))"}`
   const result = await db
-    .prepare(
-      `UPDATE assets SET facet_status = 'queued', facet_attempts = 0, facet_error = NULL
-       WHERE ${which} AND ${ASKABLE} AND (facet_status IS NULL OR facet_status IN ('failed', 'done', 'skipped'))
-         AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id AND r.name IN ('preview', 'thumb'))`,
-    )
-    .bind(...(ids === 'unasked' ? [] : [JSON.stringify(ids)]))
+    .prepare(`UPDATE assets SET facet_status = 'queued', facet_attempts = 0, facet_error = NULL WHERE ${which} AND ${ASKABLE} AND ${NOT_BY_HAND} AND ${HAS_PREVIEW}`)
+    .bind(...(Array.isArray(ids) ? [JSON.stringify(ids)] : []))
     .run()
   return result.meta.changes
 }
@@ -54,7 +63,7 @@ export async function claimFacets(db: D1Database, limit: number): Promise<string
   const { results } = await db
     .prepare(
       `UPDATE assets SET facet_status = 'running', facet_started_at = ?, facet_attempts = facet_attempts + 1
-       WHERE id IN (SELECT id FROM assets WHERE facet_status = 'queued' AND ${ASKABLE} ORDER BY created_at LIMIT ?) AND facet_status = 'queued'
+       WHERE id IN (SELECT id FROM assets WHERE facet_status = 'queued' AND ${ASKABLE} AND ${NOT_BY_HAND} ORDER BY created_at LIMIT ?) AND facet_status = 'queued'
        RETURNING id`,
     )
     .bind(nowIso(), limit)
@@ -102,12 +111,16 @@ export async function facetAsset(env: DamBindings, assetId: string, options: { f
     }
     const ask = typesafe({ apiKey: env.TYPESAFE_API_KEY, fetch: options.fetch })
     const result = await classifyImage({ data_base64: image.slice(image.indexOf(',') + 1), format: 'jpg' }, ask)
+    // A photo set by hand while Jev was looking keeps that answer; Jev's own goes beside it.
+    const people = peopleValue(result)
     await set(
-      `facet_status = 'done', facet_at = ?, facet_error = ?, facet_people = ?, facet_setting = ?, facet_medium = ?,
+      `facet_status = 'done', facet_at = ?, facet_error = ?, facet_people_jev = ?,
+         facet_people = CASE WHEN facet_people_by IS NULL THEN ? ELSE facet_people END, facet_setting = ?, facet_medium = ?,
          facet_tags = ?, facet_scores = ?`,
       nowIso(),
       result.missing.length > 0 ? `No usable answer for: ${result.missing.join(', ')}` : null,
-      peopleValue(result),
+      people,
+      people,
       result.setting,
       result.medium,
       JSON.stringify(result.tags),
@@ -129,21 +142,23 @@ export async function facetAsset(env: DamBindings, assetId: string, options: { f
 
 /**
  * The sweep's part, one query when there's nothing to do: put back failed photos whose pause is over and photos a
- * dead run left 'running', and say whether the queue should be nudged (work waiting, nothing running).
+ * dead run left 'running', and say whether the queue should be nudged (work waiting, nothing running). Switched off
+ * (AI review page, settings `ai.people`), it does nothing: queued photos wait.
  */
 export async function facetsSweep(db: D1Database, now = Date.now()): Promise<{ requeued: number; nudge: number }> {
   const retryBefore = new Date(now - FACET_RETRY_MS).toISOString()
   const staleBefore = new Date(now - FACET_RUNNING_STALE_MS).toISOString()
   const look = await db
     .prepare(
-      `SELECT EXISTS (SELECT 1 FROM assets WHERE facet_status = 'failed' AND facet_attempts < ?1 AND facet_at < ?2 AND ${ASKABLE}) AS retry,
+      `SELECT (SELECT value FROM settings WHERE key = 'ai.people') AS enabled,
+              EXISTS (SELECT 1 FROM assets WHERE facet_status = 'failed' AND facet_attempts < ?1 AND facet_at < ?2 AND ${ASKABLE} AND ${NOT_BY_HAND}) AS retry,
               EXISTS (SELECT 1 FROM assets WHERE facet_status = 'running' AND facet_started_at < ?3) AS stale,
               EXISTS (SELECT 1 FROM assets WHERE facet_status = 'running' AND facet_started_at >= ?3) AS moving,
-              (SELECT COUNT(*) FROM (SELECT 1 FROM assets WHERE facet_status = 'queued' AND ${ASKABLE} LIMIT 100)) AS waiting`,
+              (SELECT COUNT(*) FROM (SELECT 1 FROM assets WHERE facet_status = 'queued' AND ${ASKABLE} AND ${NOT_BY_HAND} LIMIT 100)) AS waiting`,
     )
     .bind(FACET_MAX_ATTEMPTS, retryBefore, staleBefore)
-    .first<{ retry: number; stale: number; moving: number; waiting: number }>()
-  if (!look) return { requeued: 0, nudge: 0 }
+    .first<{ enabled: string | null; retry: number; stale: number; moving: number; waiting: number }>()
+  if (!look || look.enabled === 'false') return { requeued: 0, nudge: 0 }
   let requeued = 0
   if (look.retry || look.stale) {
     const result = await db
@@ -151,7 +166,7 @@ export async function facetsSweep(db: D1Database, now = Date.now()): Promise<{ r
         `UPDATE assets SET facet_status = CASE WHEN facet_attempts < ?1 THEN 'queued' ELSE 'failed' END,
            facet_error = CASE WHEN facet_attempts < ?1 THEN facet_error ELSE COALESCE(facet_error, 'Not finished after ${FACET_MAX_ATTEMPTS} tries.') END,
            facet_at = CASE WHEN facet_status = 'running' THEN ?4 ELSE facet_at END
-         WHERE (facet_status = 'failed' AND facet_attempts < ?1 AND facet_at < ?2 AND ${ASKABLE}) OR (facet_status = 'running' AND facet_started_at < ?3)`,
+         WHERE (facet_status = 'failed' AND facet_attempts < ?1 AND facet_at < ?2 AND ${ASKABLE} AND ${NOT_BY_HAND}) OR (facet_status = 'running' AND facet_started_at < ?3)`,
       )
       .bind(FACET_MAX_ATTEMPTS, retryBefore, staleBefore, new Date(now).toISOString())
       .run()
@@ -163,24 +178,104 @@ export async function facetsSweep(db: D1Database, now = Date.now()): Promise<{ r
 
 export interface FacetStats {
   available: boolean
+  /** Settings `ai.people` and `ai.peopleAuto` (AI review page). */
+  on: boolean
+  auto: boolean
+  /** Answered by Jev (or set by hand). */
   done: number
-  waiting: number
-  failed: number
-  skipped: number
-  /** Photos never asked (or that had no preview yet), the "Find people" button's count. */
-  unasked: number
   withPeople: number
+  withoutPeople: number
+  /** Queued or being looked at, and failed photos the sweep will try again. Paused while switched off. */
+  waiting: number
+  /** Never asked, with a preview to send: the button's count. */
+  unasked: number
+  /** Skipped (too small, refused by TypeSafe) or failed for good: the list. */
+  couldNot: number
+  failedForGood: number
 }
 
-export async function facetStats(env: DamBindings): Promise<FacetStats> {
-  const row = await env.DB.prepare(
-    `SELECT COUNT(CASE WHEN facet_status = 'done' THEN 1 END) AS done,
-            COUNT(CASE WHEN facet_status IN ('queued', 'running') THEN 1 END) AS waiting,
-            COUNT(CASE WHEN facet_status = 'failed' THEN 1 END) AS failed,
-            COUNT(CASE WHEN facet_status = 'skipped' THEN 1 END) AS skipped,
-            COUNT(CASE WHEN facet_status IS NULL AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = assets.id AND r.name IN ('preview', 'thumb')) THEN 1 END) AS unasked,
-            COUNT(CASE WHEN facet_people IS NOT NULL AND facet_people != 'none' THEN 1 END) AS withPeople
-     FROM assets WHERE ${ASKABLE}`,
-  ).first<Omit<FacetStats, 'available'>>()
-  return { available: facetsAvailable(env), done: 0, waiting: 0, failed: 0, skipped: 0, unasked: 0, withPeople: 0, ...row }
+export interface FacetProblem {
+  id: string
+  filename: string
+  status: 'skipped' | 'failed'
+  error: string | null
 }
+
+const COULD_NOT = `(facet_status = 'skipped' OR (facet_status = 'failed' AND facet_attempts >= ${FACET_MAX_ATTEMPTS})) AND ${NOT_BY_HAND}`
+
+export async function facetStats(env: DamBindings): Promise<FacetStats> {
+  const [counts, settings] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT COUNT(CASE WHEN facet_status = 'done' THEN 1 END) AS done,
+              COUNT(CASE WHEN facet_people IS NOT NULL AND facet_people != 'none' THEN 1 END) AS withPeople,
+              COUNT(CASE WHEN facet_people = 'none' THEN 1 END) AS withoutPeople,
+              COUNT(CASE WHEN (facet_status IN ('queued', 'running') OR (facet_status = 'failed' AND facet_attempts < ${FACET_MAX_ATTEMPTS})) AND ${NOT_BY_HAND} THEN 1 END) AS waiting,
+              COUNT(CASE WHEN facet_status IS NULL AND ${NOT_BY_HAND} AND ${HAS_PREVIEW} THEN 1 END) AS unasked,
+              COUNT(CASE WHEN ${COULD_NOT} THEN 1 END) AS couldNot,
+              COUNT(CASE WHEN facet_status = 'failed' AND facet_attempts >= ${FACET_MAX_ATTEMPTS} AND ${NOT_BY_HAND} THEN 1 END) AS failedForGood
+       FROM assets WHERE ${ASKABLE}`,
+    ),
+    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('ai.people', 'ai.peopleAuto')"),
+  ])
+  const row = (counts!.results[0] ?? {}) as Partial<FacetStats>
+  const set = new Map((settings!.results as { key: string; value: string }[]).map((r) => [r.key, r.value]))
+  return {
+    available: facetsAvailable(env),
+    on: set.get('ai.people') !== 'false',
+    auto: set.get('ai.peopleAuto') !== 'false',
+    done: 0,
+    withPeople: 0,
+    withoutPeople: 0,
+    waiting: 0,
+    unasked: 0,
+    couldNot: 0,
+    failedForGood: 0,
+    ...row,
+  }
+}
+
+/** The photos Jev couldn't look at, newest first: what the AI review page lists. */
+export async function facetProblems(db: D1Database, limit = 50): Promise<FacetProblem[]> {
+  const { results } = await db
+    .prepare(`SELECT id, filename, facet_status AS status, facet_error AS error FROM assets WHERE ${ASKABLE} AND ${COULD_NOT} ORDER BY facet_at DESC LIMIT ?`)
+    .bind(limit)
+    .all<FacetProblem>()
+  return results
+}
+
+/** Whether Jev may be asked now: the key is set and it's switched on. */
+export async function facetsOn(env: DamBindings): Promise<boolean> {
+  if (!facetsAvailable(env)) return false
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'ai.people'").first<{ value: string }>()
+  return row?.value !== 'false'
+}
+
+/**
+ * People set by hand on many photos ('jev': back to Jev's answer). A hand answer is 'done' (so a queued photo isn't
+ * stranded); going back to Jev with no answer from it yet queues the photo. Returns how many changed.
+ */
+export async function setPeople(db: D1Database, ids: string[], value: PeopleChoice | 'jev', userId: string): Promise<number> {
+  const list = JSON.stringify(ids)
+  const result =
+    value === 'jev'
+      ? await db
+          .prepare(
+            `UPDATE assets SET facet_people = facet_people_jev, facet_people_by = NULL,
+               facet_status = CASE WHEN facet_people_jev IS NULL AND facet_status = 'done' THEN 'queued' ELSE facet_status END,
+               facet_attempts = CASE WHEN facet_people_jev IS NULL AND facet_status = 'done' THEN 0 ELSE facet_attempts END
+             WHERE facet_people_by IS NOT NULL AND id IN (SELECT value FROM json_each(?))`,
+          )
+          .bind(list)
+          .run()
+      : await db
+          .prepare(
+            `UPDATE assets SET facet_people = ?, facet_people_by = ?, facet_status = CASE WHEN facet_status = 'running' THEN 'running' ELSE 'done' END
+             WHERE ${ASKABLE} AND id IN (SELECT value FROM json_each(?))`,
+          )
+          .bind(value, userId, list)
+          .run()
+  return result.meta.changes
+}
+
+export const PEOPLE_CHOICES = ['none', 'one', 'two_to_five', 'six_or_more'] as const
+export type PeopleChoice = (typeof PEOPLE_CHOICES)[number]

@@ -4,7 +4,7 @@ summary: "Far descrivere le tue foto a un modello di IA, quanto costa e come res
 section: Your photos
 order: 5
 review: machine
-source: bd70af3f3fd8
+source: 48fdc91af68c
 ---
 
 La revisione IA guarda ogni foto e scrive dei suggerimenti: **testo alternativo**, una **didascalia**, una descrizione più lunga di **ciò che ha visto**, l’eventuale **testo nell’immagine** (cartelli, documenti), **parole chiave** suggerite e una nota sulla qualità. Rende ricercabile un grande archivio in un modo che nessuno ha il tempo di fare a mano, ed è ciò che legge la [ricerca per significato](/help/search).
@@ -41,7 +41,10 @@ Se alcune foto non sono mai state analizzate, **Analizza l’archivio esistente*
 Accanto alla revisione IA, **Jev** di TypeSafe cerca le persone in ogni nuova foto, e quante sono, per il filtro **Persone** della libreria. È più veloce ed economico della revisione IA (circa 9 centesimi ogni 1.000 foto) e in una prova su 805 foto ha trovato persone in 87 dove la revisione IA ne trovava 47, per lo più piccole figure sullo sfondo. Non scrive testo.
 
 - **Cosa viene inviato:** una copia di 1.024 px di ogni foto, senza nome del file, dati della fotocamera né luogo, va a TypeSafe (api.typesafe.ai). TypeSafe dichiara di non usarla per l’addestramento.
-- **Foto precedenti:** il riquadro **Persone nelle foto** di questa pagina dice quante sono state esaminate; **Cerca persone nelle restanti** si occupa delle altre.
+- **Foto precedenti:** il riquadro **Persone nelle foto** di questa pagina conta ciò che è stato trovato (ogni numero apre quelle foto nella libreria) e **Guardare N foto non ancora guardate** si occupa del resto.
+- **Interruttori:** con **Cercare persone** disattivato non si invia più nulla a TypeSafe (le risposte già ottenute restano e il filtro continua a funzionare); con **Nelle foto nuove appena arrivano** disattivato, le foto nuove aspettano il pulsante.
+- **Risposte sbagliate:** correggine una nella pagina della foto, o molte insieme nella libreria (selezionale, poi **Persone…**). Jev non cambia mai una risposta impostata a mano, e **Tornare alla risposta di Jev** la annulla.
+- **Le foto che non è stato possibile guardare** sono elencate con il motivo: troppo piccole, rifiutate da TypeSafe o non riuscite tre volte (con **Riprova**).
 - I video non vengono esaminati, né le foto sotto i 280 pixel per lato.
 
 ## Quanto costa

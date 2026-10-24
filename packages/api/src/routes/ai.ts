@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { aiOff, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
-import { facetsAvailable, facetStats, queueFacets } from '../catalog/jev-facets'
+import { facetProblems, facetsAvailable, facetsOn, facetStats, queueFacets } from '../catalog/jev-facets'
 import { nudge } from '../catalog/work'
 import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
-import { BadRequest, readJsonObject } from '../lib/http'
+import { BadRequest, readJsonObject, stringArray } from '../lib/http'
 import { say, siteLanguage } from '../lib/language'
 import { asLanguage, type Language } from '@cf-dam/i18n'
 
@@ -22,7 +22,7 @@ aiRoutes.put('/settings', requirePermission('settings:manage'), async (c) => {
   try {
     const body = await readJsonObject(c)
     const patch: Partial<AiSettings> = {}
-    for (const flag of ['enabled', 'auto'] as const) {
+    for (const flag of ['enabled', 'auto', 'people', 'peopleAuto'] as const) {
       if (body[flag] === undefined) continue
       if (typeof body[flag] !== 'boolean') throw new BadRequest(`${flag} must be true or false.`)
       patch[flag] = body[flag]
@@ -60,14 +60,34 @@ aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
   return c.json({ queued, stats: await aiStats(c.env.DB) })
 })
 
-/** Library facets from TypeSafe's Jev (catalog/jev-facets.ts): how far they've got. */
-aiRoutes.get('/facets', requirePermission('ai:run'), async (c) => c.json({ stats: await facetStats(c.env) }))
+/** People in photos from TypeSafe's Jev (catalog/jev-facets.ts): how far it's got, and the photos it couldn't look at. */
+aiRoutes.get('/facets', requirePermission('ai:run'), async (c) => {
+  const [stats, problems] = await Promise.all([facetStats(c.env), facetProblems(c.env.DB)])
+  return c.json({ stats, problems })
+})
 
-/** Ask about every photo never asked (or failed). The work queue works through them. */
+/**
+ * Ask about photos: `{ which: 'unasked' }` (the default) every photo never asked, `{ which: 'failed' }` every one that
+ * failed for good, or `{ ids }` those photos again. The work queue works through them.
+ */
 aiRoutes.post('/facets/queue', requirePermission('ai:run'), async (c) => {
   if (!facetsAvailable(c.env)) return c.json({ error: 'facets_unavailable', message: say('err.noFacets') }, 409)
-  const queued = await queueFacets(c.env.DB, 'unasked')
+  if (!(await facetsOn(c.env))) return c.json({ error: 'facets_off', message: say('err.facetsOff') }, 409)
+  let which: string[] | 'unasked' | 'failed' = 'unasked'
+  try {
+    const body = c.req.header('content-type')?.includes('json') ? await readJsonObject(c) : {}
+    const ids = stringArray(body, 'ids')
+    if (ids) {
+      if (ids.length === 0 || ids.length > 500) throw new BadRequest('ids is 1 to 500 photo ids.')
+      which = ids
+    } else if (body.which === 'failed') which = 'failed'
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+    throw error
+  }
+  const queued = await queueFacets(c.env.DB, which)
   await nudge(c.env, 'facets', queued)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.facets_queued', details: { queued } })
-  return c.json({ queued, stats: await facetStats(c.env) })
+  const [stats, problems] = await Promise.all([facetStats(c.env), facetProblems(c.env.DB)])
+  return c.json({ queued, stats, problems })
 })

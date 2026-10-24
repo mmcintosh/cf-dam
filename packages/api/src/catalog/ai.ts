@@ -22,9 +22,20 @@ export interface AiSettings {
   context: string
   /** What suggestions are written in: 'site' follows the archive's language (settings `site.language`). */
   language: Language | 'site'
+  /** People in photos from TypeSafe's Jev (jev-facets.ts), when the key is set: asked at all, and of new photos. */
+  people: boolean
+  peopleAuto: boolean
 }
 
-const KEYS = { enabled: 'ai.enabled', auto: 'ai.auto', model: 'ai.model', context: 'ai.context', language: 'ai.language' } as const
+const KEYS = {
+  enabled: 'ai.enabled',
+  auto: 'ai.auto',
+  model: 'ai.model',
+  context: 'ai.context',
+  language: 'ai.language',
+  people: 'ai.people',
+  peopleAuto: 'ai.peopleAuto',
+} as const
 
 export async function getAiSettings(db: D1Database): Promise<AiSettings> {
   const { results } = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'ai.%'").all<{ key: string; value: string }>()
@@ -36,6 +47,8 @@ export async function getAiSettings(db: D1Database): Promise<AiSettings> {
     model: model && VISION_MODELS.some((m) => m.id === model) ? model : DEFAULT_VISION_MODEL,
     context: map.get(KEYS.context) ?? '',
     language: (asLanguage(map.get(KEYS.language)) as Language | null) ?? 'site',
+    people: map.get(KEYS.people) !== 'false',
+    peopleAuto: map.get(KEYS.peopleAuto) !== 'false',
   }
 }
 
@@ -49,6 +62,8 @@ export async function saveAiSettings(db: D1Database, patch: Partial<AiSettings>)
   if (patch.model !== undefined) put(KEYS.model, patch.model)
   if (patch.context !== undefined) put(KEYS.context, patch.context)
   if (patch.language !== undefined) put(KEYS.language, patch.language)
+  if (patch.people !== undefined) put(KEYS.people, String(patch.people))
+  if (patch.peopleAuto !== undefined) put(KEYS.peopleAuto, String(patch.peopleAuto))
   if (statements.length > 0) await db.batch(statements)
   return getAiSettings(db)
 }

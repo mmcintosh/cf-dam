@@ -39,7 +39,10 @@ If some photos have never been analysed, **Analyse the back catalogue** says how
 Beside the AI review, TypeSafe's **Jev** looks at each new photo for people, and how many, for the library's **People** filter. It's faster and cheaper than the AI review (about 9 cents per 1,000 photos), and in a test on 805 photos it found people in 87 where the AI review found 47, mostly small figures in the background. It writes no text.
 
 - **What is sent:** a 1,024 px copy of each photo, without its filename, camera data or location, goes to TypeSafe (api.typesafe.ai). TypeSafe says it doesn't train on it.
-- **Older photos:** the **People in photos** panel on this page says how many have been looked at; **Find people in the rest** does the others.
+- **Older photos:** the **People in photos** panel on this page counts what's been found (each number opens those photos in the library) and **Look at N photos not looked at yet** does the rest.
+- **Switches:** **Look for people** off sends nothing more to TypeSafe (answers already found stay, and the filter keeps working); **In new photos as they arrive** off leaves new photos waiting for the button.
+- **Wrong answers:** correct one on the photo's page, or many at once in the library (select them, then **People…**). Jev never changes an answer set by hand, and **Back to Jev's answer** undoes it.
+- **Photos it couldn't look at** are listed with the reason: too small, refused by TypeSafe, or failed three times (with **Try again**).
 - Videos aren't looked at, nor photos under 280 pixels on a side.
 
 ## What it costs

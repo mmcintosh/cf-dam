@@ -2,11 +2,12 @@
 import { env } from 'cloudflare:workers'
 import { displayLabelNames } from '../../lib/label-names'
 import { createFormat, getT, intlTag } from '@cf-dam/i18n'
-import { ARCHIVE_CLASSES, assetJson, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, facetsAvailable, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import ImageTools from '../../components/ImageTools.svelte'
 import IptcEditor from '../../components/IptcEditor.svelte'
+import PhotoPeople from '../../components/PhotoPeople.svelte'
 import StoragePanel from '../../components/StoragePanel.svelte'
 import TierBadge from '../../components/TierBadge.astro'
 
@@ -30,6 +31,8 @@ const [labelNames, presets, inAlbums] = await Promise.all([
     .all<{ id: string; name: string }>(),
 ])
 const asset = assetJson(row, renditionRows.results.map((r) => r.name))
+// People from TypeSafe's Jev, or set by hand: photos only (videos aren't asked).
+const showPeople = !asset.video && (facetsAvailable(env as { TYPESAFE_API_KEY?: string }) || asset.people.value !== null)
 const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
 const connection = primary ? await getConnection(env.DB, primary.connection_id) : null
 const location = primary && connection
@@ -121,12 +124,18 @@ const facts: [string, string][] = [
           label={asset.label}
           labelNames={displayLabelNames(labelNames, t)}
           ai={asset.ai}
+          hidePeopleCount={showPeople && asset.people.value !== null}
           aiAvailable={Boolean(env.AI) && aiSettings.enabled}
           canRunAi={principal.permissions.has('ai:run')}
           canEdit={principal.permissions.has('assets:edit')}
           inAlbums={inAlbums.results}
         />
       </section>
+      {showPeople && (
+        <section class="card">
+          <PhotoPeople client:visible assetId={id} initial={asset.people} canEdit={principal.permissions.has('assets:edit')} />
+        </section>
+      )}
       <section class="card">
         <h2>{t('photo.credit')}</h2>
         <IptcEditor

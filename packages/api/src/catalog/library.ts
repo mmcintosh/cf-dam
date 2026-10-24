@@ -11,6 +11,7 @@ import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAssets } from './search'
 import { getStats, PLAIN_FACETS, topValues, type PlainFacet } from './stats'
+import { setPeople, type PeopleChoice } from './jev-facets'
 
 export interface FacetValue {
   value: string
@@ -188,6 +189,8 @@ export type BulkAction =
   | { action: 'delete' }
   | { action: 'ai-queue' }
   | { action: 'ai-accept'; fields: AcceptField[]; overwrite: boolean }
+  /** People in the photo set by hand ('jev': back to Jev's answer; jev-facets.ts). */
+  | { action: 'people'; people: PeopleChoice | 'jev'; userId: string }
 
 /** The permission each bulk action needs. */
 export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
@@ -204,6 +207,7 @@ export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
   delete: 'assets:delete',
   'ai-queue': 'ai:run',
   'ai-accept': 'assets:edit',
+  people: 'assets:edit',
 }
 
 export const MAX_BULK = 500
@@ -281,6 +285,8 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
     case 'ai-accept':
       await acceptSuggestions(db, live, bulk.fields, bulk.overwrite)
       return live.length
+    case 'people':
+      return setPeople(db, live, bulk.people, bulk.userId)
   }
   // Titles, captions and tags are searchable; keep the index in step. (After a GPS change the caller
   // looks the new places up, then reindexes.)

@@ -1,13 +1,19 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { aiStats, facetStats, getAiSettings, siteLanguage, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
+import { aiStats, facetProblems, facetStats, getAiSettings, siteLanguage, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AiSettings from '../../components/AiSettings.svelte'
 import PeopleFacets from '../../components/PeopleFacets.svelte'
 
 const principal = Astro.locals.principal!
-const [settings, stats, archiveLanguage, people] = await Promise.all([getAiSettings(env.DB), aiStats(env.DB), siteLanguage(env.DB), facetStats(env)])
+const [settings, stats, archiveLanguage, people, peopleProblems] = await Promise.all([
+  getAiSettings(env.DB),
+  aiStats(env.DB),
+  siteLanguage(env.DB),
+  facetStats(env),
+  facetProblems(env.DB),
+])
 const t = getT(Astro.locals.lang)
 ---
 <AppLayout help="ai-review" title={t('ai.title')} subtitle={t('ai.subtitle')}>
@@ -21,5 +27,5 @@ const t = getT(Astro.locals.lang)
     archiveLanguage={archiveLanguage ?? 'en'}
     canManage={principal.permissions.has('settings:manage')}
   />
-  <PeopleFacets client:idle initial={people} />
+  <PeopleFacets client:idle initial={people} initialProblems={peopleProblems} canManage={principal.permissions.has('settings:manage')} />
 </AppLayout>

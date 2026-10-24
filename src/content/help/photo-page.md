@@ -25,6 +25,10 @@ If [AI review](/help/ai-review) has looked at the photo, **AI suggestions** show
 - Suggested tags are searchable at once: **✓** keeps one as your own, **×** drops it, **Keep all** keeps them all.
 - **Analyse** asks the AI to look (again).
 
+## People
+
+When [People in photos](/help/ai-review) is set up, **People** says whether TypeSafe's Jev saw anyone, and how many: **No people**, **One person**, **2–5 people**, **6 or more**, or that it hasn't looked yet. If it's wrong, press the right answer: that's what the library's **People** filter uses from then on, and Jev won't change it. **Back to Jev's answer** undoes it.
+
 ## Credit, rights and place
 
 Under **Credit, rights & place** are the standard press and agency fields (called IPTC): headline, creator and their job title, credit line, source, copyright notice, usage terms, contact details, sublocation, city, state or province, country, job identifier and instructions. Many cameras and editing programs fill some in already.

@@ -4,7 +4,7 @@ summary: "Wie ein KI-Modell deine Fotos beschreibt, was das kostet und wie du be
 section: Your photos
 order: 5
 review: machine
-source: bd70af3f3fd8
+source: 48fdc91af68c
 ---
 
 Die KI-Prüfung sieht sich jedes Foto an und schreibt Vorschläge: **Alternativtext**, eine **Bildunterschrift**, eine längere Beschreibung dessen, **was sie gesehen hat**, **Text im Bild** (Schilder, Dokumente), vorgeschlagene **Stichwörter** und eine Notiz zur Qualität. So wird ein großes Archiv auf eine Weise durchsuchbar, für die niemand von Hand Zeit hat, und genau das liest die [Suche nach Bedeutung](/help/search).
@@ -41,7 +41,10 @@ Wenn einige Fotos noch nie analysiert wurden, sagt **Den Bestand analysieren**, 
 Neben der KI-Prüfung sieht sich **Jev** von TypeSafe jedes neue Foto nach Personen an und zählt sie, für den Filter **Personen** in der Bibliothek. Es ist schneller und günstiger als die KI-Prüfung (etwa 9 Cent pro 1.000 Fotos) und fand in einem Test mit 805 Fotos Personen auf 87, wo die KI-Prüfung 47 fand, meist kleine Gestalten im Hintergrund. Es schreibt keinen Text.
 
 - **Was gesendet wird:** eine Kopie jedes Fotos mit 1.024 px, ohne Dateinamen, Kameradaten und Ort, geht an TypeSafe (api.typesafe.ai). TypeSafe sagt, damit nicht zu trainieren.
-- **Ältere Fotos:** Das Feld **Personen auf Fotos** auf dieser Seite zeigt, wie viele schon angesehen wurden; **Personen im Rest suchen** erledigt die übrigen.
+- **Ältere Fotos:** Das Feld **Personen auf Fotos** auf dieser Seite zählt, was gefunden wurde (jede Zahl öffnet diese Fotos in der Bibliothek), und **N noch nicht angesehene Fotos ansehen** erledigt den Rest.
+- **Schalter:** Ist **Nach Personen suchen** aus, wird nichts mehr an TypeSafe gesendet (vorhandene Antworten bleiben, und der Filter funktioniert weiter); ist **Bei neuen Fotos gleich beim Eintreffen** aus, warten neue Fotos auf die Schaltfläche.
+- **Falsche Antworten:** auf der Seite des Fotos korrigieren, oder viele auf einmal in der Bibliothek (auswählen, dann **Personen…**). Jev ändert nie eine von Hand gesetzte Antwort, und **Zurück zu Jevs Antwort** macht sie rückgängig.
+- **Fotos, die nicht angesehen werden konnten,** stehen mit dem Grund in einer Liste: zu klein, von TypeSafe abgelehnt oder dreimal fehlgeschlagen (mit **Erneut versuchen**).
 - Videos werden nicht angesehen, ebenso wenig Fotos unter 280 Pixel an einer Seite.
 
 ## Was es kostet

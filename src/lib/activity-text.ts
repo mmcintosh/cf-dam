@@ -45,6 +45,7 @@ const BULK: Record<string, MessageKey> = {
   delete: 'act.bulk.delete',
   'ai-queue': 'act.bulk.aiQueue',
   'ai-accept': 'act.bulk.aiAccept',
+  people: 'act.bulk.people',
 }
 
 const SCOPES: Record<string, MessageKey> = { admins: 'act.scope.admins', everyone: 'act.scope.everyone' }

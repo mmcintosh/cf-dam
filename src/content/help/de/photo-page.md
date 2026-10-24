@@ -4,7 +4,7 @@ summary: "Alles zu einem Foto: Details, Stichwörter, Urheber und Rechte, Drehen
 section: Your photos
 order: 4
 review: machine
-source: 6acff1bd2ab3
+source: 096a1c31007b
 ---
 
 Öffne ein Foto in der Bibliothek und drücke **Details öffnen** (oder klicke auf ein Foto, wo immer es verlinkt ist), um zu seiner eigenen Seite zu kommen. Links ist das Foto, rechts alles darüber.
@@ -26,6 +26,10 @@ Hat die [KI-Prüfung](/help/ai-review) sich das Foto angesehen, zeigt **KI-Vorsc
 - **Übernehmen** kopiert einen Vorschlag in ein leeres Feld; **Meins ersetzen** überschreibt, was du geschrieben hast.
 - Vorgeschlagene Schlagwörter sind sofort durchsuchbar: **✓** übernimmt eines als dein eigenes, **×** verwirft es, **Alle übernehmen** übernimmt alle.
 - **Analysieren** lässt die KI (noch einmal) hinsehen.
+
+## Personen
+
+Ist [Personen auf Fotos](/help/ai-review) eingerichtet, zeigt **Personen**, ob Jev von TypeSafe jemanden gesehen hat und wie viele: **Keine Personen**, **Eine Person**, **2–5 Personen**, **6 oder mehr**, oder dass es noch nicht nachgesehen hat. Stimmt es nicht, drücke die richtige Antwort: Die nutzt der Filter **Personen** der Bibliothek ab dann, und Jev ändert sie nicht. **Zurück zu Jevs Antwort** macht das rückgängig.
 
 ## Urheber, Rechte und Ort
 

@@ -54,6 +54,11 @@ export interface AssetRow {
   ai_error: string | null
   ai_language: string | null
   ai_text: string | null
+  facet_status?: string | null
+  facet_error?: string | null
+  facet_people?: string | null
+  facet_people_jev?: string | null
+  facet_people_by?: string | null
   headline: string | null
   creator: string | null
   creator_title: string | null
@@ -238,6 +243,11 @@ export interface AssetJson {
     language: string | null
     error: string | null
   }
+  /**
+   * People in the photo, from TypeSafe's Jev (jev-facets.ts) or set by hand: what the Library's People filter uses
+   * (`value`), Jev's own answer (`jev`), whether a person set it (`byHand`), and how far asking has got.
+   */
+  people: { value: string | null; jev: string | null; byHand: boolean; status: string | null; error: string | null }
   /** IPTC Core: credit, rights, contact, place, job. */
   iptc: Record<IptcKey, string | null>
   /** The place fields filled in from GPS (the rest of the place, if any, came from the file or a person). */
@@ -290,6 +300,13 @@ export function assetJson(row: AssetRow, renditions: string[], location: Locatio
       text: row.ai_text ?? null,
       language: row.ai_language ?? null,
       error: row.ai_error ?? null,
+    },
+    people: {
+      value: row.facet_people ?? null,
+      jev: row.facet_people_jev ?? null,
+      byHand: !!row.facet_people_by,
+      status: row.facet_status ?? null,
+      error: row.facet_error ?? null,
     },
     iptc: iptcJson(row as unknown as Record<string, unknown>),
     placeFromGps: (Object.entries(GPS_PLACE_BITS) as [IptcKey, number][]).filter(([, bit]) => row.place_gps & bit).map(([key]) => key),

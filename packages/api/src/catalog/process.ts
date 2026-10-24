@@ -139,8 +139,8 @@ export async function finishAssets(env: DamBindings, items: { id: string; hash?:
 
   // Queue AI review for those that have a preview; the sweep runs it in the background (a model call takes seconds).
   const forAi = items.filter((i) => i.queueAi).map((i) => i.id)
-  if (forAi.length > 0 && env.AI) {
-    const settings = await getAiSettings(db)
+  const settings = forAi.length > 0 && (env.AI || facetsAvailable(env)) ? await getAiSettings(db) : null
+  if (settings && env.AI) {
     if (settings.enabled && settings.auto) {
       const queued = await db
         .prepare(
@@ -153,8 +153,9 @@ export async function finishAssets(env: DamBindings, items: { id: string; hash?:
     }
   }
 
-  // Library facets (people…) from TypeSafe's Jev, for the same photos the AI review would take.
-  if (forAi.length > 0 && facetsAvailable(env)) await nudge(env, 'facets', await queueFacets(db, forAi))
+  // Library facets (people…) from TypeSafe's Jev, for the same photos the AI review would take: only those never
+  // asked, so a reprocess or a helper sending a photo again doesn't pay for a second answer.
+  if (settings && facetsAvailable(env) && settings.people && settings.peopleAuto) await nudge(env, 'facets', await queueFacets(db, forAi, { onlyNew: true }))
 
   await indexAssets(db, ids)
   await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id IN (SELECT value FROM json_each(?))").bind(nowIso(), JSON.stringify(ids)).run()

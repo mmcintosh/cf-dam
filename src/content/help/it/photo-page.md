@@ -4,7 +4,7 @@ summary: "Tutto su una foto: dettagli, parole chiave, crediti e diritti, rotazio
 section: Your photos
 order: 4
 review: machine
-source: 6acff1bd2ab3
+source: 096a1c31007b
 ---
 
 Apri una foto nella libreria e premi **Apri i dettagli** (o fai clic su una foto ovunque sia un link) per arrivare alla sua pagina. La foto è a sinistra; tutto ciò che la riguarda è a destra.
@@ -26,6 +26,10 @@ Se la [revisione IA](/help/ai-review) ha esaminato la foto, **Suggerimenti IA** 
 - **Usa questo** copia un suggerimento in un campo vuoto; **Sostituisci il mio** sovrascrive ciò che hai scritto.
 - I tag suggeriti sono subito ricercabili: **✓** ne tiene uno come tuo, **×** lo scarta, **Mantieni tutti** li tiene tutti.
 - **Analizza** chiede all’IA di esaminarla (di nuovo).
+
+## Persone
+
+Se [Persone nelle foto](/help/ai-review) è configurato, **Persone** dice se Jev di TypeSafe ha visto qualcuno, e quanti: **Nessuna persona**, **Una persona**, **2–5 persone**, **6 o più**, oppure che non l’ha ancora guardata. Se sbaglia, premi la risposta giusta: da allora è quella che usa il filtro **Persone** della libreria, e Jev non la cambia. **Tornare alla risposta di Jev** la annulla.
 
 ## Crediti, diritti e luogo
 

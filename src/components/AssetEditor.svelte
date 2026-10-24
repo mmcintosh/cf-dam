@@ -19,6 +19,8 @@
     /** Workers AI is bound and AI review is switched on. */
     aiAvailable: boolean
     canRunAi: boolean
+    /** The People card (PhotoPeople) has an answer: the AI review's own count isn't shown beside it. */
+    hidePeopleCount?: boolean
     /** The albums this photo is in. */
     inAlbums?: { id: string; name: string }[]
   }
@@ -365,7 +367,7 @@
       <header class="row">
         <span class="label">{t('editor.ai')}</span>
         {#if ai.quality}<span class="pill">{['excellent', 'good', 'fair', 'poor'].includes(ai.quality) ? t(`quality.${ai.quality}` as 'quality.good') : ai.quality}</span>{/if}
-        {#if ai.people}<span class="pill">{t('editor.people', { count: ai.people })}</span>{/if}
+        {#if ai.people && !props.hidePeopleCount}<span class="pill">{t('editor.people', { count: ai.people })}</span>{/if}
         <span class="spacer"></span>
         {#if props.canRunAi && props.aiAvailable}
           <button class="btn btn-sm" type="button" onclick={analyse} disabled={analysing}>

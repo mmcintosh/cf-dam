@@ -10,7 +10,7 @@ The **Library** shows every photo and video, newest first, in rows that keep eac
 ## Narrowing it down
 
 - **Filters** down the left: keywords, rating, colour label, pick or reject, year, camera, lens, place, creator, file type, where the original is kept, landscape or portrait, with or without GPS, and more. Each shows how many photos match. Choose as many as you like; **Clear all** starts again.
-- **People:** **With people**, or how many (one, 2–5, 6 or more), or **Without people**. Anyone who can be seen counts, even far off in a crowd or a landscape. See [People in photos](/help/ai-review).
+- **People:** **With people**, or how many (one, 2–5, 6 or more), or **Without people**. Anyone who can be seen counts, even far off in a crowd or a landscape. See [People in photos](/help/ai-review). Wrong? Correct it on the photo's page, or select photos and choose **People…**.
 - **Keywords:** type in **Find a keyword** to find one in a long list. The most used show first; **Show all** shows the rest.
 - **The timeline** across the top shows how many photos you have per month. Click a month to see just those.
 - **Sort** by **Date taken** or **Recently added**.

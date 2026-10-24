@@ -15,7 +15,7 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { aiAvailable, analyzeAsset } from './ai'
 import { archiveOne } from './archive-jobs'
-import { claimFacets, facetAsset, facetsAvailable } from './jev-facets'
+import { claimFacets, facetAsset, facetsOn } from './jev-facets'
 import { askRestores } from './job-storage'
 import { processAsset } from './process'
 
@@ -95,7 +95,7 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
   if (kind === 'facets') {
     // TypeSafe's Jev, four at a time (jev-facets.ts). A hand with a failure stops the chain: the sweep asks again
     // after a pause, rather than this chain spending every try at once in an outage.
-    if (!facetsAvailable(env)) return 0
+    if (!(await facetsOn(env))) return 0
     const ids = await claimFacets(env.DB, CLAIM.facets)
     const outcomes: string[] = []
     await inBatches(ids, AI_PARALLEL, async (id) => outcomes.push(await facetAsset(env, id)))

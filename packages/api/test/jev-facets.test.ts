@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { FACET_MAX_ATTEMPTS, FACET_RETRY_MS, facetsSweep, peopleValue } from '../src/catalog/jev-facets'
+import { FACET_MAX_ATTEMPTS, FACET_RETRY_MS, facetAsset, facetsSweep, peopleValue } from '../src/catalog/jev-facets'
 import { statsStep } from '../src/catalog/stats'
 import { runSweep } from '../src/catalog/sweeper'
 import { doWork } from '../src/catalog/work'
@@ -176,8 +176,12 @@ describe('people in the library', () => {
       expect(await row(id)).toMatchObject({ facet_status: 'failed', facet_attempts: attempt })
     }
     expect((await facetsSweep(h.env.DB, later + FACET_RETRY_MS * 2)).requeued).toBe(0)
-    // The button asks again from scratch.
-    const queued = await h.fetch('/api/ai/facets/queue', { method: 'POST', cookie: admin })
+    // Listed with the reason; the button for photos never asked leaves it, "try the failed ones again" starts afresh.
+    const looked = (await (await h.fetch('/api/ai/facets', { cookie: admin })).json()) as { stats: { couldNot: number; failedForGood: number; unasked: number }; problems: { id: string; status: string }[] }
+    expect(looked.stats).toMatchObject({ couldNot: 1, failedForGood: 1, unasked: 0 })
+    expect(looked.problems).toMatchObject([{ id, status: 'failed' }])
+    expect(((await (await h.fetch('/api/ai/facets/queue', { method: 'POST', cookie: admin })).json()) as { queued: number }).queued).toBe(0)
+    const queued = await h.fetch('/api/ai/facets/queue', { ...json({ which: 'failed' }), cookie: admin })
     expect(((await queued.json()) as { queued: number }).queued).toBe(1)
     expect(await row(id)).toMatchObject({ facet_status: 'queued', facet_attempts: 0 })
   })
@@ -212,6 +216,118 @@ describe('people in the library', () => {
     const res = await h.fetch('/api/ai/facets/queue', { method: 'POST', cookie: admin })
     expect(res.status).toBe(409)
     expect(((await (await h.fetch('/api/ai/facets', { cookie: admin })).json()) as { stats: { available: boolean; unasked: number } }).stats).toMatchObject({ available: false, unasked: 1 })
+  })
+})
+
+describe('switching it off, and answers set by hand (plans/PLAN-F2-v2.md)', () => {
+  function fakeTypeSafe(reply: () => Response) {
+    const real = globalThis.fetch
+    const calls: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url !== ENDPOINT) return real(input, init)
+      calls.push(JSON.parse(String(init!.body)).model)
+      return reply()
+    })
+    return calls
+  }
+
+  async function upload(admin: string, filename: string): Promise<string> {
+    const res = await h.fetch('/api/uploads', { ...json({ filename, size: camera.byteLength, allowDuplicate: true }), cookie: admin })
+    const created = (await res.json()) as { uploadId: string }
+    const put = await h.fetch(`/api/uploads/${created.uploadId}/parts/1`, { method: 'PUT', body: camera, headers: { 'Content-Type': 'application/octet-stream' }, cookie: admin })
+    const done = await h.fetch(`/api/uploads/${created.uploadId}/complete`, { ...json({ parts: [{ partNumber: 1, etag: put.headers.get('ETag') }] }), cookie: admin })
+    return ((await done.json()) as { assetId: string }).assetId
+  }
+
+  const row = (id: string) =>
+    h.env.DB.prepare('SELECT facet_status, facet_people, facet_people_jev, facet_people_by FROM assets WHERE id = ?').bind(id).first<{
+      facet_status: string | null
+      facet_people: string | null
+      facet_people_jev: string | null
+      facet_people_by: string | null
+    }>()
+  const setPeople = (admin: string, ids: string[], people: string) => h.fetch('/api/assets/bulk', { ...json({ ids, action: 'people', people }), cookie: admin })
+  const settings = (admin: string, patch: Record<string, boolean>) => h.fetch('/api/ai/settings', { method: 'PUT', body: JSON.stringify(patch), headers: { 'Content-Type': 'application/json' }, cookie: admin })
+
+  it('switched off, sends nothing: new photos wait, the queue and the sweep stop, the button says why', async () => {
+    h = await createHarness({ TYPESAFE_API_KEY: 'test-key' })
+    const admin = await setUpAdmin(h)
+    const calls = fakeTypeSafe(() => Response.json({ answers: answers({ person: 0.97 }, { people_count: ['one', 0.9] }) }))
+    expect((await settings(admin, { peopleAuto: false })).status).toBe(200)
+    const manual = await upload(admin, 'a.jpg')
+    await runSweep(h.env)
+    // "New photos as they arrive" off: left for the button.
+    expect((await row(manual))!.facet_status).toBeNull()
+
+    expect((await settings(admin, { people: false })).status).toBe(200)
+    const res = await h.fetch('/api/ai/facets/queue', { method: 'POST', cookie: admin })
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as { error: string }).error).toBe('facets_off')
+    // Queued before it was switched off: paused, not asked.
+    await h.env.DB.prepare("UPDATE assets SET facet_status = 'queued' WHERE id = ?").bind(manual).run()
+    expect(await doWork(h.env, 'facets')).toBe(0)
+    expect(await facetsSweep(h.env.DB)).toEqual({ requeued: 0, nudge: 0 })
+    expect(calls).toEqual([])
+    const stats = ((await (await h.fetch('/api/ai/facets', { cookie: admin })).json()) as { stats: { on: boolean; auto: boolean; waiting: number } }).stats
+    expect(stats).toMatchObject({ on: false, auto: false, waiting: 1 })
+
+    expect((await settings(admin, { people: true })).status).toBe(200)
+    expect(await doWork(h.env, 'facets')).toBe(1)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('keeps an answer set by hand: Jev never overwrites it, and going back to Jev needs no call', async () => {
+    h = await createHarness({ TYPESAFE_API_KEY: 'test-key' })
+    const admin = await setUpAdmin(h)
+    let reply = answers({ person: 0.97 }, { people_count: ['two_to_five', 0.9] })
+    const calls = fakeTypeSafe(() => Response.json({ answers: reply }))
+    const a = await upload(admin, 'a.jpg')
+    const b = await upload(admin, 'b.jpg')
+    await runSweep(h.env)
+    // Corrected while queued: done at once (not left queued for ever), and Jev isn't asked.
+    expect((await setPeople(admin, [a], 'none')).status).toBe(200)
+    expect(await row(a)).toMatchObject({ facet_status: 'done', facet_people: 'none', facet_people_jev: null })
+    expect((await row(a))!.facet_people_by).not.toBeNull()
+    // Corrected while Jev is looking: Jev's answer goes beside it.
+    await h.env.DB.prepare("UPDATE assets SET facet_status = 'running', facet_attempts = 1 WHERE id = ?").bind(b).run()
+    await setPeople(admin, [b], 'six_or_more')
+    expect(await facetAsset(h.env, b)).toBe('done')
+    expect(await row(b)).toMatchObject({ facet_status: 'done', facet_people: 'six_or_more', facet_people_jev: 'two_to_five' })
+    expect(calls).toHaveLength(1)
+    // The queue, the button and the sweep leave hand answers alone.
+    expect(await doWork(h.env, 'facets')).toBe(0)
+    expect(((await (await h.fetch('/api/ai/facets/queue', { method: 'POST', cookie: admin })).json()) as { queued: number }).queued).toBe(0)
+    expect(await facetsSweep(h.env.DB)).toEqual({ requeued: 0, nudge: 0 })
+    expect(((await (await h.fetch('/api/assets?people=six_or_more', { cookie: admin })).json()) as { assets: { id: string }[] }).assets.map((x) => x.id)).toEqual([b])
+    const page = (await (await h.fetch(`/api/assets/${b}`, { cookie: admin })).json()) as { people: unknown }
+    expect(page.people).toEqual({ value: 'six_or_more', jev: 'two_to_five', byHand: true, status: 'done', error: null })
+
+    // Back to Jev: b has an answer (no call); a never got one, so it's asked.
+    reply = answers({ person: 0.9 }, { people_count: ['six_or_more', 0.5] })
+    expect((await setPeople(admin, [a, b], 'jev')).status).toBe(200)
+    expect(await row(b)).toMatchObject({ facet_people: 'two_to_five', facet_people_by: null })
+    expect((await row(a))!.facet_status).toBe('queued')
+    await doWork(h.env, 'facets')
+    expect(await row(a)).toMatchObject({ facet_status: 'done', facet_people: 'some', facet_people_jev: 'some' })
+    expect(calls).toHaveLength(2)
+    expect((await setPeople(admin, [a], 'some')).status).toBe(400)
+  })
+
+  it('doesn’t ask again about a photo that is processed again', async () => {
+    h = await createHarness({ TYPESAFE_API_KEY: 'test-key' })
+    const admin = await setUpAdmin(h)
+    const calls = fakeTypeSafe(() => Response.json({ answers: answers({ person: 0.02 }) }))
+    const id = await upload(admin, 'a.jpg')
+    await runSweep(h.env)
+    await doWork(h.env, 'facets')
+    expect(calls).toHaveLength(1)
+    expect((await h.fetch(`/api/assets/${id}/reprocess`, { method: 'POST', cookie: admin })).ok).toBe(true)
+    await doWork(h.env, 'process')
+    await runSweep(h.env)
+    expect(await row(id)).toMatchObject({ facet_status: 'done', facet_people: 'none' })
+    expect(await doWork(h.env, 'facets')).toBe(0)
+    expect(calls).toHaveLength(1)
   })
 })
 

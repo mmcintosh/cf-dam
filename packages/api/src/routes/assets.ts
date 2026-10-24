@@ -6,6 +6,7 @@ import { parseIptcPatch, type IptcValues } from '../catalog/iptc'
 import { exportKeywords } from '../catalog/keywords'
 import { applyBulk, BULK_PERMISSION, facets, getLabelNames, geoPoints, MAX_BULK, sidecarName, timeline, xmpSidecar, type BulkAction } from '../catalog/library'
 import { acceptSuggestions, aiOff, aiAvailable, analyzeAsset, claimForAi, removeAiTag, type AcceptField } from '../catalog/ai'
+import { PEOPLE_CHOICES, type PeopleChoice } from '../catalog/jev-facets'
 import { resolveNear } from '../catalog/meaning'
 import { nudge } from '../catalog/work'
 import { fillPlacesFromGps } from '../catalog/places'
@@ -122,6 +123,12 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
       case 'ai-accept':
         bulk = { action, fields: acceptFields(body.fields), overwrite: body.overwrite === true }
         break
+      case 'people': {
+        const people = body.people
+        if (people !== 'jev' && !PEOPLE_CHOICES.includes(people as PeopleChoice)) throw new BadRequest(`people is one of ${PEOPLE_CHOICES.join(', ')}, or jev.`)
+        bulk = { action, people: people as PeopleChoice | 'jev', userId: principal.userId }
+        break
+      }
       default:
         throw new BadRequest('Unknown action.')
     }
@@ -130,11 +137,13 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
     if (bulk.action === 'ai-queue' && !(await aiAvailable(c.env))) return c.json({ error: 'ai_off', message: c.env.AI ? aiOff() : say('err.noAi') }, 409)
     const changed = await applyBulk(c.env.DB, ids, bulk)
     if (bulk.action === 'ai-queue') await nudge(c.env, 'ai', changed)
+    // Back to Jev's answer queues the photos Jev hasn't answered yet.
+    if (bulk.action === 'people' && bulk.people === 'jev' && changed > 0) await nudge(c.env, 'facets', changed)
     if (bulk.action === 'gps') {
       if (bulk.lat !== null) await fillPlacesFromGps(c.env, ids.slice(0, MAX_BULK))
       await indexAssets(c.env.DB, ids.slice(0, MAX_BULK))
     }
-    await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed } })
+    await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed, ...(bulk.action === 'people' ? { people: bulk.people } : {}) } })
     return c.json({ changed })
   } catch (error) {
     return storageFailure(c, error)
