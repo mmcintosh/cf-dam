@@ -1397,6 +1397,7 @@
   "people.unlock": "Unlock now",
   "people.updateFailed": "Could not update the user.",
   "people.you": "you",
+  "peopleFacets.allDone": "Every photo has been looked at. New uploads are looked at as they arrive.",
   "peopleFacets.counts": "Looked at: {done} (with people: {people}) · Waiting: {waiting} · Failed: {failed} · Skipped: {skipped}",
   "peopleFacets.find": "Find people in the rest ({count})",
   "peopleFacets.lead": "TypeSafe’s Jev looks at each photo for people, and how many, for the Library’s People filter. It runs beside the AI review and writes no text.",

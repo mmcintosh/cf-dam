@@ -1439,6 +1439,7 @@
   "people.unlock": "Sblocca ora",
   "people.updateFailed": "Impossibile aggiornare l’utente.",
   "people.you": "tu",
+  "peopleFacets.allDone": "Tutte le foto sono state esaminate. Le nuove vengono esaminate appena arrivano.",
   "peopleFacets.counts": "Esaminate: {done} (con persone: {people}) · In attesa: {waiting} · Non riuscite: {failed} · Saltate: {skipped}",
   "peopleFacets.find": "Cerca persone nelle restanti ({count})",
   "peopleFacets.lead": "Jev di TypeSafe cerca le persone in ogni foto, e quante sono, per il filtro Persone della libreria. Funziona accanto alla revisione IA e non scrive testo.",

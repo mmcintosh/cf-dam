@@ -1397,6 +1397,7 @@
   "people.unlock": "Jetzt entsperren",
   "people.updateFailed": "Der Benutzer konnte nicht aktualisiert werden.",
   "people.you": "du",
+  "peopleFacets.allDone": "Alle Fotos wurden angesehen. Neue Fotos werden beim Hochladen angesehen.",
   "peopleFacets.counts": "Angesehen: {done} (mit Personen: {people}) · Wartend: {waiting} · Fehlgeschlagen: {failed} · Übersprungen: {skipped}",
   "peopleFacets.find": "Personen im Rest suchen ({count})",
   "peopleFacets.lead": "Jev von TypeSafe sucht auf jedem Foto nach Personen und zählt sie, für den Filter „Personen“ in der Bibliothek. Es läuft neben der KI-Prüfung und schreibt keinen Text.",

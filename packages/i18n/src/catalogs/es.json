@@ -1439,6 +1439,7 @@
   "people.unlock": "Desbloquear ahora",
   "people.updateFailed": "No se ha podido actualizar el usuario.",
   "people.you": "tú",
+  "peopleFacets.allDone": "Se han revisado todas las fotos. Las nuevas se revisan al subirlas.",
   "peopleFacets.counts": "Revisadas: {done} (con personas: {people}) · En espera: {waiting} · Con error: {failed} · Omitidas: {skipped}",
   "peopleFacets.find": "Buscar personas en el resto ({count})",
   "peopleFacets.lead": "Jev, de TypeSafe, busca personas en cada foto, y cuántas hay, para el filtro Personas de la biblioteca. Funciona junto a la revisión con IA y no escribe texto.",

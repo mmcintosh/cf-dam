@@ -1439,6 +1439,7 @@
   "people.unlock": "Débloquer maintenant",
   "people.updateFailed": "Impossible de mettre à jour l’utilisateur.",
   "people.you": "vous",
+  "peopleFacets.allDone": "Toutes les photos ont été examinées. Les nouvelles le sont dès leur arrivée.",
   "peopleFacets.counts": "Examinées : {done} (avec des personnes : {people}) · En attente : {waiting} · En échec : {failed} · Ignorées : {skipped}",
   "peopleFacets.find": "Chercher les personnes dans le reste ({count})",
   "peopleFacets.lead": "Jev, de TypeSafe, cherche les personnes sur chaque photo, et combien il y en a, pour le filtre Personnes de la photothèque. Il fonctionne à côté de l’analyse par IA et n’écrit aucun texte.",

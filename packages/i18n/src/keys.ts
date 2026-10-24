@@ -1357,6 +1357,7 @@ export type MessageKey =
   | 'people.unlock'
   | 'people.updateFailed'
   | 'people.you'
+  | 'peopleFacets.allDone'
   | 'peopleFacets.counts'
   | 'peopleFacets.find'
   | 'peopleFacets.lead'

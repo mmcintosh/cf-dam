@@ -62,6 +62,8 @@
       <div>
         <button class="btn btn-primary" type="button" onclick={queue} disabled={busy}>{t('peopleFacets.find', { count: n(toAsk) })}</button>
       </div>
+    {:else if stats.waiting === 0}
+      <p class="muted">{t('peopleFacets.allDone')}</p>
     {/if}
     <p class="muted small">{t('peopleFacets.privacy')}</p>
   {/if}
