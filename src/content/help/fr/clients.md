@@ -4,7 +4,7 @@ summary: "Garder une trace des personnes et des entreprises pour qui vous travai
 section: Sharing
 order: 3
 review: machine
-source: 515c55cc5d2d
+source: dec53b48546f
 ---
 
 **Clients** garde une trace de chaque personne ou entreprise pour qui vous travaillez : un couple, une famille, une société. Chaque client a une page avec ses coordonnées et des notes, les personnes qui se connectent pour lui, les galeries clients partagées avec ces personnes, ce qu’elles ont téléchargé, et l’historique de ce qui s’est passé.
@@ -30,9 +30,13 @@ Un compte appartient au plus à un client. Les membres de votre équipe ne peuve
 
 Lier quelqu’un **ne lui donne accès à rien**. Chaque galerie est toujours partagée personne par personne : ouvrez la galerie et invitez chaque personne sous **Clients avec un compte** (voir [Galeries clients](/help/client-galleries)). Ainsi, les acheteurs d’art d’une agence ne voient pas les galeries des autres.
 
+## Travaux
+
+Chaque prestation pour le client, comme un mariage ou une séance portrait, est un **travail**, listé sur sa page avec sa date de séance et son étape. **Nouveau travail** en crée un pour ce client. Voir [Travaux](/help/jobs).
+
 ## Galeries, téléchargements et historique
 
-La page du client liste chaque galerie partagée avec l’une de ses personnes : si elle est ouverte, quand elle ferme, et ses ouvertures, favoris et téléchargements. **Téléchargements** montre ce qui a été téléchargé, par qui, dans quelle taille et depuis quelle galerie. **Historique** montre ce qui a été fait pour le client et ses comptes : ajout, modification, invitation, inscription, connexion.
+La page du client liste chaque galerie partagée avec l’une de ses personnes ou créée à partir des albums d’un de ses travaux : si elle est ouverte, quand elle ferme, et ses ouvertures, favoris et téléchargements. **Téléchargements** montre ce qui a été téléchargé, par qui, dans quelle taille et depuis quelle galerie. **Historique** montre ce qui a été fait pour le client et ses comptes : ajout, modification, invitation, inscription, connexion.
 
 Sur **Personnes**, l’onglet **Clients** indique à quel client appartient chaque compte.
 
@@ -47,6 +51,6 @@ Si un client vous demande de supprimer ses données, **Effacer le client**, en b
 - ses coordonnées et ses notes ;
 - ses comptes, avec leurs mots de passe, sessions et invitations ;
 - les noms et e-mails donnés dans les galeries (les favoris restent, marqués *(effacé)*) ;
-- ses données dans l’historique.
+- ses travaux, et ses données dans l’historique.
 
 Les galeries, les albums et les photos restent. Tapez le nom du client pour confirmer. C’est irréversible, mais les sauvegardes faites avant contiennent encore les données jusqu’à leur expiration (voir [Sauvegardes](/help/backups)).

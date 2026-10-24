@@ -49,6 +49,7 @@ const BULK: Record<string, MessageKey> = {
 
 const SCOPES: Record<string, MessageKey> = { admins: 'act.scope.admins', everyone: 'act.scope.everyone' }
 const ROLES = ['admin', 'editor', 'viewer', 'client']
+const STAGES = ['booked', 'shot', 'editing', 'proofing', 'final_edits', 'delivered', 'completed', 'cancelled']
 
 const nameOf = (p: ActivityPerson | null | undefined, fallback?: string) => p?.name || p?.email || fallback || t('act.someone')
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -182,6 +183,22 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.clientUnlinked', { who, whom: whom || t('act.aClient') })
     case 'client.erased':
       return t('act.clientErased', { who })
+    case 'job.created':
+      return t('act.jobCreated', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.updated':
+      return t('act.jobUpdated', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.deleted':
+      return t('act.jobDeleted', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.album_added':
+      return t('act.jobAlbumAdded', { who, title: str(d.title) || t('act.aJob') })
+    case 'job.stage': {
+      const title = str(d.title) || t('act.aJob')
+      const stage = STAGES.includes(str(d.to)) ? t(`job.stage.${str(d.to)}` as MessageKey) : str(d.to)
+      // Moved by the sweep when photos arrived, or by a gallery ticked "Final delivery".
+      if (d.by === 'photos') return t('act.jobStageAuto', { title, stage })
+      if (d.by === 'final_delivery') return t('act.jobDelivered', { who, title })
+      return t('act.jobStage', { who, title, stage })
+    }
     case 'watermark.set':
       return t('act.watermarkSet', { who })
     case 'ai.settings_changed':

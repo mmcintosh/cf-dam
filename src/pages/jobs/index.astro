@@ -1,0 +1,176 @@
+---
+import { env } from 'cloudflare:workers'
+import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
+import { listJobs, needsAttention, OPEN_STAGES, STAGES, type JobSummary, type Stage } from '@cf-dam/api'
+import AppLayout from '../../layouts/AppLayout.astro'
+
+// Open work by stage (the default), finished work (?show=done), or everything; ?q= searches titles, places
+// and clients, without minding accents.
+const q = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 200)
+const asked = Astro.url.searchParams.get('show')
+const show = asked === 'done' || asked === 'all' ? asked : 'open'
+const DONE = STAGES.filter((s) => !OPEN_STAGES.includes(s))
+const [jobs, attention] = await Promise.all([
+  listJobs(env.DB, { q, stages: show === 'open' ? OPEN_STAGES : show === 'done' ? DONE : undefined }),
+  show === 'open' && !q ? needsAttention(env.DB) : Promise.resolve([]),
+])
+const t = getT(Astro.locals.lang)
+const fmt = createFormat(Astro.locals.lang)
+const day = (d: string | null) => (d ? fmt.date(`${d.slice(0, 10)}T12:00:00Z`) : '')
+const dates = (j: JobSummary) => (j.shootStart ? (j.shootEnd && j.shootEnd !== j.shootStart ? `${day(j.shootStart)} – ${day(j.shootEnd)}` : day(j.shootStart)) : '—')
+const kind = (j: JobSummary) => (j.kind === 'other' && j.kindOther ? j.kindOther : t((j.kind === 'other' ? 'job.kind.misc' : `job.kind.${j.kind}`) as MessageKey))
+const stageName = (s: Stage) => t(`job.stage.${s}` as MessageKey)
+// Open jobs under a heading per stage, in the order work goes; the soonest shoot first.
+const groups = show === 'open' ? OPEN_STAGES.map((s) => ({ stage: s, jobs: jobs.filter((j) => j.stage === s).reverse() })).filter((g) => g.jobs.length > 0) : [{ stage: null, jobs }]
+const ATTENTION: Record<string, MessageKey> = {
+  overdue: 'jobs.attention.overdue',
+  dueSoon: 'jobs.attention.dueSoon',
+  noPhotos: 'jobs.attention.noPhotos',
+  expiring: 'jobs.attention.expiring',
+  noPicks: 'jobs.attention.noPicks',
+}
+const here = (params: Record<string, string>) => {
+  const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v))
+  return `/jobs${query.size ? `?${query}` : ''}`
+}
+---
+<AppLayout help="jobs" title={t('nav.jobs')} subtitle={t('jobs.subtitle')}>
+  <div class="bar">
+    <a class="btn btn-primary" href="/jobs/new">{t('jobs.new')}</a>
+    <form method="get" action="/jobs" class="search" role="search">
+      {show !== 'open' && <input type="hidden" name="show" value={show} />}
+      <input type="search" name="q" value={q} aria-label={t('jobs.search')} placeholder={t('jobs.searchPlaceholder')} />
+      <button class="btn" type="submit">{t('clientsPage.searchButton')}</button>
+    </form>
+    <nav class="filters" aria-label={t('jobs.which')}>
+      {(['open', 'done', 'all'] as const).map((s) => (
+        <a href={here({ q, show: s === 'open' ? '' : s })} class:list={['chip', { on: show === s }]} aria-current={show === s ? 'page' : undefined}>{t(`jobs.show.${s}` as MessageKey)}</a>
+      ))}
+    </nav>
+  </div>
+
+  {attention.length > 0 && (
+    <section class="card stack attention">
+      <h2>{t('jobs.needsAttention')}</h2>
+      <ul>
+        {attention.map((a) => (
+          <li class:list={[a.kind]}>
+            <a href={`/jobs/${a.job.id}`}><strong>{a.job.title}</strong></a>
+            <span class="muted"> · {a.job.clientName}</span>
+            <span> · {t(ATTENTION[a.kind], { date: day(a.date), gallery: a.gallery?.name ?? '' })}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {jobs.length === 0 ? (
+    <section class="card"><p class="muted">{q ? t('jobs.noMatch', { q }) : show === 'open' ? t('jobs.noneOpen') : t('jobs.none')}</p></section>
+  ) : (
+    groups.map((g) => (
+      <section class="card stack">
+        {g.stage && <h2>{stageName(g.stage)} <span class="count">{g.jobs.length}</span></h2>}
+        <div class="scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{t('jobs.title')}</th>
+                <th>{t('jobs.client')}</th>
+                <th>{t('jobs.shot')}</th>
+                {!g.stage && <th>{t('jobs.stage')}</th>}
+                <th>{t('jobs.dueOn')}</th>
+                <th>{t('nav.albums')}</th>
+                <th>{t('clientsPage.openGalleries')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.jobs.map((j) => (
+                <tr>
+                  <td><a href={`/jobs/${j.id}`}><strong>{j.title}</strong></a> <span class="muted small">· {kind(j)}</span></td>
+                  <td><a href={`/clients/${j.client.id}`}>{j.client.name}</a></td>
+                  <td class="muted">{dates(j)}</td>
+                  {!g.stage && <td><span class="badge">{stageName(j.stage)}</span></td>}
+                  <td class="muted">{j.dueOn ? day(j.dueOn) : '—'}</td>
+                  <td>{j.albums}</td>
+                  <td>{j.openGalleries}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ))
+  )}
+</AppLayout>
+
+<style>
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .search {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 280px;
+    max-width: 480px;
+  }
+  .search input {
+    flex: 1;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    padding: 5px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 99px;
+    font-size: 0.85rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .chip.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  section + section {
+    margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+  .count {
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 4px;
+  }
+  .attention {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  }
+  .attention ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+  .attention .overdue {
+    color: var(--danger);
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+</style>

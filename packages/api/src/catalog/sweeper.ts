@@ -26,8 +26,10 @@
  */
 import { setupNeeded } from '../auth/setup-state'
 import type { DamBindings } from '../env'
+import { logActivity } from '../lib/activity'
 import { countQueries, QUERIES_PER_INVOCATION } from '../lib/query-budget'
 import { nowIso } from '../lib/time'
+import { sweepShot } from './jobs'
 import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
@@ -48,7 +50,7 @@ import { pruneGalleryCache } from './watermark'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 260 },
+  process: { ms: 15_000, queries: 255 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -62,6 +64,7 @@ export const SLICES = {
   stats: { ms: 10_000, queries: 30 },
   previews: { ms: 10_000, queries: 40 },
   alerts: { ms: 3_000, queries: 10 },
+  jobs: { ms: 2_000, queries: 5 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -356,7 +359,19 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     }
   }
 
-  // 11. Problems that need a person.
+  // 11. Booked jobs whose shoot dates now have photos move to Shot (catalog/jobs.ts).
+  if (slice('jobs').more()) {
+    try {
+      for (const job of await sweepShot(db)) {
+        await logActivity(db, { userId: null, action: 'job.stage', targetType: 'job', targetId: job.id, details: { title: job.title, from: 'booked', to: 'shot', by: 'photos' } })
+      }
+    } catch (error) {
+      console.warn('[sweep] jobs failed', error)
+      await noteSweepFailure(db, 'jobs', error)
+    }
+  }
+
+  // 12. Problems that need a person.
   if (slice('alerts').more() && alertsDue()) {
     result.alerts = await checkAlerts(env).catch(async (error) => {
       console.warn('[sweep] alerts failed', error)

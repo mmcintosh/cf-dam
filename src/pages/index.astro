@@ -97,6 +97,9 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
             <a href={sortLink('added')} class:list={{ on: sort === 'added' }}>{t('libpage.recentlyAdded')}</a>
           </nav>
           <a class="btn btn-sm" href={`/map${params.toString() ? `?${params}` : ''}`}>{t('libpage.map')}</a>
+          {principal.permissions.has('clients:manage') && filtered && !filters.like && !filters.meaning && total > 0 && (
+            <a class="btn btn-sm" href={`/jobs/new?from=${encodeURIComponent(params.toString())}`} title={t('libpage.newJobTitle')}>{t('libpage.newJob')}</a>
+          )}
           <span class="hint muted">{t('libpage.hint')}</span>
           <span class="spacer"></span>
           {canUpload && <Uploader client:idle connections={connections} />}

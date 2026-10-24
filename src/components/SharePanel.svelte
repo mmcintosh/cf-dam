@@ -14,8 +14,10 @@
     hasWatermark: boolean
     /** Open the new-gallery form at once (arriving from "New client gallery" or "Share with a client"). */
     startNew?: boolean
+    /** The album belongs to a job: offer "Final delivery", which moves the job to Delivered. */
+    inJob?: boolean
   }
-  let { albumId, albumName, hasWatermark, startNew = false }: Props = $props()
+  let { albumId, albumName, hasWatermark, startNew = false, inJob = false }: Props = $props()
   let panel: HTMLElement | undefined = $state()
 
   type Size = 'small' | 'large' | 'original'
@@ -37,10 +39,11 @@
     watermark: boolean
     proofing: boolean
     showFilenames: boolean
+    finalDelivery: boolean
     /** '' for each visitor's own language. */
     language: string
   }
-  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true, language: '' })
+  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true, finalDelivery: false, language: '' })
 
   let shares = $state<ShareJson[]>([])
   let editing = $state<string | null>(null)
@@ -86,6 +89,7 @@
       watermark: share.watermark,
       proofing: share.proofing,
       showFilenames: share.showFilenames,
+      finalDelivery: share.finalDelivery,
       language: share.language ?? '',
     }
   }
@@ -107,6 +111,7 @@
         proofing: draft.proofing,
         showFilenames: draft.showFilenames,
         language: draft.language || null,
+        ...(inJob ? { finalDelivery: draft.finalDelivery } : {}),
       }
       if (draft.password) body.password = draft.password
       else if (draft.removePassword) body.password = null
@@ -241,6 +246,9 @@
         <legend class="label">{t('share.options')}</legend>
         <label class="check"><input type="checkbox" bind:checked={draft.proofing} /> {t('share.proofing')}</label>
         <label class="check"><input type="checkbox" bind:checked={draft.showFilenames} /> {t('share.showFilenames')}</label>
+        {#if inJob}
+          <label class="check"><input type="checkbox" bind:checked={draft.finalDelivery} /> {t('share.finalDelivery')} <span class="muted small">{t('share.finalDeliveryLead')}</span></label>
+        {/if}
         <label class="check">
           <input type="checkbox" bind:checked={draft.watermark} /> {t('share.watermarkOption')}
           {#if !hasWatermark}<a class="muted small" href="/galleries">{t('share.setWatermarkFirst')}</a>{/if}

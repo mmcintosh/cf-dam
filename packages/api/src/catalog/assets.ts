@@ -418,7 +418,9 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
     params.push(filters.from)
   }
   if (use('to')) {
-    where.push('a.captured_at <= ?')
+    // A plain day includes the whole day: before the next one starts.
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(filters.to!) ? filters.to! : null
+    where.push(day ? 'a.captured_at < date(?, \'+1 day\')' : 'a.captured_at <= ?')
     params.push(filters.to)
   }
   // Years and months as ranges of captured_at, so its index answers them.

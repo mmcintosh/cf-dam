@@ -24,6 +24,7 @@ const PAGE_PERMISSIONS: [string, string][] = [
   ['/admin', 'users:manage'],
   ['/galleries', 'shares:manage'],
   ['/clients', 'clients:manage'],
+  ['/jobs', 'clients:manage'],
   ['/settings/storage', 'sources:manage'],
   ['/settings/ai', 'ai:run'],
   ['/sources', 'sources:manage'],

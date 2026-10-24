@@ -11,11 +11,12 @@ const id = Astro.params.id!
 const album = await env.DB.prepare(
   `SELECT id, name, description,
      COALESCE(cover_asset_id, (SELECT ai.asset_id FROM album_items ai WHERE ai.album_id = albums.id ORDER BY ai.position, ai.added_at LIMIT 1)) AS cover,
-     (SELECT COUNT(*) FROM shares s WHERE s.album_id = albums.id) AS links
+     (SELECT COUNT(*) FROM shares s WHERE s.album_id = albums.id) AS links,
+     job_id, (SELECT j.title FROM jobs j WHERE j.id = albums.job_id) AS job_title
    FROM albums WHERE id = ?`,
 )
   .bind(id)
-  .first<{ id: string; name: string; description: string; cover: string | null; links: number }>()
+  .first<{ id: string; name: string; description: string; cover: string | null; links: number; job_id: string | null; job_title: string | null }>()
 if (!album) return new Response('Not found', { status: 404 })
 const { assets, total, totalExact } = await listAssets(env.DB, { albumId: id, limit: 200 })
 const canShare = Astro.locals.principal!.permissions.has('shares:manage')
@@ -23,12 +24,15 @@ const canEdit = Astro.locals.principal!.permissions.has('assets:edit')
 const t = getT(Astro.locals.lang)
 const items = assets.map((a) => ({ id: a.id, name: a.title ?? a.filename, alt: a.alt ?? a.title ?? a.filename, thumb: a.renditions.includes('thumb'), version: a.imageVersion }))
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
+// Job names are client work: shown to those who manage clients; anyone sharing still gets the Final delivery tick.
+const canJobs = Astro.locals.principal!.permissions.has('clients:manage')
 ---
 <AppLayout help="albums" wide title={album.name} subtitle={album.description || (totalExact ? t('common.items', { count: total }) : t('libpage.itemsMore', { count: total }))}>
+  {canJobs && album.job_id && <p class="job"><a class="btn btn-sm" href={`/jobs/${album.job_id}`}>{t('album.partOfJob', { job: album.job_title ?? '' })}</a></p>}
   {canEdit && <AlbumTools client:load albumId={album.id} name={album.name} description={album.description} links={album.links} items={items} coverId={album.cover} />}
   {canShare && (
     <div class="share">
-      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} />
+      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} />
     </div>
   )}
   {assets.length > 0 ? (
@@ -39,6 +43,9 @@ const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 </AppLayout>
 
 <style>
+  .job {
+    margin: 0 0 12px;
+  }
   .share {
     margin-bottom: 24px;
   }

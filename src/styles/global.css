@@ -202,6 +202,7 @@ input[type='password'],
 input[type='number'],
 input[type='tel'],
 input[type='url'],
+input[type='date'],
 textarea,
 select {
   width: 100%;

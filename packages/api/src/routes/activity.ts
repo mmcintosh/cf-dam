@@ -14,7 +14,7 @@ export const ACTIVITY_KINDS: Readonly<Record<string, readonly string[]>> = {
   'sign-ins': ['auth'],
   accounts: ['account', 'user', 'policy', 'api_key', 'setup'],
   photos: ['asset', 'album', 'duplicates', 'keyword', 'storage', 'ai', 'previews'],
-  sharing: ['share', 'client', 'watermark'],
+  sharing: ['share', 'client', 'job', 'watermark'],
   agents: ['source'],
   backups: ['backup'],
   alerts: ['alert'],
@@ -42,6 +42,7 @@ activityRoutes.use('*', requirePermission('activity:read'))
 activityRoutes.get('/', async (c) => {
   const person = c.req.query('person')
   const client = c.req.query('client')
+  const job = c.req.query('job')
   const kind = c.req.query('kind')
   const before = c.req.query('before')
   const where: string[] = []
@@ -60,11 +61,15 @@ activityRoutes.get('/', async (c) => {
     binds.push(person, person)
   }
   if (client) {
-    // Done to the client's record, and things done by or to the logins linked to them.
+    // Done to the client's record and their jobs, and things done by or to the logins linked to them.
     where.push(
-      "((a.target_type = 'client' AND a.target_id = ?) OR (a.target_type = 'user' AND a.target_id IN (SELECT user_id FROM client_people WHERE client_id = ?)) OR a.user_id IN (SELECT user_id FROM client_people WHERE client_id = ?))",
+      "((a.target_type = 'client' AND a.target_id = ?) OR (a.target_type = 'job' AND a.target_id IN (SELECT id FROM jobs WHERE client_id = ?)) OR (a.target_type = 'user' AND a.target_id IN (SELECT user_id FROM client_people WHERE client_id = ?)) OR a.user_id IN (SELECT user_id FROM client_people WHERE client_id = ?))",
     )
-    binds.push(client, client, client)
+    binds.push(client, client, client, client)
+  }
+  if (job) {
+    where.push("(a.target_type = 'job' AND a.target_id = ?)")
+    binds.push(job)
   }
   if (before) {
     const [at, id] = before.split('|')

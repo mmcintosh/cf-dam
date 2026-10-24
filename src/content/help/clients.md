@@ -28,9 +28,13 @@ A login belongs to one client at most. People on your team can't be linked to a 
 
 Linking someone **doesn't give them access to anything**. Each gallery is still shared with people one by one: open the gallery and invite them under **Clients with an account** (see [Client galleries](/help/client-galleries)). That way, an agency's art buyers don't see each other's galleries.
 
+## Jobs
+
+Each piece of work for the client, such as a wedding or a portrait session, is a **job**, listed on their page with its shoot date and stage. **New job** makes one for this client. See [Jobs](/help/jobs).
+
 ## Galleries, downloads and history
 
-The client's page lists every gallery shared with any of their people, with whether it's open, when it closes, and its opens, favourites and downloads. **Downloads** shows what they downloaded, by whom, in which size and from which gallery. **History** shows what was done to the client and their logins: added, changed, invited, joined, signed in.
+The client's page lists every gallery shared with any of their people or made from one of their jobs' albums, with whether it's open, when it closes, and its opens, favourites and downloads. **Downloads** shows what they downloaded, by whom, in which size and from which gallery. **History** shows what was done to the client and their logins: added, changed, invited, joined, signed in.
 
 On **People**, the **Clients** tab shows which client each login belongs to.
 
@@ -45,6 +49,6 @@ If a client asks you to delete their data, **Erase client** at the bottom of the
 - their details and notes;
 - their logins, with their passwords, sessions and invites;
 - the names and emails they gave in galleries (their favourites stay, marked *(erased)*);
-- their details in the history.
+- their jobs, and their details in the history.
 
 Galleries, albums and photos stay. Type the client's name to confirm. This can't be undone, though backups made before it still hold the data until they expire (see [Backups](/help/backups)).

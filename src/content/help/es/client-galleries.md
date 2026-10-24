@@ -4,7 +4,7 @@ summary: "Compartir un álbum con un cliente mediante un enlace privado o invit�
 section: Sharing
 order: 1
 review: machine
-source: 3f09564d5b32
+source: 023b70eb5b2c
 ---
 
 Una **galería de cliente** muestra un álbum a alguien de fuera de tu equipo: una pareja que elige las fotos de su boda, un director de arte que selecciona tomas, una familia que descarga copias para imprimir. Le envías un enlace y solo ve ese álbum, nada más de tu archivo.
@@ -24,6 +24,7 @@ Lo más rápido: selecciona fotos en la **Biblioteca** y elige **Compartir con u
    - **Marca de agua**: muestra tu marca de agua en todo lo que ve y descarga (antes tienes que configurarla: más abajo).
    - **Los clientes pueden elegir favoritas:** activa la elección de favoritas (más abajo).
    - **Mostrar los nombres de archivo:** muestra el nombre de archivo de cada foto, práctico para pedir copias por número.
+   - **Entrega final** (solo para un álbum que forma parte de un trabajo): son las fotos terminadas. Al crear el enlace, el trabajo pasa a **Entregado** (consulta [Trabajos](/help/jobs)).
 4. Pulsa **Crear el enlace**, luego **Copiar enlace** y envíalo.
 
 Un álbum puede tener varios enlaces: uno por cada miembro de la familia, por ejemplo, cada uno con su propia contraseña y sus descargas. **Editar** cambia un enlace; **Revocar** (púlsalo dos veces) hace que deje de funcionar al momento.

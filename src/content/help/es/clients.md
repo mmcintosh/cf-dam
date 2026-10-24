@@ -4,7 +4,7 @@ summary: "Llevar un registro de las personas y empresas para las que trabajas: d
 section: Sharing
 order: 3
 review: machine
-source: 515c55cc5d2d
+source: dec53b48546f
 ---
 
 **Clientes** guarda un registro de cada persona o empresa para la que trabajas: una pareja, una familia, un negocio. Cada cliente tiene una página con sus datos de contacto y notas, las personas que inician sesión en su nombre, las galerías de cliente compartidas con esas personas, lo que descargaron y un historial de lo que ha pasado.
@@ -30,9 +30,13 @@ Un acceso pertenece como mucho a un cliente. Las personas de tu equipo no se pue
 
 Vincular a alguien **no le da acceso a nada**. Cada galería se sigue compartiendo persona por persona: abre la galería e invita a cada persona en **Clientes con cuenta** (consulta [Galerías de clientes](/help/client-galleries)). Así, los compradores de arte de una agencia no ven las galerías de los demás.
 
+## Trabajos
+
+Cada encargo del cliente, como una boda o una sesión de retrato, es un **trabajo**, y aparece en su página con la fecha de la sesión y la etapa. **Nuevo trabajo** crea uno para este cliente. Consulta [Trabajos](/help/jobs).
+
 ## Galerías, descargas e historial
 
-La página del cliente muestra todas las galerías compartidas con cualquiera de sus personas: si están abiertas, cuándo se cierran, y sus visitas, favoritas y descargas. **Descargas** muestra qué descargaron, quién, en qué tamaño y desde qué galería. **Historial** muestra lo que se hizo con el cliente y sus accesos: alta, cambios, invitaciones, uniones, inicios de sesión.
+La página del cliente muestra todas las galerías compartidas con cualquiera de sus personas o creadas a partir de los álbumes de uno de sus trabajos: si están abiertas, cuándo se cierran, y sus visitas, favoritas y descargas. **Descargas** muestra qué descargaron, quién, en qué tamaño y desde qué galería. **Historial** muestra lo que se hizo con el cliente y sus accesos: alta, cambios, invitaciones, uniones, inicios de sesión.
 
 En **Personas**, la pestaña **Clientes** muestra a qué cliente pertenece cada acceso.
 
@@ -47,6 +51,6 @@ Si un cliente te pide que borres sus datos, **Borrar cliente**, al final de su p
 - sus datos y notas;
 - sus accesos, con sus contraseñas, sesiones e invitaciones;
 - los nombres y correos que dieron en las galerías (sus favoritas se conservan, marcadas *(borrado)*);
-- sus datos en el historial.
+- sus trabajos y sus datos en el historial.
 
 Las galerías, los álbumes y las fotos se conservan. Escribe el nombre del cliente para confirmar. No se puede deshacer, aunque las copias de seguridad hechas antes siguen teniendo los datos hasta que caducan (consulta [Copias de seguridad](/help/backups)).

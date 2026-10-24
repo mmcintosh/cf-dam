@@ -4,7 +4,7 @@ summary: "Condividere un album con un cliente tramite link privato o invitandolo
 section: Sharing
 order: 1
 review: machine
-source: 3f09564d5b32
+source: 023b70eb5b2c
 ---
 
 Una **galleria cliente** mostra un album a qualcuno fuori dal tuo team: una coppia che sceglie le foto del matrimonio, un art director che seleziona gli scatti, una famiglia che scarica le stampe. Gli mandi un link; vede solo quell’album, nient’altro del tuo archivio.
@@ -24,6 +24,7 @@ Il modo più rapido: seleziona delle foto nella **Libreria** e scegli **Condivid
    - **Filigrana**: mostra la tua filigrana su tutto ciò che vede e scarica (prima devi impostarne una: vedi sotto).
    - **I clienti possono scegliere le preferite:** attiva la scelta (vedi sotto).
    - **Mostra i nomi dei file:** mostra il nome del file di ogni foto, comodo per ordinare le stampe per numero.
+   - **Consegna finale** (solo per un album che fa parte di un lavoro): sono le foto finite. Creando il link, il lavoro passa a **Consegnato** (vedi [Lavori](/help/jobs)).
 4. Premi **Crea il link**, poi **Copia link** e invialo.
 
 Un album può avere più link: uno per ogni membro della famiglia, per esempio, ciascuno con la sua password e i suoi download. **Modifica** cambia un link; **Revoca** (premilo due volte) lo disattiva subito.

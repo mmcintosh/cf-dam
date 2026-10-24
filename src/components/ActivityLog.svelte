@@ -23,8 +23,8 @@
     ['alerts', 'activity.kind.alerts'],
   ]
 
-  /** A client's page: only their history, without the filters. */
-  let { client = null }: { client?: string | null } = $props()
+  /** A client's or a job's page: only its history, without the filters. */
+  let { client = null, job = null }: { client?: string | null; job?: string | null } = $props()
 
   let entries = $state<ActivityEntry[]>([])
   let next = $state<string | null>(null)
@@ -55,6 +55,7 @@
     if (kind) query.set('kind', kind)
     if (person) query.set('person', person)
     if (client) query.set('client', client)
+    if (job) query.set('job', job)
     if (more && next) query.set('before', next)
     try {
       const page = await api<{ entries: ActivityEntry[]; next: string | null }>(`/api/activity?${query}`)
@@ -69,12 +70,12 @@
 
   onMount(async () => {
     await load()
-    if (!client) people = (await api<{ users: Person[] }>('/api/users')).users
+    if (!client && !job) people = (await api<{ users: Person[] }>('/api/users')).users
   })
 </script>
 
 <div class="stack">
-  {#if !client}<div class="filters">
+  {#if !client && !job}<div class="filters">
     <label class="field">
       <span>{t('activity.kind')}</span>
       <select bind:value={kind} onchange={() => load()}>

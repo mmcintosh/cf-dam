@@ -4,7 +4,7 @@ summary: "Ein Album mit einem Kunden teilen, per privatem Link oder per Einladun
 section: Sharing
 order: 1
 review: machine
-source: 3f09564d5b32
+source: 023b70eb5b2c
 ---
 
 Eine **Kundengalerie** zeigt ein Album jemandem außerhalb deines Teams: einem Paar, das seine Hochzeitsfotos auswählt, einer Art-Direktorin, die Motive aussucht, einer Familie, die Abzüge herunterlädt. Du schickst ihnen einen Link; sie sehen nur dieses Album, sonst nichts aus deinem Archiv.
@@ -24,6 +24,7 @@ Am schnellsten: Wähle Fotos in der **Bibliothek** aus und nimm **Mit Kunden tei
    - **Wasserzeichen**: zeigt dein Wasserzeichen auf allem, was sie sehen und herunterladen (richte zuerst eines ein: siehe unten).
    - **Kunden können Favoriten auswählen:** schaltet das Auswählen ein (siehe unten).
    - **Dateinamen anzeigen:** zeigt den Dateinamen jedes Fotos, praktisch, um Abzüge nach Nummer zu bestellen.
+   - **Endgültige Lieferung** (nur für ein Album, das zu einem Auftrag gehört): Das sind die fertigen Fotos. Wenn du den Link erstellst, wechselt der Auftrag zu **Geliefert** (siehe [Aufträge](/help/jobs)).
 4. Drücke **Link erstellen**, dann **Link kopieren**, und schick ihn ab.
 
 Ein Album kann mehrere Links haben: etwa einen pro Familienmitglied, jeden mit eigenem Passwort und eigenen Downloads. **Bearbeiten** ändert einen Link; **Widerrufen** (zweimal drücken) legt ihn sofort still.

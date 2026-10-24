@@ -2,7 +2,7 @@
  * Client gallery links, the photographer's side: make, edit and revoke links to albums, see who
  * opened them and what they picked, and set the watermark.
  */
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
 import {
   createShare,
@@ -18,6 +18,7 @@ import {
   type ShareRow,
 } from '../catalog/shares'
 import { inviteClient, newInvite, removeMember, shareMembers } from '../catalog/clients'
+import { markDelivered } from '../catalog/jobs'
 import { getWatermark, MAX_WATERMARK_BYTES, removeWatermarkImage, setWatermarkImage, updateWatermark, watermarkKey, WatermarkRejected, type WatermarkPosition } from '../catalog/watermark'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -30,6 +31,20 @@ import { say } from '../lib/language'
 export const shareRoutes = new Hono<DamEnv>()
 
 shareRoutes.use('*', requirePermission('shares:manage'))
+
+/** A final delivery moves the album's job to Delivered; logged as the person's move. */
+async function deliver(c: Context<DamEnv>, albumId: string): Promise<void> {
+  const moved = await markDelivered(c.env.DB, albumId)
+  if (!moved) return
+  await logActivity(c.env.DB, {
+    userId: c.get('principal')!.userId,
+    action: 'job.stage',
+    targetType: 'job',
+    targetId: moved.jobId,
+    details: { title: moved.title, from: moved.from, to: 'delivered', by: 'final_delivery' },
+    ipAddress: c.req.header('cf-connecting-ip'),
+  })
+}
 
 const invalid = (error: unknown) => {
   if (error instanceof BadRequest || error instanceof WatermarkRejected) return { error: 'invalid_request', message: error.message }
@@ -46,6 +61,7 @@ shareRoutes.post('/', async (c) => {
     const share = await createShare(c.env.DB, albumId, parseShareInput(body, true), principal.userId)
     if (!share) return c.json({ error: 'not_found', message: say('err.noAlbum') }, 404)
     await logActivity(c.env.DB, { userId: principal.userId, action: 'share.create', targetType: 'share', targetId: share.id, details: { albumId }, ipAddress: c.req.header('cf-connecting-ip') })
+    if (share.finalDelivery) await deliver(c, albumId)
     return c.json({ share }, 201)
   } catch (error) {
     return c.json(invalid(error), 400)
@@ -101,9 +117,12 @@ shareRoutes.get('/:id', async (c) => {
 shareRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   try {
-    const changed = await updateShare(c.env.DB, id, parseShareInput(await readJsonObject(c), false))
+    const input = parseShareInput(await readJsonObject(c), false)
+    const changed = await updateShare(c.env.DB, id, input)
     if (!changed) return c.json({ error: 'not_found', message: say('err.linkGone') }, 404)
-    return c.json({ share: await getShare(c.env.DB, id) })
+    const share = (await getShare(c.env.DB, id))!
+    if (input.finalDelivery) await deliver(c, share.albumId)
+    return c.json({ share })
   } catch (error) {
     return c.json(invalid(error), 400)
   }

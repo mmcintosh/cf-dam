@@ -41,7 +41,7 @@ export interface ClientSummary {
   phone: string
   /** Logins linked to them. */
   people: number
-  /** Galleries shared with their people that are still open. */
+  /** Galleries shared with their people, or of their jobs, that are still open. */
   openGalleries: number
   /** When one of their people last opened or downloaded from a gallery. */
   lastSeenAt: string | null
@@ -93,8 +93,9 @@ export function parseClientInput(body: Record<string, unknown>, creating: boolea
 
 const SUMMARY = `SELECT c.*,
   (SELECT COUNT(*) FROM client_people p WHERE p.client_id = c.id) AS people,
-  (SELECT COUNT(DISTINCT s.id) FROM client_people p JOIN share_members m ON m.user_id = p.user_id JOIN shares s ON s.id = m.share_id
-     WHERE p.client_id = c.id AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > ?1)) AS open_galleries,
+  (SELECT COUNT(*) FROM shares s WHERE s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > ?1)
+     AND (s.id IN (SELECT m.share_id FROM client_people p JOIN share_members m ON m.user_id = p.user_id WHERE p.client_id = c.id)
+          OR s.album_id IN (SELECT al.id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE j.client_id = c.id))) AS open_galleries,
   (SELECT MAX(e.created_at) FROM client_people p JOIN share_visitors v ON v.user_id = p.user_id JOIN share_events e ON e.visitor_id = v.id
      WHERE p.client_id = c.id) AS last_seen_at
   FROM clients c`
@@ -322,8 +323,8 @@ export async function clientDownloads(db: D1Database, clientId: string, limit = 
 
 /**
  * Erase a client: their record, their logins (with sessions, invites and gallery memberships), the names and
- * emails they gave as gallery visitors, and their details in the activity log. Their galleries, albums and
- * photos stay. Returns how many logins were removed, or null if there's no such client.
+ * emails they gave as gallery visitors, their jobs, and their details in the activity log. Their galleries,
+ * albums and photos stay. Returns how many logins were removed, or null if there's no such client.
  */
 export async function eraseClient(db: D1Database, clientId: string): Promise<{ people: number } | null> {
   const client = await db.prepare('SELECT email FROM clients WHERE id = ?').bind(clientId).first<{ email: string }>()
@@ -350,6 +351,11 @@ export async function eraseClient(db: D1Database, clientId: string): Promise<{ p
             OR user_id IN (SELECT value FROM json_each(?))`,
       )
       .bind(clientId, ids, ids),
+    // Their jobs' history, then the jobs (their albums and galleries stay, outside any job).
+    db
+      .prepare("UPDATE activity_log SET details = NULL, ip_address = NULL WHERE target_type = 'job' AND target_id IN (SELECT id FROM jobs WHERE client_id = ?)")
+      .bind(clientId),
+    db.prepare('DELETE FROM jobs WHERE client_id = ?').bind(clientId),
     // Sessions, passwords, passkeys, invites, gallery memberships and the client_people rows go with the users.
     db.prepare('DELETE FROM users WHERE id IN (SELECT value FROM json_each(?))').bind(ids),
     db.prepare('DELETE FROM clients WHERE id = ?').bind(clientId),

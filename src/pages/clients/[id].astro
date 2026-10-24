@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { clientDownloads, clientPeople, clientShares, getClient } from '@cf-dam/api'
+import { clientDownloads, clientPeople, clientShares, getClient, listJobs } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import ClientDetails from '../../components/ClientDetails.svelte'
@@ -11,10 +11,11 @@ import ClientPeople from '../../components/ClientPeople.svelte'
 const id = Astro.params.id!
 const client = await getClient(env.DB, id)
 if (!client) return Astro.redirect('/clients')
-const [people, galleries, downloads] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id)])
+const [people, galleries, downloads, jobs] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id), listJobs(env.DB, { clientId: id })])
 const t = getT(Astro.locals.lang)
 const fmt = createFormat(Astro.locals.lang)
 const day = (iso: string | null) => (iso ? fmt.date(iso) : '—')
+const shootDay = (d: string | null) => (d ? fmt.date(`${d}T12:00:00Z`) : '—')
 const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { date: day(client.pastAt) }) : t('clientsPage.since', { date: day(client.createdAt) })].filter(Boolean).join(' · ')
 ---
@@ -24,6 +25,33 @@ const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { d
   <section class="card stack">
     <h2>{t('clientsPage.details')}</h2>
     <ClientDetails client:load client={client} />
+  </section>
+
+  <section class="card stack">
+    <div class="row head">
+      <h2>{t('nav.jobs')}</h2>
+      <a class="btn btn-sm" href={`/jobs/new?client=${client.id}`}>{t('jobs.new')}</a>
+    </div>
+    {jobs.length === 0 ? (
+      <p class="muted">{t('clientsPage.noJobs')}</p>
+    ) : (
+      <div class="scroll">
+        <table class="table">
+          <thead><tr><th>{t('jobs.title')}</th><th>{t('jobs.shot')}</th><th>{t('jobs.stage')}</th><th>{t('nav.albums')}</th><th>{t('clientsPage.openGalleries')}</th></tr></thead>
+          <tbody>
+            {jobs.map((j) => (
+              <tr>
+                <td><a href={`/jobs/${j.id}`}><strong>{j.title}</strong></a> <span class="muted small">· {j.kind === 'other' && j.kindOther ? j.kindOther : t((j.kind === 'other' ? 'job.kind.misc' : `job.kind.${j.kind}`) as MessageKey)}</span></td>
+                <td class="muted">{shootDay(j.shootStart)}</td>
+                <td><span class="badge">{t(`job.stage.${j.stage}` as MessageKey)}</span></td>
+                <td>{j.albums}</td>
+                <td>{j.openGalleries}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
   </section>
 
   <section class="card stack">
@@ -97,6 +125,10 @@ const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { d
 <style>
   .top {
     margin-bottom: 16px;
+  }
+  .head {
+    justify-content: space-between;
+    align-items: center;
   }
   section + section {
     margin-top: 20px;

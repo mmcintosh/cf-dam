@@ -4,7 +4,7 @@ summary: "Die Personen und Firmen festhalten, für die du arbeitest: Kontaktdate
 section: Sharing
 order: 3
 review: machine
-source: 515c55cc5d2d
+source: dec53b48546f
 ---
 
 **Kunden** hält jede Person oder Firma fest, für die du arbeitest: ein Paar, eine Familie, ein Unternehmen. Jeder Kunde hat eine Seite mit Kontaktdaten und Notizen, den Personen, die sich für ihn anmelden, den Kundengalerien, die mit diesen Personen geteilt sind, dem, was heruntergeladen wurde, und einem Verlauf dessen, was passiert ist.
@@ -30,9 +30,13 @@ Eine Anmeldung gehört höchstens zu einem Kunden. Personen aus deinem Team kön
 
 Das Verknüpfen **gibt niemandem Zugriff auf irgendetwas**. Jede Galerie wird weiterhin Person für Person geteilt: Öffne die Galerie und lade die Personen unter **Kunden mit Konto** ein (siehe [Kundengalerien](/help/client-galleries)). So sehen die Bildeinkäufer einer Agentur die Galerien der anderen nicht.
 
+## Aufträge
+
+Jede Arbeit für den Kunden, etwa eine Hochzeit oder ein Porträtshooting, ist ein **Auftrag** und steht mit Shooting-Datum und Phase auf seiner Seite. **Neuer Auftrag** legt einen für diesen Kunden an. Siehe [Aufträge](/help/jobs).
+
 ## Galerien, Downloads und Verlauf
 
-Die Seite des Kunden listet jede Galerie, die mit einer seiner Personen geteilt ist: ob sie offen ist, wann sie schließt, und ihre Aufrufe, Favoriten und Downloads. **Downloads** zeigt, was heruntergeladen wurde, von wem, in welcher Größe und aus welcher Galerie. **Verlauf** zeigt, was mit dem Kunden und seinen Anmeldungen geschah: angelegt, geändert, eingeladen, beigetreten, angemeldet.
+Die Seite des Kunden listet jede Galerie, die mit einer seiner Personen geteilt ist oder aus einem Album eines seiner Aufträge stammt: ob sie offen ist, wann sie schließt, und ihre Aufrufe, Favoriten und Downloads. **Downloads** zeigt, was heruntergeladen wurde, von wem, in welcher Größe und aus welcher Galerie. **Verlauf** zeigt, was mit dem Kunden und seinen Anmeldungen geschah: angelegt, geändert, eingeladen, beigetreten, angemeldet.
 
 Unter **Personen** zeigt der Reiter **Kunden**, zu welchem Kunden jede Anmeldung gehört.
 
@@ -47,6 +51,6 @@ Wenn ein Kunde dich bittet, seine Daten zu löschen, entfernt **Kunden löschen*
 - Kontaktdaten und Notizen;
 - die Anmeldungen, mit Passwörtern, Sitzungen und Einladungen;
 - die Namen und E-Mails, die in Galerien angegeben wurden (die Favoriten bleiben, markiert mit *(gelöscht)*);
-- die Angaben im Verlauf.
+- seine Aufträge und die Angaben im Verlauf.
 
 Galerien, Alben und Fotos bleiben. Gib zur Bestätigung den Namen des Kunden ein. Das lässt sich nicht rückgängig machen, aber Sicherungen von vorher enthalten die Daten noch, bis sie ablaufen (siehe [Sicherungen](/help/backups)).

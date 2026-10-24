@@ -22,6 +22,7 @@ The quickest way: select photos in the **Library** and choose **Share with a cli
    - **Watermark**: show your watermark on everything they see and download (set one up first: below).
    - **Clients can pick favourites:** turns on picking (below).
    - **Show filenames:** shows each photo's file name, handy for ordering prints by number.
+   - **Final delivery** (only for an album that's part of a job): these are the finished photos. Making the link moves the job to **Delivered** (see [Jobs](/help/jobs)).
 4. Press **Make the link**, then **Copy link** and send it.
 
 One album can have several links: one per family member, say, each with its own password and downloads. **Edit** changes a link; **Revoke** (press it twice) stops it working at once.

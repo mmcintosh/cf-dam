@@ -4,7 +4,7 @@ summary: "Tenere traccia delle persone e delle aziende per cui lavori: recapiti,
 section: Sharing
 order: 3
 review: machine
-source: 515c55cc5d2d
+source: dec53b48546f
 ---
 
 **Clienti** tiene traccia di ogni persona o azienda per cui lavori: una coppia, una famiglia, un’impresa. Ogni cliente ha una pagina con recapiti e note, le persone che accedono per suo conto, le gallerie clienti condivise con queste persone, cosa hanno scaricato e una cronologia di ciò che è successo.
@@ -30,9 +30,13 @@ Un accesso appartiene al massimo a un cliente. Le persone del tuo team non posso
 
 Collegare qualcuno **non dà accesso a niente**. Ogni galleria si condivide ancora persona per persona: apri la galleria e invita ciascuna persona in **Clienti con un account** (vedi [Gallerie clienti](/help/client-galleries)). Così gli acquirenti di immagini di un’agenzia non vedono le gallerie degli altri.
 
+## Lavori
+
+Ogni incarico del cliente, come un matrimonio o un ritratto, è un **lavoro**, elencato nella sua pagina con la data del servizio e la fase. **Nuovo lavoro** ne crea uno per questo cliente. Vedi [Lavori](/help/jobs).
+
 ## Gallerie, download e cronologia
 
-La pagina del cliente elenca ogni galleria condivisa con una qualsiasi delle sue persone: se è aperta, quando chiude, e le sue visite, preferite e download. **Download** mostra cosa è stato scaricato, da chi, in quale dimensione e da quale galleria. **Cronologia** mostra cosa è stato fatto al cliente e ai suoi accessi: aggiunto, modificato, invitato, unito, accesso effettuato.
+La pagina del cliente elenca ogni galleria condivisa con una qualsiasi delle sue persone o creata da uno degli album dei suoi lavori: se è aperta, quando chiude, e le sue visite, preferite e download. **Download** mostra cosa è stato scaricato, da chi, in quale dimensione e da quale galleria. **Cronologia** mostra cosa è stato fatto al cliente e ai suoi accessi: aggiunto, modificato, invitato, unito, accesso effettuato.
 
 In **Persone**, la scheda **Clienti** mostra a quale cliente appartiene ogni accesso.
 
@@ -47,6 +51,6 @@ Se un cliente ti chiede di eliminare i suoi dati, **Cancella cliente**, in fondo
 - i suoi recapiti e le note;
 - i suoi accessi, con password, sessioni e inviti;
 - i nomi e le email lasciati nelle gallerie (le preferite restano, segnate *(cancellato)*);
-- i suoi dati nella cronologia.
+- i suoi lavori e i suoi dati nella cronologia.
 
 Gallerie, album e foto restano. Scrivi il nome del cliente per confermare. Non si può annullare, ma i backup fatti prima contengono ancora i dati finché non scadono (vedi [Backup](/help/backups)).
