@@ -15,22 +15,26 @@ import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
 import { aiAvailable, analyzeAsset } from './ai'
 import { archiveOne } from './archive-jobs'
+import { claimFacets, facetAsset, facetsAvailable } from './jev-facets'
 import { askRestores } from './job-storage'
 import { processAsset } from './process'
 
-export type WorkKind = 'ai' | 'process' | 'restore' | 'archive'
+export type WorkKind = 'ai' | 'process' | 'restore' | 'archive' | 'facets'
 export interface WorkMessage {
   kind: WorkKind
 }
 
 /** Photos one message takes: a few model calls' time, well inside one invocation's limits. */
-export const CLAIM = { ai: 8, process: 4, restore: 20, archive: 1 } as const
+export const CLAIM = { ai: 8, process: 4, restore: 20, archive: 1, facets: 8 } as const
 /** Model calls at once within one message. */
 const AI_PARALLEL = 4
 /** Chains started for a lot of waiting work; each carries on until nothing is left. */
 export const MAX_CHAINS = 4
-/** Archive copies hold a 16 MiB part each and run for minutes: two at most, so imports and AI keep moving. */
-const KIND_CHAINS: Partial<Record<WorkKind, number>> = { archive: 2 }
+/**
+ * Archive copies hold a 16 MiB part each and run for minutes: two at most, so imports and AI keep moving. Facets
+ * (an outside service whose rate limits we don't know) one chain; the consumer's concurrency is shared by all kinds.
+ */
+const KIND_CHAINS: Partial<Record<WorkKind, number>> = { archive: 2, facets: 1 }
 
 /**
  * Say that work of this kind is waiting: one chain per CLAIM photos, at most MAX_CHAINS. Best effort:
@@ -88,6 +92,16 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
     if (ids.length === CLAIM.ai) await nudge(env, 'ai')
     return ids.length
   }
+  if (kind === 'facets') {
+    // TypeSafe's Jev, four at a time (jev-facets.ts). A hand with a failure stops the chain: the sweep asks again
+    // after a pause, rather than this chain spending every try at once in an outage.
+    if (!facetsAvailable(env)) return 0
+    const ids = await claimFacets(env.DB, CLAIM.facets)
+    const outcomes: string[] = []
+    await inBatches(ids, AI_PARALLEL, async (id) => outcomes.push(await facetAsset(env, id)))
+    if (ids.length === CLAIM.facets && !outcomes.includes('failed')) await nudge(env, 'facets')
+    return ids.length
+  }
   if (kind === 'archive') {
     // One original copied (or carried on) per message (archive-jobs.ts).
     const result = await archiveOne(env)
@@ -114,7 +128,7 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
 export async function handleWork(env: DamBindings, batch: MessageBatch<WorkMessage>): Promise<void> {
   for (const message of batch.messages) {
     const kind = message.body?.kind
-    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore' && kind !== 'archive') {
+    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore' && kind !== 'archive' && kind !== 'facets') {
       message.ack()
       continue
     }

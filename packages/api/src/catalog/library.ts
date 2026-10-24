@@ -41,6 +41,7 @@ export interface Facets {
   orientation: FacetValue[]
   type: FacetValue[]
   tier: FacetValue[]
+  people: FacetValue[]
 }
 
 /**
@@ -54,7 +55,7 @@ export const TIMELINE_LIVE_MAX = 100_000
 /** Each facet's filter, so its counts ignore its own selection (you can switch between its values). */
 const FACET_FILTER: Record<PlainFacet | 'tag', keyof ListFilters> = {
   year: 'year', camera: 'camera', lens: 'lens', tag: 'tag', rating: 'rating', flag: 'flag', label: 'label',
-  country: 'country', city: 'city', creator: 'creator', orientation: 'orientation', type: 'type', tier: 'tier',
+  country: 'country', city: 'city', creator: 'creator', orientation: 'orientation', type: 'type', tier: 'tier', people: 'people',
 }
 
 /** Whether a set of filters narrows anything (sort and paging don't). */

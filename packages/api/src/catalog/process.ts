@@ -10,6 +10,7 @@ import { getConnection, providerFor } from '../storage/connections'
 import { ARCHIVE_CLASSES } from '../storage/types'
 import { getAsset, getLocations, isLabel, primaryLocation, tagStatement } from './assets'
 import { applyUploadPresets, iptcUpdate } from './iptc'
+import { facetsAvailable, queueFacets } from './jev-facets'
 import { resolveKeywords } from './keywords'
 import { DROP_GPS_PLACES, fillPlacesFromGps } from './places'
 import { getLabelNames, type LabelNames } from './library'
@@ -151,6 +152,9 @@ export async function finishAssets(env: DamBindings, items: { id: string; hash?:
       await nudge(env, 'ai', queued.meta.changes)
     }
   }
+
+  // Library facets (people…) from TypeSafe's Jev, for the same photos the AI review would take.
+  if (forAi.length > 0 && facetsAvailable(env)) await nudge(env, 'facets', await queueFacets(db, forAi))
 
   await indexAssets(db, ids)
   await db.prepare("UPDATE assets SET status = 'ready', error = NULL, updated_at = ? WHERE id IN (SELECT value FROM json_each(?))").bind(nowIso(), JSON.stringify(ids)).run()

@@ -39,6 +39,7 @@ const LABELS: Record<string, Record<string, string>> = {
   on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
   kw: Object.fromEntries(facets.tag.map((k) => [k.id, k.path])),
   gps: { some: t('facets.gps.some'), none: t('facets.gps.none') },
+  people: { yes: t('facets.people.yes'), no: t('facets.people.no'), one: t('facets.people.onePerson'), two_to_five: t('facets.people.twoToFive'), six_or_more: t('facets.people.sixOrMore'), some: t('facets.people.yes') },
 }
 const label = (facet: string, value: string) => LABELS[facet]?.[value] ?? value
 
@@ -60,7 +61,7 @@ const ratingCounts = (() => {
 const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
 const active: { key: string; text: string }[] = []
-const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['type', null], ['tier', null]]
+const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
 for (const [key, prefix] of CHIPS) {
   const value = params.get(key)
   if (!value) continue
@@ -82,6 +83,19 @@ const sections: { key: string; title: string; values: FacetValue[]; open: boolea
 ]
 // Most used first; past KEYWORDS_SHOWN they wait behind "Show all", and the box finds any of them.
 const KEYWORDS_SHOWN = 15
+// People (library facets, jev-facets.ts): "With people" is every count, then each count, then "Without people".
+const peopleCount = (value: string) => facets.people.find((v) => v.value === value)?.count
+const peopleRows = (() => {
+  const some = facets.people.filter((v) => v.value !== 'none')
+  if (facets.people.length === 0) return []
+  const total = some.some((v) => v.count === null) ? null : some.reduce((n, v) => n + (v.count ?? 0), 0)
+  return [
+    ...(some.length > 0 ? [{ value: 'yes', count: total, sub: false }] : []),
+    ...['one', 'two_to_five', 'six_or_more'].filter((v) => peopleCount(v) !== undefined).map((v) => ({ value: v, count: peopleCount(v) ?? null, sub: true })),
+    ...(peopleCount('none') !== undefined ? [{ value: 'no', count: peopleCount('none') ?? null, sub: false }] : []),
+  ]
+})()
+
 const rootKeywords = facets.tag
   .filter((k) => k.parentId === null || !facets.tag.some((p) => p.id === k.parentId))
   .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
@@ -126,6 +140,17 @@ const rootKeywords = facets.tag
       <ul class="values">
         {ratingCounts.map((r) => (
           <li><a href={link({ rating: params.get('rating') === String(r.stars) ? null : String(r.stars) })} class:list={{ on: params.get('rating') === String(r.stars) }}><span class="stars">{r.stars < 5 ? t('facets.andUp', { stars: '★'.repeat(r.stars) }) : '★'.repeat(r.stars)}</span><span class="count">{r.count}</span></a></li>
+        ))}
+      </ul>
+    </details>
+  )}
+
+  {peopleRows.length > 0 && (
+    <details open>
+      <summary>{t('facets.people')}</summary>
+      <ul class="values">
+        {peopleRows.map((r) => (
+          <li class:list={{ sub: r.sub }}><a href={link({ people: params.get('people') === r.value ? null : r.value })} class:list={{ on: params.get('people') === r.value }}><span>{label('people', r.value)}</span><span class="count">{r.count}</span></a></li>
         ))}
       </ul>
     </details>
@@ -277,6 +302,9 @@ const rootKeywords = facets.tag
   .values a.on {
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .values .sub {
+    padding-left: 12px;
   }
   .kw-find {
     width: 100%;

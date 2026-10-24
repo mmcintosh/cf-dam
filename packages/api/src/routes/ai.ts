@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
 import { aiOff, aiStats, getAiSettings, queueForAi, saveAiSettings, type AiSettings } from '../catalog/ai'
+import { facetsAvailable, facetStats, queueFacets } from '../catalog/jev-facets'
 import { nudge } from '../catalog/work'
 import { USD_PER_1000_NEURONS, VISION_MODELS } from '../catalog/vision'
 import type { DamEnv } from '../env'
@@ -57,4 +58,16 @@ aiRoutes.post('/backfill', requirePermission('ai:run'), async (c) => {
   await nudge(c.env, 'ai', queued)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.backfill_queued', details: { queued } })
   return c.json({ queued, stats: await aiStats(c.env.DB) })
+})
+
+/** Library facets from TypeSafe's Jev (catalog/jev-facets.ts): how far they've got. */
+aiRoutes.get('/facets', requirePermission('ai:run'), async (c) => c.json({ stats: await facetStats(c.env) }))
+
+/** Ask about every photo never asked (or failed). The work queue works through them. */
+aiRoutes.post('/facets/queue', requirePermission('ai:run'), async (c) => {
+  if (!facetsAvailable(c.env)) return c.json({ error: 'facets_unavailable', message: say('err.noFacets') }, 409)
+  const queued = await queueFacets(c.env.DB, 'unasked')
+  await nudge(c.env, 'facets', queued)
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'ai.facets_queued', details: { queued } })
+  return c.json({ queued, stats: await facetStats(c.env) })
 })

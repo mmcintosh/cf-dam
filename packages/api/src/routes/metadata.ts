@@ -60,7 +60,7 @@ presetRoutes.delete('/:id', requirePermission('assets:edit'), async (c) => {
 
 export const savedSearchRoutes = new Hono<DamEnv>()
 
-const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'keyword', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'gps', 'storedOn', 'missing', 'orientation', 'type', 'tier', 'sort']
+const KEEP: (keyof ListFilters)[] = ['q', 'tag', 'keyword', 'camera', 'lens', 'albumId', 'from', 'to', 'year', 'month', 'rating', 'flag', 'label', 'country', 'city', 'creator', 'gps', 'storedOn', 'missing', 'orientation', 'people', 'type', 'tier', 'sort']
 const PARAM: Partial<Record<keyof ListFilters, string>> = { albumId: 'album', storedOn: 'on', keyword: 'kw' }
 
 /** Keep only filters the library understands, in a stable order, so a saved search is a clean URL. */

@@ -344,6 +344,8 @@ export interface ListFilters {
   /** A copy of the original is missing (not found in a NAS agent's last scan). */
   missing?: boolean
   orientation?: Orientation
+  /** From the library facets (jev-facets.ts): 'yes' is any number of people, 'no' none, or one count. */
+  people?: PeopleFilter
   type?: FileKind
   tier?: Tier
   sort?: 'captured' | 'added'
@@ -352,6 +354,8 @@ export interface ListFilters {
 }
 
 export type Orientation = 'landscape' | 'portrait' | 'square'
+export const PEOPLE_FILTERS = ['yes', 'no', 'one', 'two_to_five', 'six_or_more', 'some'] as const
+export type PeopleFilter = (typeof PEOPLE_FILTERS)[number]
 /** Colour labels, as in Lightroom. Their display names are a setting (labels.names). */
 export const LABELS = ['red', 'yellow', 'green', 'blue', 'purple'] as const
 export type Label = (typeof LABELS)[number]
@@ -477,6 +481,13 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   if (use('orientation')) {
     where.push(`(${ORIENTATION_SQL}) = ?`)
     params.push(filters.orientation)
+  }
+  if (use('people')) {
+    if (filters.people === 'yes') where.push("a.facet_people IS NOT NULL AND a.facet_people != 'none'")
+    else {
+      where.push('a.facet_people = ?')
+      params.push(filters.people === 'no' ? 'none' : filters.people)
+    }
   }
   if (use('type')) {
     where.push(`(${KIND_SQL}) = ?`)
@@ -608,6 +619,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     storedOn: text(query.on, 100),
     missing: query.missing === '1' ? true : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
+    people: (PEOPLE_FILTERS as readonly string[]).includes(query.people ?? '') ? (query.people as PeopleFilter) : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,
     sort: query.sort === 'added' ? 'added' : 'captured',

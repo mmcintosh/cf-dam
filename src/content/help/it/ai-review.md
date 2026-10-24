@@ -4,7 +4,7 @@ summary: "Far descrivere le tue foto a un modello di IA, quanto costa e come res
 section: Your photos
 order: 5
 review: machine
-source: f491e36f33e9
+source: bd70af3f3fd8
 ---
 
 La revisione IA guarda ogni foto e scrive dei suggerimenti: **testo alternativo**, una **didascalia**, una descrizione più lunga di **ciò che ha visto**, l’eventuale **testo nell’immagine** (cartelli, documenti), **parole chiave** suggerite e una nota sulla qualità. Rende ricercabile un grande archivio in un modo che nessuno ha il tempo di fare a mano, ed è ciò che legge la [ricerca per significato](/help/search).
@@ -35,6 +35,14 @@ Per accettare i suggerimenti di molte foto insieme, selezionale nella libreria e
 ### Analizzare tutto in una volta
 
 Se alcune foto non sono mai state analizzate, **Analizza l’archivio esistente** dice quante sono e quanto costerà, più o meno. Premi **Metti in coda** per iniziare. Le foto vengono elaborate in background, alcune alla volta; tu puoi continuare a lavorare. Una foto che non riesce viene riprovata un paio di volte, poi viene segnata come **non riuscita** con il motivo.
+
+## Persone nelle foto
+
+Accanto alla revisione IA, **Jev** di TypeSafe cerca le persone in ogni nuova foto, e quante sono, per il filtro **Persone** della libreria. È più veloce ed economico della revisione IA (circa 9 centesimi ogni 1.000 foto) e in una prova su 805 foto ha trovato persone in 87 dove la revisione IA ne trovava 47, per lo più piccole figure sullo sfondo. Non scrive testo.
+
+- **Cosa viene inviato:** una copia di 1.024 px di ogni foto, senza nome del file, dati della fotocamera né luogo, va a TypeSafe (api.typesafe.ai). TypeSafe dichiara di non usarla per l’addestramento.
+- **Foto precedenti:** il riquadro **Persone nelle foto** di questa pagina dice quante sono state esaminate; **Cerca persone nelle restanti** si occupa delle altre.
+- I video non vengono esaminati, né le foto sotto i 280 pixel per lato.
 
 ## Quanto costa
 

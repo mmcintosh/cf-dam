@@ -34,6 +34,14 @@ To accept suggestions for many photos at once, select them in the library and us
 
 If some photos have never been analysed, **Analyse the back catalogue** says how many, and roughly what it will cost. Press **Queue** to start. Photos are worked through in the background, several at a time; you can carry on working. A photo that fails is tried again a couple of times, then marked **failed** with the reason.
 
+## People in photos
+
+Beside the AI review, TypeSafe's **Jev** looks at each new photo for people, and how many, for the library's **People** filter. It's faster and cheaper than the AI review (about 9 cents per 1,000 photos), and in a test on 805 photos it found people in 87 where the AI review found 47, mostly small figures in the background. It writes no text.
+
+- **What is sent:** a 1,024 px copy of each photo, without its filename, camera data or location, goes to TypeSafe (api.typesafe.ai). TypeSafe says it doesn't train on it.
+- **Older photos:** the **People in photos** panel on this page says how many have been looked at; **Find people in the rest** does the others.
+- Videos aren't looked at, nor photos under 280 pixels on a side.
+
 ## What it costs
 
 Workers AI is billed in **neurons**. Cloudflare gives 10,000 neurons a day free, then charges $0.011 per 1,000.

@@ -491,6 +491,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.facetsQueued": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.imported": {
     "es": "machine",
     "de": "machine",
@@ -1524,6 +1530,12 @@
     "it": "machine"
   },
   "alert.stage.checks": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.facets": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -4540,6 +4552,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "err.noFacets": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "err.noImages": {
     "es": "machine",
     "de": "machine",
@@ -4895,6 +4913,42 @@
     "it": "machine"
   },
   "facets.orientation.square": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people.no": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people.onePerson": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people.sixOrMore": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people.twoToFive": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.people.yes": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -8538,6 +8592,42 @@
     "it": "machine"
   },
   "people.you": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.counts": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.find": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.lead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.notSetUp": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.privacy": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peopleFacets.title": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

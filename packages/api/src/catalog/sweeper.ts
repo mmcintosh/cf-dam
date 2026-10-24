@@ -48,6 +48,7 @@ import { fillQuickHashes } from './duplicates'
 import { finishAsset, processAsset } from './process'
 import { fillPlacesFromGps, placeIndex } from './places'
 import { indexAssets, unindexed } from './search'
+import { facetsAvailable, facetsSweep } from './jev-facets'
 import { meaningStep } from './meaning'
 import { pruneGalleryCache } from './watermark'
 
@@ -57,7 +58,8 @@ export const SLICES = {
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
-  ai: { ms: 25_000, queries: 180 },
+  ai: { ms: 25_000, queries: 175 },
+  facets: { ms: 2_000, queries: 5 },
   meaning: { ms: 5_000, queries: 10 },
   hash: { ms: 8_000, queries: 100 },
   restores: { ms: 5_000, queries: 60 },
@@ -230,6 +232,18 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       )
       .bind(AI_MAX_ATTEMPTS, AI_MAX_ATTEMPTS, new Date(Date.now() - AI_RUNNING_STALE_MS).toISOString())
       .run()
+  }
+
+  // Library facets (jev-facets.ts) are asked of TypeSafe by the work queue; this only puts failed photos back
+  // after a pause, takes back ones a dead run left, and nudges the queue when work waits and nothing moves.
+  // Without the key it asks nothing.
+  if (facetsAvailable(env) && slice('facets').more()) {
+    try {
+      const { nudge: waiting } = await facetsSweep(db)
+      if (waiting > 0) await nudge(env, 'facets', waiting)
+    } catch (error) {
+      await noteSweepFailure(db, 'facets', error)
+    }
   }
 
   // Search by meaning: vectors for photos whose words changed (catalog/meaning.ts).

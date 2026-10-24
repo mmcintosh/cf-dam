@@ -21,6 +21,11 @@ export interface DamBindings {
   /** Workers AI, for tags, alt text and captions. Without it, AI review is off. */
   AI?: Ai
   /**
+   * TypeSafe's Jev, for library facets such as people (catalog/jev-facets.ts). Without it, nothing is sent and the
+   * People filter stays empty. Photos go to api.typesafe.ai: revisit before release (cf-dam-docs HANDOFF §19).
+   */
+  TYPESAFE_API_KEY?: string
+  /**
    * Vectorize, for search by meaning (catalog/meaning.ts): 1,024 dimensions, cosine. Without it, that
    * search is absent.
    */

@@ -33,6 +33,7 @@ export const PLAIN_FACETS = {
   orientation: { expr: `(${ORIENTATION_SQL})`, limit: 3 },
   type: { expr: `(${KIND_SQL})`, limit: 4 },
   tier: { expr: TIER_SQL, limit: 4 },
+  people: { expr: 'a.facet_people', limit: 5 },
 } as const
 export type PlainFacet = keyof typeof PLAIN_FACETS
 
@@ -116,7 +117,8 @@ async function assetSlice(db: D1Database, after: number, partial: Build['partial
   names.forEach((name, i) => {
     for (const row of results[i]!.results as { value: string | null; n: number }[]) {
       if (name === 'year') partial.photos += row.n
-      if (row.value !== null) add(partial.facets[name], String(row.value), row.n)
+      // A build begun before a facet existed has no counts for it yet.
+      if (row.value !== null) add((partial.facets[name] ??= {}), String(row.value), row.n)
     }
   })
   const months = results[names.length]
@@ -199,7 +201,7 @@ export async function statsStep(env: DamBindings, more: () => boolean, sliceRows
     else {
       // Long tails (every city, every lens) are cut well past what a facet shows, to keep the row small.
       const facets = Object.fromEntries(
-        (Object.keys(PLAIN_FACETS) as PlainFacet[]).map((name) => [name, Object.fromEntries(topValues(build!.partial.facets[name], 500).map((v) => [v.value, v.count]))]),
+        (Object.keys(PLAIN_FACETS) as PlainFacet[]).map((name) => [name, Object.fromEntries(topValues(build!.partial.facets[name] ?? {}, 500).map((v) => [v.value, v.count]))]),
       ) as Record<PlainFacet, Counts>
       const snapshot: StatsSnapshot = { builtAt: build.startedAt, ...build.partial, facets }
       await db.batch([

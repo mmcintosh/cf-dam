@@ -4,7 +4,7 @@ summary: "Recorrer tus fotos, filtrarlas, valorarlas y etiquetarlas, y trabajar 
 section: Your photos
 order: 1
 review: machine
-source: aa45980c84f6
+source: 455cb9a044df
 ---
 
 La **Biblioteca** muestra todas las fotos y vídeos, los más recientes primero, en filas que respetan la forma de cada foto. Desplázate hacia abajo y pulsa **Cargar más** para ver fotos más antiguas.
@@ -12,6 +12,8 @@ La **Biblioteca** muestra todas las fotos y vídeos, los más recientes primero,
 ## Filtrar
 
 - **Filtros** en el lateral izquierdo: palabras clave, valoración, etiqueta de color, elegida o descartada, año, cámara, objetivo, lugar, autor, tipo de archivo, dónde se guarda el original, horizontal o vertical, con o sin GPS, y más. Cada uno indica cuántas fotos coinciden. Elige tantos como quieras; **Quitar todos** vuelve a empezar.
+- **Personas:** **Con personas**, o cuántas (una, 2–5, 6 o más), o **Sin personas**. Cuenta cualquiera que se vea, aunque esté lejos, en una multitud o en un paisaje. Consulta [Personas en las fotos](/help/ai-review).
+- **Palabras clave:** escribe en **Buscar una palabra clave** para encontrar una en una lista larga. Las más usadas salen primero; **Mostrar todas** muestra el resto.
 - **La cronología**, arriba, muestra cuántas fotos tienes por mes. Haz clic en un mes para ver solo esas.
 - **Ordena** por **Fecha de la toma** o por **Añadidas recientemente**.
 - **Busca** con el cuadro de arriba, en cualquier página. Consulta [Buscar](/help/search).

@@ -4,7 +4,7 @@ summary: "Sfogliare le foto, restringere la scelta, valutarle ed etichettarle, e
 section: Your photos
 order: 1
 review: machine
-source: aa45980c84f6
+source: 455cb9a044df
 ---
 
 La **Libreria** mostra tutte le foto e i video, dal più recente, in righe che rispettano la forma di ogni foto. Scorri in basso e premi **Carica altre** per andare più indietro.
@@ -12,6 +12,8 @@ La **Libreria** mostra tutte le foto e i video, dal più recente, in righe che r
 ## Restringere la scelta
 
 - **Filtri** sulla sinistra: parole chiave, valutazione, etichetta colore, scelta o scartata, anno, fotocamera, obiettivo, luogo, autore, tipo di file, dove si trova l’originale, orizzontale o verticale, con o senza GPS, e altro. Ognuno mostra quante foto corrispondono. Scegline quanti vuoi; **Cancella tutti** ricomincia da capo.
+- **Persone:** **Con persone**, o quante (una, 2–5, 6 o più), o **Senza persone**. Conta chiunque si veda, anche lontano, in una folla o in un paesaggio. Vedi [Persone nelle foto](/help/ai-review).
+- **Parole chiave:** scrivi in **Trova una parola chiave** per trovarne una in un elenco lungo. Le più usate vengono prima; **Mostra tutte** mostra le altre.
 - **La cronologia** in alto mostra quante foto hai per ogni mese. Fai clic su un mese per vedere solo quelle.
 - **Ordina** per **Data dello scatto** o **Aggiunte di recente**.
 - **Cerca** con la casella in cima a ogni pagina. Vedi [Cercare](/help/search).

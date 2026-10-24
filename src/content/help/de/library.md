@@ -4,7 +4,7 @@ summary: "Deine Fotos durchsehen, eingrenzen, bewerten und markieren, und viele 
 section: Your photos
 order: 1
 review: machine
-source: aa45980c84f6
+source: 455cb9a044df
 ---
 
 Die **Bibliothek** zeigt jedes Foto und Video, das neueste zuerst, in Reihen, die die Form jedes Fotos beibehalten. Scroll nach unten und drücke **Mehr laden**, um weiter zurückzugehen.
@@ -12,6 +12,8 @@ Die **Bibliothek** zeigt jedes Foto und Video, das neueste zuerst, in Reihen, di
 ## Eingrenzen
 
 - **Filter** links: Stichwörter, Bewertung, Farbmarkierung, ausgewählt oder abgelehnt, Jahr, Kamera, Objektiv, Ort, Urheber, Dateityp, wo das Original liegt, Quer- oder Hochformat, mit oder ohne GPS und mehr. Jeder zeigt, wie viele Fotos passen. Wähle so viele, wie du willst; **Alle entfernen** fängt neu an.
+- **Personen:** **Mit Personen**, oder wie viele (eine, 2–5, 6 oder mehr), oder **Ohne Personen**. Jede sichtbare Person zählt, auch weit weg in einer Menge oder einer Landschaft. Siehe [Personen auf Fotos](/help/ai-review).
+- **Stichwörter:** Tippe in **Stichwort suchen**, um eines in einer langen Liste zu finden. Die meistgenutzten stehen oben; **Alle anzeigen** zeigt den Rest.
 - **Die Zeitleiste** oben zeigt, wie viele Fotos du pro Monat hast. Klick auf einen Monat, um nur diese zu sehen.
 - **Sortierung** nach **Aufnahmedatum** oder **Zuletzt hinzugefügt**.
 - **Suche** mit dem Feld oben auf jeder Seite. Siehe [Suchen](/help/search).

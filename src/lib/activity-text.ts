@@ -213,6 +213,8 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.aiSettings', { who })
     case 'ai.backfill_queued':
       return t('act.aiBackfill', { who })
+    case 'ai.facets_queued':
+      return t('act.facetsQueued', { who })
     case 'storage.check_problem': {
       const where = str(d.connection) || t('act.itsStore')
       return t(d.result === 'missing' ? 'act.checkMissing' : d.result === 'changed' ? 'act.checkChanged' : 'act.checkUnreadable', { where })
