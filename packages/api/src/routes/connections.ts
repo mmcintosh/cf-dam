@@ -16,6 +16,7 @@ import {
   listConnections,
   providerFor,
   setDefaultConnection,
+  underPrefix,
 } from '../storage/connections'
 import { isStorageClass, StorageError, type StorageClass } from '../storage/types'
 import { say } from '../lib/language'
@@ -129,7 +130,8 @@ connectionRoutes.post('/:id/test', requirePermission('sources:manage'), async (c
   const connection = await getConnection(c.env.DB, c.req.param('id'))
   if (!connection || connection.provider === 'nas') return c.json({ error: 'not_found' }, 404)
   try {
-    await providerFor(c.env, connection).test()
+    // cf-dam's own probe goes under the prefix, where a keyless role may write.
+    await underPrefix(providerFor(c.env, connection), connection.prefix).test()
     return c.json({ ok: true })
   } catch (error) {
     return c.json({ ok: false, message: error instanceof Error ? error.message : 'The test failed.' })

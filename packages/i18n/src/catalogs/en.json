@@ -1510,6 +1510,7 @@
   "restore.phase.bands": "Rebuilding look-alike matching",
   "restore.phase.reseed": "Finishing off",
   "restore.phase.tables": "Loading the catalog",
+  "restore.prefixPlaceholder": "If the connection had one",
   "restore.progress": "{done} of {total} rows. It carries on by itself, a part each minute; you can close this page and come back.",
   "restore.r2": "This install’s built-in storage (R2), if it still has them",
   "restore.restoreThis": "Restore this backup",

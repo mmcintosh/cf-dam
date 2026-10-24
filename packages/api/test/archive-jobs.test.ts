@@ -85,6 +85,10 @@ class FakeS3 {
       this.uploads.delete(q.get('uploadId')!)
       return new Response(null, { status: 204 })
     }
+    if (request.method === 'DELETE') {
+      this.objects.delete(key)
+      return new Response(null, { status: 204 })
+    }
     if (request.method === 'PUT' && header('x-amz-copy-source')) {
       const o = this.objects.get(key)!
       o.storageClass = header('x-amz-storage-class') ?? 'STANDARD'
@@ -182,6 +186,26 @@ describe('archiving delivered jobs', () => {
     expect((await jobStorage(h.env.DB, [jobId])).get(jobId)).toMatchObject({ photos: 2, readable: 2, coldBackup: 2 })
     const log = await h.env.DB.prepare("SELECT action FROM activity_log WHERE target_id = ? AND action = 'job.archived'").bind(jobId).all()
     expect(log.results).toHaveLength(1)
+  })
+
+  it('keeps its copies and the connection test inside the connection’s folder, where a keyless role may write', async () => {
+    await h.env.DB.prepare("UPDATE storage_connections SET prefix = 'studio/' WHERE id = ?").bind(s3Id).run()
+    expect((await settings({ enabled: true, connectionId: s3Id, afterDays: 0 })).status).toBe(200)
+    await step()
+    await drain()
+    const stored = [...s3.objects.keys()]
+    expect(stored).toHaveLength(2)
+    expect(stored.every((k) => k.startsWith('studio/originals/'))).toBe(true)
+    const keys = await h.env.DB.prepare('SELECT key FROM asset_locations WHERE connection_id = ?').bind(s3Id).all<{ key: string }>()
+    expect(keys.results.every((r) => r.key.startsWith('studio/originals/'))).toBe(true)
+
+    const tested = await h.fetch(`/api/connections/${s3Id}/test`, { method: 'POST', cookie: admin })
+    expect(await tested.json()).toEqual({ ok: true })
+    expect(s3.log.filter((l) => l.includes('.cf-dam-connection-test'))).toEqual([
+      'PUT studio/.cf-dam-connection-test',
+      'HEAD studio/.cf-dam-connection-test',
+      'DELETE studio/.cf-dam-connection-test',
+    ])
   })
 
   it('starts the copy again when the R2 original changes on the way', async () => {

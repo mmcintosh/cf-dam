@@ -16,7 +16,7 @@
 import type { DamBindings } from '../env'
 import { logActivity } from '../lib/activity'
 import { nowIso } from '../lib/time'
-import { getConnection, providerFor, type Connection } from '../storage/connections'
+import { getConnection, providerFor, underPrefix, type Connection } from '../storage/connections'
 import type { StorageProvider } from '../storage/types'
 
 export const BACKUP_PREFIX = 'cf-dam-backups'
@@ -178,7 +178,8 @@ export function backupDue(config: BackupConfig, lastStartedAt: string | null, no
 async function destination(env: DamBindings, connectionId: string): Promise<{ connection: Connection; provider: StorageProvider }> {
   const connection = await getConnection(env.DB, connectionId)
   if (!connection || connection.provider === 'nas') throw new Error('The backup destination no longer exists. Choose another on the Storage page.')
-  return { connection, provider: providerFor(env, connection) }
+  // Under the connection's prefix (cf-dam-backups/<id>/ inside it): a keyless role may only write there.
+  return { connection, provider: underPrefix(providerFor(env, connection), connection.prefix) }
 }
 
 /** Start a backup now. Returns null if one is already running. */
@@ -298,7 +299,7 @@ async function prune(env: DamBindings, config: BackupConfig): Promise<number> {
     await db.prepare('DELETE FROM backups WHERE id = ?').bind(old.id).run()
     return 0
   }
-  const provider = providerFor(env, connection)
+  const provider = underPrefix(providerFor(env, connection), connection.prefix)
   // The manifest goes first, so a half-deleted backup never looks finished.
   await db.prepare("UPDATE backups SET status = 'deleting' WHERE id = ?").bind(old.id).run()
   await provider.delete(manifestKey(old.id))

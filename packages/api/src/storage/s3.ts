@@ -48,6 +48,7 @@ export interface S3Config {
 
 /** Single objects above this go through multipart copy, which S3 requires past 5 GiB. */
 const MAX_SINGLE_COPY = 5 * 1024 ** 3
+// The same name as connections.ts PROBE_KEY (kept apart: connections.ts imports this file).
 const PROBE_KEY = '.cf-dam-connection-test'
 
 /** Percent-encode each path segment of an object key, keeping the slashes. */

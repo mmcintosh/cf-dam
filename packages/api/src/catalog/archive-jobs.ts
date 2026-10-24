@@ -15,7 +15,7 @@
  * keep moving) copies one item per step. Jobs with Keep hot are skipped.
  */
 import { nowIso } from '../lib/time'
-import { getConnection, providerFor } from '../storage/connections'
+import { connectionKey, getConnection, providerFor, type Connection } from '../storage/connections'
 import { ARCHIVE_CLASSES, type CompletedPart, type StorageClass, type StorageProvider } from '../storage/types'
 import type { DamBindings } from '../env'
 import { logActivity } from '../lib/activity'
@@ -283,7 +283,7 @@ export async function archiveOne(env: DamBindings): Promise<'done' | 'more' | 'n
     const s3 = providerFor(env, connection)
     if (item.action === 'move') await moveItem(db, s3, item)
     else {
-      const result = await copyItem(env, s3, item, save)
+      const result = await copyItem(env, s3, connection, item, save)
       if (result === 'more') {
         await save({ state: 'waiting' })
         return 'more'
@@ -318,7 +318,7 @@ async function moveItem(db: D1Database, s3: StorageProvider, item: ItemRow): Pro
 }
 
 /** Copy the R2 original to S3 (see the module comment). 'more' when the step's time ran out first. */
-async function copyItem(env: DamBindings, s3: StorageProvider, item: ItemRow, save: (fields: Record<string, unknown>) => Promise<unknown>): Promise<'done' | 'more'> {
+async function copyItem(env: DamBindings, s3: StorageProvider, connection: Connection, item: ItemRow, save: (fields: Record<string, unknown>) => Promise<unknown>): Promise<'done' | 'more'> {
   const db = env.DB
   const started = Date.now()
   const [r2Connection, asset, source] = await Promise.all([
@@ -338,7 +338,8 @@ async function copyItem(env: DamBindings, s3: StorageProvider, item: ItemRow, sa
     uploadId = null
     parts = []
   }
-  key ??= `originals/${item.asset_id}/${Date.now()}-${safeName(asset.filename)}`
+  // Under the connection's prefix: a keyless role may only write there.
+  key ??= connectionKey(connection, `originals/${item.asset_id}/${Date.now()}-${safeName(asset.filename)}`)
   await save({ key, source_etag: head.etag })
 
   if (head.size <= COPY_PART) {

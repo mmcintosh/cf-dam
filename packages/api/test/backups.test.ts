@@ -15,7 +15,8 @@ import {
   startBackup,
 } from '../src/catalog/backups'
 import { runSweep } from '../src/catalog/sweeper'
-import { getConnection, providerFor } from '../src/storage/connections'
+import { listBackups } from '../src/catalog/restore'
+import { getConnection, providerFor, underPrefix } from '../src/storage/connections'
 import { ADMIN, createHarness, createUser, json, setUpAdmin, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -189,6 +190,17 @@ describe('a catalog backup', () => {
     await prune()
     expect(await left()).toEqual([newest])
     expect(await readManifest(await r2(), newest)).not.toBeNull()
+  })
+
+  it('goes inside the connection’s folder, where a keyless role may write, and is found there', async () => {
+    // The built-in bucket with a folder stands in for a prefixed S3 connection.
+    await h.env.DB.prepare("UPDATE storage_connections SET prefix = 'studio/' WHERE id = 'r2'").run()
+    const id = await backUp()
+    expect((await (await r2()).list(`studio/cf-dam-backups/${id}/`)).objects.length).toBeGreaterThan(1)
+    expect((await (await r2()).list('cf-dam-backups/')).objects).toEqual([])
+    const inside = underPrefix(await r2(), 'studio')
+    expect(await readManifest(inside, id)).not.toBeNull()
+    expect((await listBackups(inside)).map((b) => b.id)).toEqual([id])
   })
 
   it('is set up and started from the Storage page', async () => {

@@ -9275,6 +9275,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "restore.prefixPlaceholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "restore.progress": {
     "es": "machine",
     "de": "machine",

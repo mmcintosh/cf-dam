@@ -32,7 +32,7 @@
   let restore = $state<RestoreView | null>(initial)
   let token = $state('')
   let kind = $state<'r2' | 's3'>('r2')
-  let s3 = $state({ endpoint: 'https://s3.us-east-1.amazonaws.com', region: 'us-east-1', bucket: '', accessKeyId: '', secretAccessKey: '', forcePathStyle: false })
+  let s3 = $state({ endpoint: 'https://s3.us-east-1.amazonaws.com', region: 'us-east-1', bucket: '', prefix: '', accessKeyId: '', secretAccessKey: '', forcePathStyle: false })
   let backups = $state<Backup[] | null>(null)
   let chosen = $state('')
   let name = $state('')
@@ -139,6 +139,7 @@
     <div class="row">
       <div class="field"><label for="s3-region">{t('conn.region')}</label><input id="s3-region" type="text" bind:value={s3.region} /></div>
       <div class="field"><label for="s3-bucket">{t('conn.bucket')}</label><input id="s3-bucket" type="text" required bind:value={s3.bucket} /></div>
+      <div class="field"><label for="s3-prefix">{t('conn.prefix')}</label><input id="s3-prefix" type="text" placeholder={t('restore.prefixPlaceholder')} bind:value={s3.prefix} /></div>
     </div>
     <div class="field"><label for="s3-key">{t('conn.accessKeyId')}</label><input id="s3-key" type="text" autocomplete="off" required bind:value={s3.accessKeyId} /></div>
     <div class="field"><label for="s3-secret">{t('conn.secret')}</label><input id="s3-secret" type="password" autocomplete="off" required bind:value={s3.secretAccessKey} /></div>

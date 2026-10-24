@@ -1552,6 +1552,7 @@
   "restore.phase.bands": "Reconstruction de la détection des photos similaires",
   "restore.phase.reseed": "Finalisation",
   "restore.phase.tables": "Chargement du catalogue",
+  "restore.prefixPlaceholder": "Si la connexion en avait un",
   "restore.progress": "{done} lignes sur {total}. Cela continue tout seul, une partie chaque minute ; vous pouvez fermer cette page et revenir.",
   "restore.r2": "Le stockage intégré de cette installation (R2), s’il les a encore",
   "restore.restoreThis": "Restaurer cette sauvegarde",

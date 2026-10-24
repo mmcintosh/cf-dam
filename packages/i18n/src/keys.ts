@@ -1470,6 +1470,7 @@ export type MessageKey =
   | 'restore.phase.bands'
   | 'restore.phase.reseed'
   | 'restore.phase.tables'
+  | 'restore.prefixPlaceholder'
   | 'restore.progress'
   | 'restore.r2'
   | 'restore.restoreThis'

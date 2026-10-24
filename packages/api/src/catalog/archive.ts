@@ -14,7 +14,7 @@
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
-import { getConnection, providerFor, type Connection } from '../storage/connections'
+import { connectionKey, getConnection, providerFor, type Connection } from '../storage/connections'
 import { isStorageClass, type StorageClass } from '../storage/types'
 import { AgentError, type SourceRow } from './agents'
 import { safeFilename } from './uploads'
@@ -161,7 +161,8 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
   const partSize = Math.max(base, Math.ceil((size as number) / MAX_PARTS / (1024 * 1024)) * 1024 * 1024)
   const partCount = Math.max(1, Math.ceil((size as number) / partSize))
   const startedAt = nowIso()
-  const key = `originals/${assetId}/${startedAt.replace(/[:.]/g, '-')}-${safeFilename(nas.filename)}`
+  // Under the connection's prefix: a keyless role may only write there.
+  const key = connectionKey(connection, `originals/${assetId}/${startedAt.replace(/[:.]/g, '-')}-${safeFilename(nas.filename)}`)
   const storageClass = settings.storageClass ?? connection.defaultClass
   const multipartId = await providerFor(env, connection).createMultipart(key, { storageClass: storageClass as StorageClass, checksumSha256: true })
   const id = randomId()

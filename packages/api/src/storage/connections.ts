@@ -264,6 +264,46 @@ export function connectionKey(connection: Connection, key: string): string {
   return connection.prefix ? `${connection.prefix.replace(/\/+$/, '')}/${key}` : key
 }
 
+/** The probe the test writes, reads back and deletes (the importer skips it). */
+export const PROBE_KEY = '.cf-dam-connection-test'
+
+/**
+ * A provider that puts the connection's prefix in front of every key, and takes it off listed ones: for cf-dam's
+ * own files that are found by name rather than by a stored key (catalog backups, the test probe). With a keyless
+ * connection the role may only touch keys under the prefix, so these must stay inside it. No prefix: the provider.
+ */
+export function underPrefix(provider: StorageProvider, prefix: string): StorageProvider {
+  const root = prefix.replace(/\/+$/, '')
+  if (!root) return provider
+  const k = (key: string) => `${root}/${key}`
+  const p = provider
+  return {
+    kind: p.kind,
+    capabilities: p.capabilities,
+    put: (key, body, options) => p.put(k(key), body, options),
+    head: (key) => p.head(k(key)),
+    get: (key, range) => p.get(k(key), range),
+    delete: (key) => p.delete(k(key)),
+    list: async (listPrefix, cursor) => {
+      const page = await p.list(k(listPrefix), cursor)
+      return { ...page, objects: page.objects.map((o) => ({ ...o, key: o.key.slice(root.length + 1) })) }
+    },
+    createMultipart: (key, options) => p.createMultipart(k(key), options),
+    uploadPart: (key, uploadId, partNumber, body, size, options) => p.uploadPart(k(key), uploadId, partNumber, body, size, options),
+    completeMultipart: (key, uploadId, parts) => p.completeMultipart(k(key), uploadId, parts),
+    abortMultipart: (key, uploadId) => p.abortMultipart(k(key), uploadId),
+    presignPart: p.presignPart && ((key, uploadId, partNumber, expires, options) => p.presignPart!(k(key), uploadId, partNumber, expires, options)),
+    presignGet: p.presignGet && ((key, options) => p.presignGet!(k(key), options)),
+    setStorageClass: p.setStorageClass && ((key, storageClass) => p.setStorageClass!(k(key), storageClass)),
+    restore: p.restore && ((key, options) => p.restore!(k(key), options)),
+    test: async () => {
+      await p.put(k(PROBE_KEY), `ok ${nowIso()}`, { contentType: 'text/plain' })
+      if (!(await p.head(k(PROBE_KEY)))) throw new StorageError('Wrote a test object but could not read it back.', 'ProbeMissing')
+      await p.delete(k(PROBE_KEY))
+    },
+  }
+}
+
 /** A provider for a connection. Credentials are unsealed lazily, on the first request that needs them. */
 export function providerFor(env: DamBindings, connection: Connection, fetchImpl?: typeof fetch): StorageProvider {
   if (connection.provider === 'nas') {

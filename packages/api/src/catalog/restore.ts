@@ -17,7 +17,7 @@ import type { DamBindings } from '../env'
 import { BadRequest, requiredString } from '../lib/http'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
-import { validateEndpoint } from '../storage/connections'
+import { underPrefix, validateEndpoint } from '../storage/connections'
 import { R2Provider } from '../storage/r2'
 import { S3Provider } from '../storage/s3'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
@@ -29,8 +29,10 @@ import { say } from '../lib/language'
 /** Where the backup is, as the person restoring gives it. */
 export type RestoreSource =
   | { kind: 'r2' }
-  | { kind: 's3'; endpoint: string; region: string; bucket: string; forcePathStyle: boolean; accessKeyId: string; secretAccessKey: string }
-type StoredSource = { kind: 'r2' } | { kind: 's3'; endpoint: string; region: string; bucket: string; forcePathStyle: boolean; accessKeyId: string; secretSealed: string }
+  | { kind: 's3'; endpoint: string; region: string; bucket: string; forcePathStyle: boolean; accessKeyId: string; secretAccessKey: string; prefix?: string }
+type StoredSource =
+  | { kind: 'r2' }
+  | { kind: 's3'; endpoint: string; region: string; bucket: string; forcePathStyle: boolean; accessKeyId: string; secretSealed: string; prefix?: string }
 
 export type RestoreStatus = 'running' | 'restored' | 'finished' | 'failed'
 
@@ -106,6 +108,8 @@ export function parseSource(body: Record<string, unknown>): RestoreSource {
     forcePathStyle: s.forcePathStyle === true,
     accessKeyId: requiredString(s, 'accessKeyId', 255),
     secretAccessKey: requiredString(s, 'secretAccessKey', 255),
+    // The connection's prefix, if it had one: backups are under it.
+    prefix: typeof s.prefix === 'string' ? s.prefix.trim().replace(/^\/+|\/+$/g, '') : '',
   }
 }
 
@@ -115,7 +119,8 @@ export function sourceProvider(env: DamBindings, source: RestoreSource): Storage
     return new R2Provider(env.MEDIA_BUCKET)
   }
   const { accessKeyId, secretAccessKey } = source
-  return new S3Provider({ endpoint: source.endpoint, region: source.region, bucket: source.bucket, forcePathStyle: source.forcePathStyle, credentials: async () => ({ accessKeyId, secretAccessKey }) })
+  const provider = new S3Provider({ endpoint: source.endpoint, region: source.region, bucket: source.bucket, forcePathStyle: source.forcePathStyle, credentials: async () => ({ accessKeyId, secretAccessKey }) })
+  return underPrefix(provider, source.prefix ?? '')
 }
 
 async function storedProvider(env: DamBindings, stored: StoredSource): Promise<StorageProvider> {
