@@ -4,7 +4,7 @@ summary: "Una guía paso a paso, desde abrir una cuenta de Amazon Web Services h
 section: Where photos are kept
 order: 2
 review: machine
-source: a41b1d1edfa1
+source: 63cdd90c1d97
 ---
 
 Amazon es conocida sobre todo como tienda, pero también alquila almacenamiento a través de un negocio aparte, **Amazon Web Services (AWS)**. Su servicio de almacenamiento se llama **S3**. Muchos fotógrafos lo usan porque una parte de él, **Glacier Deep Archive**, guarda un terabyte por alrededor de un dólar al mes.
@@ -53,12 +53,12 @@ cf-dam puede acceder a tu bucket de dos formas. **Sin claves** es más seguro: n
 
 Necesitarás tu **AWS account ID**: el número de 12 cifras que aparece en el menú bajo el nombre de tu cuenta, arriba a la derecha en la consola de AWS.
 
-1. En cf-dam, abre **Almacenamiento** y pulsa **Añadir una conexión S3**.
+1. En cf-dam, abre **Almacenamiento** y pulsa **Añadir una conexión**.
 2. Elige **Amazon S3** y luego **Sin claves: una función de IAM (recomendado)**.
 3. Rellena un **Nombre**, el nombre del **Bucket**, el código de **Región** y, si quieres, una **Carpeta en el bucket** como `cf-dam`.
 4. **ARN de la función:** escribe `arn:aws:iam::`, luego tu ID de cuenta de 12 cifras y después `:role/cf-dam`. Por ejemplo: `arn:aws:iam::123456789012:role/cf-dam`. (Crearás esta función en un momento.)
-5. Pulsa **Añadir y probar**. De momento la prueba falla: es lo esperado.
-6. En la nueva conexión, abre **Configuración de AWS para esta conexión sin claves**. Muestra tres cosas que copiar: una **URL y audiencia del proveedor de identidad**, una **política de confianza** y una **política de permisos**.
+5. Pulsa **Añadir y probar**. cf-dam abre la página de la nueva conexión.
+6. En esa página, **Configuración de AWS para esta conexión sin claves** está abierta. Muestra tres cosas que copiar: una **URL y audiencia del proveedor de identidad**, una **política de confianza** y una **política de permisos**.
 
 Ahora, en la consola de AWS:
 
@@ -97,7 +97,7 @@ La política de permisos solo deja entrar a cf-dam en **ese bucket** (y esa carp
 4. Llama a la política `cf-dam-bucket` y créala.
 5. En la pestaña **Security credentials** del usuario, elige **Create access key**, escoge **Application running outside AWS** y créala.
 6. AWS muestra un **Access key ID** y una **Secret access key**. El secreto se muestra **una sola vez**: deja esta página abierta.
-7. En cf-dam, **Almacenamiento → Añadir una conexión S3 → Amazon S3 → Claves de acceso**. Rellena el nombre, el bucket, la región y la carpeta, pega las dos claves y pulsa **Añadir y probar**.
+7. En cf-dam, **Almacenamiento → Añadir una conexión → Amazon S3 → Claves de acceso**. Rellena el nombre, el bucket, la región y la carpeta, pega las dos claves y pulsa **Añadir y probar**.
 
 cf-dam cifra el secreto antes de guardarlo y no lo vuelve a mostrar. Nunca envíes claves por correo ni las pegues en ningún otro sitio.
 
@@ -105,15 +105,16 @@ cf-dam cifra el secreto antes de guardarlo y no lo vuelve a mostrar. Nunca enví
 
 Cuando subes desde el navegador a una conexión S3, los archivos van directamente de tu ordenador a Amazon. El bucket tiene que permitirlo:
 
-1. En el formulario **Añadir una conexión S3** de cf-dam (o cuando añadas otra), abre **Las subidas desde el navegador van directas al bucket** y copia la regla.
+1. En la página de la conexión en cf-dam, bajo **Subir desde el navegador**, pulsa **Copiar** junto a la regla.
 2. En la consola de AWS, abre el bucket, luego **Permissions**, baja hasta **Cross-origin resource sharing (CORS)** y elige **Edit**.
 3. Pega la regla y pulsa **Save changes**.
+4. De vuelta en cf-dam, pulsa **Probar la subida desde este navegador**.
 
 No lo necesitas si tus fotos solo llegan a S3 porque se importan o se mueven allí.
 
 ## 6. Hazlo predeterminado (opcional)
 
-En **Almacenamiento**, pulsa **Hacer predeterminada** en la conexión para enviar allí las nuevas subidas. Aun así, puedes elegir otro sitio en el cuadro de subida.
+En la página de la conexión, pulsa **Hacer predeterminada** para enviar allí las nuevas subidas. Aun así, puedes elegir otro sitio en el cuadro de subida.
 
 ## Cuánto cuesta
 
@@ -135,6 +136,6 @@ Consulta la [página de precios de S3 de Amazon](https://aws.amazon.com/s3/prici
 | Un mensaje sobre la región, o un «redirect» | El código de región en cf-dam no coincide con la región del bucket. |
 | Not authorized to perform `sts:AssumeRoleWithWebIdentity` | Sin claves: la URL o la audiencia del proveedor de identidad, o la política de confianza de la función, no coinciden con lo que mostró cf-dam. Vuelve a copiarlas. |
 | No se encuentra la función | El ARN de la función tiene una errata, o la función no se llama `cf-dam`. |
-| Las subidas fallan con un error de red | Falta la regla CORS del bucket (paso 5). |
+| Las subidas fallan con un error de red | Falta la regla CORS del bucket (paso 5): **Probar la subida desde este navegador** lo indica. |
 
-¿Sigues atascado? El [glosario](/help/glossary) explica los términos de AWS. Puedes **Quitar** una conexión que nunca funcionó y empezar de nuevo. (cf-dam no quita una que todavía guarda originales: muévelos primero.)
+¿Sigues atascado? El [glosario](/help/glossary) explica los términos de AWS. Un error al escribir la función o las claves se corrige con **Editar** en la página de la conexión. También puedes **Quitar** una conexión que nunca funcionó y empezar de nuevo (cf-dam no quita una que todavía guarda originales o que algo usa: la página dice qué).

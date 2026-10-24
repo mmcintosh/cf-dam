@@ -4,7 +4,7 @@ summary: "Eine Schritt-für-Schritt-Anleitung, vom Eröffnen eines Amazon-Web-Se
 section: Where photos are kept
 order: 2
 review: machine
-source: a41b1d1edfa1
+source: 63cdd90c1d97
 ---
 
 Amazon kennt man vor allem als Shop, aber über ein eigenes Geschäft, **Amazon Web Services (AWS)**, vermietet es auch Speicherplatz. Der Speicherdienst heißt **S3**. Viele Fotografen nutzen ihn, weil ein Teil davon, **Glacier Deep Archive**, ein Terabyte für etwa einen Dollar im Monat aufbewahrt.
@@ -53,12 +53,12 @@ cf-dam kann sich auf zwei Wegen bei deinem Bucket anmelden. **Schlüssellos** is
 
 Du brauchst deine **AWS account ID**: die 12-stellige Zahl im Menü unter deinem Kontonamen, oben rechts in der AWS-Konsole.
 
-1. Öffne in cf-dam **Speicher** und drücke **S3-Verbindung hinzufügen**.
+1. Öffne in cf-dam **Speicher** und drücke **Verbindung hinzufügen**.
 2. Wähle **Amazon S3**, dann **Schlüssellos: eine IAM-Rolle (empfohlen)**.
 3. Trag einen **Name**, den Namen des **Bucket**, den Code der **Region** und, wenn du magst, einen **Ordner im Bucket** wie `cf-dam` ein.
 4. **Rollen-ARN:** Tippe `arn:aws:iam::`, dann deine 12-stellige Konto-ID, dann `:role/cf-dam`. Zum Beispiel: `arn:aws:iam::123456789012:role/cf-dam`. (Die Rolle legst du gleich an.)
-5. Drücke **Hinzufügen und testen**. Der Test schlägt vorerst fehl: Das ist so gewollt.
-6. Öffne unter der neuen Verbindung **AWS-Einrichtung für diese schlüssellose Verbindung**. Dort stehen drei Dinge zum Kopieren: eine **URL und Audience des Identitätsanbieters**, eine **Vertrauensrichtlinie** und eine **Berechtigungsrichtlinie**.
+5. Drücke **Hinzufügen und testen**. cf-dam öffnet die Seite der neuen Verbindung.
+6. Auf dieser Seite ist **AWS-Einrichtung für diese schlüssellose Verbindung** aufgeklappt. Dort stehen drei Dinge zum Kopieren: eine **URL und Audience des Identitätsanbieters**, eine **Vertrauensrichtlinie** und eine **Berechtigungsrichtlinie**.
 
 Jetzt in der AWS-Konsole:
 
@@ -97,7 +97,7 @@ Die Berechtigungsrichtlinie lässt cf-dam nur in **diesen einen Bucket** (und Or
 4. Nenne die Richtlinie `cf-dam-bucket` und leg sie an.
 5. Wähle auf dem Reiter **Security credentials** des Benutzers **Create access key**, nimm **Application running outside AWS** und leg ihn an.
 6. AWS zeigt eine **Access key ID** und einen **Secret access key**. Das Geheimnis wird **nur ein einziges Mal** angezeigt: Lass diese Seite offen.
-7. In cf-dam: **Speicher → S3-Verbindung hinzufügen → Amazon S3 → Zugriffsschlüssel**. Trag Name, Bucket, Region und Ordner ein, füge beide Schlüssel ein und drücke **Hinzufügen und testen**.
+7. In cf-dam: **Speicher → Verbindung hinzufügen → Amazon S3 → Zugriffsschlüssel**. Trag Name, Bucket, Region und Ordner ein, füge beide Schlüssel ein und drücke **Hinzufügen und testen**.
 
 cf-dam verschlüsselt das Geheimnis, bevor es gespeichert wird, und zeigt es nie wieder an. Schick Schlüssel nie per E-Mail und füge sie nirgendwo sonst ein.
 
@@ -105,15 +105,16 @@ cf-dam verschlüsselt das Geheimnis, bevor es gespeichert wird, und zeigt es nie
 
 Wenn du im Browser zu einer S3-Verbindung hochlädst, gehen die Dateien direkt von deinem Computer zu Amazon. Der Bucket muss das erlauben:
 
-1. Öffne im Formular **S3-Verbindung hinzufügen** in cf-dam (oder wenn du eine weitere hinzufügst) **Browser-Uploads gehen direkt in den Bucket** und kopiere die Regel.
+1. Drücke in cf-dam auf der Seite der Verbindung unter **Hochladen aus dem Browser** neben der Regel auf **Kopieren**.
 2. Öffne in der AWS-Konsole den Bucket, dann **Permissions**, scroll zu **Cross-origin resource sharing (CORS)** und wähle **Edit**.
 3. Füge die Regel ein und wähle **Save changes**.
+4. Drücke zurück in cf-dam auf **Hochladen aus diesem Browser testen**.
 
 Das brauchst du nicht, wenn deine Fotos nur durch Importieren oder Verschieben nach S3 gelangen.
 
 ## 6. Als Standard festlegen (optional)
 
-Drück auf **Speicher** bei der Verbindung **Als Standard festlegen**, damit neue Uploads dorthin gehen. Im Upload-Fenster kannst du trotzdem einen anderen Ort wählen.
+Drück auf der Seite der Verbindung **Als Standard festlegen**, damit neue Uploads dorthin gehen. Im Upload-Fenster kannst du trotzdem einen anderen Ort wählen.
 
 ## Was es kostet
 
@@ -135,6 +136,6 @@ Die Preise für deine Region findest du auf [Amazons S3-Preisseite](https://aws.
 | Eine Meldung über die Region oder ein „redirect“ | Der Region-Code in cf-dam passt nicht zur Region des Buckets. |
 | Not authorized to perform `sts:AssumeRoleWithWebIdentity` | Schlüssellos: URL oder Audience des Identitätsanbieters oder die Vertrauensrichtlinie der Rolle passen nicht zu dem, was cf-dam angezeigt hat. Kopiere sie noch einmal. |
 | Die Rolle wird nicht gefunden | Im Rollen-ARN ist ein Tippfehler, oder die Rolle heißt nicht `cf-dam`. |
-| Uploads scheitern mit einem Netzwerkfehler | Die CORS-Regel des Buckets fehlt (Schritt 5). |
+| Uploads scheitern mit einem Netzwerkfehler | Die CORS-Regel des Buckets fehlt (Schritt 5): **Hochladen aus diesem Browser testen** sagt es dir. |
 
-Kommst du immer noch nicht weiter? Das [Glossar](/help/glossary) erklärt die AWS-Begriffe. Eine Verbindung, die nie funktioniert hat, kannst du **Entfernen** und neu anfangen. (cf-dam entfernt keine, die noch Originale enthält: Verschieb sie zuerst.)
+Kommst du immer noch nicht weiter? Das [Glossar](/help/glossary) erklärt die AWS-Begriffe. Einen Tippfehler in der Rolle oder den Schlüsseln behebst du mit **Bearbeiten** auf der Seite der Verbindung. Eine Verbindung, die nie funktioniert hat, kannst du auch **Entfernen** und neu anfangen (cf-dam entfernt keine, die noch Originale enthält oder die etwas nutzt: Die Seite sagt, was).

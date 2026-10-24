@@ -20,9 +20,10 @@ export interface ImportPageResult {
   cursor: string | null
 }
 
-/** Keys cf-dam never imports: its own probe object and "folder" placeholders. */
+/** Keys cf-dam never imports: its own probe objects (the connection test, the browser upload test) and "folder" placeholders. */
 function ignorable(key: string, size: number): boolean {
-  return key.endsWith('/') || key.split('/').pop() === '.cf-dam-connection-test' || (size === 0 && !key.includes('.'))
+  const parts = key.split('/')
+  return key.endsWith('/') || parts.at(-1) === '.cf-dam-connection-test' || parts.includes('.cf-dam-browser-test') || (size === 0 && !key.includes('.'))
 }
 
 export async function importPage(

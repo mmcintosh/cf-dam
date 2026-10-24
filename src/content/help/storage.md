@@ -19,11 +19,11 @@ cf-dam keeps two different things in two different places.
 | **Backblaze B2, Wasabi, R2 (second bucket)** | Cheaper alternatives to Amazon | Connect with access keys, like S3. |
 | **Your NAS or computer** | Photos you already keep at home or in the studio | Nothing moves: a helper catalogues them where they are. See [Computers and NAS](/help/computers-and-nas). |
 
-The **Storage** page lists every place you've connected. One of them is the **Default**, where uploads go unless you choose another in the upload box.
+The **Storage** page lists every place you've connected, one row each: what kind it is, how many originals it keeps and how much space they take, and what uses it (**New uploads**, **Job archive**, **Catalog backups**, a helper's archive). One of them is the **Default**, where uploads go unless you choose another in the upload box. Press a row to open that connection's own page.
 
 ## Connecting a bucket
 
-On **Storage**, press **Add an S3 connection** and pick the provider. cf-dam fills in what it can. You then give it:
+On **Storage**, press **Add a connection** and pick the provider. cf-dam fills in what it can. You then give it:
 
 - **Name:** anything that helps you recognise it, such as "Studio archive".
 - **Bucket:** the bucket's name, exactly as the provider shows it.
@@ -32,13 +32,31 @@ On **Storage**, press **Add an S3 connection** and pick the provider. cf-dam fil
 - **How to sign in:** access keys, or for Amazon, the keyless option (see [Connecting Amazon S3](/help/amazon-s3)).
 - **Storage classes this bucket offers**, and the **default class for uploads**.
 
-Press **Add and test**. cf-dam writes a small test file, reads it back and deletes it. "Connected" means it all worked; anything else comes with the reason.
+Press **Add and test**. cf-dam opens the new connection's page and tests it: it writes a small test file (inside the folder, if you gave one), reads it back and deletes it, and says whether that worked or why not. For a keyless Amazon connection it opens the AWS steps instead, since nothing works until they're done.
 
-> **Uploading from the browser into a bucket** needs one more setting on the bucket itself, called a CORS rule. The form shows the exact rule to copy under "Browser uploads go straight to the bucket". Without it, uploads to that bucket fail with a network error.
+## A connection's page
+
+- **What's kept here:** how many originals have a copy here and how much space they take, by kind of storage (hot, warm, cold, deep archive), with links that show those photos in the library. Also job archive copies still to make, and catalog backups kept here. These are counted from the catalogue, not by looking in the bucket.
+- **What uses it:** new uploads (if it's the default), archiving delivered jobs, the daily catalog backup, a NAS or Mac helper's archive, each with where to change it.
+- **Uploading from the browser:** see below.
+- **Catalogue files already in this bucket:** see "Photos already in a bucket" below.
+- **AWS setup** (keyless Amazon connections): the steps and policies to create in AWS. See [Connecting Amazon S3](/help/amazon-s3).
+- **Details:** press **Edit** to rename it, change the storage classes it offers and the default class, or change its role (keyless) or access keys. A new secret replaces the old one; leave it empty to keep it. Saving new credentials tests them at once. The **bucket, region, endpoint and folder** can only change while nothing is kept there and nothing uses it, because originals are stored under those names: to move to another bucket, add a new connection.
+- **Remove:** forgets the connection (the bucket and its files stay as they are). It can't be removed while anything is kept there or uses it; the page lists what does.
+
+## Uploading from the browser, and the CORS rule
+
+When you upload to an S3 connection (it's the default, or you picked it in the upload box), your browser sends the photos **straight to the bucket**, not through cf-dam. A bucket refuses that unless it allows this site, with a setting on the bucket called a **CORS rule**.
+
+1. On the connection's page, under **Uploading from the browser**, press **Copy** beside the rule.
+2. In the AWS console: **S3**, the bucket, **Permissions**, **Cross-origin resource sharing (CORS)**, **Edit**. Paste it and save. (Other services have the same setting on the bucket.)
+3. Back in cf-dam, press **Test uploading from this browser**. It sends one byte the way an upload does and says whether the bucket took it, and if not, why.
+
+You only need the rule for uploading from the browser. cf-dam's own copies (archiving jobs, backups, moving between classes, restores) and the NAS or Mac helper reach the bucket without it.
 
 ## Photos already in a bucket
 
-If the bucket already has photos in it, open **Catalogue files already in this bucket** under the connection and press **Import**. Every file becomes searchable where it is: nothing is copied or moved. You can start from one folder, such as `photos/2019/`. Previews are made in the background. Files in deep storage are listed with their name, size and class until you restore them.
+If the bucket already has photos in it, open the connection's page and, under **Catalogue files already in this bucket**, press **Import**. Every file becomes searchable where it is: nothing is copied or moved. You can start from one folder, such as `photos/2019/`. Previews are made in the background. Files in deep storage are listed with their name, size and class until you restore them.
 
 ## Storage classes, in short
 

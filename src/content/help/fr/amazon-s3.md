@@ -4,7 +4,7 @@ summary: "Un guide pas à pas, de l’ouverture d’un compte Amazon Web Service
 section: Where photos are kept
 order: 2
 review: machine
-source: a41b1d1edfa1
+source: 63cdd90c1d97
 ---
 
 Amazon est surtout connu comme boutique, mais il loue aussi du stockage par une activité distincte, **Amazon Web Services (AWS)**. Son service de stockage s’appelle **S3**. Beaucoup de photographes l’utilisent parce qu’une de ses offres, **Glacier Deep Archive**, garde un téraoctet pour environ un dollar par mois.
@@ -53,12 +53,12 @@ cf-dam peut se connecter à votre bucket de deux façons. **Sans clé** est plus
 
 Il vous faut l’**ID de votre compte AWS** : le nombre à 12 chiffres dans le menu sous le nom de votre compte, en haut à droite de la console AWS.
 
-1. Dans cf-dam, ouvrez **Stockage** et appuyez sur **Ajouter une connexion S3**.
+1. Dans cf-dam, ouvrez **Stockage** et appuyez sur **Ajouter une connexion**.
 2. Choisissez **Amazon S3**, puis **Sans clé : un rôle IAM (recommandé)**.
 3. Renseignez un **Nom**, le nom du **Bucket**, le code de **Région** et, si vous le souhaitez, un **Dossier dans le bucket** comme `cf-dam`.
 4. **ARN du rôle :** tapez `arn:aws:iam::`, puis l’ID à 12 chiffres de votre compte, puis `:role/cf-dam`. Par exemple : `arn:aws:iam::123456789012:role/cf-dam`. (Vous allez créer ce rôle dans un instant.)
-5. Appuyez sur **Ajouter et tester**. Le test échoue pour l’instant : c’est normal.
-6. Sous la nouvelle connexion, ouvrez **Configuration AWS de cette connexion sans clé**. Elle affiche trois choses à copier : une **URL et une audience de fournisseur d’identité**, une **politique d’approbation** et une **politique d’autorisations**.
+5. Appuyez sur **Ajouter et tester**. cf-dam ouvre la page de la nouvelle connexion.
+6. Sur cette page, **Configuration AWS de cette connexion sans clé** est ouverte. Elle affiche trois choses à copier : une **URL et une audience de fournisseur d’identité**, une **politique d’approbation** et une **politique d’autorisations**.
 
 Ensuite, dans la console AWS :
 
@@ -97,7 +97,7 @@ La politique d’autorisations ne donne à cf-dam accès qu’à **ce seul bucke
 4. Nommez la politique `cf-dam-bucket` et créez-la.
 5. Dans l’onglet **Security credentials** de l’utilisateur, choisissez **Create access key**, prenez **Application running outside AWS**, et créez-la.
 6. AWS affiche un **Access key ID** et une **Secret access key**. La clé secrète n’est affichée **qu’une seule fois** : gardez cette page ouverte.
-7. Dans cf-dam, **Stockage → Ajouter une connexion S3 → Amazon S3 → Clés d’accès**. Renseignez le nom, le bucket, la région et le dossier, collez les deux clés et appuyez sur **Ajouter et tester**.
+7. Dans cf-dam, **Stockage → Ajouter une connexion → Amazon S3 → Clés d’accès**. Renseignez le nom, le bucket, la région et le dossier, collez les deux clés et appuyez sur **Ajouter et tester**.
 
 cf-dam chiffre le secret avant de le stocker et ne l’affiche plus jamais. N’envoyez jamais de clés par e-mail et ne les collez nulle part ailleurs.
 
@@ -105,15 +105,16 @@ cf-dam chiffre le secret avant de le stocker et ne l’affiche plus jamais. N’
 
 Quand vous importez dans le navigateur vers une connexion S3, les fichiers vont directement de votre ordinateur à Amazon. Le bucket doit l’autoriser :
 
-1. Dans le formulaire **Ajouter une connexion S3** de cf-dam (ou quand vous en ajoutez une autre), ouvrez **Les importations du navigateur vont directement au bucket** et copiez la règle.
+1. Sur la page de la connexion dans cf-dam, sous **Envoyer depuis le navigateur**, appuyez sur **Copier** à côté de la règle.
 2. Dans la console AWS, ouvrez le bucket, puis **Permissions**, descendez jusqu’à **Cross-origin resource sharing (CORS)** et choisissez **Edit**.
 3. Collez la règle et choisissez **Save changes**.
+4. De retour dans cf-dam, appuyez sur **Tester l’envoi depuis ce navigateur**.
 
 Vous n’en avez pas besoin si vos photos n’arrivent dans S3 qu’en y étant importées ou déplacées.
 
 ## 6. En faire le stockage par défaut (facultatif)
 
-Sur **Stockage**, appuyez sur **Définir par défaut** sur la connexion pour y envoyer les nouvelles importations. Vous pouvez toujours choisir un autre endroit dans la fenêtre d’importation.
+Sur la page de la connexion, appuyez sur **Définir par défaut** pour y envoyer les nouvelles importations. Vous pouvez toujours choisir un autre endroit dans la fenêtre d’importation.
 
 ## Ce que ça coûte
 
@@ -135,6 +136,6 @@ Consultez [la page de tarifs S3 d’Amazon](https://aws.amazon.com/s3/pricing/) 
 | Un message sur la région, ou une « redirection » | Le code de région dans cf-dam ne correspond pas à la région du bucket. |
 | Not authorized to perform `sts:AssumeRoleWithWebIdentity` | Sans clé : l’URL ou l’audience du fournisseur d’identité, ou la politique d’approbation du rôle, ne correspond pas à ce que cf-dam a affiché. Copiez-les à nouveau. |
 | Le rôle est introuvable | L’ARN du rôle contient une faute de frappe, ou le rôle ne s’appelle pas `cf-dam`. |
-| Les importations échouent avec une erreur réseau | La règle CORS du bucket manque (étape 5). |
+| Les importations échouent avec une erreur réseau | La règle CORS du bucket manque (étape 5) : **Tester l’envoi depuis ce navigateur** le signale. |
 
-Toujours bloqué ? Le [glossaire](/help/glossary) explique les termes d’AWS. Vous pouvez **Retirer** une connexion qui n’a jamais fonctionné et recommencer. (cf-dam ne retire pas une connexion qui contient encore des originaux : déplacez-les d’abord.)
+Toujours bloqué ? Le [glossaire](/help/glossary) explique les termes d’AWS. Une faute de frappe dans le rôle ou les clés se corrige avec **Modifier** sur la page de la connexion. Vous pouvez aussi **Retirer** une connexion qui n’a jamais fonctionné et recommencer (cf-dam ne retire pas une connexion qui contient encore des originaux ou que quelque chose utilise : la page indique quoi).

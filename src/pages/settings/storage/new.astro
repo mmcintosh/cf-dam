@@ -1,0 +1,10 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
+import ConnectionForm from '../../../components/ConnectionForm.svelte'
+const t = getT(Astro.locals.lang)
+---
+<AppLayout help="storage" title={t('storagePage.addTitle')} subtitle={t('storagePage.addSubtitle')}>
+  <div class="row top"><a class="btn btn-sm" href="/settings/storage">← {t('nav.storage')}</a></div>
+  <ConnectionForm client:load origin={Astro.url.origin} />
+</AppLayout>

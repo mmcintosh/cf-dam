@@ -1,0 +1,16 @@
+---
+import { env } from 'cloudflare:workers'
+import { getConnection } from '@cf-dam/api'
+import AppLayout from '../../../layouts/AppLayout.astro'
+import { getT } from '@cf-dam/i18n'
+import ConnectionPage from '../../../components/ConnectionPage.svelte'
+const t = getT(Astro.locals.lang)
+const id = Astro.params.id!
+const connection = await getConnection(env.DB, id)
+// A helper's own NAS connection belongs to the Computers and NAS page.
+if (!connection || connection.provider === 'nas') return Astro.redirect('/settings/storage')
+---
+<AppLayout help="storage" title={connection.name}>
+  <div class="row top"><a class="btn btn-sm" href="/settings/storage">← {t('nav.storage')}</a></div>
+  <ConnectionPage client:load id={id} origin={Astro.url.origin} added={Astro.url.searchParams.has('added')} />
+</AppLayout>

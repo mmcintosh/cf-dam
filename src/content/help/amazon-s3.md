@@ -51,12 +51,12 @@ There are two ways for cf-dam to sign in to your bucket. **Keyless** is safer: n
 
 You'll need your **AWS account ID**: the 12-digit number in the menu under your account name, top right of the AWS console.
 
-1. In cf-dam, open **Storage** and press **Add an S3 connection**.
+1. In cf-dam, open **Storage** and press **Add a connection**.
 2. Choose **Amazon S3**, then **Keyless: an IAM role (recommended)**.
 3. Fill in a **Name**, the **Bucket** name, the **Region** code and, if you like, a **Folder in the bucket** such as `cf-dam`.
 4. **Role ARN:** type `arn:aws:iam::` then your 12-digit account ID, then `:role/cf-dam`. For example: `arn:aws:iam::123456789012:role/cf-dam`. (You'll create this role in a moment.)
-5. Press **Add and test**. The test fails for now: that's expected.
-6. Under the new connection, open **AWS setup for this keyless connection**. It shows three things to copy: an **identity provider URL and audience**, a **trust policy** and a **permissions policy**.
+5. Press **Add and test**. cf-dam opens the new connection's page.
+6. On that page, **AWS setup for this keyless connection** is open. It shows three things to copy: an **identity provider URL and audience**, a **trust policy** and a **permissions policy**.
 
 Now in the AWS console:
 
@@ -95,7 +95,7 @@ The permissions policy only lets cf-dam into **that one bucket** (and folder): i
 4. Name the policy `cf-dam-bucket` and create it.
 5. On the user's **Security credentials** tab, choose **Create access key**, pick **Application running outside AWS**, and create it.
 6. AWS shows an **Access key ID** and a **Secret access key**. The secret is shown **only once**: keep this page open.
-7. In cf-dam, **Storage → Add an S3 connection → Amazon S3 → Access keys**. Fill in the name, bucket, region and folder, paste both keys and press **Add and test**.
+7. In cf-dam, **Storage → Add a connection → Amazon S3 → Access keys**. Fill in the name, bucket, region and folder, paste both keys and press **Add and test**.
 
 cf-dam encrypts the secret before storing it and never shows it again. Never email keys or paste them anywhere else.
 
@@ -103,15 +103,16 @@ cf-dam encrypts the secret before storing it and never shows it again. Never ema
 
 When you upload in the browser to an S3 connection, the files go directly from your computer to Amazon. The bucket has to allow that:
 
-1. In cf-dam's **Add an S3 connection** form (or when you add another), open **Browser uploads go straight to the bucket** and copy the rule.
+1. On the connection's page in cf-dam, under **Uploading from the browser**, press **Copy** beside the rule.
 2. In the AWS console, open the bucket, then **Permissions**, scroll to **Cross-origin resource sharing (CORS)** and choose **Edit**.
 3. Paste the rule and **Save changes**.
+4. Back in cf-dam, press **Test uploading from this browser**.
 
 You don't need this if your photos only reach S3 by being imported or moved there.
 
 ## 6. Make it the default (optional)
 
-On **Storage**, press **Make default** on the connection to send new uploads there. You can still pick another place in the upload box.
+On the connection's page, press **Make default** to send new uploads there. You can still pick another place in the upload box.
 
 ## What it costs
 
@@ -133,6 +134,6 @@ Check [Amazon's S3 pricing page](https://aws.amazon.com/s3/pricing/) for your re
 | A message about the region, or a "redirect" | The region code in cf-dam doesn't match the bucket's region. |
 | Not authorized to perform `sts:AssumeRoleWithWebIdentity` | Keyless: the identity provider's URL or audience, or the role's trust policy, doesn't match what cf-dam showed. Copy them again. |
 | The role can't be found | The Role ARN has a typo, or the role isn't named `cf-dam`. |
-| Uploads fail with a network error | The bucket's CORS rule is missing (step 5). |
+| Uploads fail with a network error | The bucket's CORS rule is missing (step 5): **Test uploading from this browser** says so. |
 
-Still stuck? The [glossary](/help/glossary) explains the AWS words. You can **Remove** a connection that never worked and start again. (cf-dam won't remove one that still holds originals: move them first.)
+Still stuck? The [glossary](/help/glossary) explains the AWS words. A typo in the role or keys can be fixed with **Edit** on the connection's page. You can also **Remove** a connection that never worked and start again (cf-dam won't remove one that still holds originals or that something uses: the page says what).

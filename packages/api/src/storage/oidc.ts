@@ -144,7 +144,8 @@ export async function assumeRoleWithWebIdentity(options: {
   return { accessKeyId, secretAccessKey, sessionToken, expiration }
 }
 
-// Temporary credentials per connection, reused until five minutes before they expire.
+// Temporary credentials per connection and role, reused until five minutes before they expire. Keyed by the role
+// too: after the role is changed, an isolate holding the old one's credentials doesn't keep using them.
 const cache = new Map<string, TemporaryCredentials>()
 
 export async function roleCredentials(options: {
@@ -155,7 +156,8 @@ export async function roleCredentials(options: {
   region?: string
   fetch?: typeof fetch
 }): Promise<TemporaryCredentials> {
-  const cached = cache.get(options.connectionId)
+  const cacheKey = `${options.connectionId} ${options.roleArn}`
+  const cached = cache.get(cacheKey)
   if (cached && Date.parse(cached.expiration) - Date.now() > 5 * 60_000) return cached
   const key = await activeSigningKey(options.env)
   const token = await signToken(key, { iss: options.issuer, sub: connectionSubject(options.connectionId), aud: STS_AUDIENCE })
@@ -166,7 +168,7 @@ export async function roleCredentials(options: {
     region: options.region,
     fetch: options.fetch,
   })
-  cache.set(options.connectionId, credentials)
+  cache.set(cacheKey, credentials)
   return credentials
 }
 

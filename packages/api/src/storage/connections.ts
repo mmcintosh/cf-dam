@@ -9,6 +9,7 @@ import { bucketOrigin, S3Provider } from './s3'
 import { activeSigningKey, roleCredentials } from './oidc'
 import { deriveKey, open, seal, storageSecret } from './secret-box'
 import { isStorageClass, S3_STORAGE_CLASSES, StorageError, type StorageClass, type StorageProvider } from './types'
+import { connectionUses, inUse } from './usage'
 
 export const BUILT_IN_CONNECTION = 'r2'
 
@@ -31,6 +32,8 @@ export interface Connection {
   storageClasses: StorageClass[]
   defaultClass: StorageClass
   isDefault: boolean
+  /** The last Test (connection page): when, whether it worked, and why not. */
+  lastTest: { at: string; ok: boolean; message: string | null } | null
   createdAt: string
   updatedAt: string
 }
@@ -51,6 +54,9 @@ interface ConnectionRow {
   storage_classes: string
   default_class: string
   is_default: number
+  tested_at?: string | null
+  test_ok?: number | null
+  test_message?: string | null
   created_at: string
   updated_at: string
 }
@@ -81,6 +87,7 @@ function toConnection(row: ConnectionRow): Connection {
     storageClasses: parseClasses(row.storage_classes),
     defaultClass: isStorageClass(row.default_class) ? row.default_class : 'STANDARD',
     isDefault: row.is_default === 1,
+    lastTest: row.tested_at ? { at: row.tested_at, ok: row.test_ok === 1, message: row.test_message ?? null } : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -246,14 +253,111 @@ export async function setDefaultConnection(db: D1Database, id: string): Promise<
   ])
 }
 
-/** Delete a connection that holds no originals. The built-in R2 connection can't be deleted. */
+/** Keep the last Test's result, for the Storage page and the connection's page. */
+export async function recordTest(db: D1Database, id: string, ok: boolean, message: string | null): Promise<void> {
+  await db.prepare('UPDATE storage_connections SET tested_at = ?, test_ok = ?, test_message = ? WHERE id = ?').bind(nowIso(), ok ? 1 : 0, message?.slice(0, 500) ?? null, id).run()
+}
+
+export interface ConnectionPatch {
+  name?: string
+  storageClasses?: StorageClass[]
+  defaultClass?: StorageClass
+  roleArn?: string
+  accessKeyId?: string
+  secretAccessKey?: string
+  /** Where the bucket is: only while nothing uses the connection (usage.ts inUse). */
+  bucket?: string
+  region?: string
+  endpoint?: string
+  prefix?: string
+  forcePathStyle?: boolean
+}
+
+/** Why a change to a connection was refused (the route answers 409 with it). */
+export class ConnectionInUse extends StorageError {
+  constructor(message: string) {
+    super(message, 'ConnectionInUse', 409)
+  }
+}
+
+/**
+ * Change a connection (plans/PLAN-ST-v2.md): its name, classes, role or keys at any time; the bucket, region,
+ * endpoint, folder and path style only while nothing uses it, since originals are stored under those names. `classUse`
+ * says what needs a class the patch would drop (the job archive, a helper's archive), or null.
+ */
+export async function updateConnection(
+  env: DamBindings,
+  id: string,
+  patch: ConnectionPatch,
+  options: { classUse: (storageClass: StorageClass) => Promise<string | null>; lockedMessage: string },
+): Promise<Connection> {
+  const row = await getRow(env.DB, id)
+  if (!row || row.provider !== 's3') throw new StorageError('Only S3 connections can be changed.', 'NotFound', 404)
+  const current = toConnection(row)
+  const sets: string[] = []
+  const values: unknown[] = []
+  const set = (column: string, value: unknown) => (sets.push(`${column} = ?`), values.push(value))
+
+  if (patch.name !== undefined) set('name', patch.name)
+  const classes = patch.storageClasses ?? current.storageClasses
+  const defaultClass = patch.defaultClass ?? current.defaultClass
+  if (classes.length === 0) throw new StorageError('Choose at least one storage class.', 'InvalidStorageClass')
+  if (!classes.includes(defaultClass)) throw new StorageError('The default class must be one the connection offers.', 'InvalidStorageClass')
+  for (const dropped of current.storageClasses.filter((c) => !classes.includes(c))) {
+    const what = await options.classUse(dropped)
+    if (what) throw new ConnectionInUse(what)
+  }
+  if (patch.storageClasses) set('storage_classes', JSON.stringify(classes))
+  if (patch.defaultClass) set('default_class', defaultClass)
+
+  const place = (['bucket', 'region', 'endpoint', 'prefix', 'forcePathStyle'] as const).filter((k) => {
+    const now = { bucket: current.bucket, region: current.region, endpoint: current.endpoint, prefix: current.prefix, forcePathStyle: current.forcePathStyle }[k]
+    return patch[k] !== undefined && patch[k] !== now
+  })
+  if (place.length > 0) {
+    if (inUse(await connectionUses(env.DB, id))) throw new ConnectionInUse(options.lockedMessage)
+    if (patch.bucket !== undefined) set('bucket', patch.bucket)
+    if (patch.prefix !== undefined) set('prefix', patch.prefix.replace(/^\/+/, ''))
+    if (current.authMode === 'oidc-role') {
+      // Keyless connections are always AWS: the endpoint follows the region.
+      if (patch.region !== undefined) (set('region', patch.region), set('endpoint', `https://s3.${patch.region}.amazonaws.com`))
+    } else {
+      if (patch.region !== undefined) set('region', patch.region)
+      if (patch.endpoint !== undefined) set('endpoint', validateEndpoint(patch.endpoint))
+      if (patch.forcePathStyle !== undefined) set('force_path_style', patch.forcePathStyle ? 1 : 0)
+    }
+  }
+
+  const statements: D1PreparedStatement[] = []
+  if (patch.roleArn !== undefined && current.authMode === 'oidc-role' && patch.roleArn !== current.roleArn) {
+    const match = ROLE_ARN.exec(patch.roleArn)
+    if (!match) throw new StorageError('roleArn must look like arn:aws:iam::123456789012:role/name.', 'InvalidRoleArn')
+    set('role_arn', patch.roleArn)
+    // The trust policy and the identity provider's ARN name the account.
+    statements.push(env.DB.prepare('UPDATE connection_oidc SET account_id = ? WHERE connection_id = ?').bind(match[2], id))
+  }
+  if (current.authMode === 'access-key') {
+    if (patch.accessKeyId !== undefined) set('access_key_id', patch.accessKeyId)
+    if (patch.secretAccessKey) set('secret_sealed', await seal(await deriveKey(storageSecret(env)), patch.secretAccessKey))
+  }
+  if (sets.length > 0) {
+    set('updated_at', nowIso())
+    statements.unshift(env.DB.prepare(`UPDATE storage_connections SET ${sets.join(', ')} WHERE id = ?`).bind(...values, id))
+  }
+  if (statements.length > 0) await env.DB.batch(statements)
+  return (await getConnection(env.DB, id))!
+}
+
+/**
+ * Delete a connection nothing uses (storage/usage.ts: no originals, archive copies, restores or backups there, and no
+ * setting or helper pointing at it). The built-in R2 connection can't be deleted.
+ */
 export async function deleteConnection(db: D1Database, id: string): Promise<'deleted' | 'in-use' | 'built-in' | 'not-found'> {
   if (id === BUILT_IN_CONNECTION) return 'built-in'
   const row = await getRow(db, id)
   // An agent's connection goes with the agent (sources), not from the storage page.
   if (!row || row.provider === 'nas') return 'not-found'
-  const used = await db.prepare('SELECT 1 AS used FROM asset_locations WHERE connection_id = ? LIMIT 1').bind(id).first()
-  if (used) return 'in-use'
+  if (inUse(await connectionUses(db, id))) return 'in-use'
   if (row.is_default === 1) await setDefaultConnection(db, BUILT_IN_CONNECTION)
   await db.prepare('DELETE FROM storage_connections WHERE id = ?').bind(id).run()
   return 'deleted'

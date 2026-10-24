@@ -512,10 +512,14 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   }
   if (use('tier')) {
     const classes = TIER_CLASSES[filters.tier!] ?? []
+    // With a connection chosen too (Stored on), the tier is that connection's copy: a job archived to Deep Archive
+    // keeps its R2 copy, and "on the S3 bucket, hot" shouldn't find it by the R2 one.
+    const onConnection = use('storedOn') ? ' AND l.connection_id = ?' : ''
     where.push(
-      `EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state NOT IN ('pending', 'gone') AND l.storage_class IN (${classes.map(() => '?').join(',')}))`,
+      `EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state NOT IN ('pending', 'gone') AND l.storage_class IN (${classes.map(() => '?').join(',')})${onConnection})`,
     )
     params.push(...classes)
+    if (onConnection) params.push(filters.storedOn)
   }
   return { clause: where.join(' AND '), params }
 }
