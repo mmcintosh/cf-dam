@@ -539,6 +539,7 @@
   "common.name": "Name",
   "common.never": "Never",
   "common.noPreview": "No preview",
+  "common.notProcessed": "Couldn't be processed",
   "common.off": "Off",
   "common.on": "On",
   "common.or": "or",

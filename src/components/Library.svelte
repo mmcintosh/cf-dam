@@ -438,7 +438,7 @@
       {#if asset.renditions.includes('thumb')}
         <img src={`/api/assets/${asset.id}/renditions/thumb?v=${asset.imageVersion}`} alt={altOf(asset)} loading={index < 40 ? 'eager' : 'lazy'} decoding="async" />
       {:else}
-        <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? t('common.noPreview') : asset.status === 'queued' ? t('common.queued') : t('common.processing')}</span></span>
+        <span class="placeholder"><strong>{ext(asset.filename)}</strong><span>{asset.status === 'ready' ? t('common.noPreview') : asset.status === 'queued' ? t('common.queued') : asset.status === 'error' ? t('common.notProcessed') : t('common.processing')}</span></span>
       {/if}
       {#if scrubbing === asset.id}
         <span class="scrub" style={`background-image:url(/api/assets/${asset.id}/renditions/sheet);background-position:${scrubFrame % 2 ? '100%' : '0%'} ${scrubFrame > 1 ? '100%' : '0%'}`}></span>

@@ -554,6 +554,7 @@
   "common.name": "Nombre",
   "common.never": "Nunca",
   "common.noPreview": "Sin vista previa",
+  "common.notProcessed": "No se pudo procesar",
   "common.off": "Desactivada",
   "common.on": "Activada",
   "common.or": "o",

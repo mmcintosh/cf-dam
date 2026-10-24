@@ -526,6 +526,7 @@ export type MessageKey =
   | 'common.name'
   | 'common.never'
   | 'common.noPreview'
+  | 'common.notProcessed'
   | 'common.off'
   | 'common.on'
   | 'common.or'
