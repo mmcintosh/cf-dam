@@ -4,7 +4,7 @@ summary: "Envoyer les invitations, les réinitialisations de mot de passe et les
 section: Settings
 order: 2
 review: machine
-source: 8e0e5ced3038
+source: a8d41006e12b
 ---
 
 cf-dam peut envoyer des e-mails depuis votre propre domaine : invitations, réinitialisations de mot de passe et messages concernant les galeries clients. Tant qu’il ne le peut pas, ce sont des liens que vous copiez et transmettez vous-même, et tout le reste fonctionne comme d’habitude.
@@ -34,6 +34,15 @@ Activer l’e-mail fixe l’adresse web vers laquelle pointent les liens des e-m
 **M’envoyer un e-mail de test** vous en envoie un tout de suite et vous dit immédiatement s’il n’a pas pu. La première fois, regardez aussi dans votre dossier de spam.
 
 La page indique aussi quand le dernier e-mail est parti, combien sont partis ces dernières 24 heures, ce qui attend, et le dernier problème.
+
+## Ce qui est envoyé
+
+- **Mot de passe oublié ?** sur la page de connexion : un lien pour choisir un nouveau mot de passe, puis un message indiquant qu’il a changé. Voir [Votre compte et la connexion](/help/account-security).
+- **Invitations** : aux clients que vous invitez à une galerie ou ajoutez à la page d’un client, et aux nouveaux membres de l’équipe qui choisissent leur propre mot de passe, quand **Leur envoyer l’invitation par e-mail** (ou la case équivalente pour l’équipe) est cochée. Voir [Galeries clients](/help/client-galleries) et [Personnes et rôles](/help/people-and-roles).
+- **Concernant les galeries** : **Écrire aux membres**, un rappel trois jours avant la fermeture d’une galerie, et un message pour vous quand un client a fini de choisir. Les clients peuvent désactiver ces e-mails pour chaque galerie.
+- **Problèmes** : aux personnes qui voient les alertes, quand quelque chose de nouveau demande votre attention. Voir [Alertes et activité](/help/alerts-and-activity).
+
+Chaque e-mail part au nom de votre studio, et les réponses vont à l’adresse que vous avez indiquée.
 
 ## Quand quelque chose ne va pas
 

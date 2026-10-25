@@ -4,7 +4,7 @@ summary: "Enviar invitaciones, restablecimientos de contraseña y correos de gal
 section: Settings
 order: 2
 review: machine
-source: 8e0e5ced3038
+source: a8d41006e12b
 ---
 
 cf-dam puede enviar correo desde tu propio dominio: invitaciones, restablecimientos de contraseña y mensajes sobre galerías de clientes. Mientras no pueda, son enlaces que copias y pasas tú mismo, y todo lo demás funciona como siempre.
@@ -34,6 +34,15 @@ Activar el correo fija la dirección web a la que apuntan los enlaces de los cor
 **Envíame un correo de prueba** te envía uno al momento y te dice enseguida si no ha podido. La primera vez, mira también en la carpeta de spam.
 
 La página también muestra cuándo salió el último correo, cuántos salieron en las últimas 24 horas, qué está esperando y el último problema.
+
+## Qué se envía
+
+- **¿Olvidaste tu contraseña?** en la página de inicio de sesión: un enlace para elegir una contraseña nueva y, después, un aviso de que ha cambiado. Consulta [Tu cuenta y el inicio de sesión](/help/account-security).
+- **Invitaciones**: a los clientes que invitas a una galería o añades a la página de un cliente, y a los nuevos miembros del equipo que eligen su propia contraseña, cuando está marcado **Enviarles la invitación por correo** (o la casilla equivalente del equipo). Consulta [Galerías de clientes](/help/client-galleries) y [Personas y funciones](/help/people-and-roles).
+- **Sobre galerías**: **Escribir a los miembros**, un recordatorio tres días antes de que cierre una galería y un aviso para ti cuando un cliente termina de elegir. Los clientes pueden desactivar estos correos para cada galería.
+- **Problemas**: a las personas que ven los avisos, cuando algo nuevo necesita atención. Consulta [Avisos y actividad](/help/alerts-and-activity).
+
+Todos los correos salen con el nombre de tu estudio, y las respuestas van a la dirección que hayas indicado.
 
 ## Cuando algo va mal
 

@@ -5,6 +5,7 @@ import type { MailBinding } from '../src/mail/mailer'
 import { getMailSettings, mailSweep, queueMail, sendDueMail } from '../src/mail/outbox'
 import { renderMail } from '../src/mail/templates'
 import { closingSoonSweep } from '../src/mail/gallery-mail'
+import { alertEmailSweep } from '../src/mail/alert-mail'
 import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
 
 /** Records what it's asked to send; `fail` makes it throw the binding's error with that code. */
@@ -367,5 +368,40 @@ describe('gallery emails (plans/PLAN-E-v2.md §4)', () => {
     const r = renderMail('galleryReady', 'en', { studio: 'S', gallery: 'G', link: 'https://dam.example.com/s/t', offLink: 'https://dam.example.com/api/public/email-off?s=1&u=2&k=3' })
     expect(r.headers).toEqual({ 'List-Unsubscribe': '<https://dam.example.com/api/public/email-off?s=1&u=2&k=3>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' })
     expect(r.html).toContain('https://dam.example.com/email-off?s=1&amp;u=2&amp;k=3')
+  })
+})
+
+describe('alert emails (plans/PLAN-E-v2.md §4)', () => {
+  it('tells those who see alerts about new ones, once a day per kind, unless they turned it off', async () => {
+    const { mail, admin } = await withMail()
+    await put(admin, { on: true })
+    const open = async (kind: string, text: Record<string, unknown>) => {
+      await new Promise((r) => setTimeout(r, 5))
+      const at = new Date().toISOString()
+      await h.env.DB.prepare('INSERT INTO alerts (id, key, kind, message, text, link, opened_at, seen_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)')
+        .bind(crypto.randomUUID(), `${kind}:${at}`, kind, 'm', JSON.stringify(text), at, at)
+        .run()
+      await new Promise((r) => setTimeout(r, 5))
+    }
+    // Alerts open before the first look aren't news.
+    await open('previews.stuck', { key: 'alert.previewsStuck', params: { count: 3 } })
+    expect(await alertEmailSweep(h.env)).toBe(0)
+
+    await open('previews.stuck', { key: 'alert.previewsStuck', params: { count: 4 } })
+    await open('mail.failing', { key: 'alert.mailFailing', params: { error: 'x' } })
+    await open('agent.offline', { key: 'alert.offlineDesktop', params: { name: 'Laptop' } })
+    expect(await alertEmailSweep(h.env)).toBe(1)
+    await sendDueMail(h.env)
+    expect(mail.sent).toHaveLength(1)
+    expect(mail.sent[0]!.to).toBe('ada@example.com')
+    expect(mail.sent[0]!.text).toContain('4')
+    expect(mail.sent[0]!.text).not.toContain('Laptop')
+
+    // The same kind again today: nothing. A new kind: yes, unless they turned these off.
+    await open('previews.stuck', { key: 'alert.previewsStuck', params: { count: 5 } })
+    expect(await alertEmailSweep(h.env)).toBe(0)
+    await h.fetch('/api/me/preferences', { method: 'PUT', body: JSON.stringify({ alertEmails: false }), cookie: admin })
+    await open('archive.failed', { key: 'alert.archiveCopyFailed', params: { count: 1, error: 'e' } })
+    expect(await alertEmailSweep(h.env)).toBe(0)
   })
 })

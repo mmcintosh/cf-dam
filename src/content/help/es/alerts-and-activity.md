@@ -4,7 +4,7 @@ summary: "Problemas que necesitan a alguien y el registro de quién hizo qué."
 section: People and security
 order: 3
 review: machine
-source: c2379e3fb31d
+source: bf3a2942f6b3
 ---
 
 Las dos páginas son para administradores.
@@ -26,6 +26,10 @@ cf-dam se revisa a sí mismo cada cinco minutos y crea un **aviso** cuando algo 
 Cada aviso indica desde cuándo existe e incluye **Ir a** la página donde se arregla. Cuando el problema se soluciona, el aviso se cierra solo y pasa a **Arreglados en las dos últimas semanas**.
 
 **Descartar** saca un aviso del recuento mientras te ocupas de él (o si has decidido que no importa). Vuelve a contar si reaparece después de arreglarse; **Volver a contarlo** deshace el descarte.
+
+### Por correo
+
+Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), las personas que ven los avisos también reciben un correo cuando se abre uno nuevo: como mucho uno al día por cada tipo de problema, con la lista de lo que está abierto y un enlace a esta página. No se envía correo cuando un asistente de escritorio deja de dar señales (un portátil en reposo), ni por problemas con el propio correo. Desactiva estos correos, o vuelve a activarlos, en **Cuenta → Correos sobre problemas**.
 
 ## Actividad
 

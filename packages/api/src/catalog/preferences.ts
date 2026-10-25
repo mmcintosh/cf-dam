@@ -27,6 +27,8 @@ export interface Preferences {
   thumbnails: (typeof THUMBNAIL_SIZES)[number]
   /** The language cf-dam speaks to them; 'auto' follows their browser (then the archive's language). */
   language: Language | 'auto'
+  /** For those who see alerts: an email when something new needs attention (mail/alert-mail.ts). */
+  alertEmails: boolean
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -38,6 +40,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   underlineLinks: false,
   thumbnails: 'medium',
   language: 'auto',
+  alertEmails: true,
 }
 
 const one = <T>(allowed: readonly T[], value: unknown, fallback: T): T => (allowed.includes(value as T) ? (value as T) : fallback)
@@ -55,6 +58,7 @@ export function parsePreferences(value: unknown, base: Preferences = DEFAULT_PRE
     underlineLinks: flag(v.underlineLinks, base.underlineLinks),
     thumbnails: one(THUMBNAIL_SIZES, v.thumbnails, base.thumbnails),
     language: v.language === 'auto' ? 'auto' : ((asLanguage(v.language) as Language | null) ?? base.language),
+    alertEmails: flag(v.alertEmails, base.alertEmails),
   }
 }
 

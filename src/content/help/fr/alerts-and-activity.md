@@ -4,7 +4,7 @@ summary: "Les problèmes qui demandent quelqu’un, et l’historique de qui a f
 section: People and security
 order: 3
 review: machine
-source: c2379e3fb31d
+source: bf3a2942f6b3
 ---
 
 Ces deux pages sont réservées aux administrateurs.
@@ -26,6 +26,10 @@ cf-dam se vérifie lui-même toutes les cinq minutes et lève une **alerte** qua
 Chaque alerte indique depuis quand, et propose **Aller à** la page qui permet de régler le problème. Quand le problème est résolu, l’alerte se ferme toute seule et passe dans **Résolues ces deux dernières semaines**.
 
 **Ignorer** retire une alerte du décompte pendant que vous vous en occupez (ou si vous avez décidé qu’elle n’a pas d’importance). Elle compte à nouveau si elle revient après avoir été résolue ; **La recompter** annule le fait de l’ignorer.
+
+### Par e-mail
+
+Quand cette archive peut envoyer des e-mails (voir [E-mail](/help/email)), les personnes qui voient les alertes reçoivent aussi un e-mail quand une nouvelle alerte s’ouvre : au plus un par jour pour chaque type de problème, avec la liste de ce qui est ouvert et un lien vers cette page. Un assistant de bureau qui se tait (un portable en veille) ne donne pas lieu à un e-mail, pas plus que les problèmes liés à l’e-mail lui-même. Désactivez ces e-mails, ou réactivez-les, dans **Compte → E-mails en cas de problème**.
 
 ## Activité
 

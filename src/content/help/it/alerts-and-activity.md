@@ -4,7 +4,7 @@ summary: "I problemi che richiedono qualcuno e il registro di chi ha fatto cosa.
 section: People and security
 order: 3
 review: machine
-source: c2379e3fb31d
+source: bf3a2942f6b3
 ---
 
 Entrambe le pagine sono per gli amministratori.
@@ -26,6 +26,10 @@ cf-dam si controlla da solo ogni cinque minuti e genera un **avviso** quando qua
 Ogni avviso dice da quando è attivo, e **Vai a** porta alla pagina che lo risolve. Quando il problema è sistemato, l’avviso si chiude da solo e passa in **Risolti nelle ultime due settimane**.
 
 **Ignora** toglie un avviso dal conteggio mentre te ne occupi (o se hai deciso che non importa). Torna a contare se si ripresenta dopo essere stato risolto; **Riconteggialo** annulla l’ignora.
+
+### Per email
+
+Quando questo archivio può inviare email (vedi [Email](/help/email)), le persone che vedono gli avvisi ricevono anche un’email quando se ne apre uno nuovo: al massimo una al giorno per ogni tipo di problema, con l’elenco di ciò che è aperto e un link a questa pagina. Non arriva nessuna email quando un assistente desktop smette di farsi sentire (un portatile in stop), né per i problemi con l’email stessa. Disattiva queste email, o riattivale, in **Account → Email sui problemi**.
 
 ## Attività
 

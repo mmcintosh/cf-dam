@@ -4,8 +4,9 @@
  * from the same parts. No images, no tracking. Every value is escaped: names and gallery titles are typed by people.
  */
 import { createFormat, getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
+import { alertSentence, type AlertText } from '../catalog/alerts'
 
-export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite' | 'galleryReady' | 'closingSoon' | 'finished'
+export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite' | 'galleryReady' | 'closingSoon' | 'finished' | 'alert'
 
 export interface MailParams {
   /** The studio's name, from Setup → Email. */
@@ -84,6 +85,21 @@ const KINDS: Record<MailKind, (p: MailParams, t: Translate, lang: UiLanguage) =>
     ...(p.link ? { button: { label: t('mail.finished.button'), url: p.link } } : {}),
     why: t('mail.finished.why'),
   }),
+  alert: (p, t) => {
+    let texts: (AlertText | { message: string })[] = []
+    try {
+      texts = JSON.parse(String(p.texts ?? '[]')) as typeof texts
+    } catch {
+      texts = []
+    }
+    return {
+      subject: t('mail.alert.subject', { studio: p.studio, count: texts.length }),
+      heading: t('mail.alert.heading'),
+      paragraphs: texts.map((x) => ('key' in x ? alertSentence(x, t) : x.message)),
+      ...(p.link ? { button: { label: t('mail.alert.button'), url: p.link } } : {}),
+      why: t('mail.alert.why'),
+    }
+  },
   passwordChanged: (p, t) => ({
     subject: t('mail.changed.subject', { studio: p.studio }),
     heading: t('mail.changed.heading'),

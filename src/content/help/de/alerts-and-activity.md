@@ -4,7 +4,7 @@ summary: "Probleme, um die sich jemand kümmern muss, und das Protokoll, wer was
 section: People and security
 order: 3
 review: machine
-source: c2379e3fb31d
+source: bf3a2942f6b3
 ---
 
 Beide Seiten sind für Administratoren.
@@ -26,6 +26,10 @@ cf-dam prüft sich alle fünf Minuten selbst und gibt eine **Warnung** aus, wenn
 Jede Warnung sagt, seit wann sie besteht, und **Zu …** führt dich zur Seite, auf der du das Problem behebst. Ist es behoben, schließt sich die Warnung von selbst und wandert nach **In den letzten zwei Wochen behoben**.
 
 **Ausblenden** nimmt eine Warnung aus der Zählung, während du dich darum kümmerst (oder wenn du entschieden hast, dass sie unwichtig ist). Kommt sie nach der Behebung wieder, zählt sie erneut; **Wieder mitzählen** macht das Ausblenden rückgängig.
+
+### Per E-Mail
+
+Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), bekommen die Personen, die Warnungen sehen, auch eine E-Mail, wenn eine neue aufkommt: höchstens eine am Tag für jede Art von Problem, mit einer Liste dessen, was offen ist, und einem Link hierher. Für einen Desktop-Helfer, der still wird (ein Laptop im Ruhezustand), gibt es keine E-Mail, ebenso wenig für Probleme mit der E-Mail selbst. Schalte diese E-Mails unter **Konto → E-Mails bei Problemen** ab oder wieder ein.
 
 ## Aktivität
 

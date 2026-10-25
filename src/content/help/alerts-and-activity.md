@@ -25,6 +25,10 @@ Each alert says since when, and **Go to** the page that fixes it. When the probl
 
 **Dismiss** takes an alert out of the count while you deal with it (or if you've decided it doesn't matter). It counts again if it comes back after being put right; **Count it again** undoes a dismissal.
 
+### By email
+
+When this archive can send email (see [Email](/help/email)), the people who see alerts also get an email when a new one opens: at most one a day for each kind of problem, listing what's open, with a link here. A desktop helper going quiet (a laptop asleep) isn't emailed, and neither are problems with email itself. Turn these emails off, or back on, under **Account → Emails about problems**.
+
 ## Activity
 
 **Activity** is the record of who signed in, and who changed what, newest first: sign-ins (and failed ones), people added or changed, roles, two-step sign-in changes, storage connections, imports, deletions, galleries shared, AI review queued, settings changed, and background work such as backups and checks.

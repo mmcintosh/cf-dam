@@ -33,6 +33,15 @@ Turning email on fixes the web address that links in emails point to: the one yo
 
 The page also shows when the last email went, how many went in the last 24 hours, what's waiting, and the last problem.
 
+## What's sent
+
+- **Forgot your password?** on the sign-in page: a link to choose a new password, and then a note that it changed. See [Your account and sign-in](/help/account-security).
+- **Invitations**: to clients you invite to a gallery or add to a client's page, and to new team members choosing their own password, when **Email the invitation to them** (or the team box) is ticked. See [Client galleries](/help/client-galleries) and [People and roles](/help/people-and-roles).
+- **About galleries**: **Email the members**, a reminder three days before a gallery closes, and a note to you when a client finishes choosing. Clients can turn these off for each gallery.
+- **Problems**: to the people who see alerts, when something new needs attention. See [Alerts and activity](/help/alerts-and-activity).
+
+Every email comes from your studio's name, and replies go to the address you set.
+
 ## When something goes wrong
 
 - If the sending service refuses the account or the sending address, email **stops** (nothing more is sent, so nothing piles up as failures), and an alert says so under **Team → Alerts**. Fix it in Cloudflare, then send a test email: when it gets through, sending starts again and whatever was waiting goes.

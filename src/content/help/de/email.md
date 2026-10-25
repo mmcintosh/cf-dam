@@ -4,7 +4,7 @@ summary: "Einladungen, Passwort-Zurücksetzungen und Galerie-E-Mails von deiner 
 section: Settings
 order: 2
 review: machine
-source: 8e0e5ced3038
+source: a8d41006e12b
 ---
 
 cf-dam kann E-Mails von deiner eigenen Domain senden: Einladungen, Passwort-Zurücksetzungen und Nachrichten zu Kundengalerien. Solange das nicht geht, sind das Links, die du kopierst und selbst weitergibst, und alles andere funktioniert wie gewohnt.
@@ -34,6 +34,15 @@ Mit dem Einschalten wird die Webadresse festgelegt, auf die Links in E-Mails zei
 **Schick mir eine Test-E-Mail** schickt dir sofort eine und sagt gleich, wenn es nicht geklappt hat. Schau beim ersten Mal auch in deinen Spam-Ordner.
 
 Die Seite zeigt außerdem, wann die letzte E-Mail rausging, wie viele in den letzten 24 Stunden rausgingen, was wartet und das letzte Problem.
+
+## Was gesendet wird
+
+- **Passwort vergessen?** auf der Anmeldeseite: ein Link, um ein neues Passwort zu wählen, und danach ein Hinweis, dass es geändert wurde. Siehe [Dein Konto und die Anmeldung](/help/account-security).
+- **Einladungen**: an Kunden, die du zu einer Galerie einlädst oder zur Seite eines Kunden hinzufügst, und an neue Teammitglieder, die ihr eigenes Passwort wählen, wenn **Einladung per E-Mail schicken** (oder das entsprechende Kästchen beim Team) angehakt ist. Siehe [Kundengalerien](/help/client-galleries) und [Personen und Rollen](/help/people-and-roles).
+- **Zu Galerien**: **Mitgliedern mailen**, eine Erinnerung drei Tage bevor eine Galerie schließt und eine Nachricht an dich, wenn ein Kunde mit dem Auswählen fertig ist. Kunden können diese E-Mails für jede Galerie einzeln abschalten.
+- **Probleme**: an die Personen, die Warnungen sehen, wenn etwas Neues Aufmerksamkeit braucht. Siehe [Warnungen und Aktivität](/help/alerts-and-activity).
+
+Jede E-Mail kommt unter dem Namen deines Studios, und Antworten gehen an die Adresse, die du festgelegt hast.
 
 ## Wenn etwas schiefgeht
 

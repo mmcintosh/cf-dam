@@ -1,10 +1,11 @@
 ---
 import { env } from 'cloudflare:workers'
-import { getPreferences } from '@cf-dam/api'
+import { getMailSettings, getPreferences, mailReady } from '@cf-dam/api'
 import { createFormat, getT } from '@cf-dam/i18n'
 import AppLayout from '../layouts/AppLayout.astro'
 import ApiKeys from '../components/ApiKeys.svelte'
 import AppearanceSettings from '../components/AppearanceSettings.svelte'
+import AlertEmails from '../components/AlertEmails.svelte'
 import LanguageSettings from '../components/LanguageSettings.svelte'
 import ChangePassword from '../components/ChangePassword.svelte'
 import Passkeys from '../components/Passkeys.svelte'
@@ -21,6 +22,9 @@ const canManageKeys = principal.permissions.has('apikeys:manage') && !setup
 // After a setup step, on to wherever the middleware sends them next (the Library, or the next step).
 const next = setup ? '/' : undefined
 const preferences = await getPreferences(env.DB, principal.userId)
+// Email when something needs attention: for those who see alerts.
+const seesAlerts = principal.permissions.has('alerts:read')
+const mailOn = seesAlerts ? mailReady(env as Parameters<typeof mailReady>[0], await getMailSettings(env.DB)) : false
 const t = getT(Astro.locals.lang)
 const since = row ? createFormat(Astro.locals.lang).date(row.created_at) : ''
 ---
@@ -52,6 +56,15 @@ const since = row ? createFormat(Astro.locals.lang).date(row.created_at) : ''
       </header>
       <AppearanceSettings client:load initial={preferences} />
     </section>
+    {seesAlerts && (
+      <section class="card setting" id="notifications">
+        <header>
+          <h3>{t('account.alertEmails.title')}</h3>
+          <p class="lead">{t('account.alertEmails.lead')}</p>
+        </header>
+        <AlertEmails client:load initial={preferences.alertEmails} {mailOn} />
+      </section>
+    )}
     </>
   )}
 

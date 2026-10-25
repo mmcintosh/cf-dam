@@ -4,7 +4,7 @@ summary: "Inviare inviti, reimpostazioni della password ed email delle gallerie 
 section: Settings
 order: 2
 review: machine
-source: 8e0e5ced3038
+source: a8d41006e12b
 ---
 
 cf-dam può inviare email dal tuo dominio: inviti, reimpostazioni della password e messaggi sulle gallerie clienti. Finché non può, sono link che copi e passi tu stesso, e tutto il resto funziona come sempre.
@@ -34,6 +34,15 @@ Attivare l’email fissa l’indirizzo web a cui puntano i link nelle email: que
 **Inviami un’email di prova** te ne invia una subito e ti dice immediatamente se non ci è riuscito. La prima volta, guarda anche nella cartella dello spam.
 
 La pagina mostra anche quando è partita l’ultima email, quante ne sono partite nelle ultime 24 ore, cosa è in attesa e l’ultimo problema.
+
+## Cosa viene inviato
+
+- **Password dimenticata?** nella pagina di accesso: un link per scegliere una nuova password e poi un avviso che è stata cambiata. Vedi [Il tuo account e l’accesso](/help/account-security).
+- **Inviti**: ai clienti che inviti a una galleria o aggiungi alla pagina di un cliente, e ai nuovi membri del team che scelgono la propria password, quando è spuntato **Invia loro l’invito per email** (o la casella corrispondente per il team). Vedi [Gallerie clienti](/help/client-galleries) e [Persone e ruoli](/help/people-and-roles).
+- **Sulle gallerie**: **Scrivi ai membri**, un promemoria tre giorni prima che una galleria chiuda e un messaggio per te quando un cliente ha finito di scegliere. I clienti possono disattivare queste email per ogni galleria.
+- **Problemi**: alle persone che vedono gli avvisi, quando qualcosa di nuovo richiede attenzione. Vedi [Avvisi e attività](/help/alerts-and-activity).
+
+Ogni email parte con il nome del tuo studio, e le risposte vanno all’indirizzo che hai impostato.
 
 ## Quando qualcosa va storto
 
