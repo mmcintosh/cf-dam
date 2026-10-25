@@ -78,7 +78,7 @@ beforeEach(async () => {
   const album = ((await (await h.fetch('/api/albums', { ...json({ name: 'Wedding' }), cookie: admin })).json()) as { album: { id: string } }).album.id
   await h.fetch(`/api/albums/${album}/items`, { ...json({ assetIds: ids }), cookie: admin })
   share = ((await (await h.fetch('/api/shares', { ...json({ albumId: album, name: 'For the Smiths', title: 'Your wedding' }), cookie: admin })).json()) as { share: { id: string; token: string } }).share
-  expect((await h.fetch('/api/payments/keys', { method: 'PUT', body: JSON.stringify({ stripeKey: 'rk_test_abcdefghijklmnop', webhookSecret: WEBHOOK_SECRET }), cookie: admin })).status).toBe(200)
+  expect((await h.fetch('/api/payments/keys', { method: 'PUT', body: JSON.stringify({ stripeKey: 'rk_test_abcdefghijklmnop', webhookSecret: WEBHOOK_SECRET }), cookie: admin })).status).toBe(200) // gitleaks:allow (made-up test key)
   const list = ((await (await h.fetch('/api/payments/price-lists', { ...json({ name: 'Standard', small: 500, large: 1500, full: 3000, all: 20000 }), cookie: admin })).json()) as { priceList: { id: string } }).priceList
   expect((await h.fetch(`/api/payments/galleries/${share.id}`, { method: 'PUT', body: JSON.stringify({ priceListId: list.id }), cookie: admin })).status).toBe(200)
 })
