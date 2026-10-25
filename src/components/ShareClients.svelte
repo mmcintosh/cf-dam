@@ -73,6 +73,31 @@
     }
   }
 
+  /** "Email the members": first a look at the email, then send. */
+  let preview = $state<{ subject: string; html: string; recipients: number } | null>(null)
+  async function look() {
+    error = ''
+    note = ''
+    try {
+      preview = await api<{ subject: string; html: string; recipients: number }>(`/api/shares/${shareId}/email-members`)
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('common.couldNotLoad')
+    }
+  }
+  async function emailMembers() {
+    busy = true
+    error = ''
+    try {
+      const { sent } = await api<{ sent: number }>(`/api/shares/${shareId}/email-members`, { method: 'POST' })
+      note = t('clients.membersEmailed', { count: sent })
+      preview = null
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
+    } finally {
+      busy = false
+    }
+  }
+
   async function remove(member: MemberJson) {
     error = ''
     try {
@@ -95,8 +120,22 @@
 <div class="clients stack">
   <div class="row head">
     <span class="small"><strong>{t('clients.title')}</strong> <span class="muted">{t('clients.lead')}</span></span>
-    {#if !inviting}<button class="btn btn-sm" type="button" onclick={() => ((inviting = true), (fresh = null), (note = ''))}>{t('clients.invite')}</button>{/if}
+    <span class="row actions">
+      {#if mailOn && members.some((m) => m.joined && !m.emailsOff)}<button class="btn btn-sm" type="button" onclick={look}>{t('clients.emailMembers')}</button>{/if}
+      {#if !inviting}<button class="btn btn-sm" type="button" onclick={() => ((inviting = true), (fresh = null), (note = ''))}>{t('clients.invite')}</button>{/if}
+    </span>
   </div>
+
+  {#if preview}
+    <div class="preview stack" role="dialog" aria-label={t('clients.emailMembers')}>
+      <p class="small"><strong>{t('clients.previewTo', { count: preview.recipients })}</strong> {preview.subject}</p>
+      <iframe title={preview.subject} sandbox="" srcdoc={preview.html}></iframe>
+      <div class="row actions">
+        <button class="btn btn-primary btn-sm" type="button" disabled={busy || preview.recipients === 0} onclick={emailMembers}>{t('clients.sendNow')}</button>
+        <button class="btn btn-sm" type="button" onclick={() => (preview = null)}>{t('common.cancel')}</button>
+      </div>
+    </div>
+  {/if}
 
   {#if members.length > 0}
     <ul class="members">
@@ -110,6 +149,8 @@
             {:else if member.joined}{member.lastLoginAt ? t('clients.lastSignedIn', { date: day(member.lastLoginAt) }) : t('clients.joined')}
             {:else if member.inviteExpiresAt && member.inviteExpiresAt > new Date().toISOString()}{t('clients.invited')}
             {:else}{t('clients.expired')}{/if}
+            {#if member.emailsOff} · {t('clients.emailsOff')}{/if}
+            {#if member.mailProblem} · <span class="warn">{t('clients.mailProblem')}</span>{/if}
           </span>
           <span class="row actions">
             {#if !member.joined}<button class="btn btn-sm" type="button" onclick={() => reinvite(member)}>{t('clients.newInvite')}</button>{/if}
@@ -179,6 +220,16 @@
   }
   .actions {
     margin-left: auto;
+  }
+  .preview iframe {
+    width: 100%;
+    height: 360px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #fff;
+  }
+  .warn {
+    color: var(--danger);
   }
   .send {
     display: flex;

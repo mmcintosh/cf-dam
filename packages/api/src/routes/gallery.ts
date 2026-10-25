@@ -34,6 +34,7 @@ import { BadRequest, optionalString, readJsonObject, requiredString } from '../l
 import { applyGalleryLanguage, say } from '../lib/language'
 import { attachmentDisposition, StorageError } from '../storage/types'
 import { originalResponse } from '../storage/original'
+import { notifyFinished } from '../mail/gallery-mail'
 
 export const galleryRoutes = new Hono<DamEnv>()
 
@@ -165,6 +166,8 @@ galleryRoutes.post('/:token/submit', async (c) => {
   if (gallery instanceof Response) return gallery
   if (!gallery.visitor) return c.json({ error: 'no_visitor', message: say('gallery.api.nameFirst') }, 409)
   await submitPicks(c.env.DB, gallery.visitor.id)
+  // A signed-in client finishing: the photographer hears by email (at most hourly per gallery).
+  if (gallery.visitor.user_id) c.executionCtx.waitUntil(notifyFinished(c.env, gallery.share.id, gallery.visitor.name).catch((e) => console.warn('[mail] finished', e)))
   return c.json({ ok: true })
 })
 

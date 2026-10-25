@@ -5,7 +5,7 @@
  */
 import { createFormat, getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
 
-export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite'
+export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite' | 'galleryReady' | 'closingSoon' | 'finished'
 
 export interface MailParams {
   /** The studio's name, from Setup → Email. */
@@ -59,6 +59,31 @@ const KINDS: Record<MailKind, (p: MailParams, t: Translate, lang: UiLanguage) =>
     ...(p.link ? { button: { label: t('mail.team.button'), url: p.link } } : {}),
     why: t('mail.team.why', { studio: p.studio }),
   }),
+  galleryReady: (p, t, lang) => ({
+    subject: t('mail.gallery.subject', { studio: p.studio, gallery: String(p.gallery ?? '') }),
+    heading: t('mail.invite.heading', { name: String(p.name ?? '') }),
+    paragraphs: [
+      t('mail.gallery.body', { studio: p.studio, gallery: String(p.gallery ?? '') }),
+      ...(p.message ? [String(p.message)] : []),
+      ...(p.until ? [t('mail.gallery.until', { date: day(lang, p.until) })] : []),
+    ],
+    ...(p.link ? { button: { label: t('mail.gallery.button'), url: p.link } } : {}),
+    why: t('mail.gallery.why', { studio: p.studio }),
+  }),
+  closingSoon: (p, t, lang) => ({
+    subject: t('mail.closing.subject', { gallery: String(p.gallery ?? ''), date: day(lang, p.until) }),
+    heading: t('mail.invite.heading', { name: String(p.name ?? '') }),
+    paragraphs: [t('mail.closing.body', { studio: p.studio, gallery: String(p.gallery ?? ''), date: day(lang, p.until) })],
+    ...(p.link ? { button: { label: t('mail.gallery.button'), url: p.link } } : {}),
+    why: t('mail.gallery.why', { studio: p.studio }),
+  }),
+  finished: (p, t) => ({
+    subject: t('mail.finished.subject', { who: String(p.who ?? ''), gallery: String(p.gallery ?? '') }),
+    heading: t('mail.finished.heading'),
+    paragraphs: [t('mail.finished.body', { who: String(p.who ?? ''), gallery: String(p.gallery ?? '') })],
+    ...(p.link ? { button: { label: t('mail.finished.button'), url: p.link } } : {}),
+    why: t('mail.finished.why'),
+  }),
   passwordChanged: (p, t) => ({
     subject: t('mail.changed.subject', { studio: p.studio }),
     heading: t('mail.changed.heading'),
@@ -87,12 +112,17 @@ export interface Rendered {
   subject: string
   html: string
   text: string
+  /** List-Unsubscribe, for an email that can be turned off (one click, RFC 8058; https only). */
+  headers?: Record<string, string>
 }
 
 export function renderMail(kind: MailKind, lang: UiLanguage, params: MailParams): Rendered {
   const t = getT(lang)
   const parts = KINDS[kind](params, t, lang)
   const url = parts.button ? webLink(parts.button.url) : null
+  // "Don't email me about this gallery": a page that asks first (mail scanners open links), and the one-click header.
+  const off = typeof params.offLink === 'string' ? webLink(params.offLink) : null
+  const offPage = off ? off.replace('/api/public/email-off?', '/email-off?') : null
   const button = url
     ? `<p style="margin:28px 0"><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#3b5bdb;color:#ffffff;text-decoration:none;font-weight:600">${escapeHtml(parts.button!.label)}</a></p>
 <p style="margin:0 0 16px;color:#555;font-size:13px">${escapeHtml(t('mail.layout.orCopy'))}<br><a href="${escapeHtml(url)}" style="color:#3b5bdb;word-break:break-all">${escapeHtml(url)}</a></p>`
@@ -108,6 +138,7 @@ ${parts.paragraphs.map((p) => `<p style="margin:0 0 14px">${paragraph(p)}</p>`).
 ${button}
 </div>
 <p style="margin:20px 4px 0;color:#777;font-size:12px">${paragraph(parts.why)}</p>
+${offPage ? `<p style="margin:8px 4px 0;font-size:12px"><a href="${escapeHtml(offPage)}" style="color:#777">${escapeHtml(t('mail.gallery.off'))}</a></p>` : ''}
 </div>
 </body></html>`
   const text = [
@@ -119,7 +150,9 @@ ${button}
     ...(url ? [`${parts.button!.label}: ${url}`, ''] : []),
     '--',
     parts.why,
+    ...(offPage ? [`${t('mail.gallery.off')}: ${offPage}`] : []),
   ].join('\n')
-  return { subject: parts.subject, html, text }
+  const headers = off?.startsWith('https:') ? { 'List-Unsubscribe': `<${off}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined
+  return { subject: parts.subject, html, text, ...(headers ? { headers } : {}) }
 }
 

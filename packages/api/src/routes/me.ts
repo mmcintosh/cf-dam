@@ -7,6 +7,7 @@ import { getPreferences, savePreferences } from '../catalog/preferences'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredString, stringArray } from '../lib/http'
+import { setGalleryEmails } from '../mail/gallery-mail'
 import { nowIso } from '../lib/time'
 
 export const meRoutes = new Hono<DamEnv>()
@@ -28,6 +29,15 @@ meRoutes.get('/', async (c) => {
 
 /** The client galleries you were invited to (catalog/clients.ts). Empty for the team, who see albums instead. */
 meRoutes.get('/galleries', async (c) => c.json({ galleries: await clientGalleries(c.env.DB, c.get('principal')!.userId) }))
+
+/** Turn a gallery's emails (reminders, "a gallery for you") off or back on, for yourself. */
+meRoutes.put('/galleries/:token/emails', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { on?: unknown }
+  const share = await c.env.DB.prepare('SELECT id FROM shares WHERE token = ?').bind(c.req.param('token')).first<{ id: string }>()
+  if (!share || typeof body.on !== 'boolean') return c.json({ error: 'not_found' }, 404)
+  const ok = await setGalleryEmails(c.env.DB, share.id, c.get('principal')!.userId, body.on)
+  return ok ? c.json({ on: body.on }) : c.json({ error: 'not_found' }, 404)
+})
 
 /** Appearance and accessibility choices (catalog/preferences.ts). */
 meRoutes.get('/preferences', async (c) => c.json(await getPreferences(c.env.DB, c.get('principal')!.userId)))

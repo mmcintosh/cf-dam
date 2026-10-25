@@ -4,7 +4,7 @@ summary: "Pour les clients : se connecter, parcourir vos photos, choisir vos fav
 section: Sharing
 order: 2
 review: machine
-source: 196c9b31578f
+source: 0eb398c31fbc
 ---
 
 Votre photographe utilise cf-dam pour partager des photos avec vous. Avec votre propre compte, vous ne voyez que les galeries qu’il a partagées avec vous, depuis n’importe quel téléphone, tablette ou ordinateur.
@@ -32,6 +32,10 @@ Vos favoris sont conservés dans votre compte : vous pouvez commencer sur votre 
 ## Télécharger
 
 Si votre photographe autorise les téléchargements, la vue en grand propose un bouton **⤓** pour chaque taille disponible : **Petite** ou **Grande** en JPEG pour partager et imprimer, ou le **Fichier original**. « Original : demandez-le au photographe » signifie que ce fichier n’est pas conservé en ligne ; il peut vous l’envoyer.
+
+## E-mails
+
+Si l’archive de votre photographe envoie des e-mails, vous pouvez en recevoir un quand il partage une galerie avec vous, et un rappel trois jours avant la fermeture d’une galerie si vous n’avez pas appuyé sur **J’ai terminé**. Chacun comporte en bas **Ne plus m’envoyer d’e-mails sur cette galerie** ; sous **Vos galeries**, vous pouvez désactiver ou réactiver les e-mails d’une galerie.
 
 ## Votre compte
 

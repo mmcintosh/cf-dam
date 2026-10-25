@@ -53,6 +53,7 @@ import { meaningStep } from './meaning'
 import { pruneGalleryCache } from './watermark'
 import { mailSweep } from '../mail/outbox'
 import { mailAvailable } from '../mail/mailer'
+import { closingSoonSweep } from '../mail/gallery-mail'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
@@ -253,6 +254,8 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   // the MAIL binding.
   if (mailAvailable(env) && slice('mail').more()) {
     try {
+      // Galleries closing within three days remind their members (every ten minutes is plenty).
+      if (new Date().getUTCMinutes() % 10 === 0) await closingSoonSweep(env)
       await mailSweep(env)
     } catch (error) {
       await noteSweepFailure(db, 'mail', error)

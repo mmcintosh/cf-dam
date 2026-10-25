@@ -4,7 +4,7 @@ summary: "Condividere un album con un cliente tramite link privato o invitandolo
 section: Sharing
 order: 1
 review: machine
-source: 932e9af0d35a
+source: 2d92bffd9371
 ---
 
 Una **galleria cliente** mostra un album a qualcuno fuori dal tuo team: una coppia che sceglie le foto del matrimonio, un art director che seleziona gli scatti, una famiglia che scarica le stampe. Gli mandi un link; vede solo quell’album, nient’altro del tuo archivio.
@@ -69,3 +69,13 @@ Cosa cambia per un cliente con un account:
 - **Nient’altro.** Il menu mostra solo le sue gallerie, l’Account e la sua pagina della guida ([Le tue gallerie](/help/for-clients)). Ogni altra pagina lo riporta alle sue gallerie.
 
 Sotto ogni link, i suoi clienti mostrano se si sono già uniti. **Nuovo link di invito** sostituisce un invito perso o scaduto (quello vecchio smette di funzionare). **Togli da questa galleria** gli impedisce di vederla; il suo account resta per le altre gallerie. I clienti sono elencati separati dal tuo team in [Persone](/help/people-and-roles), dove puoi dare loro una password temporanea, disattivarli o eliminarli.
+
+## Email ai clienti
+
+Quando questo archivio può inviare email (vedi [Email](/help/email)), i clienti con un account ricevono avvisi sulle loro gallerie:
+
+- **Scrivi ai membri**, sotto un link, mostra prima l’email (con il titolo e il messaggio della tua galleria), poi la invia a tutti i clienti che si sono uniti e non hanno disattivato queste email. Si può inviare una volta ogni sei ore.
+- **La galleria chiude presto**: tre giorni prima che una galleria chiuda, i clienti che non hanno premuto **Ho finito** ricevono un promemoria. Una volta per data di chiusura: se sposti la data, ricevono un nuovo promemoria.
+- **Scelta completata**: quando un cliente preme **Ho finito**, la persona che ha creato la galleria riceve un’email (o gli amministratori, se quella persona non c’è più). Al massimo una volta all’ora per galleria.
+
+Ogni email su una galleria ha in fondo **Non inviarmi email su questa galleria**. I clienti possono riattivarle in **Le tue gallerie**. Sotto ogni link, un cliente mostra **email disattivate** quando le ha disattivate, e un avviso quando l’ultima email inviatagli non è arrivata: in quel caso mandagli tu i link. I clienti che arrivano solo con un link (senza account) non ricevono mai email.

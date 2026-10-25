@@ -4,7 +4,7 @@ summary: "Ein Album mit einem Kunden teilen, per privatem Link oder per Einladun
 section: Sharing
 order: 1
 review: machine
-source: 932e9af0d35a
+source: 2d92bffd9371
 ---
 
 Eine **Kundengalerie** zeigt ein Album jemandem außerhalb deines Teams: einem Paar, das seine Hochzeitsfotos auswählt, einer Art-Direktorin, die Motive aussucht, einer Familie, die Abzüge herunterlädt. Du schickst ihnen einen Link; sie sehen nur dieses Album, sonst nichts aus deinem Archiv.
@@ -69,3 +69,13 @@ Was sich für einen Kunden mit Konto ändert:
 - **Sonst nichts.** Das Menü zeigt nur seine Galerien, Konto und seine Hilfeseite ([Deine Galerien](/help/for-clients)). Jede andere Seite schickt ihn zurück zu seinen Galerien.
 
 Unter jedem Link siehst du bei seinen Kunden, ob sie beigetreten sind. **Neuer Einladungslink** ersetzt eine verlorene oder abgelaufene Einladung (die alte funktioniert dann nicht mehr). **Von dieser Galerie entfernen** sorgt dafür, dass der Kunde sie nicht mehr sieht; sein Konto bleibt für andere Galerien bestehen. Kunden stehen getrennt von deinem Team unter [Personen](/help/people-and-roles), wo du ihnen ein vorläufiges Passwort geben, sie deaktivieren oder löschen kannst.
+
+## E-Mails an Kunden
+
+Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), erfahren Kunden mit Konto per E-Mail von ihren Galerien:
+
+- **Mitgliedern mailen** zeigt unter einem Link zuerst die E-Mail (mit Titel und Nachricht deiner Galerie) und schickt sie dann an alle Kunden, die beigetreten sind und diese E-Mails nicht abgeschaltet haben. Sie kann einmal alle sechs Stunden gesendet werden.
+- **Galerie schließt bald**: Drei Tage bevor eine Galerie schließt, bekommen Kunden, die noch nicht **Ich bin fertig** gedrückt haben, eine Erinnerung. Einmal pro Schließdatum: Verschiebst du das Datum, werden sie erneut erinnert.
+- **Auswahl abgeschlossen**: Drückt ein Kunde **Ich bin fertig**, bekommt die Person, die die Galerie angelegt hat, eine E-Mail (oder die Administratoren, wenn diese Person nicht mehr da ist). Höchstens einmal pro Stunde und Galerie.
+
+Jede E-Mail zu einer Galerie hat unten **Keine E-Mails mehr zu dieser Galerie**. Kunden können sie unter **Deine Galerien** wieder einschalten. Unter jedem Link zeigt ein Kunde **E-Mails aus**, wenn er sie abgeschaltet hat, und eine Warnung, wenn die letzte E-Mail an ihn nicht angekommen ist: Schick ihm die Links dann selbst. Kunden, die nur über einen Link kommen (ohne Konto), bekommen nie E-Mails.

@@ -27,6 +27,7 @@ import { inviteRoutes } from './routes/invites'
 import { runInLanguage } from '@cf-dam/i18n'
 import { requestLanguage } from './lib/language'
 import { mailRoutes } from './routes/mail'
+import { emailOffRoutes } from './routes/email-off'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
 import { shareRoutes } from './routes/shares'
@@ -51,6 +52,10 @@ export const API_VERSION = '0.1.0'
 /** The DAM's JSON API, mounted by the app Worker at `/api`. */
 export function createDamApi() {
   const api = new Hono<DamEnv>()
+
+  // A gallery email's "don't email me" link: mail apps POST it as a form, from no origin (one-click unsubscribe). It
+  // uses no cookie and changes only what its signature allows, so it comes before the cross-origin check.
+  api.route('/public/email-off', emailOffRoutes)
 
   // Cookie-authenticated form posts from another origin are refused. JSON requests can't be sent
   // cross-origin without a CORS preflight, which this API never grants.

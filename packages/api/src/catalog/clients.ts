@@ -43,6 +43,10 @@ export interface MemberJson {
   inviteExpiresAt: string | null
   lastLoginAt: string | null
   addedAt: string
+  /** They turned this gallery's emails off. */
+  emailsOff: boolean
+  /** The last email to them bounced or failed: copy links for them instead. */
+  mailProblem: 'suppressed' | 'failed' | null
 }
 
 export async function shareMembers(db: D1Database, shareId: string): Promise<MemberJson[]> {
@@ -50,12 +54,14 @@ export async function shareMembers(db: D1Database, shareId: string): Promise<Mem
     .prepare(
       `SELECT u.id, u.name, u.email, u.is_active, u.last_login_at, m.created_at,
          EXISTS (SELECT 1 FROM account a WHERE a.user_id = u.id) OR EXISTS (SELECT 1 FROM passkey p WHERE p.user_id = u.id) AS joined,
-         (SELECT i.expires_at FROM client_invites i WHERE i.user_id = u.id) AS invite_expires_at
+         (SELECT i.expires_at FROM client_invites i WHERE i.user_id = u.id) AS invite_expires_at,
+         m.emails_off_at,
+         (SELECT o.status FROM mail_outbox o WHERE o.user_id = u.id AND o.status IN ('sent', 'failed', 'suppressed') ORDER BY o.created_at DESC LIMIT 1) AS mail_status
        FROM share_members m JOIN users u ON u.id = m.user_id
        WHERE m.share_id = ? ORDER BY m.created_at`,
     )
     .bind(shareId)
-    .all<{ id: string; name: string; email: string; is_active: number; last_login_at: string | null; created_at: string; joined: number; invite_expires_at: string | null }>()
+    .all<{ id: string; name: string; email: string; is_active: number; last_login_at: string | null; created_at: string; joined: number; invite_expires_at: string | null; emails_off_at: string | null; mail_status: string | null }>()
   return results.map((r) => ({
     userId: r.id,
     name: r.name,
@@ -65,6 +71,8 @@ export async function shareMembers(db: D1Database, shareId: string): Promise<Mem
     inviteExpiresAt: r.joined === 1 ? null : r.invite_expires_at,
     lastLoginAt: r.last_login_at,
     addedAt: r.created_at,
+    emailsOff: r.emails_off_at !== null,
+    mailProblem: r.mail_status === 'suppressed' || r.mail_status === 'failed' ? r.mail_status : null,
   }))
 }
 
@@ -169,13 +177,15 @@ export interface ClientGalleryJson {
   expired: boolean
   photos: number
   coverId: string | null
+  /** They turned this gallery's emails off. */
+  emailsOff: boolean
 }
 
 /** The galleries a client was invited to that still exist: open ones first, then expired ones. */
 export async function clientGalleries(db: D1Database, userId: string): Promise<ClientGalleryJson[]> {
   const { results } = await db
     .prepare(
-      `SELECT s.token, s.title, s.message, s.expires_at, s.revoked_at,
+      `SELECT s.token, s.title, s.message, s.expires_at, s.revoked_at, m.emails_off_at,
          (SELECT COUNT(*) FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = s.album_id) AS photos,
          COALESCE(al.cover_asset_id, (SELECT ai.asset_id FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
                                       WHERE ai.album_id = s.album_id ORDER BY ai.position, ai.added_at LIMIT 1)) AS cover
@@ -183,7 +193,7 @@ export async function clientGalleries(db: D1Database, userId: string): Promise<C
        WHERE m.user_id = ? AND s.revoked_at IS NULL ORDER BY s.created_at DESC`,
     )
     .bind(userId)
-    .all<{ token: string; title: string; message: string; expires_at: string | null; revoked_at: string | null; photos: number; cover: string | null }>()
+    .all<{ token: string; title: string; message: string; expires_at: string | null; revoked_at: string | null; emails_off_at: string | null; photos: number; cover: string | null }>()
   return results
     .map((r) => ({
       token: r.token,
@@ -193,6 +203,7 @@ export async function clientGalleries(db: D1Database, userId: string): Promise<C
       expired: shareStatus(r) === 'expired',
       photos: r.photos,
       coverId: r.cover,
+      emailsOff: r.emails_off_at !== null,
     }))
     .sort((a, b) => Number(a.expired) - Number(b.expired))
 }

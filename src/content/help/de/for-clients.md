@@ -4,7 +4,7 @@ summary: "Für Kunden: anmelden, Fotos ansehen, Favoriten auswählen und herunte
 section: Sharing
 order: 2
 review: machine
-source: 196c9b31578f
+source: 0eb398c31fbc
 ---
 
 Dein Fotograf teilt Fotos mit dir über cf-dam. Mit deinem eigenen Konto siehst du nur die Galerien, die er mit dir geteilt hat, auf jedem Telefon, Tablet oder Computer.
@@ -32,6 +32,10 @@ Deine Favoriten bleiben in deinem Konto gespeichert: Du kannst am Telefon anfang
 ## Herunterladen
 
 Wenn dein Fotograf Downloads erlaubt, hat die große Ansicht für jede verfügbare Größe einen **⤓**-Knopf: **Klein** oder **Groß** als JPEG zum Teilen und Drucken, oder die **Originaldatei**. „Original: beim Fotografen anfragen“ heißt, dass die Datei nicht online liegt; er kann sie dir schicken.
+
+## E-Mails
+
+Wenn das Archiv deines Fotografen E-Mails sendet, bekommst du vielleicht eine, wenn er eine Galerie mit dir teilt, und drei Tage bevor eine Galerie schließt eine Erinnerung, falls du noch nicht **Ich bin fertig** gedrückt hast. Jede hat unten **Keine E-Mails mehr zu dieser Galerie**; unter **Deine Galerien** kannst du die E-Mails einer Galerie ab- oder wieder einschalten.
 
 ## Dein Konto
 

@@ -58,6 +58,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (pathname.startsWith('/invite/')) return next()
   // A reset link from an email opens whoever is signed in on this device; the page says what it does.
   if (pathname === '/reset-password') return next()
+  // A gallery email's "don't email me" page: its link is the key, signed in or not.
+  if (pathname === '/email-off') return next()
   if (!principal) {
     if (SIGNED_OUT_PAGES.has(pathname)) return next()
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)

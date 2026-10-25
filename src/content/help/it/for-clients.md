@@ -4,7 +4,7 @@ summary: "Per i clienti: accedere, sfogliare le foto, scegliere le preferite e s
 section: Sharing
 order: 2
 review: machine
-source: 196c9b31578f
+source: 0eb398c31fbc
 ---
 
 Il tuo fotografo usa cf-dam per condividere foto con te. Con il tuo account vedi solo le gallerie che ha condiviso con te, da qualsiasi telefono, tablet o computer.
@@ -32,6 +32,10 @@ Le tue preferite restano nel tuo account: puoi iniziare sul telefono e finire su
 ## Scaricare
 
 Se il tuo fotografo consente i download, la vista grande ha un pulsante **⤓** per ogni dimensione disponibile: **Piccola** o **Grande** in JPEG per condividere e stampare, oppure il **File originale**. «Originale: chiedilo al fotografo» significa che quel file non è conservato online; può inviartelo lui.
+
+## Email
+
+Se l’archivio del tuo fotografo invia email, potresti riceverne una quando condivide una galleria con te, e un promemoria tre giorni prima che una galleria chiuda se non hai premuto **Ho finito**. Ognuna ha in fondo **Non inviarmi email su questa galleria**; in **Le tue gallerie** puoi disattivare o riattivare le email di una galleria.
 
 ## Il tuo account
 

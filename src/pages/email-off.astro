@@ -1,0 +1,18 @@
+---
+/**
+ * "Don't email me about this gallery", from a gallery email (mail/gallery-mail.ts). Asks first: mail scanners open
+ * links, so only the button (a POST) turns emails off. No sign-in; the link's signature is the key.
+ */
+import { getT } from '@cf-dam/i18n'
+import AuthLayout from '../layouts/AuthLayout.astro'
+import EmailOff from '../components/EmailOff.svelte'
+
+const t = getT(Astro.locals.lang)
+Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+Astro.response.headers.set('Cache-Control', 'private, no-store')
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+const q = Astro.url.searchParams
+---
+<AuthLayout title={t('emailOff.title')}>
+  <EmailOff client:load s={q.get('s') ?? ''} u={q.get('u') ?? ''} k={q.get('k') ?? ''} />
+</AuthLayout>

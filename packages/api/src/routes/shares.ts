@@ -28,6 +28,7 @@ import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
 import { say } from '../lib/language'
 import { emailInvite, mailOn } from '../mail/invite-mail'
+import { emailMembers, previewMembersEmail } from '../mail/gallery-mail'
 
 export const shareRoutes = new Hono<DamEnv>()
 
@@ -212,6 +213,33 @@ shareRoutes.post('/:id/members', async (c) => {
   } catch (error) {
     return c.json(invalid(error), 400)
   }
+})
+
+/** What "Email the members" would send, and to how many. */
+shareRoutes.get('/:id/email-members', async (c) => {
+  const preview = await previewMembersEmail(c.env, c.req.param('id'), new URL(c.req.url).origin)
+  return preview ? c.json(preview) : c.json({ error: 'not_found' }, 404)
+})
+
+/** "Email the members": the gallery's members who have joined get "A gallery for you" (at most every six hours). */
+shareRoutes.post('/:id/email-members', async (c) => {
+  const id = c.req.param('id')
+  const principal = c.get('principal')!
+  const outcome = await emailMembers(c.env, id, principal.userId)
+  switch (outcome.kind) {
+    case 'not_found':
+      return c.json({ error: 'not_found' }, 404)
+    case 'off':
+      return c.json({ error: 'mail_off', message: say('err.mailOffShort') }, 409)
+    case 'too_soon':
+      return c.json({ error: 'too_soon', message: say('err.membersEmailedRecently'), next: outcome.next }, 429)
+    case 'cap':
+      return c.json({ error: 'too_many', message: say('err.membersEmailCap') }, 429)
+    case 'none':
+      return c.json({ error: 'no_members', message: say('err.noMembersToEmail') }, 409)
+  }
+  await logActivity(c.env.DB, { userId: principal.userId, action: 'share.members_emailed', targetType: 'share', targetId: id, details: { count: outcome.count }, ipAddress: c.req.header('cf-connecting-ip') })
+  return c.json({ sent: outcome.count })
 })
 
 /** A new invite link for a client who hasn't joined yet (the old one stops working). */

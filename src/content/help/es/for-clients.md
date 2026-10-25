@@ -4,7 +4,7 @@ summary: "Para clientes: iniciar sesión, ver tus fotos, elegir favoritas y desc
 section: Sharing
 order: 2
 review: machine
-source: 196c9b31578f
+source: 0eb398c31fbc
 ---
 
 Tu fotógrafo usa cf-dam para compartir fotos contigo. Con tu propia cuenta solo ves las galerías que ha compartido contigo, desde cualquier teléfono, tableta u ordenador.
@@ -32,6 +32,10 @@ Tus favoritas se guardan en tu cuenta, así que puedes empezar en el teléfono y
 ## Descargar
 
 Si tu fotógrafo permite descargas, la vista grande tiene un botón **⤓** por cada tamaño disponible: **Pequeña** o **Grande** en JPEG para compartir e imprimir, o el **Archivo original**. «Original: pídeselo al fotógrafo» significa que ese archivo no está guardado en línea; puede enviártelo.
+
+## Correos
+
+Si el archivo de tu fotógrafo envía correos, puede que recibas uno cuando comparta una galería contigo, y un recordatorio tres días antes de que una galería cierre si no has pulsado **He terminado**. Cada uno lleva al pie **No enviarme correos sobre esta galería**; en **Tus galerías** puedes desactivar o volver a activar los correos de una galería.
 
 ## Tu cuenta
 

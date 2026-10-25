@@ -4,7 +4,7 @@ summary: "Compartir un álbum con un cliente mediante un enlace privado o invit�
 section: Sharing
 order: 1
 review: machine
-source: 932e9af0d35a
+source: 2d92bffd9371
 ---
 
 Una **galería de cliente** muestra un álbum a alguien de fuera de tu equipo: una pareja que elige las fotos de su boda, un director de arte que selecciona tomas, una familia que descarga copias para imprimir. Le envías un enlace y solo ve ese álbum, nada más de tu archivo.
@@ -69,3 +69,13 @@ Qué cambia para un cliente con cuenta:
 - **Nada más.** El menú solo muestra sus galerías, Cuenta y su página de ayuda ([Tus galerías](/help/for-clients)). Cualquier otra página le devuelve a sus galerías.
 
 Debajo de cada enlace, sus clientes muestran si ya se han unido. **Nuevo enlace de invitación** sustituye una invitación perdida o caducada (la antigua deja de funcionar). **Quitar de esta galería** hace que deje de verla; su cuenta se conserva para otras galerías. Los clientes aparecen separados de tu equipo en [Personas](/help/people-and-roles), donde puedes darles una contraseña temporal, desactivarlos o eliminarlos.
+
+## Correos a los clientes
+
+Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), los clientes con cuenta reciben avisos sobre sus galerías:
+
+- **Escribir a los miembros**, debajo de un enlace, muestra primero el correo (con el título y el mensaje de tu galería) y después lo envía a todos los clientes que se han unido y no han desactivado estos correos. Se puede enviar una vez cada seis horas.
+- **La galería cierra pronto**: tres días antes de que una galería cierre, los clientes que no han pulsado **He terminado** reciben un recordatorio. Una vez por fecha de cierre: si cambias la fecha, se les vuelve a recordar.
+- **Selección terminada**: cuando un cliente pulsa **He terminado**, la persona que creó la galería recibe un correo (o los administradores, si esa persona ya no está). Como mucho una vez por hora y galería.
+
+Todos los correos sobre una galería llevan al pie **No enviarme correos sobre esta galería**. Los clientes pueden volver a activarlos en **Tus galerías**. Debajo de cada enlace, un cliente muestra **correos desactivados** cuando los ha desactivado, y un aviso cuando el último correo que se le envió no llegó: en ese caso, envíale tú los enlaces. A los clientes que solo entran con un enlace (sin cuenta) nunca se les envían correos.

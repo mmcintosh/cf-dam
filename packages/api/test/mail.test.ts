@@ -4,7 +4,8 @@ import { OMITTED_TABLES } from '../src/catalog/backups'
 import type { MailBinding } from '../src/mail/mailer'
 import { getMailSettings, mailSweep, queueMail, sendDueMail } from '../src/mail/outbox'
 import { renderMail } from '../src/mail/templates'
-import { createHarness, json, setUpAdmin, type Harness } from './harness'
+import { closingSoonSweep } from '../src/mail/gallery-mail'
+import { cookiesFrom, createHarness, json, setUpAdmin, signIn, type Harness } from './harness'
 
 /** Records what it's asked to send; `fail` makes it throw the binding's error with that code. */
 class FakeMail implements MailBinding {
@@ -285,5 +286,86 @@ describe('invitations by email (plans/PLAN-E-v2.md §4)', () => {
     expect(await (await h.fetch(`/api/invites/${body.invite.token}`)).json()).toMatchObject({ email: 'eve@example.com' })
     expect((await h.fetch(`/api/invites/${body.invite.token}`, json({ password: 'eve chose this one' }))).status).toBe(200)
     expect((await h.fetch('/api/auth/sign-in/email', json({ email: 'eve@example.com', password: 'eve chose this one' }))).status).toBe(200)
+  })
+})
+
+describe('gallery emails (plans/PLAN-E-v2.md §4)', () => {
+  /** A gallery with Jane (joined, signed in) and Max (joined, emails off), and email on. */
+  async function setUp() {
+    const { mail, admin } = await withMail()
+    await put(admin, { on: true })
+    const album = ((await (await h.fetch('/api/albums', { ...json({ name: 'Smith wedding' }), cookie: admin })).json()) as { album: { id: string } }).album.id
+    const share = ((await (await h.fetch('/api/shares', { ...json({ albumId: album, name: 'For the Smiths', title: 'Your wedding', proofing: true }), cookie: admin })).json()) as { share: { id: string; token: string } }).share
+    const join = async (name: string, email: string) => {
+      const res = (await (await h.fetch(`/api/shares/${share.id}/members`, { ...json({ name, email }), cookie: admin })).json()) as { member: { userId: string }; invite: { token: string } }
+      await h.fetch(`/api/invites/${res.invite.token}`, json({ password: 'a long client password' }))
+      return { userId: res.member.userId, cookie: cookiesFrom(await signIn(h, email, 'a long client password')) }
+    }
+    const jane = await join('Jane Smith', 'jane@example.com')
+    const max = await join('Max Smith', 'max@example.com')
+    await h.env.DB.prepare('UPDATE share_members SET emails_off_at = ? WHERE user_id = ?').bind(new Date().toISOString(), max.userId).run()
+    await h.env.DB.prepare('DELETE FROM mail_outbox').run()
+    return { mail, admin, share, jane, max }
+  }
+
+  it('emails the members who joined and want it, after a preview, at most every six hours', async () => {
+    const { mail, admin, share } = await setUp()
+    const preview = (await (await h.fetch(`/api/shares/${share.id}/email-members`, { cookie: admin })).json()) as { recipients: number; subject: string; html: string }
+    expect(preview.recipients).toBe(1)
+    expect(preview.subject).toBe('Your wedding: your photos from cf-dam')
+    const res = await h.fetch(`/api/shares/${share.id}/email-members`, { method: 'POST', cookie: admin })
+    expect(await res.json()).toEqual({ sent: 1 })
+    expect((await h.fetch(`/api/shares/${share.id}/email-members`, { method: 'POST', cookie: admin })).status).toBe(429)
+    await sendDueMail(h.env)
+    expect(mail.sent.map((m) => m.to)).toEqual(['jane@example.com'])
+    expect(mail.sent[0]!.text).toContain(`http://localhost/s/${share.token}`)
+    expect(mail.sent[0]!.text).toContain('http://localhost/email-off?')
+  })
+
+  it('turns emails off with the signed link (one click, no origin), and back on from Your galleries', async () => {
+    const { admin, share, jane } = await setUp()
+    await h.fetch(`/api/shares/${share.id}/email-members`, { method: 'POST', cookie: admin })
+    const params = JSON.parse((await rows())[0]!.params as string) as { offLink: string }
+    const url = new URL(params.offLink)
+    expect((await h.fetch(`${url.pathname.replace('/api', '/api')}${url.search}`)).status).toBe(303)
+    const bad = new URLSearchParams(url.search)
+    bad.set('k', 'x'.repeat(32))
+    expect((await h.fetch(`/api/public/email-off?${bad}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://mail.example' }, body: 'List-Unsubscribe=One-Click' })).status).toBe(400)
+    const off = await h.fetch(`/api/public/email-off${url.search}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://mail.example' }, body: 'List-Unsubscribe=One-Click' })
+    expect(await off.json()).toEqual({ ok: true, gallery: 'Your wedding' })
+    const members = (await (await h.fetch(`/api/shares/${share.id}/members`, { cookie: admin })).json()) as { members: { emailsOff: boolean }[] }
+    expect(members.members.every((m) => m.emailsOff)).toBe(true)
+    expect((await h.fetch(`/api/me/galleries/${share.token}/emails`, { method: 'PUT', body: JSON.stringify({ on: true }), cookie: jane.cookie })).status).toBe(200)
+    expect(((await (await h.fetch('/api/me/galleries', { cookie: jane.cookie })).json()) as { galleries: { emailsOff: boolean }[] }).galleries[0]!.emailsOff).toBe(false)
+  })
+
+  it('reminds members who haven’t finished, once per closing date', async () => {
+    const { share, jane } = await setUp()
+    const closing = (days: number) => h.env.DB.prepare('UPDATE shares SET expires_at = ? WHERE id = ?').bind(new Date(Date.now() + days * 86_400_000).toISOString(), share.id).run()
+    await closing(10)
+    expect(await closingSoonSweep(h.env)).toBe(0)
+    await closing(2)
+    expect(await closingSoonSweep(h.env)).toBe(1)
+    expect(await closingSoonSweep(h.env)).toBe(0)
+    expect((await rows()).map((r) => [r.kind, r.to_address])).toEqual([['closingSoon', 'jane@example.com']])
+    // A new closing date: a new reminder, unless they've finished.
+    await closing(1)
+    await h.fetch(`/api/public/galleries/${share.token}/submit`, { method: 'POST', cookie: jane.cookie })
+    expect(await closingSoonSweep(h.env)).toBe(0)
+  })
+
+  it('tells the photographer when a client finishes choosing, at most hourly', async () => {
+    const { mail, share, jane } = await setUp()
+    expect((await h.fetch(`/api/public/galleries/${share.token}/submit`, { method: 'POST', cookie: jane.cookie })).status).toBe(200)
+    expect((await h.fetch(`/api/public/galleries/${share.token}/submit`, { method: 'POST', cookie: jane.cookie })).status).toBe(200)
+    expect((await rows()).filter((r) => r.kind === 'finished').map((r) => r.to_address)).toEqual(['ada@example.com'])
+    await sendDueMail(h.env)
+    expect(mail.sent.at(-1)!.subject).toBe('Jane Smith has finished choosing in Your wedding')
+  })
+
+  it('offers one-click unsubscribe headers over https', () => {
+    const r = renderMail('galleryReady', 'en', { studio: 'S', gallery: 'G', link: 'https://dam.example.com/s/t', offLink: 'https://dam.example.com/api/public/email-off?s=1&u=2&k=3' })
+    expect(r.headers).toEqual({ 'List-Unsubscribe': '<https://dam.example.com/api/public/email-off?s=1&u=2&k=3>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' })
+    expect(r.html).toContain('https://dam.example.com/email-off?s=1&amp;u=2&amp;k=3')
   })
 })

@@ -4,7 +4,7 @@ summary: "Partager un album avec un client par un lien privé ou en l’invitant
 section: Sharing
 order: 1
 review: machine
-source: 932e9af0d35a
+source: 2d92bffd9371
 ---
 
 Une **galerie client** montre un album à quelqu’un d’extérieur à votre équipe : un couple qui choisit ses photos de mariage, un directeur artistique qui sélectionne des images, une famille qui télécharge des tirages. Vous lui envoyez un lien ; il ne voit que cet album, rien d’autre de vos archives.
@@ -70,3 +70,12 @@ Ce qui change pour un client avec un compte :
 
 Sous chaque lien, ses clients indiquent s’ils sont inscrits. **Nouveau lien d’invitation** remplace une invitation perdue ou expirée (l’ancienne cesse de fonctionner). **Retirer de cette galerie** l’empêche de la voir ; son compte reste actif pour d’autres galeries. Les clients sont listés à part de votre équipe sur [Personnes](/help/people-and-roles), où vous pouvez leur donner un mot de passe provisoire, les désactiver ou les supprimer.
 
+## E-mails aux clients
+
+Quand cette archive peut envoyer des e-mails (voir [E-mail](/help/email)), les clients avec un compte sont prévenus au sujet de leurs galeries :
+
+- **Écrire aux membres**, sous un lien, affiche d’abord l’e-mail (avec le titre et le message de votre galerie), puis l’envoie à chaque client inscrit qui n’a pas désactivé ces e-mails. Il peut être envoyé une fois toutes les six heures.
+- **Fermeture prochaine** : trois jours avant la fermeture d’une galerie, les clients qui n’ont pas appuyé sur **J’ai terminé** reçoivent un rappel. Une fois par date de fermeture : si vous changez la date, ils reçoivent un nouveau rappel.
+- **Choix terminé** : quand un client appuie sur **J’ai terminé**, la personne qui a créé la galerie reçoit un e-mail (ou les administrateurs, si cette personne n’est plus là). Au plus une fois par heure et par galerie.
+
+Chaque e-mail concernant une galerie comporte en bas **Ne plus m’envoyer d’e-mails sur cette galerie**. Les clients peuvent les réactiver sous **Vos galeries**. Sous chaque lien, un client affiche **e-mails désactivés** quand il les a désactivés, et un avertissement quand le dernier e-mail qui lui a été envoyé n’est pas arrivé : envoyez-lui alors les liens vous-même. Les clients qui n’ont qu’un lien (sans compte) ne reçoivent jamais d’e-mail.

@@ -126,7 +126,7 @@ interface OutboxRow {
 
 const withoutLink = (params: string): string => {
   try {
-    const { link: _link, ...rest } = JSON.parse(params) as Record<string, unknown>
+    const { link: _link, offLink: _offLink, ...rest } = JSON.parse(params) as Record<string, unknown>
     return JSON.stringify(rest)
   } catch {
     return '{}'

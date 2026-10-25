@@ -172,6 +172,8 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.shareCreate', { who })
     case 'share.revoke':
       return t('act.shareRevoke', { who })
+    case 'share.members_emailed':
+      return t('act.membersEmailed', { who, count: typeof d.count === 'number' ? d.count : 0 })
     case 'client.invited':
       return t('act.clientInvited', { who, email: str(d.email) || t('act.aClient') })
     case 'client.joined':

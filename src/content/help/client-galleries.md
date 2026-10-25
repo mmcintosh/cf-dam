@@ -68,3 +68,13 @@ What changes for a client with an account:
 
 Under each link, its clients show whether they've joined. **New invite link** replaces an invite that was lost or expired (the old one stops working). **Take off this gallery** stops them seeing it; their account stays for other galleries. Clients are listed apart from your team on [People](/help/people-and-roles), where you can give them a temporary password, deactivate or delete them.
 
+## Emails to clients
+
+When this archive can send email (see [Email](/help/email)), clients with an account hear about their galleries:
+
+- **Email the members**, under a link, shows the email first (with your gallery's title and message), then sends it to every client who has joined and hasn't turned these emails off. It can be sent once every six hours.
+- **Closing soon**: three days before a gallery closes, clients who haven't pressed **I'm done** get a reminder. Once per closing date: if you move the date, they're reminded again.
+- **Finished choosing**: when a client presses **I'm done**, the person who made the gallery gets an email (or the administrators, if that person has gone). At most once an hour per gallery.
+
+Every email about a gallery has **Don't email me about this gallery** at the foot. Clients can turn them back on under **Your galleries**. Under each link, a client shows **emails off** when they have, and a warning when the last email to them didn't arrive: send them links yourself then. Clients reached only by a link (without an account) are never emailed.
+

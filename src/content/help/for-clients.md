@@ -31,6 +31,10 @@ Your favourites are kept with your account, so you can start on your phone and f
 
 If your photographer allows downloads, the large view has a **⤓** button for each size you may have: **Small** or **Large** JPEGs for sharing and printing, or the **Original file**. "Original: ask the photographer" means that file isn't kept online; they can send it to you.
 
+## Emails
+
+If your photographer's archive sends email, you may get one when they share a gallery with you, and a reminder three days before a gallery closes if you haven't pressed **I'm done**. Each has **Don't email me about this gallery** at the foot; under **Your galleries** you can turn a gallery's emails off or back on.
+
 ## Your account
 
 **Account** has your password, a **passkey** (sign in with your fingerprint, face or phone instead of a password), two-step sign-in if you'd like it, where you're signed in, and **Appearance**: light or dark, larger text and other ways to make the pages easier to see. See the sun/moon button at the bottom of the menu for light or dark.
