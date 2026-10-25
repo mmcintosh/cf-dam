@@ -4,7 +4,7 @@ summary: "Inviter des collègues, ce que chaque rôle peut faire, et aider quelq
 section: People and security
 order: 1
 review: machine
-source: 25b86cd4ced7
+source: b3c8c9bd073d
 ---
 
 Chaque personne qui se connecte à cf-dam a son propre compte, et un **rôle** qui décide de ce qu’elle peut faire.
@@ -28,6 +28,8 @@ Chaque personne qui se connecte à cf-dam a son propre compte, et un **rôle** q
 ## Ajouter quelqu’un
 
 Sur **Personnes**, appuyez sur **Ajouter une personne**, puis indiquez son **Nom**, son **E-mail**, un **Mot de passe provisoire** et un **Rôle**. Appuyez sur **Créer**, puis communiquez-lui l’adresse de votre cf-dam et le mot de passe provisoire (en personne ou par téléphone, c’est le plus sûr). À sa première connexion, elle devra choisir son propre mot de passe.
+
+Quand cette archive peut envoyer des e-mails (voir [E-mail](/help/email)), laissez plutôt **Leur envoyer par e-mail un lien pour choisir leur mot de passe** coché : il n’y a alors aucun mot de passe provisoire, la personne reçoit un lien qui fonctionne une fois, pendant 72 heures, et personne d’autre ne connaît jamais son mot de passe. Le lien s’affiche aussi sur la page au cas où l’e-mail n’arriverait pas.
 
 ## La connexion en deux étapes pour tout le monde
 

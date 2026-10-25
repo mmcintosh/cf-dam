@@ -1,14 +1,15 @@
 <script lang="ts">
   /**
    * The people (client logins) who belong to a client, on the client's page: add someone new (they get a
-   * one-time invite link to send), link a login that already exists, send a new invite, or unlink.
+   * one-time invite link, emailed to them when email works), link a login that already exists, send a new invite,
+   * or unlink.
    * Linking grants nothing: each gallery is still shared with people one by one.
    */
   import { format, t } from '@cf-dam/i18n/client'
   import type { ClientPersonJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
 
-  let { clientId, initial }: { clientId: string; initial: ClientPersonJson[] } = $props()
+  let { clientId, initial, mailOn = false }: { clientId: string; initial: ClientPersonJson[]; mailOn?: boolean } = $props()
 
   // svelte-ignore state_referenced_locally
   let people = $state<ClientPersonJson[]>(initial)
@@ -20,7 +21,8 @@
   let busy = $state(false)
   let error = $state('')
   let note = $state('')
-  let fresh = $state<{ name: string; url: string; expires: string } | null>(null)
+  let fresh = $state<{ name: string; url: string; expires: string; emailedTo: string | null } | null>(null)
+  let sendEmail = $state(true)
   let copied = $state(false)
 
   const day = (iso: string) => format().date(iso)
@@ -47,12 +49,12 @@
     note = ''
     fresh = null
     try {
-      const result = await api<{ people: ClientPersonJson[]; invite: { token: string; expiresAt: string } | null }>(`/api/clients/${clientId}/people`, {
+      const result = await api<{ people: ClientPersonJson[]; invite: { token: string; expiresAt: string } | null; emailed?: boolean }>(`/api/clients/${clientId}/people`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, sendEmail: mailOn && sendEmail }),
       })
       people = result.people
-      if (result.invite) fresh = { name: who, url: inviteUrl(result.invite.token), expires: day(result.invite.expiresAt) }
+      if (result.invite) fresh = { name: who, url: inviteUrl(result.invite.token), expires: day(result.invite.expiresAt), emailedTo: result.emailed ? (body.email ?? null) : null }
       else note = t('clientPeople.added', { name: who })
       mode = ''
       name = ''
@@ -120,6 +122,7 @@
       <input type="email" aria-label={t('clients.theirEmail')} placeholder={t('clients.theirEmail')} required maxlength="254" bind:value={email} />
       <button class="btn btn-primary btn-sm" type="submit" disabled={busy}>{t('clientPeople.addButton')}</button>
       <button class="btn btn-sm" type="button" onclick={() => (mode = '')}>{t('common.cancel')}</button>
+      {#if mailOn}<label class="send small"><input type="checkbox" bind:checked={sendEmail} /> {t('clients.sendByEmail')}</label>{/if}
     </form>
   {:else}
     <form class="row add" onsubmit={(e) => (e.preventDefault(), add({ userId: chosen }, candidates?.find((c) => c.userId === chosen)?.name ?? ''))}>
@@ -140,7 +143,11 @@
 
   {#if fresh}
     <div class="fresh stack" role="status">
-      <p class="small"><strong>{t('clients.send', { name: fresh.name })}</strong> {t('clients.sendLead', { date: fresh.expires })}</p>
+      {#if fresh.emailedTo}
+        <p class="small"><strong>{t('clients.emailed', { email: fresh.emailedTo })}</strong> {t('clients.emailedLead', { date: fresh.expires })}</p>
+      {:else}
+        <p class="small"><strong>{t('clients.send', { name: fresh.name })}</strong> {t('clients.sendLead', { date: fresh.expires })}</p>
+      {/if}
       <div class="row">
         <code class="url">{fresh.url}</code>
         <button class="btn btn-sm btn-primary" type="button" onclick={copy}>{copied ? t('share.copied') : t('clients.copyInvite')}</button>
@@ -154,6 +161,11 @@
 </div>
 
 <style>
+  .send {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
   .people {
     list-style: none;
     margin: 0;

@@ -4,7 +4,7 @@ summary: "Invitare i colleghi, cosa può fare ogni ruolo e aiutare chi è rimast
 section: People and security
 order: 1
 review: machine
-source: 25b86cd4ced7
+source: b3c8c9bd073d
 ---
 
 Chiunque acceda a cf-dam ha il proprio account e un **ruolo** che decide cosa può fare.
@@ -28,6 +28,8 @@ I **clienti** sono diversi: vedono solo le gallerie clienti a cui li inviti, nie
 ## Aggiungere qualcuno
 
 In **Persone**, premi **Aggiungi persona** e indica **Nome**, **Email**, una **Password temporanea** e un **Ruolo**. Premi **Crea**, poi comunica alla persona l’indirizzo del tuo cf-dam e la password temporanea (di persona o al telefono è la cosa più sicura). Al primo accesso le verrà chiesto di scegliere una password propria.
+
+Quando questo archivio può inviare email (vedi [Email](/help/email)), lascia invece spuntato **Invia loro per email un link per scegliere la propria password**: non c’è alcuna password temporanea, la persona riceve un link che funziona una sola volta, per 72 ore, e nessun altro conosce mai la sua password. Il link compare anche nella pagina, nel caso l’email non arrivi.
 
 ## Accesso in due passaggi per tutti
 

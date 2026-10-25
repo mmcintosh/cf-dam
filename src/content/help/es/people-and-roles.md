@@ -4,7 +4,7 @@ summary: "Invitar a compañeros, qué puede hacer cada función y cómo ayudar a
 section: People and security
 order: 1
 review: machine
-source: 25b86cd4ced7
+source: b3c8c9bd073d
 ---
 
 Cada persona que inicia sesión en cf-dam tiene su propia cuenta y una **función** que decide lo que puede hacer.
@@ -28,6 +28,8 @@ Los **clientes** son distintos: solo ven las galerías de cliente a las que los 
 ## Añadir a alguien
 
 En **Personas**, pulsa **Añadir persona** e indica su **Nombre**, su **Correo electrónico**, una **Contraseña temporal** y una **Función**. Pulsa **Crear** y luego dile la dirección de tu cf-dam y la contraseña temporal (en persona o por teléfono es lo más seguro). La primera vez que inicie sesión, se le pedirá que elija su propia contraseña.
+
+Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), deja marcado **Enviarles por correo un enlace para elegir su contraseña** en su lugar: no hay ninguna contraseña temporal, la persona recibe un enlace que funciona una vez, durante 72 horas, y nadie más conoce nunca su contraseña. El enlace también se muestra en la página por si el correo no llega.
 
 ## Verificación en dos pasos para todos
 

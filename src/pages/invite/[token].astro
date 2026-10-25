@@ -30,7 +30,7 @@ if (!invite) Astro.response.status = 404
       <div class="row"><SignOut client:load to={Astro.url.pathname} /></div>
     </div>
   ) : (
-    <InviteForm client:load token={token} name={invite.name} email={invite.email} />
+    <InviteForm client:load token={token} name={invite.name} email={invite.email} team={invite.kind === 'team'} />
   )}
 </AuthLayout>
 

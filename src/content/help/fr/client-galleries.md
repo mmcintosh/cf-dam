@@ -4,7 +4,7 @@ summary: "Partager un album avec un client par un lien privé ou en l’invitant
 section: Sharing
 order: 1
 review: machine
-source: 023b70eb5b2c
+source: 932e9af0d35a
 ---
 
 Une **galerie client** montre un album à quelqu’un d’extérieur à votre équipe : un couple qui choisit ses photos de mariage, un directeur artistique qui sélectionne des images, une famille qui télécharge des tirages. Vous lui envoyez un lien ; il ne voit que cet album, rien d’autre de vos archives.
@@ -58,7 +58,7 @@ Un lien suffit pour une commande ponctuelle. Pour les clients avec qui vous retr
 
 1. Créez un lien comme ci-dessus, avec les téléchargements, le filigrane et l’expiration que vous voulez pour eux.
 2. Sous le lien, appuyez sur **Inviter un client**, indiquez son nom et son e-mail, et appuyez sur **Inviter**.
-3. cf-dam affiche un **lien d’invitation** une seule fois. Copiez-le dans votre propre e-mail ou message (cf-dam n’envoie pas d’e-mails). Il fonctionne une fois, pendant deux semaines.
+3. cf-dam affiche un **lien d’invitation** une seule fois. Quand cette archive peut envoyer des e-mails (voir [E-mail](/help/email)), **Leur envoyer l’invitation par e-mail** est coché et la personne le reçoit par e-mail, dans la langue de la galerie ; sinon, copiez-le dans votre propre e-mail ou message. Il fonctionne une fois, pendant deux semaines, et seul le lien le plus récent d’une personne fonctionne.
 4. Le client l’ouvre, choisit un mot de passe et arrive dans la galerie. La fois suivante, il se connecte à l’adresse de votre cf-dam.
 
 Ce qui change pour un client avec un compte :

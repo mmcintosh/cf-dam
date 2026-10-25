@@ -49,7 +49,11 @@
   }
   const shown = $derived(matching(tab === 'team' ? team : clients))
   let showCreate = $state(false)
-  let draft = $state({ name: '', email: '', password: '', role: 'viewer' })
+  let draft = $state({ name: '', email: '', password: '', role: 'viewer', byEmail: true })
+  /** Whether email works: a new person can then get a set-your-password email instead of a temporary password. */
+  let mailOn = $state(false)
+  /** A set-your-password link just made, to copy when it couldn't be emailed. */
+  let teamLink = $state<{ url: string; emailed: boolean; email: string } | null>(null)
   let error = $state('')
   let notice = $state('')
   let busy = $state(false)
@@ -67,11 +71,12 @@
 
   async function load() {
     const [u, r, p] = await Promise.all([
-      api<{ users: User[] }>('/api/users'),
+      api<{ users: User[]; mailOn: boolean }>('/api/users'),
       api<{ roles: Role[] }>('/api/roles'),
       api<{ twoFactorRequiredFor: Scope }>('/api/users/policy'),
     ])
     users = u.users
+    mailOn = u.mailOn
     roles = r.roles
     required = p.twoFactorRequiredFor
   }
@@ -97,12 +102,14 @@
     error = ''
     busy = true
     try {
-      await api('/api/users', {
+      const byEmail = mailOn && draft.byEmail
+      const result = await api<{ invite: { token: string } | null; emailed: boolean }>('/api/users', {
         method: 'POST',
-        body: JSON.stringify({ name: draft.name, email: draft.email, password: draft.password, roles: [draft.role] }),
+        body: JSON.stringify(byEmail ? { name: draft.name, email: draft.email, sendEmail: true, roles: [draft.role] } : { name: draft.name, email: draft.email, password: draft.password, roles: [draft.role] }),
       })
       notice = t('people.created', { name: draft.name || draft.email })
-      draft = { name: '', email: '', password: '', role: 'viewer' }
+      teamLink = result.invite ? { url: `${location.origin}/invite/${result.invite.token}`, emailed: result.emailed, email: draft.email } : null
+      draft = { name: '', email: '', password: '', role: 'viewer', byEmail: true }
       showCreate = false
       await load()
     } catch (e) {
@@ -348,10 +355,12 @@
       <div class="grid">
         <div class="field"><label for="u-name">{t('common.name')}</label><input id="u-name" type="text" required bind:value={draft.name} /></div>
         <div class="field"><label for="u-email">{t('common.email')}</label><input id="u-email" type="email" required bind:value={draft.email} /></div>
-        <div class="field">
-          <label for="u-password">{t('people.temporary')}</label>
-          <input id="u-password" type="password" minlength="12" autocomplete="new-password" required bind:value={draft.password} />
-        </div>
+        {#if !(mailOn && draft.byEmail)}
+          <div class="field">
+            <label for="u-password">{t('people.temporary')}</label>
+            <input id="u-password" type="password" minlength="12" autocomplete="new-password" required bind:value={draft.password} />
+          </div>
+        {/if}
         <div class="field">
           <label for="u-role">{t('people.role')}</label>
           <select id="u-role" bind:value={draft.role}>
@@ -359,13 +368,20 @@
           </select>
         </div>
       </div>
-      <p class="muted small">{t('people.chooseOwn')}</p>
+      {#if mailOn}<label class="row small by-email"><input type="checkbox" bind:checked={draft.byEmail} /> {t('people.byEmail')}</label>{/if}
+      <p class="muted small">{mailOn && draft.byEmail ? t('people.byEmailNote') : t('people.chooseOwn')}</p>
       <div><button class="btn btn-primary" type="submit" disabled={busy}>{t('common.create')}</button></div>
     </form>
   {/if}
 
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
   {#if notice}<div class="alert alert-success" role="status">{notice}</div>{/if}
+  {#if teamLink}
+    <div class="card stack" role="status">
+      <p class="small">{teamLink.emailed ? t('people.linkEmailed', { email: teamLink.email }) : t('people.linkToSend', { email: teamLink.email })}</p>
+      <div class="row"><code class="team-link">{teamLink.url}</code><button class="btn btn-sm" type="button" onclick={() => (teamLink = null)}>{t('common.done')}</button></div>
+    </div>
+  {/if}
 
   <div class="row between tabs-row">
     <div class="tabs" role="tablist">
@@ -383,6 +399,14 @@
 </div>
 
 <style>
+  .by-email {
+    gap: 6px;
+    align-items: center;
+  }
+  .team-link {
+    overflow-wrap: anywhere;
+    flex: 1;
+  }
   .tabs-row {
     gap: 12px;
     flex-wrap: wrap;

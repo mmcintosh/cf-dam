@@ -3,10 +3,12 @@
   import { authClient } from '../lib/auth-client'
   import { t } from '@cf-dam/i18n/client'
 
-  let { token, name, email }: { token: string; name: string; email: string } = $props()
+  /** team: a new team member's set-your-password link, not a client's. */
+  let { token, name, email, team = false }: { token: string; name: string; email: string; team?: boolean } = $props()
 
   // Sentences with a word in bold or italics: split where it goes, so each language can put it anywhere.
-  const lead = t('invite.lead', { email: '\u0000' }).split('\u0000')
+  // svelte-ignore state_referenced_locally
+  const lead = t(team ? 'invite.teamLead' : 'invite.lead', { email: '\u0000' }).split('\u0000')
   const tip = t('invite.tip', { example: '\u0000' }).split('\u0000')
 
   let password = $state('')
@@ -58,7 +60,7 @@
   <label class="check"><input type="checkbox" bind:checked={show} /> {t('invite.show')}</label>
   <p class="muted small">{tip[0]}<em>{t('invite.tipExample')}</em>{tip[1] ?? ''}</p>
   {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
-  <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('invite.busy') : t('invite.submit')}</button>
+  <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('invite.busy') : t(team ? 'invite.teamSubmit' : 'invite.submit')}</button>
 </form>
 
 <style>

@@ -4,7 +4,7 @@ summary: "Compartir un álbum con un cliente mediante un enlace privado o invit�
 section: Sharing
 order: 1
 review: machine
-source: 023b70eb5b2c
+source: 932e9af0d35a
 ---
 
 Una **galería de cliente** muestra un álbum a alguien de fuera de tu equipo: una pareja que elige las fotos de su boda, un director de arte que selecciona tomas, una familia que descarga copias para imprimir. Le envías un enlace y solo ve ese álbum, nada más de tu archivo.
@@ -58,7 +58,7 @@ Para un trabajo puntual basta con un enlace. Para clientes con los que vas a vol
 
 1. Crea un enlace como se explica arriba, con las descargas, la marca de agua y la caducidad que quieras para ese cliente.
 2. Debajo del enlace, pulsa **Invitar a un cliente**, escribe su nombre y su correo electrónico y pulsa **Invitar**.
-3. cf-dam muestra un **enlace de invitación** una sola vez. Cópialo en tu propio correo o mensaje (cf-dam no envía correos). Funciona una vez, durante dos semanas.
+3. cf-dam muestra un **enlace de invitación** una sola vez. Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), **Enviarles la invitación por correo** está marcado y la persona lo recibe por correo, en el idioma de la galería; si no, cópialo en tu propio correo o mensaje. Funciona una vez, durante dos semanas, y solo funciona el enlace más reciente de cada persona.
 4. El cliente lo abre, elige una contraseña y entra en la galería. La próxima vez inicia sesión en la dirección de tu cf-dam.
 
 Qué cambia para un cliente con cuenta:

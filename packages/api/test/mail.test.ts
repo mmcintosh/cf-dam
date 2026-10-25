@@ -215,3 +215,75 @@ describe('forgot your password (plans/PLAN-E-v2.md §4)', () => {
   })
 })
 
+
+describe('invitations by email (plans/PLAN-E-v2.md §4)', () => {
+  async function gallery(admin: string, extra: Record<string, unknown> = {}) {
+    const album = ((await (await h.fetch('/api/albums', { ...json({ name: 'Hansen wedding' }), cookie: admin })).json()) as { album: { id: string } }).album.id
+    const res = await h.fetch('/api/shares', { ...json({ albumId: album, name: 'For the Hansens', title: 'Your wedding <3', language: 'de', ...extra }), cookie: admin })
+    expect(res.status).toBe(201)
+    return ((await res.json()) as { share: { id: string } }).share.id
+  }
+
+  it('emails a gallery invitation in the gallery’s language, and only the newest link works', async () => {
+    const { mail, admin } = await withMail()
+    const share = await gallery(admin)
+    // Email off: the form isn't offered it, and nothing is sent even if asked.
+    expect(((await (await h.fetch(`/api/shares/${share}/members`, { cookie: admin })).json()) as { mailOn: boolean }).mailOn).toBe(false)
+    await put(admin, { on: true })
+    expect(((await (await h.fetch(`/api/shares/${share}/members`, { cookie: admin })).json()) as { mailOn: boolean }).mailOn).toBe(true)
+
+    const res = await h.fetch(`/api/shares/${share}/members`, { ...json({ name: 'Anna Hansen', email: 'anna@example.com', sendEmail: true }), cookie: admin })
+    const first = (await res.json()) as { member: { userId: string }; invite: { token: string }; emailed: boolean }
+    expect(first.emailed).toBe(true)
+    await sendDueMail(h.env)
+    expect(mail.sent[0]!.subject).toBe('Your wedding <3: Fotos von cf-dam')
+    expect(mail.sent[0]!.html).toContain('Hallo Anna')
+    expect(mail.sent[0]!.html).toContain('„Your wedding &lt;3“')
+    expect(mail.sent[0]!.text).toContain(`http://localhost/invite/${first.invite.token}`)
+
+    const again = (await (await h.fetch(`/api/shares/${share}/members/${first.member.userId}/invite`, { ...json({ sendEmail: true }), cookie: admin })).json()) as { invite: { token: string }; emailed: boolean }
+    expect(again.emailed).toBe(true)
+    expect((await h.fetch(`/api/invites/${first.invite.token}`)).status).toBe(404)
+    expect((await h.fetch(`/api/invites/${again.invite.token}`)).status).toBe(200)
+    // Not asked: not sent.
+    const quiet = (await (await h.fetch(`/api/shares/${share}/members`, { ...json({ name: 'Tom Hansen', email: 'tom@example.com' }), cookie: admin })).json()) as { emailed: boolean }
+    expect(quiet.emailed).toBe(false)
+  })
+
+  it('stops a sender at a hundred invitations a day', async () => {
+    const { admin } = await withMail()
+    await put(admin, { on: true })
+    const share = await gallery(admin)
+    const ada = (await h.env.DB.prepare("SELECT id FROM users WHERE email = 'ada@example.com'").first<{ id: string }>())!.id
+    const now = new Date().toISOString()
+    await h.env.DB.batch(
+      Array.from({ length: 100 }, (_, i) =>
+        h.env.DB.prepare("INSERT INTO mail_outbox (id, kind, to_address, language, status, next_attempt_at, created_at, created_by) VALUES (?, 'invite', ?, 'en', 'sent', ?, ?, ?)").bind(`m${i}`, `c${i}@example.com`, now, now, ada),
+      ),
+    )
+    const res = (await (await h.fetch(`/api/shares/${share}/members`, { ...json({ name: 'One More', email: 'more@example.com', sendEmail: true }), cookie: admin })).json()) as { emailed: boolean; invite: { token: string } }
+    expect(res.emailed).toBe(false)
+    expect(res.invite.token).toBeTruthy()
+  })
+
+  it('gives a new team member a set-your-password link instead of a temporary password', async () => {
+    const { mail, admin } = await withMail()
+    const create = () => h.fetch('/api/users', { ...json({ name: 'Eve Editor', email: 'eve@example.com', sendEmail: true, roles: ['editor'] }), cookie: admin })
+    // Without email, a temporary password is still needed.
+    expect((await create()).status).toBe(400)
+    await put(admin, { on: true })
+    const res = await create()
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { invite: { token: string; expiresAt: string }; emailed: boolean }
+    expect(body.emailed).toBe(true)
+    expect(Date.parse(body.invite.expiresAt) - Date.now()).toBeLessThanOrEqual(72 * 3_600_000)
+    await sendDueMail(h.env)
+    expect(mail.sent[0]!.subject).toBe("Your account on cf-dam's photo archive")
+    expect(mail.sent[0]!.text).toContain('Ada Admin has given you an account')
+    // No password until they choose one.
+    expect((await h.fetch('/api/auth/sign-in/email', json({ email: 'eve@example.com', password: 'anything at all here' }))).status).toBe(401)
+    expect(await (await h.fetch(`/api/invites/${body.invite.token}`)).json()).toMatchObject({ email: 'eve@example.com' })
+    expect((await h.fetch(`/api/invites/${body.invite.token}`, json({ password: 'eve chose this one' }))).status).toBe(200)
+    expect((await h.fetch('/api/auth/sign-in/email', json({ email: 'eve@example.com', password: 'eve chose this one' }))).status).toBe(200)
+  })
+})

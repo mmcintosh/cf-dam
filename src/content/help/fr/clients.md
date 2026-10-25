@@ -4,7 +4,7 @@ summary: "Garder une trace des personnes et des entreprises pour qui vous travai
 section: Sharing
 order: 3
 review: machine
-source: b2e619e7c543
+source: 0d751d7ee2e9
 ---
 
 **Clients** garde une trace de chaque personne ou entreprise pour qui vous travaillez : un couple, une famille, une société. Chaque client a une page avec ses coordonnées et des notes, les personnes qui se connectent pour lui, les galeries clients partagées avec ces personnes, ce qu’elles ont téléchargé, et l’historique de ce qui s’est passé.
@@ -21,7 +21,7 @@ La liste montre les clients actuels de A à Z, avec leur nombre de comptes, comb
 
 Un client peut avoir plusieurs personnes qui se connectent : un couple, ou les acheteurs d’art d’une agence. Sous **Personnes avec un compte**, sur la page du client :
 
-- **Ajouter une personne** demande son nom et son e-mail. Si cette personne n’a pas encore de compte, un compte est créé et vous obtenez un **lien d’invitation** à usage unique à lui envoyer (cf-dam n’envoie pas d’e-mails). Avec ce lien, elle choisit son propre mot de passe.
+- **Ajouter une personne** demande son nom et son e-mail. Si cette personne n’a pas encore de compte, un compte est créé et vous obtenez un **lien d’invitation** à usage unique : quand cette archive peut envoyer des e-mails, **Leur envoyer l’invitation par e-mail** l’envoie pour vous, dans la langue du client ; sinon, copiez-le dans votre propre message. Avec ce lien, elle choisit son propre mot de passe.
 - **Lier un compte existant** choisit quelqu’un que vous avez déjà invité à une galerie. Les comptes avec l’e-mail du client apparaissent en premier.
 - **Nouveau lien d’invitation** crée un nouveau lien pour quelqu’un qui ne s’est pas encore inscrit ; l’ancien cesse de fonctionner.
 - **Délier** retire quelqu’un du client. Son compte et ses galeries restent.

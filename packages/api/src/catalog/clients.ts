@@ -24,6 +24,9 @@ import { shareStatus, type ShareRow, type VisitorRow } from './shares'
 export const CLIENT_ROLE = 'client'
 /** How long an invite link works. */
 export const INVITE_DAYS = 14
+/** A link that sets up a team account (an administrator's, perhaps) lives a few days, not two weeks. */
+export const TEAM_INVITE_HOURS = 72
+export type InviteKind = 'client' | 'team'
 const INVITE_TOKEN = /^[0-9A-Za-z]{32}$/
 
 /** Someone whose only role is Client. Anyone with another role as well is on the team. */
@@ -65,17 +68,20 @@ export async function shareMembers(db: D1Database, shareId: string): Promise<Mem
   }))
 }
 
-/** A fresh one-time invite for a client, replacing any earlier one. Returns the token (shown once). */
-export async function newInvite(db: D1Database, userId: string, createdBy: string): Promise<{ token: string; expiresAt: string }> {
+/**
+ * A fresh one-time invite, replacing any earlier one (so only the newest link works). Returns the token (shown once).
+ * A client's lasts two weeks; a team member's set-your-password link 72 hours.
+ */
+export async function newInvite(db: D1Database, userId: string, createdBy: string, kind: InviteKind = 'client'): Promise<{ token: string; expiresAt: string }> {
   const token = randomBase62(32)
   const now = nowIso()
-  const expiresAt = new Date(Date.now() + INVITE_DAYS * 86_400_000).toISOString()
+  const expiresAt = new Date(Date.now() + (kind === 'team' ? TEAM_INVITE_HOURS * 3_600_000 : INVITE_DAYS * 86_400_000)).toISOString()
   await db
     .prepare(
-      `INSERT INTO client_invites (user_id, token_hash, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (user_id) DO UPDATE SET token_hash = excluded.token_hash, created_by = excluded.created_by, created_at = excluded.created_at, expires_at = excluded.expires_at`,
+      `INSERT INTO client_invites (user_id, token_hash, created_by, created_at, expires_at, kind) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (user_id) DO UPDATE SET token_hash = excluded.token_hash, created_by = excluded.created_by, created_at = excluded.created_at, expires_at = excluded.expires_at, kind = excluded.kind`,
     )
-    .bind(userId, await sha256Hex(token), createdBy, now, expiresAt)
+    .bind(userId, await sha256Hex(token), createdBy, now, expiresAt, kind)
     .run()
   return { token, expiresAt }
 }
@@ -124,15 +130,15 @@ export async function removeMember(db: D1Database, shareId: string, userId: stri
 }
 
 /** Who an invite is for, while it still works. */
-export async function readInvite(db: D1Database, token: string): Promise<{ userId: string; name: string; email: string } | null> {
+export async function readInvite(db: D1Database, token: string): Promise<{ userId: string; name: string; email: string; kind: InviteKind } | null> {
   if (!INVITE_TOKEN.test(token)) return null
   return db
     .prepare(
-      `SELECT u.id AS userId, u.name, u.email FROM client_invites i JOIN users u ON u.id = i.user_id
+      `SELECT u.id AS userId, u.name, u.email, i.kind FROM client_invites i JOIN users u ON u.id = i.user_id
        WHERE i.token_hash = ? AND i.expires_at > ? AND u.is_active = 1`,
     )
     .bind(await sha256Hex(token), nowIso())
-    .first<{ userId: string; name: string; email: string }>()
+    .first<{ userId: string; name: string; email: string; kind: InviteKind }>()
 }
 
 /** Use an invite: set the client's password and spend the link. Returns their email, to sign in with. */

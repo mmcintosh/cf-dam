@@ -27,6 +27,8 @@ Everyone who signs in to cf-dam has their own account, and a **role** that decid
 
 On **People**, press **Add person**, and give their **Name**, **Email**, a **Temporary password** and a **Role**. Press **Create**, then tell them the address of your cf-dam and the temporary password (in person or by phone is safest). The first time they sign in, they're asked to choose their own password.
 
+When this archive can send email (see [Email](/help/email)), leave **Email them a link to choose their own password** ticked instead: there's no temporary password at all, they get a link that works once, for 72 hours, and nobody else ever knows their password. The link is also shown on the page in case the email doesn't arrive.
+
 ## Two-step sign-in for everyone
 
 At the top of **People**, **Two-factor sign-in → Required for** can be **Nobody**, **Administrators** or **Everyone on the team** (clients are never made to, though they can turn it on themselves). People who must have it and don't are asked to set up a passkey or an authenticator app before they can do anything else. **Everyone on the team** is the safest choice. See [Your account and sign-in](/help/account-security).

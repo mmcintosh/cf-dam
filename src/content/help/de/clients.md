@@ -4,7 +4,7 @@ summary: "Die Personen und Firmen festhalten, für die du arbeitest: Kontaktdate
 section: Sharing
 order: 3
 review: machine
-source: b2e619e7c543
+source: 0d751d7ee2e9
 ---
 
 **Kunden** hält jede Person oder Firma fest, für die du arbeitest: ein Paar, eine Familie, ein Unternehmen. Jeder Kunde hat eine Seite mit Kontaktdaten und Notizen, den Personen, die sich für ihn anmelden, den Kundengalerien, die mit diesen Personen geteilt sind, dem, was heruntergeladen wurde, und einem Verlauf dessen, was passiert ist.
@@ -21,7 +21,7 @@ Die Liste zeigt die aktuellen Kunden von A bis Z, mit der Zahl ihrer Anmeldungen
 
 Ein Kunde kann mehrere Personen haben, die sich anmelden: ein Paar oder die Bildeinkäufer einer Agentur. Unter **Personen mit Anmeldung** auf der Seite des Kunden:
 
-- **Person hinzufügen** fragt nach Name und E-Mail. Hat die Person noch keine Anmeldung, wird eine angelegt, und du bekommst einen einmaligen **Einladungslink**, den du ihr schickst (cf-dam verschickt keine E-Mails). Damit wählt sie ihr eigenes Passwort.
+- **Person hinzufügen** fragt nach Name und E-Mail. Hat die Person noch keine Anmeldung, wird eine angelegt, und du bekommst einen einmaligen **Einladungslink**: Wenn dieses Archiv E-Mails senden kann, schickt **Einladung per E-Mail schicken** ihn für dich, in der Sprache des Kunden; sonst kopiere ihn in deine eigene Nachricht. Damit wählt sie ihr eigenes Passwort.
 - **Vorhandene Anmeldung verknüpfen** wählt jemanden, den du schon zu einer Galerie eingeladen hast. Anmeldungen mit der E-Mail des Kunden stehen oben.
 - **Neuer Einladungslink** erstellt einen frischen Link für jemanden, der noch nicht beigetreten ist; der alte funktioniert dann nicht mehr.
 - **Verknüpfung lösen** nimmt jemanden vom Kunden weg. Die Anmeldung und die Galerien bleiben.

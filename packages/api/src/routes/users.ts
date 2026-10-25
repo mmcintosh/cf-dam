@@ -10,6 +10,8 @@ import { randomId } from '../lib/crypto'
 import { BadRequest, optionalString, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { say } from '../lib/language'
+import { newInvite } from '../catalog/clients'
+import { emailInvite, mailOn } from '../mail/invite-mail'
 
 interface UserRow {
   id: string
@@ -110,7 +112,7 @@ userRoutes.put('/policy', async (c) => {
 
 userRoutes.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(`${USER_SELECT} GROUP BY u.id ORDER BY u.created_at`).all<UserRow>()
-  return c.json({ users: results.map(userJson) })
+  return c.json({ users: results.map(userJson), mailOn: await mailOn(c.env) })
 })
 
 userRoutes.post('/', async (c) => {
@@ -119,8 +121,11 @@ userRoutes.post('/', async (c) => {
     const body = await readJsonObject(c)
     const name = requiredString(body, 'name')
     const email = requiredEmail(body)
-    const password = requiredString(body, 'password', 256)
-    if (password.length < 12) throw new BadRequest(say('err.passwordShort'))
+    // Either a temporary password the admin passes on, or a set-your-password email (when email works).
+    const byEmail = body.sendEmail === true && body.password === undefined
+    if (byEmail && !(await mailOn(c.env))) throw new BadRequest(say('err.mailOff'))
+    const password = byEmail ? null : requiredString(body, 'password', 256)
+    if (password !== null && password.length < 12) throw new BadRequest(say('err.passwordShort'))
     const roles = await validRoleNames(c.env.DB, stringArray(body, 'roles') ?? ['viewer'])
     if (roles.length === 0) throw new BadRequest(say('err.needRole'))
 
@@ -130,25 +135,35 @@ userRoutes.post('/', async (c) => {
     // The internal adapter runs the same database hooks as sign-up, without signing the new user
     // in as a side effect of an admin creating them.
     const user = await ctx.internalAdapter.createUser({ name, email, emailVerified: false }, { method: 'email-password' })
-    await ctx.internalAdapter.linkAccount({
-      userId: user.id,
-      providerId: 'credential',
-      accountId: user.id,
-      password: await ctx.password.hash(password),
-    })
+    if (password !== null) {
+      await ctx.internalAdapter.linkAccount({
+        userId: user.id,
+        providerId: 'credential',
+        accountId: user.id,
+        password: await ctx.password.hash(password),
+      })
+    }
     await setUserRoles(c.env.DB, user.id, roles)
-    // The admin chose this password, so it's theirs to know: the person picks their own first.
-    await c.env.DB.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?').bind(user.id).run()
+    let emailed = false
+    let invite: { token: string; expiresAt: string } | null = null
+    if (password !== null) {
+      // The admin chose this password, so it's theirs to know: the person picks their own first.
+      await c.env.DB.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?').bind(user.id).run()
+    } else {
+      // No password at all until they choose one from the link (72 hours; the page shows it too).
+      invite = await newInvite(c.env.DB, user.id, actor.userId, 'team')
+      emailed = await emailInvite(c.env, { kind: 'team', userId: user.id, name, email, ...invite, by: { userId: actor.userId, name: actor.name } })
+    }
 
     await logActivity(c.env.DB, {
       userId: actor.userId,
       action: 'user.created',
       targetType: 'user',
       targetId: user.id,
-      details: { email, roles },
+      details: { email, roles, ...(password === null ? { byEmail: true } : {}) },
       ipAddress: c.req.header('cf-connecting-ip'),
     })
-    return c.json({ user: await getUser(c.env.DB, user.id) }, 201)
+    return c.json({ user: await getUser(c.env.DB, user.id), invite, emailed }, 201)
   } catch (error) {
     if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
     throw error

@@ -27,6 +27,7 @@ import { BadRequest, readJsonObject, requiredEmail, requiredString, stringArray 
 import { nowIso } from '../lib/time'
 import { renditionStore } from '../storage/connections'
 import { say } from '../lib/language'
+import { emailInvite, mailOn } from '../mail/invite-mail'
 
 export const shareRoutes = new Hono<DamEnv>()
 
@@ -169,8 +170,22 @@ shareRoutes.post('/:id/picks/album', async (c) => {
 shareRoutes.get('/:id/members', async (c) => {
   const id = c.req.param('id')
   if (!(await c.env.DB.prepare('SELECT 1 FROM shares WHERE id = ?').bind(id).first())) return c.json({ error: 'not_found' }, 404)
-  return c.json({ members: await shareMembers(c.env.DB, id) })
+  // mailOn: whether the invite form can offer to email the invitation.
+  return c.json({ members: await shareMembers(c.env.DB, id), mailOn: await mailOn(c.env) })
 })
+
+/** Email a new invite for this gallery when asked and email works. Returns whether it was queued. */
+async function emailGalleryInvite(c: Context<DamEnv>, shareId: string, member: { userId: string; name: string; email: string }, invite: { token: string; expiresAt: string }): Promise<boolean> {
+  const share = await c.env.DB.prepare('SELECT title, name, language FROM shares WHERE id = ?').bind(shareId).first<{ title: string; name: string; language: string | null }>()
+  const principal = c.get('principal')!
+  return emailInvite(c.env, {
+    kind: 'client',
+    ...member,
+    ...invite,
+    by: { userId: principal.userId, name: principal.name },
+    gallery: { title: share?.title || share?.name || '', language: share?.language ?? null },
+  })
+}
 
 /** Invite a client to this link. The answer carries a one-time invite token when they still need to choose a password. */
 shareRoutes.post('/:id/members', async (c) => {
@@ -192,7 +207,8 @@ shareRoutes.post('/:id/members', async (c) => {
       details: { email, shareId: id },
       ipAddress: c.req.header('cf-connecting-ip'),
     })
-    return c.json({ member: outcome.member, invite: outcome.invite }, 201)
+    const emailed = outcome.invite && body.sendEmail === true ? await emailGalleryInvite(c, id, outcome.member, outcome.invite) : false
+    return c.json({ member: outcome.member, invite: outcome.invite, emailed }, 201)
   } catch (error) {
     return c.json(invalid(error), 400)
   }
@@ -205,7 +221,9 @@ shareRoutes.post('/:id/members/:userId/invite', async (c) => {
   if (!member) return c.json({ error: 'not_found' }, 404)
   if (member.joined) return c.json({ error: 'joined', message: say('err.clientJoined') }, 409)
   const invite = await newInvite(c.env.DB, userId, c.get('principal')!.userId)
-  return c.json({ invite })
+  const body = (await c.req.json().catch(() => ({}))) as { sendEmail?: unknown }
+  const emailed = body.sendEmail === true ? await emailGalleryInvite(c, id, member, invite) : false
+  return c.json({ invite, emailed })
 })
 
 /** Take a client off this link. Their account stays (for other galleries); People is where accounts are removed. */

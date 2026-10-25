@@ -56,7 +56,7 @@ A link is enough for a one-off job. For clients you'll work with again, or who'l
 
 1. Make a link as above, with the downloads, watermark and expiry you want for them.
 2. Under the link, press **Invite a client**, give their name and email, and press **Invite**.
-3. cf-dam shows an **invite link** once. Copy it into your own email or message (cf-dam doesn't send email). It works once, for two weeks.
+3. cf-dam shows an **invite link** once. When this archive can send email (see [Email](/help/email)), **Email the invitation to them** is ticked and they get it by email, in the gallery's language; otherwise copy it into your own email or message. It works once, for two weeks, and only the newest link for a person works.
 4. They open it, choose a password, and land in the gallery. Next time they sign in at your cf-dam's address.
 
 What changes for a client with an account:

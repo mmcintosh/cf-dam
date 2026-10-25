@@ -146,7 +146,7 @@ describe('client accounts', () => {
     expect((await h.fetch(`/api/users/${member.userId}`, { method: 'DELETE', cookie: admin })).status).toBe(204)
     const stats = (await (await h.fetch(`/api/shares/${link.id}`, { cookie: admin })).json()) as { visitors: { name: string; picks: number }[] }
     expect(stats.visitors).toEqual([expect.objectContaining({ name: 'Jane Smith', picks: 1 })])
-    expect((await h.fetch(`/api/shares/${link.id}/members`, { cookie: admin }).then((r) => r.json())) as { members: unknown[] }).toEqual({ members: [] })
+    expect((await h.fetch(`/api/shares/${link.id}/members`, { cookie: admin }).then((r) => r.json())) as { members: unknown[] }).toMatchObject({ members: [] })
   })
 })
 

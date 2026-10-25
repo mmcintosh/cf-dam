@@ -4,7 +4,7 @@ summary: "Condividere un album con un cliente tramite link privato o invitandolo
 section: Sharing
 order: 1
 review: machine
-source: 023b70eb5b2c
+source: 932e9af0d35a
 ---
 
 Una **galleria cliente** mostra un album a qualcuno fuori dal tuo team: una coppia che sceglie le foto del matrimonio, un art director che seleziona gli scatti, una famiglia che scarica le stampe. Gli mandi un link; vede solo quell’album, nient’altro del tuo archivio.
@@ -58,7 +58,7 @@ Per un lavoro singolo basta un link. Per i clienti con cui lavorerai ancora, o c
 
 1. Crea un link come sopra, con i download, la filigrana e la scadenza che vuoi per loro.
 2. Sotto il link, premi **Invita un cliente**, inserisci nome ed email e premi **Invita**.
-3. cf-dam mostra un **link di invito** una sola volta. Copialo in una tua email o in un messaggio (cf-dam non invia email). Funziona una sola volta, per due settimane.
+3. cf-dam mostra un **link di invito** una sola volta. Quando questo archivio può inviare email (vedi [Email](/help/email)), **Invia loro l’invito per email** è spuntato e la persona lo riceve per email, nella lingua della galleria; altrimenti copialo in una tua email o in un messaggio. Funziona una sola volta, per due settimane, e funziona solo il link più recente di ogni persona.
 4. Il cliente lo apre, sceglie una password e arriva nella galleria. La volta successiva accede all’indirizzo del tuo cf-dam.
 
 Cosa cambia per un cliente con un account:

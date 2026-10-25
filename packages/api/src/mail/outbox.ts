@@ -76,11 +76,13 @@ export interface QueueMail {
   params?: Omit<MailParams, 'studio'>
   /** How long the message is worth sending (its link's life). */
   ttlMs?: number
+  /** Who made it happen (an invite's sender), for the daily caps. */
+  createdBy?: string | null
 }
 
 /**
- * Queue a message. Returns its id, or null when mail is off (nothing queued). An address not on staging's allow list
- * is recorded as dropped, never sent.
+ * Queue a message. Returns its id, or null when it won't be sent: mail is off (nothing queued), or the address isn't
+ * on staging's allow list (recorded as dropped).
  */
 export async function queueMail(env: DamBindings, mail: QueueMail): Promise<string | null> {
   const settings = await getMailSettings(env.DB)
@@ -89,8 +91,8 @@ export async function queueMail(env: DamBindings, mail: QueueMail): Promise<stri
   const now = new Date()
   const allowed = allowedRecipient(env, mail.to)
   await env.DB.prepare(
-    `INSERT INTO mail_outbox (id, kind, to_address, user_id, language, params, status, next_attempt_at, expires_at, error, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO mail_outbox (id, kind, to_address, user_id, language, params, status, next_attempt_at, expires_at, error, created_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -104,9 +106,11 @@ export async function queueMail(env: DamBindings, mail: QueueMail): Promise<stri
       mail.ttlMs ? new Date(now.getTime() + mail.ttlMs).toISOString() : null,
       allowed ? null : 'not on the allow list',
       now.toISOString(),
+      mail.createdBy ?? null,
     )
     .run()
-  if (allowed) await nudge(env, 'mail')
+  if (!allowed) return null
+  await nudge(env, 'mail')
   return id
 }
 

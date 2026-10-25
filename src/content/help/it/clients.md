@@ -4,7 +4,7 @@ summary: "Tenere traccia delle persone e delle aziende per cui lavori: recapiti,
 section: Sharing
 order: 3
 review: machine
-source: b2e619e7c543
+source: 0d751d7ee2e9
 ---
 
 **Clienti** tiene traccia di ogni persona o azienda per cui lavori: una coppia, una famiglia, un’impresa. Ogni cliente ha una pagina con recapiti e note, le persone che accedono per suo conto, le gallerie clienti condivise con queste persone, cosa hanno scaricato e una cronologia di ciò che è successo.
@@ -21,7 +21,7 @@ L’elenco mostra i clienti attuali dalla A alla Z, con quanti accessi hanno, qu
 
 Un cliente può avere più persone che accedono: una coppia, o gli acquirenti di immagini di un’agenzia. In **Persone con accesso**, nella pagina del cliente:
 
-- **Aggiungi una persona** chiede nome ed email. Se questa persona non ha ancora un accesso, ne viene creato uno e ricevi un **link di invito** valido una sola volta da mandarle (cf-dam non invia email). Con quel link sceglie la propria password.
+- **Aggiungi una persona** chiede nome ed email. Se questa persona non ha ancora un accesso, ne viene creato uno e ricevi un **link di invito** valido una sola volta: quando questo archivio può inviare email, **Invia loro l’invito per email** glielo manda per te, nella lingua del cliente; altrimenti copialo in un tuo messaggio. Con quel link sceglie la propria password.
 - **Collega un accesso esistente** sceglie qualcuno che hai già invitato a una galleria. Gli accessi con l’email del cliente compaiono per primi.
 - **Nuovo link di invito** crea un link nuovo per chi non si è ancora unito; quello vecchio smette di funzionare.
 - **Scollega** toglie qualcuno dal cliente. Il suo accesso e le sue gallerie restano.

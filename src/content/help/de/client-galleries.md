@@ -4,7 +4,7 @@ summary: "Ein Album mit einem Kunden teilen, per privatem Link oder per Einladun
 section: Sharing
 order: 1
 review: machine
-source: 023b70eb5b2c
+source: 932e9af0d35a
 ---
 
 Eine **Kundengalerie** zeigt ein Album jemandem außerhalb deines Teams: einem Paar, das seine Hochzeitsfotos auswählt, einer Art-Direktorin, die Motive aussucht, einer Familie, die Abzüge herunterlädt. Du schickst ihnen einen Link; sie sehen nur dieses Album, sonst nichts aus deinem Archiv.
@@ -58,7 +58,7 @@ Für einen einmaligen Auftrag reicht ein Link. Für Kunden, mit denen du wieder 
 
 1. Erstelle wie oben einen Link, mit den Downloads, dem Wasserzeichen und dem Ablauf, die du für sie möchtest.
 2. Drücke unter dem Link auf **Kunden einladen**, gib Name und E-Mail an und drücke **Einladen**.
-3. cf-dam zeigt einmalig einen **Einladungslink**. Kopiere ihn in deine eigene E-Mail oder Nachricht (cf-dam verschickt keine E-Mails). Er funktioniert einmal und zwei Wochen lang.
+3. cf-dam zeigt einmalig einen **Einladungslink**. Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), ist **Einladung per E-Mail schicken** angehakt, und die Person bekommt ihn per E-Mail, in der Sprache der Galerie; sonst kopiere ihn in deine eigene E-Mail oder Nachricht. Er funktioniert einmal und zwei Wochen lang, und nur der neueste Link einer Person funktioniert.
 4. Der Kunde öffnet ihn, wählt ein Passwort und landet in der Galerie. Beim nächsten Mal meldet er sich unter der Adresse deines cf-dam an.
 
 Was sich für einen Kunden mit Konto ändert:

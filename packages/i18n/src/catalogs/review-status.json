@@ -2872,6 +2872,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "clients.emailed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "clients.emailedLead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "clients.expired": {
     "es": "machine",
     "de": "machine",
@@ -2951,6 +2963,12 @@
     "it": "machine"
   },
   "clients.send": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "clients.sendByEmail": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -5056,6 +5074,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "err.mailOff": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "err.nasNotForBackups": {
     "es": "machine",
     "de": "machine",
@@ -6359,6 +6383,18 @@
     "it": "machine"
   },
   "invite.submit": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "invite.teamLead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "invite.teamSubmit": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -8462,6 +8498,54 @@
     "fr": "machine",
     "it": "machine"
   },
+  "mail.invite.body": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.bodyGallery": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.button": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.heading": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.subject": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.subjectGallery": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.until": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.invite.why": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "mail.layout.orCopy": {
     "es": "machine",
     "de": "machine",
@@ -8493,6 +8577,36 @@
     "it": "machine"
   },
   "mail.reset.why": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.team.body": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.team.button": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.team.subject": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.team.until": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mail.team.why": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -9110,6 +9224,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "people.byEmail": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "people.byEmailNote": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "people.canSignIn": {
     "es": "machine",
     "de": "machine",
@@ -9201,6 +9327,18 @@
     "it": "machine"
   },
   "people.lastSignIn": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "people.linkEmailed": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "people.linkToSend": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

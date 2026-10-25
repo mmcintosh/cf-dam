@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { clientDownloads, clientPeople, clientShares, getClient, listJobs } from '@cf-dam/api'
+import { clientDownloads, clientPeople, clientShares, getClient, getMailSettings, listJobs, mailReady } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import ClientDetails from '../../components/ClientDetails.svelte'
@@ -11,7 +11,9 @@ import ClientPeople from '../../components/ClientPeople.svelte'
 const id = Astro.params.id!
 const client = await getClient(env.DB, id)
 if (!client) return Astro.redirect('/clients')
-const [people, galleries, downloads, jobs] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id), listJobs(env.DB, { clientId: id })])
+const [people, galleries, downloads, jobs, mail] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id), listJobs(env.DB, { clientId: id }), getMailSettings(env.DB)])
+// Whether a new person's invite can also be emailed to them.
+const mailOn = mailReady(env as Parameters<typeof mailReady>[0], mail)
 const t = getT(Astro.locals.lang)
 const fmt = createFormat(Astro.locals.lang)
 const day = (iso: string | null) => (iso ? fmt.date(iso) : '—')
@@ -56,7 +58,7 @@ const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { d
 
   <section class="card stack">
     <h2>{t('clientsPage.peopleTitle')}</h2>
-    <ClientPeople client:load clientId={client.id} initial={people} />
+    <ClientPeople client:load clientId={client.id} initial={people} mailOn={mailOn} />
   </section>
 
   <section class="card stack">

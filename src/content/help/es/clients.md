@@ -4,7 +4,7 @@ summary: "Llevar un registro de las personas y empresas para las que trabajas: d
 section: Sharing
 order: 3
 review: machine
-source: b2e619e7c543
+source: 0d751d7ee2e9
 ---
 
 **Clientes** guarda un registro de cada persona o empresa para la que trabajas: una pareja, una familia, un negocio. Cada cliente tiene una página con sus datos de contacto y notas, las personas que inician sesión en su nombre, las galerías de cliente compartidas con esas personas, lo que descargaron y un historial de lo que ha pasado.
@@ -21,7 +21,7 @@ La lista muestra los clientes actuales de la A a la Z, con cuántos accesos tien
 
 Un cliente puede tener varias personas que inician sesión: una pareja, o los compradores de arte de una agencia. En **Personas con acceso**, en la página del cliente:
 
-- **Añadir una persona** pide su nombre y su correo electrónico. Si aún no tiene acceso, se crea uno y obtienes un **enlace de invitación** de un solo uso para enviárselo (cf-dam no envía correos). Con él, la persona elige su propia contraseña.
+- **Añadir una persona** pide su nombre y su correo electrónico. Si aún no tiene acceso, se crea uno y obtienes un **enlace de invitación** de un solo uso: cuando este archivo puede enviar correos, **Enviarles la invitación por correo** se lo envía por ti, en el idioma del cliente; si no, cópialo en tu propio mensaje. Con él, la persona elige su propia contraseña.
 - **Vincular un acceso existente** elige a alguien que ya invitaste a una galería. Los accesos con el correo del cliente aparecen primero.
 - **Nuevo enlace de invitación** crea un enlace nuevo para alguien que aún no se ha unido; el anterior deja de funcionar.
 - **Desvincular** quita a alguien del cliente. Su acceso y sus galerías se conservan.

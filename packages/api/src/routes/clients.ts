@@ -24,6 +24,7 @@ import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredEmail, requiredString } from '../lib/http'
 import { say } from '../lib/language'
+import { emailInvite } from '../mail/invite-mail'
 
 export const clientRoutes = new Hono<DamEnv>()
 
@@ -114,7 +115,11 @@ clientRoutes.post('/:id/people', async (c) => {
     if (outcome.kind === 'team') return c.json({ error: 'on_the_team', message: say('err.teamNotClient') }, 409)
     if (outcome.kind === 'elsewhere') return c.json({ error: 'linked_elsewhere', message: say('err.clientElsewhere', { client: outcome.clientName }) }, 409)
     await logActivity(c.env.DB, { userId: principal.userId, action: already ? 'client.invited' : 'client.linked', targetType: 'user', targetId: outcome.userId, details: { clientId: id, email }, ipAddress: c.req.header('cf-connecting-ip') })
-    return c.json({ people: await clientPeople(c.env.DB, id), invite: outcome.invite, userId: outcome.userId }, 201)
+    const emailed =
+      outcome.invite && body.sendEmail === true
+        ? await emailInvite(c.env, { kind: 'client', userId: outcome.userId, name, email, ...outcome.invite, by: { userId: principal.userId, name: principal.name } })
+        : false
+    return c.json({ people: await clientPeople(c.env.DB, id), invite: outcome.invite, userId: outcome.userId, emailed }, 201)
   } catch (error) {
     return c.json(invalid(error), 400)
   }

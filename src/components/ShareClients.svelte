@@ -2,7 +2,7 @@
   import { format, t } from '@cf-dam/i18n/client'
   /**
    * Under a gallery link: the clients with an account who see it, and inviting another. An invite is a
-   * one-time link shown once, for the photographer to send themselves (cf-dam sends no email).
+   * one-time link shown once; when email works it's also emailed to them (plans/PLAN-E-v2.md §4).
    */
   import { onMount } from 'svelte'
   import type { MemberJson } from '@cf-dam/api'
@@ -17,7 +17,10 @@
   let busy = $state(false)
   let error = $state('')
   /** The invite just made: shown once, with who it's for. */
-  let fresh = $state<{ name: string; url: string; expires: string } | null>(null)
+  let fresh = $state<{ name: string; url: string; expires: string; emailedTo: string | null } | null>(null)
+  /** Whether email works here, and whether to use it for this invite. */
+  let mailOn = $state(false)
+  let sendEmail = $state(true)
   let note = $state('')
   let copied = $state(false)
 
@@ -25,7 +28,9 @@
   const inviteUrl = (token: string) => `${location.origin}/invite/${token}`
 
   async function load() {
-    members = (await api<{ members: MemberJson[] }>(`/api/shares/${shareId}/members`)).members
+    const result = await api<{ members: MemberJson[]; mailOn: boolean }>(`/api/shares/${shareId}/members`)
+    members = result.members
+    mailOn = result.mailOn
   }
   onMount(() => void load().catch(() => {}))
 
@@ -36,11 +41,11 @@
     note = ''
     fresh = null
     try {
-      const result = await api<{ member: MemberJson; invite: { token: string; expiresAt: string } | null }>(`/api/shares/${shareId}/members`, {
+      const result = await api<{ member: MemberJson; invite: { token: string; expiresAt: string } | null; emailed: boolean }>(`/api/shares/${shareId}/members`, {
         method: 'POST',
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, sendEmail: mailOn && sendEmail }),
       })
-      if (result.invite) fresh = { name: result.member.name, url: inviteUrl(result.invite.token), expires: day(result.invite.expiresAt) }
+      if (result.invite) fresh = { name: result.member.name, url: inviteUrl(result.invite.token), expires: day(result.invite.expiresAt), emailedTo: result.emailed ? result.member.email : null }
       else note = t('clients.alreadyHas', { name: result.member.name })
       name = ''
       email = ''
@@ -57,8 +62,11 @@
     error = ''
     note = ''
     try {
-      const { invite } = await api<{ invite: { token: string; expiresAt: string } }>(`/api/shares/${shareId}/members/${member.userId}/invite`, { method: 'POST' })
-      fresh = { name: member.name, url: inviteUrl(invite.token), expires: day(invite.expiresAt) }
+      const { invite, emailed } = await api<{ invite: { token: string; expiresAt: string }; emailed: boolean }>(`/api/shares/${shareId}/members/${member.userId}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ sendEmail: mailOn && sendEmail }),
+      })
+      fresh = { name: member.name, url: inviteUrl(invite.token), expires: day(invite.expiresAt), emailedTo: emailed ? member.email : null }
       await load()
     } catch (e) {
       error = e instanceof Error ? e.message : t('clients.reinviteFailed')
@@ -118,14 +126,19 @@
       <input type="email" aria-label={t('clients.theirEmail')} placeholder={t('clients.theirEmail')} required maxlength="254" bind:value={email} />
       <button class="btn btn-primary btn-sm" type="submit" disabled={busy}>{t('clients.inviteButton')}</button>
       <button class="btn btn-sm" type="button" onclick={() => (inviting = false)}>{t('common.cancel')}</button>
+      {#if mailOn}<label class="send small"><input type="checkbox" bind:checked={sendEmail} /> {t('clients.sendByEmail')}</label>{/if}
     </form>
   {/if}
 
   {#if fresh}
     <div class="fresh stack" role="status">
-      <p class="small">
-        <strong>{t('clients.send', { name: fresh.name })}</strong> {t('clients.sendLead', { date: fresh.expires })}
-      </p>
+      {#if fresh.emailedTo}
+        <p class="small"><strong>{t('clients.emailed', { email: fresh.emailedTo })}</strong> {t('clients.emailedLead', { date: fresh.expires })}</p>
+      {:else}
+        <p class="small">
+          <strong>{t('clients.send', { name: fresh.name })}</strong> {t('clients.sendLead', { date: fresh.expires })}
+        </p>
+      {/if}
       <div class="row">
         <code class="url">{fresh.url}</code>
         <button class="btn btn-sm btn-primary" type="button" onclick={copy}>{copied ? t('share.copied') : t('clients.copyInvite')}</button>
@@ -166,6 +179,11 @@
   }
   .actions {
     margin-left: auto;
+  }
+  .send {
+    display: flex;
+    gap: 6px;
+    align-items: center;
   }
   .invite input {
     flex: 1 1 180px;

@@ -3,9 +3,9 @@
  * heading, a few paragraphs, a button with the same link written out under it, and why they got it. HTML and text come
  * from the same parts. No images, no tracking. Every value is escaped: names and gallery titles are typed by people.
  */
-import { getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
+import { createFormat, getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
 
-export type MailKind = 'test' | 'reset' | 'passwordChanged'
+export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite'
 
 export interface MailParams {
   /** The studio's name, from Setup → Email. */
@@ -24,7 +24,10 @@ interface Parts {
   why: string
 }
 
-const KINDS: Record<MailKind, (p: MailParams, t: Translate) => Parts> = {
+/** An ISO date, written the reader's way. */
+const day = (lang: UiLanguage, iso: unknown) => (typeof iso === 'string' && iso ? createFormat(lang).date(iso) : '')
+
+const KINDS: Record<MailKind, (p: MailParams, t: Translate, lang: UiLanguage) => Parts> = {
   test: (p, t) => ({
     subject: t('mail.test.subject', { studio: p.studio }),
     heading: t('mail.test.heading'),
@@ -38,6 +41,23 @@ const KINDS: Record<MailKind, (p: MailParams, t: Translate) => Parts> = {
     paragraphs: [t('mail.reset.body')],
     ...(p.link ? { button: { label: t('mail.reset.button'), url: p.link } } : {}),
     why: t('mail.reset.why'),
+  }),
+  invite: (p, t, lang) => ({
+    subject: p.gallery ? t('mail.invite.subjectGallery', { studio: p.studio, gallery: String(p.gallery) }) : t('mail.invite.subject', { studio: p.studio }),
+    heading: t('mail.invite.heading', { name: String(p.name ?? '') }),
+    paragraphs: [
+      p.gallery ? t('mail.invite.bodyGallery', { studio: p.studio, gallery: String(p.gallery) }) : t('mail.invite.body', { studio: p.studio }),
+      t('mail.invite.until', { date: day(lang, p.until) }),
+    ],
+    ...(p.link ? { button: { label: t('mail.invite.button'), url: p.link } } : {}),
+    why: t('mail.invite.why', { studio: p.studio }),
+  }),
+  teamInvite: (p, t, lang) => ({
+    subject: t('mail.team.subject', { studio: p.studio }),
+    heading: t('mail.invite.heading', { name: String(p.name ?? '') }),
+    paragraphs: [t('mail.team.body', { studio: p.studio, by: String(p.by ?? '') }), t('mail.team.until', { date: day(lang, p.until) })],
+    ...(p.link ? { button: { label: t('mail.team.button'), url: p.link } } : {}),
+    why: t('mail.team.why', { studio: p.studio }),
   }),
   passwordChanged: (p, t) => ({
     subject: t('mail.changed.subject', { studio: p.studio }),
@@ -71,7 +91,7 @@ export interface Rendered {
 
 export function renderMail(kind: MailKind, lang: UiLanguage, params: MailParams): Rendered {
   const t = getT(lang)
-  const parts = KINDS[kind](params, t)
+  const parts = KINDS[kind](params, t, lang)
   const url = parts.button ? webLink(parts.button.url) : null
   const button = url
     ? `<p style="margin:28px 0"><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#3b5bdb;color:#ffffff;text-decoration:none;font-weight:600">${escapeHtml(parts.button!.label)}</a></p>

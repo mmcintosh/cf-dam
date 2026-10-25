@@ -19,7 +19,7 @@ The list shows current clients A to Z, with how many logins they have, how many 
 
 A client can have several people who sign in: a couple, or an agency's art buyers. Under **People with a login** on the client's page:
 
-- **Add a person** gives their name and email. If they don't have a login yet, one is made and you get a one-time **invite link** to send them (cf-dam sends no email). They choose their own password with it.
+- **Add a person** gives their name and email. If they don't have a login yet, one is made and you get a one-time **invite link**: when this archive can send email, **Email the invitation to them** sends it for you, in the client's language; otherwise copy it into your own message. They choose their own password with it.
 - **Link an existing login** picks someone you already invited to a gallery. Logins with the client's email come first.
 - **New invite link** makes a fresh link for someone who hasn't joined yet; the old one stops working.
 - **Unlink** takes someone off the client. Their login and their galleries stay.

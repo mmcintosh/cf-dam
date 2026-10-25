@@ -4,7 +4,7 @@ summary: "Kollegen einladen, was jede Rolle darf, und jemandem helfen, der sich 
 section: People and security
 order: 1
 review: machine
-source: 25b86cd4ced7
+source: b3c8c9bd073d
 ---
 
 Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, die festlegt, was er tun kann.
@@ -28,6 +28,8 @@ Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, d
 ## Jemanden hinzufügen
 
 Drücke unter **Personen** auf **Person hinzufügen** und gib **Name**, **E-Mail**, ein **Vorläufiges Passwort** und eine **Rolle** an. Drücke **Anlegen** und teil der Person dann die Adresse deines cf-dam und das vorläufige Passwort mit (persönlich oder am Telefon ist am sichersten). Bei der ersten Anmeldung wird sie gebeten, ein eigenes Passwort zu wählen.
+
+Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), lass stattdessen **Per E-Mail einen Link schicken, um ein eigenes Passwort zu wählen** angehakt: Dann gibt es überhaupt kein vorläufiges Passwort, die Person bekommt einen Link, der einmal und 72 Stunden lang funktioniert, und niemand sonst kennt je ihr Passwort. Der Link wird auch auf der Seite angezeigt, falls die E-Mail nicht ankommt.
 
 ## Zwei-Faktor-Anmeldung für alle
 
