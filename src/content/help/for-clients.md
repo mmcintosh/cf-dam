@@ -13,7 +13,7 @@ Your photographer sent you an invite link. Open it, choose a password (at least 
 
 Next time, open the same web address, sign in with your email and that password, and you go straight to your photos.
 
-If you forget your password, ask your photographer: they can give you a temporary one, and you choose a new one when you sign in.
+If you forget your password, press **Forgot your password?** on the sign-in page and a link to choose a new one comes by email. If that isn't there, ask your photographer: they can give you a temporary one, and you choose a new one when you sign in.
 
 ## Your galleries
 

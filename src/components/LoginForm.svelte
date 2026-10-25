@@ -3,6 +3,9 @@
   import { authClient, safeNext } from '../lib/auth-client'
   import { t } from '@cf-dam/i18n/client'
 
+  /** Whether email works, so "Forgot your password?" can send a link (pages/login.astro). */
+  let { canReset = false }: { canReset?: boolean } = $props()
+
   let email = $state('')
   let password = $state('')
   let code = $state('')
@@ -94,6 +97,9 @@
     <button class="btn btn-primary" type="submit" disabled={busy}>{busy ? t('auth.signIn.busy') : t('auth.signIn.submit')}</button>
     <div class="or" aria-hidden="true"><span>{t('common.or')}</span></div>
     <button class="btn" type="button" onclick={passkey} disabled={busy}>{t('auth.signIn.passkey')}</button>
+    <p class="forgot">
+      {#if canReset}<a href="/forgot-password">{t('auth.forgot.link')}</a>{:else}<span class="muted">{t('auth.forgot.askAdmin')}</span>{/if}
+    </p>
   </form>
 {:else}
   <form class="stack" onsubmit={verify}>
@@ -123,6 +129,11 @@
 {/if}
 
 <style>
+  .forgot {
+    margin: 0;
+    text-align: center;
+    font-size: 0.88rem;
+  }
   .or {
     display: flex;
     align-items: center;

@@ -90,6 +90,8 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.passkeyRequired', { whom })
     case 'account.password_changed':
       return t('act.passwordChanged', { who })
+    case 'account.password_reset':
+      return t('act.passwordReset', { who })
     case 'account.two_factor_on':
       return t('act.twoFactorOn', { who })
     case 'account.two_factor_off':

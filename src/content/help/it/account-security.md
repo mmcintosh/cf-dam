@@ -4,7 +4,7 @@ summary: "Passkey, accesso in due passaggi, la tua password, dove hai effettuato
 section: People and security
 order: 2
 review: machine
-source: cb640b660183
+source: 1f368c995355
 ---
 
 La pagina **Account** (l’ultima voce del menu) raccoglie tutto ciò che riguarda il modo in cui accedi. È anche dove si trova [Aspetto e accessibilità](/help/appearance).
@@ -36,6 +36,8 @@ Non ti servono i codici quando accedi con una passkey. L’amministratore può r
 ## La tua password
 
 Almeno 12 caratteri. Una frase breve che ricorderai è meglio di un miscuglio che dimenticherai. Cambiala in **Password**: digita quella attuale, poi quella nuova. Dopo troppi tentativi sbagliati l’account si blocca per un po’, e un amministratore può sbloccarlo.
+
+L’hai dimenticata? Quando questo archivio può inviare email (vedi [Email](/help/email)), la pagina di accesso ha **Password dimenticata?**: scrivi il tuo indirizzo e arriva un link per scegliere una nuova password, valido una volta, per un’ora. Chiude anche tutti gli altri accessi, toglie un blocco e ricevi un’email che dice che la password è cambiata. L’accesso in due passaggi chiede comunque il suo codice. Senza email, chiedi a un amministratore una password temporanea.
 
 ## Dove hai effettuato l’accesso
 

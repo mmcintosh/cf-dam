@@ -4,7 +4,7 @@ summary: "Pour les clients : se connecter, parcourir vos photos, choisir vos fav
 section: Sharing
 order: 2
 review: machine
-source: 29da0e3bffa0
+source: 196c9b31578f
 ---
 
 Votre photographe utilise cf-dam pour partager des photos avec vous. Avec votre propre compte, vous ne voyez que les galeries qu’il a partagées avec vous, depuis n’importe quel téléphone, tablette ou ordinateur.
@@ -15,7 +15,7 @@ Votre photographe vous a envoyé un lien d’invitation. Ouvrez-le, choisissez u
 
 La prochaine fois, ouvrez la même adresse web, connectez-vous avec votre e-mail et ce mot de passe, et vous arriverez directement à vos photos.
 
-Si vous oubliez votre mot de passe, demandez à votre photographe : il peut vous en donner un provisoire, et vous en choisirez un nouveau à la connexion.
+Si vous oubliez votre mot de passe, appuyez sur **Mot de passe oublié ?** sur la page de connexion et un lien pour en choisir un nouveau arrive par e-mail. S’il n’y figure pas, demandez à votre photographe : il peut vous en donner un provisoire, et vous en choisirez un nouveau à la connexion.
 
 ## Vos galeries
 

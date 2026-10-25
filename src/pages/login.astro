@@ -1,9 +1,13 @@
 ---
 import AuthLayout from '../layouts/AuthLayout.astro'
 import LoginForm from '../components/LoginForm.svelte'
+import { env } from 'cloudflare:workers'
+import { getMailSettings, mailReady } from '@cf-dam/api'
 import { getT } from '@cf-dam/i18n'
 const t = getT(Astro.locals.lang)
+// "Forgot your password?" sends an email, so it's offered only when email works (Setup → Email).
+const canReset = mailReady(env as Parameters<typeof mailReady>[0], await getMailSettings(env.DB))
 ---
 <AuthLayout title={t('auth.signIn.title')}>
-  <LoginForm client:load />
+  <LoginForm client:load {canReset} />
 </AuthLayout>

@@ -5,7 +5,7 @@
  */
 import { getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
 
-export type MailKind = 'test'
+export type MailKind = 'test' | 'reset' | 'passwordChanged'
 
 export interface MailParams {
   /** The studio's name, from Setup → Email. */
@@ -31,6 +31,19 @@ const KINDS: Record<MailKind, (p: MailParams, t: Translate) => Parts> = {
     paragraphs: [t('mail.test.body', { studio: p.studio })],
     ...(p.link ? { button: { label: t('mail.test.button'), url: p.link } } : {}),
     why: t('mail.test.why'),
+  }),
+  reset: (p, t) => ({
+    subject: t('mail.reset.subject', { studio: p.studio }),
+    heading: t('mail.reset.heading'),
+    paragraphs: [t('mail.reset.body')],
+    ...(p.link ? { button: { label: t('mail.reset.button'), url: p.link } } : {}),
+    why: t('mail.reset.why'),
+  }),
+  passwordChanged: (p, t) => ({
+    subject: t('mail.changed.subject', { studio: p.studio }),
+    heading: t('mail.changed.heading'),
+    paragraphs: [t('mail.changed.body', { studio: p.studio })],
+    why: t('mail.changed.why'),
   }),
 }
 

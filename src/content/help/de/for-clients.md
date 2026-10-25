@@ -4,7 +4,7 @@ summary: "Für Kunden: anmelden, Fotos ansehen, Favoriten auswählen und herunte
 section: Sharing
 order: 2
 review: machine
-source: 29da0e3bffa0
+source: 196c9b31578f
 ---
 
 Dein Fotograf teilt Fotos mit dir über cf-dam. Mit deinem eigenen Konto siehst du nur die Galerien, die er mit dir geteilt hat, auf jedem Telefon, Tablet oder Computer.
@@ -15,7 +15,7 @@ Dein Fotograf hat dir einen Einladungslink geschickt. Öffne ihn, wähle ein Pas
 
 Beim nächsten Mal öffnest du dieselbe Webadresse, meldest dich mit deiner E-Mail und diesem Passwort an und kommst direkt zu deinen Fotos.
 
-Wenn du dein Passwort vergisst, frag deinen Fotografen: Er kann dir ein vorläufiges geben, und du wählst bei der Anmeldung ein neues.
+Wenn du dein Passwort vergisst, drück auf der Anmeldeseite **Passwort vergessen?**, und ein Link für ein neues kommt per E-Mail. Wenn das dort nicht steht, frag deinen Fotografen: Er kann dir ein vorläufiges geben, und du wählst bei der Anmeldung ein neues.
 
 ## Deine Galerien
 

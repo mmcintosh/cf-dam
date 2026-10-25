@@ -168,3 +168,50 @@ describe('email (plans/PLAN-E-v2.md)', () => {
     expect(renderMail('test', 'en', { studio: 'S', link: 'javascript:alert(1)' }).html).not.toContain('javascript:')
   })
 })
+
+describe('forgot your password (plans/PLAN-E-v2.md §4)', () => {
+  const ask = (email: string, ip?: string) => h.fetch('/api/auth/request-password-reset', { ...json({ email }), ...(ip ? { ip } : {}) })
+
+  it('emails a one-time link, ends every session, and clears a lockout and an old invite', async () => {
+    const { mail, admin } = await withMail()
+    await put(admin, { on: true })
+    // Someone guessed wrong ten times: the owner needs the reset most.
+    await h.env.DB.prepare("UPDATE users SET locked_until = '2999-01-01T00:00:00Z', must_change_password = 1, failed_sign_ins = 4 WHERE email = 'ada@example.com'").run()
+
+    expect((await ask('nobody@example.com')).status).toBe(200)
+    expect((await ask('ada@example.com')).status).toBe(200)
+    expect((await rows()).map((r) => r.kind)).toEqual(['reset'])
+    await sendDueMail(h.env)
+    const link = /http:\/\/localhost\/reset-password\?token=([A-Za-z0-9_-]+)/.exec(mail.sent[0]!.text)
+    expect(link).not.toBeNull()
+    expect((await rows())[0]!.params).not.toContain(link![1])
+
+    const reset = (token: string) => h.fetch('/api/auth/reset-password', json({ newPassword: 'a brand new long password', token }))
+    expect((await reset(link![1]!)).status).toBe(200)
+    expect((await reset(link![1]!)).status).toBe(400)
+    // Signed out everywhere; the lockout and the temporary-password flag are gone.
+    expect((await h.fetch('/api/me', { cookie: admin })).status).toBe(401)
+    const user = await h.env.DB.prepare("SELECT locked_until, must_change_password, failed_sign_ins FROM users WHERE email = 'ada@example.com'").first()
+    expect(user).toEqual({ locked_until: null, must_change_password: 0, failed_sign_ins: 0 })
+    expect(await h.env.DB.prepare("SELECT action FROM activity_log WHERE action = 'account.password_reset'").first()).toBeTruthy()
+    expect((await rows()).map((r) => r.kind)).toEqual(['reset', 'passwordChanged'])
+    expect((await h.fetch('/api/auth/sign-in/email', json({ email: 'ada@example.com', password: 'a brand new long password' }))).status).toBe(200)
+  })
+
+  it('sends nothing for a deactivated account or with email off, and limits each address', async () => {
+    const { admin } = await withMail()
+    await ask('ada@example.com')
+    expect(await rows()).toEqual([])
+    await put(admin, { on: true })
+    await h.env.DB.prepare("UPDATE users SET is_active = 0 WHERE email = 'ada@example.com'").run()
+    expect((await ask('ada@example.com')).status).toBe(200)
+    expect(await rows()).toEqual([])
+    await h.env.DB.prepare("UPDATE users SET is_active = 1 WHERE email = 'ada@example.com'").run()
+    // Three an hour for one address, from anywhere; the same for an address with no account.
+    for (const ip of ['1.1.1.1', '2.2.2.2', '3.3.3.3']) expect((await ask('Ada@Example.com', ip)).status).toBe(200)
+    expect((await ask('ada@example.com', '4.4.4.4')).status).toBe(429)
+    for (const ip of ['5.5.5.5', '6.6.6.6', '7.7.7.7']) expect((await ask('ghost@example.com', ip)).status).toBe(200)
+    expect((await ask('ghost@example.com', '8.8.8.8')).status).toBe(429)
+  })
+})
+

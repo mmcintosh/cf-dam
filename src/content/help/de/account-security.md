@@ -4,7 +4,7 @@ summary: "Passkeys, Zwei-Faktor-Anmeldung, dein Passwort, wo du angemeldet bist,
 section: People and security
 order: 2
 review: machine
-source: cb640b660183
+source: 1f368c995355
 ---
 
 Deine Seite **Konto** (der letzte Punkt im Menü) enthält alles dazu, wie du dich anmeldest. Dort findest du auch [Darstellung und Barrierefreiheit](/help/appearance).
@@ -36,6 +36,8 @@ Wenn du dich mit einem Passkey anmeldest, brauchst du keine Codes. Dein Administ
 ## Dein Passwort
 
 Mindestens 12 Zeichen. Ein kurzer Satz, den du dir merkst, ist besser als ein Zeichensalat, den du vergisst. Ändere es unter **Passwort**: Tipp das aktuelle ein, dann das neue. Nach zu vielen falschen Versuchen wird das Konto eine Weile gesperrt, und ein Administrator kann es entsperren.
+
+Vergessen? Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), hat die Anmeldeseite **Passwort vergessen?**: Gib deine Adresse ein, und ein Link für ein neues Passwort kommt an, der einmal und eine Stunde lang funktioniert. Er beendet auch alle anderen Anmeldungen, hebt eine Sperre auf, und du bekommst eine E-Mail, dass sich das Passwort geändert hat. Die Zwei-Faktor-Anmeldung fragt weiterhin nach ihrem Code. Ohne E-Mail bitte einen Administrator um ein vorläufiges Passwort.
 
 ## Wo du angemeldet bist
 

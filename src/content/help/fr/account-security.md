@@ -4,7 +4,7 @@ summary: "Clés d’accès, connexion en deux étapes, votre mot de passe, les e
 section: People and security
 order: 2
 review: machine
-source: cb640b660183
+source: 1f368c995355
 ---
 
 Votre page **Compte** (le dernier élément du menu) regroupe tout ce qui concerne votre connexion. C’est aussi là que se trouve [Apparence et accessibilité](/help/appearance).
@@ -36,6 +36,8 @@ Vous n’avez pas besoin de codes quand vous vous connectez avec une clé d’ac
 ## Votre mot de passe
 
 Au moins 12 caractères. Une courte phrase dont vous vous souviendrez vaut mieux qu’un fouillis que vous oublierez. Changez-le sous **Mot de passe** : tapez l’actuel, puis le nouveau. Après trop de tentatives incorrectes, le compte est bloqué pendant un moment, et un administrateur peut le débloquer.
+
+Oublié ? Quand cette archive peut envoyer des e-mails (voir [E-mail](/help/email)), la page de connexion propose **Mot de passe oublié ?** : saisissez votre adresse et un lien pour choisir un nouveau mot de passe arrive, valable une fois, pendant une heure. Il ferme aussi toutes les autres connexions, lève un blocage, et vous recevez un e-mail indiquant que le mot de passe a changé. La connexion en deux étapes demande toujours son code. Sans e-mail, demandez à un administrateur un mot de passe temporaire.
 
 ## Où vous êtes connecté
 

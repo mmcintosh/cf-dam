@@ -35,6 +35,8 @@ You don't need codes when you sign in with a passkey. Your administrator may req
 
 At least 12 characters. A short sentence you'll remember is better than a jumble you won't. Change it under **Password**: type the current one, then the new one. After too many wrong attempts the account locks for a while, and an administrator can unlock it.
 
+Forgot it? When this archive can send email (see [Email](/help/email)), the sign-in page has **Forgot your password?**: type your address and a link to choose a new password arrives, working once, for an hour. It also ends every other sign-in, lifts a lockout, and you get an email saying the password changed. Two-step sign-in still asks for its code. Without email, ask an administrator for a temporary password.
+
 ## Where you're signed in
 
 Each browser stays signed in until it's been unused for a week. **Where you're signed in** lists them, marking **This browser**. **Sign out** any you don't recognise, then change your password.

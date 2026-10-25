@@ -14,6 +14,7 @@ import { APIError } from 'better-auth/api'
 import { twoFactor } from 'better-auth/plugins'
 import type { DamBindings } from '../env'
 import { logActivity } from '../lib/activity'
+import { afterPasswordReset, queueResetEmail, RESET_TTL_SECONDS } from '../mail/account-mail'
 import { nowIso } from '../lib/time'
 import { hashPassword, verifyPassword } from './password'
 import { assignRole } from './roles'
@@ -37,6 +38,8 @@ export interface CreateAuthOptions {
   allowSignUp?: boolean
   /** Role given to a user created by this instance. Defaults to `viewer`. */
   role?: string
+  /** The request's waitUntil, so Better Auth's work after the answer outlives it (handleAuthRequest sets it). */
+  waitUntil?: (promise: Promise<unknown>) => void
 }
 
 /** Better Auth's `baseURL`: the pinned origin if configured, else the request's own origin. */
@@ -129,6 +132,13 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 12,
+      // "Forgot your password?" (plans/PLAN-E-v2.md §4): the link is queued as an email, never sent inline, so the
+      // answer takes as long whether or not the address has an account. With email off nothing is queued, and the
+      // sign-in page doesn't offer it.
+      resetPasswordTokenExpiresIn: RESET_TTL_SECONDS,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, token }) => queueResetEmail(env, user, token),
+      onPasswordReset: async ({ user }) => afterPasswordReset(env, user, request.headers.get('cf-connecting-ip') ?? undefined),
       password: {
         hash: hashPassword,
         verify: ({ hash, password }) => verifyPassword(password, hash),
@@ -145,6 +155,8 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
       // Better Auth validates the schema by introspecting sqlite_master, which D1 refuses
       // (SQLITE_AUTH), failing every sign-in. Infowall #1328.
       database: { validateSchema: false },
+      // Better Auth's own work after the answer (the reset email) runs past the response, not before it.
+      ...(options.waitUntil ? { backgroundTasks: { handler: options.waitUntil } } : {}),
     },
 
     plugins: [

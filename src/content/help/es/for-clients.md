@@ -4,7 +4,7 @@ summary: "Para clientes: iniciar sesión, ver tus fotos, elegir favoritas y desc
 section: Sharing
 order: 2
 review: machine
-source: 29da0e3bffa0
+source: 196c9b31578f
 ---
 
 Tu fotógrafo usa cf-dam para compartir fotos contigo. Con tu propia cuenta solo ves las galerías que ha compartido contigo, desde cualquier teléfono, tableta u ordenador.
@@ -15,7 +15,7 @@ Tu fotógrafo te ha enviado un enlace de invitación. Ábrelo, elige una contras
 
 La próxima vez, abre la misma dirección web, inicia sesión con tu correo electrónico y esa contraseña, e irás directamente a tus fotos.
 
-Si olvidas tu contraseña, pídesela a tu fotógrafo: puede darte una temporal y elegirás una nueva al iniciar sesión.
+Si olvidas tu contraseña, pulsa **¿Olvidaste tu contraseña?** en la página de inicio de sesión y te llegará por correo un enlace para elegir una nueva. Si no aparece, pídesela a tu fotógrafo: puede darte una temporal y elegirás una nueva al iniciar sesión.
 
 ## Tus galerías
 

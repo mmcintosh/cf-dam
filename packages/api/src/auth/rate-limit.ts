@@ -25,14 +25,15 @@ interface Entry {
 
 const MINUTE = 60_000
 
-export async function consumeRateLimit(c: Context<DamEnv>, rule: RateLimitRule): Promise<Response | null> {
+/** Counts per IP, or per `subject` (say, a hash of an email address) when one is given. */
+export async function consumeRateLimit(c: Context<DamEnv>, rule: RateLimitRule, subject?: string): Promise<Response | null> {
   const kv = c.env.CACHE_KV
   // Every request from the internet carries cf-connecting-ip. No IP means a service binding or a
   // test; metering those would put every caller behind one bucket.
   const ip = c.req.header('cf-connecting-ip')
   if (!kv || !ip) return null
 
-  const key = `ratelimit:${rule.keyPrefix}:${ip}`
+  const key = `ratelimit:${rule.keyPrefix}:${subject ?? ip}`
   const now = Date.now()
   let entry: Entry | null = null
   try {
@@ -60,6 +61,8 @@ export async function consumeRateLimit(c: Context<DamEnv>, rule: RateLimitRule):
 const CREDENTIAL_SIGN_IN: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'sign-in' }
 const ACCOUNT_CREATION: RateLimitRule = { max: 3, windowMs: MINUTE, keyPrefix: 'sign-up' }
 const EMAIL_SEND: RateLimitRule = { max: 3, windowMs: MINUTE, keyPrefix: 'email-send' }
+/** Password reset emails to one address (keyed by a hash of it), whatever the IP. */
+export const RESET_PER_ADDRESS: RateLimitRule = { max: 3, windowMs: 60 * MINUTE, keyPrefix: 'reset-address' }
 const CODE_VERIFY: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'code-verify' }
 const ACCOUNT_CHANGE: RateLimitRule = { max: 5, windowMs: MINUTE, keyPrefix: 'account-change' }
 // Each passkey challenge writes a row; the sign-in page asks for one on load (for autofill).

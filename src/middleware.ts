@@ -13,7 +13,7 @@ import { env } from 'cloudflare:workers'
 import { clientGalleries, getPreferences, isClientOnly, resolvePrincipal, setupNeeded } from '@cf-dam/api'
 import { currentLanguage, LANGUAGE_COOKIE, setLanguage } from '@cf-dam/i18n'
 
-const SIGNED_OUT_PAGES = new Set(['/login'])
+const SIGNED_OUT_PAGES = new Set(['/login', '/forgot-password'])
 /** All a client can open (client galleries themselves are under /s/, open to anyone with the link). */
 const CLIENT_PAGES = new Set(['/my-galleries', '/account', '/help/for-clients'])
 
@@ -56,6 +56,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.principal = principal
 
   if (pathname.startsWith('/invite/')) return next()
+  // A reset link from an email opens whoever is signed in on this device; the page says what it does.
+  if (pathname === '/reset-password') return next()
   if (!principal) {
     if (SIGNED_OUT_PAGES.has(pathname)) return next()
     return context.redirect(`/login?next=${encodeURIComponent(pathname + search)}`)

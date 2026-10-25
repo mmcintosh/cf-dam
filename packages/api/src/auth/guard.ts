@@ -15,7 +15,8 @@ import { logActivity } from '../lib/activity'
 import { nowIso } from '../lib/time'
 import { createAuth } from './auth'
 import { REQUIRE_2FA_KEY, resolvePrincipal, twoFactorRequired } from './principal'
-import { authRateLimitRule, authSubPath, consumeRateLimit } from './rate-limit'
+import { authRateLimitRule, authSubPath, consumeRateLimit, RESET_PER_ADDRESS } from './rate-limit'
+import { sha256Hex } from '../lib/crypto'
 import { setupNeeded } from './setup-state'
 
 export const LOCKOUT = { maxFailures: 10, minutes: 15 }
@@ -43,8 +44,21 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
   }
   // Mid-restore, people from the backup exist but nobody may sign in until the restore is finished.
   if (await setupNeeded(c.env.DB)) return c.json({ code: 'SETUP_NEEDED', message: say('auth.guard.setup') }, 403)
-  const auth = createAuth(c.env, c.req.raw)
   const sub = authSubPath(c.req.path)
+  if (sub === '/request-password-reset' && c.req.method === 'POST') {
+    // Besides the per-IP limit: a few a hour per address, counted whether or not it has an account, so one inbox
+    // can't be flooded and the limit says nothing about who's here.
+    const body = await c.req.raw
+      .clone()
+      .json<{ email?: unknown }>()
+      .catch(() => null)
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (email) {
+      const limited = await consumeRateLimit(c, RESET_PER_ADDRESS, await sha256Hex(email))
+      if (limited) return limited
+    }
+  }
+  const auth = createAuth(c.env, c.req.raw, { waitUntil: (p) => c.executionCtx.waitUntil(p) })
   if (sub === '/sign-in/email' && c.req.method === 'POST') return passwordSignIn(c, auth)
 
   if (sub === '/change-password' && c.req.method === 'POST') {

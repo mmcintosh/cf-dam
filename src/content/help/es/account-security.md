@@ -4,7 +4,7 @@ summary: "Llaves de acceso, verificación en dos pasos, tu contraseña, dónde t
 section: People and security
 order: 2
 review: machine
-source: cb640b660183
+source: 1f368c995355
 ---
 
 Tu página **Cuenta** (el último elemento del menú) reúne todo lo relacionado con cómo inicias sesión. Ahí también está [Apariencia y accesibilidad](/help/appearance).
@@ -36,6 +36,8 @@ No necesitas códigos cuando inicias sesión con una llave de acceso. Tu adminis
 ## Tu contraseña
 
 Al menos 12 caracteres. Una frase corta que recuerdes es mejor que un batiburrillo que olvidarás. Cámbiala en **Contraseña**: escribe la actual y luego la nueva. Tras demasiados intentos fallidos, la cuenta se bloquea durante un rato, y un administrador puede desbloquearla.
+
+¿La olvidaste? Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), la página de inicio de sesión tiene **¿Olvidaste tu contraseña?**: escribe tu dirección y llegará un enlace para elegir una contraseña nueva, que funciona una vez, durante una hora. También cierra todas las demás sesiones, quita un bloqueo y recibirás un correo diciendo que la contraseña cambió. La verificación en dos pasos sigue pidiendo su código. Sin correo, pide a un administrador una contraseña temporal.
 
 ## Dónde tienes la sesión iniciada
 
