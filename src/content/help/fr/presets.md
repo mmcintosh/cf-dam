@@ -4,14 +4,14 @@ summary: "Des ensembles tout prêts de crédit, de copyright et de coordonnées 
 section: Your photos
 order: 8
 review: machine
-source: 3a7ae050f4e5
+source: 8d7e7403a1c0
 ---
 
 Un **préréglage** est un ensemble nommé de champs de crédit, de droits et de lieu que vous taperiez sinon encore et encore : votre mention de copyright, votre mention de crédit, vos conditions d’utilisation, votre e-mail et votre site web de contact, ou les détails de la commande d’un client.
 
 ## En créer un
 
-1. Ouvrez **Préréglages** dans le menu et appuyez sur **Nouveau préréglage**.
+1. Ouvrez **Rangement → Préréglages** dans le menu et appuyez sur **Nouveau préréglage**.
 2. Donnez-lui un **Nom du préréglage**, comme « Mon copyright » ou « Mariage Hansen 2026 ».
 3. Ne remplissez que les champs que vous voulez qu’il définisse. **Seuls les champs remplis font partie du préréglage** : les champs vides sont laissés tels quels quand il est appliqué.
 4. Cochez **Appliquer aux nouvelles importations** pour remplir ces champs sur chaque nouvelle photo où le fichier les laisse vides. Un préréglage de copyright est l’usage classique.

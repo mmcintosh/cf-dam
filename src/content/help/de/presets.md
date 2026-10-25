@@ -4,14 +4,14 @@ summary: "Fertige Sätze aus Quellenangabe, Copyright und Kontaktdaten, die du v
 section: Your photos
 order: 8
 review: machine
-source: 3a7ae050f4e5
+source: 8d7e7403a1c0
 ---
 
 Eine **Vorlage** ist ein benannter Satz von Urheber-, Rechte- und Ortsfeldern, die du sonst immer wieder eintippen würdest: dein Copyright-Vermerk, deine Quellenangabe, Nutzungsbedingungen, Kontakt-E-Mail und Website oder die Auftragsdaten eines Kunden.
 
 ## Eine anlegen
 
-1. Öffne **Vorlagen** im Menü und drücke **Neue Vorlage**.
+1. Öffne **Aufräumen → Vorlagen** im Menü und drücke **Neue Vorlage**.
 2. Gib ihr einen **Name der Vorlage**, etwa „Mein Copyright“ oder „Hochzeit Hansen 2026“.
 3. Fülle nur die Felder aus, die sie setzen soll. **Nur ausgefüllte Felder gehören zur Vorlage**: Leere bleiben beim Anwenden unberührt.
 4. Hake **Auf neue Uploads anwenden** an, um diese Felder bei jedem neuen Foto zu füllen, wo die Datei sie leer gelassen hat. Eine Copyright-Vorlage ist der klassische Fall.

@@ -4,7 +4,7 @@ summary: "Dejar que un modelo de IA describa tus fotos, cuánto cuesta y cómo s
 section: Your photos
 order: 5
 review: machine
-source: 48fdc91af68c
+source: bae228056176
 ---
 
 La revisión con IA mira cada foto y escribe sugerencias: **texto alternativo**, un **pie de foto**, una descripción más larga de **lo que vio**, cualquier **texto en la imagen** (carteles, documentos), **palabras clave** sugeridas y una nota sobre la calidad. Hace que un archivo grande se pueda buscar de una forma que nadie tiene tiempo de hacer a mano, y es lo que lee la [búsqueda por significado](/help/search).
@@ -23,7 +23,7 @@ Para aceptar sugerencias de muchas fotos a la vez, selecciónalas en la bibliote
 
 ## La página Revisión con IA
 
-**Revisión con IA**, en el menú, muestra cuántas fotos están **analizadas**, **en cola**, **nunca analizadas** y **con error**, y cuánto cuesta cada 1000 fotos en tu archivo.
+**Revisión con IA** (en **Configuración**, en el menú) muestra cuántas fotos están **analizadas**, **en cola**, **nunca analizadas** y **con error**, y cuánto cuesta cada 1000 fotos en tu archivo.
 
 ### Ajustes (administradores)
 

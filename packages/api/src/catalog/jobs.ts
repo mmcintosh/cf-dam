@@ -8,7 +8,7 @@
  * when a gallery of one of its albums is made with "Final delivery" ticked (markDelivered).
  */
 import { randomId } from '../lib/crypto'
-import { BadRequest, optionalString } from '../lib/http'
+import { BadRequest, optionalLink, optionalString } from '../lib/http'
 import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { buildWhere, type ListFilters } from './assets'
@@ -46,6 +46,7 @@ interface JobRow {
   due_on: string | null
   delivered_at: string | null
   notes: string
+  crm_url: string
   created_at: string
   updated_at: string
 }
@@ -71,6 +72,8 @@ export interface JobSummary {
 
 export interface JobJson extends JobSummary {
   notes: string
+  /** The job in the photographer's CRM; '' if none. */
+  crmUrl: string
   createdAt: string
   updatedAt: string
 }
@@ -112,6 +115,7 @@ export interface JobInput {
   place?: string
   dueOn?: string | null
   notes?: string
+  crmUrl?: string
   stage?: Stage
 }
 
@@ -142,6 +146,7 @@ export function parseJobInput(body: Record<string, unknown>, creating: boolean):
     place: optionalString(body, 'place', 300),
     dueOn: optionalDay(body, 'dueOn'),
     notes: optionalString(body, 'notes', 10_000),
+    crmUrl: optionalLink(body, 'crmUrl'),
     stage: body.stage as Stage | undefined,
   }
   // One day: the end is the start. An end before the start is a mistake.
@@ -198,7 +203,7 @@ export async function createJob(db: D1Database, input: JobInput, actorId: string
 export async function getJob(db: D1Database, id: string): Promise<JobJson | null> {
   const row = await db.prepare(`${SUMMARY} WHERE j.id = ?2`).bind(nowIso(), id).first<SummaryRow>()
   if (!row) return null
-  return { ...summaryJson(row), notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at }
+  return { ...summaryJson(row), notes: row.notes, crmUrl: row.crm_url, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
 /** Jobs, the soonest shoot first within open work, newest first for finished work. */
@@ -236,6 +241,7 @@ const COLUMNS: Partial<Record<keyof JobInput, string>> = {
   place: 'place',
   dueOn: 'due_on',
   notes: 'notes',
+  crmUrl: 'crm_url',
 }
 
 /** Change the given fields (not the stage: setStage). Returns the fields sent, or null if there's no such job. */

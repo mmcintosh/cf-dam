@@ -8,7 +8,10 @@
   let { client }: { client: ClientJson } = $props()
 
   // svelte-ignore state_referenced_locally
-  let form = $state({ name: client.name, company: client.company, email: client.email, phone: client.phone, address: client.address, language: client.language ?? '', notes: client.notes })
+  let form = $state({ name: client.name, company: client.company, email: client.email, phone: client.phone, address: client.address, language: client.language ?? '', notes: client.notes, crmUrl: client.crmUrl })
+  // The saved link, so "Open" never goes somewhere half-typed.
+  // svelte-ignore state_referenced_locally
+  let crmSaved = $state(client.crmUrl)
   let busy = $state(false)
   let saved = $state(false)
   let error = $state('')
@@ -21,6 +24,7 @@
     try {
       await api(`/api/clients/${client.id}`, { method: 'PATCH', body: JSON.stringify({ ...form, language: form.language || null }) })
       saved = true
+      crmSaved = form.crmUrl.trim()
       if (form.name !== client.name) location.reload()
     } catch (e) {
       error = e instanceof Error ? e.message : t('common.couldNotSave')
@@ -70,6 +74,13 @@
       <textarea id="cd-address" rows="3" maxlength="1000" bind:value={form.address}></textarea>
     </div>
     <div class="field wide">
+      <label for="cd-crm">{t('crm.link')}</label>
+      <div class="row link">
+        <input id="cd-crm" type="url" maxlength="2000" placeholder={t('crm.clientPlaceholder')} bind:value={form.crmUrl} />
+        {#if crmSaved}<a class="btn" href={crmSaved} target="_blank" rel="noopener noreferrer">{t('crm.open', { host: new URL(crmSaved).host })} ↗</a>{/if}
+      </div>
+    </div>
+    <div class="field wide">
       <label for="cd-notes">{t('clientsPage.notes')}</label>
       <textarea id="cd-notes" rows="5" maxlength="10000" placeholder={t('clientsPage.notesPlaceholder')} bind:value={form.notes}></textarea>
     </div>
@@ -99,6 +110,13 @@
   textarea {
     width: 100%;
     resize: vertical;
+  }
+  .link {
+    gap: 8px;
+  }
+  .link input {
+    flex: 1;
+    min-width: 0;
   }
   .actions {
     gap: 10px;

@@ -9,7 +9,7 @@ A **preset** is a named set of the credit, rights and place fields you'd otherwi
 
 ## Making one
 
-1. Open **Presets** in the menu and press **New preset**.
+1. Open **Tidy up → Presets** in the menu and press **New preset**.
 2. Give it a **Preset name**, such as "My copyright" or "Hansen wedding 2026".
 3. Fill in only the fields you want it to set. **Only filled-in fields are part of the preset**: empty ones are left alone when it's applied.
 4. Tick **Apply to new uploads** to fill these fields on every new photo where the file left them empty. A copyright preset is the classic use.

@@ -4,14 +4,14 @@ summary: "Conjuntos ya preparados de crédito, copyright y datos de contacto par
 section: Your photos
 order: 8
 review: machine
-source: 3a7ae050f4e5
+source: 8d7e7403a1c0
 ---
 
 Un **ajuste preestablecido** es un conjunto con nombre de los campos de crédito, derechos y lugar que, si no, escribirías una y otra vez: tu aviso de copyright, la línea de crédito, las condiciones de uso, el correo electrónico y el sitio web de contacto, o los datos del encargo de un cliente.
 
 ## Crear uno
 
-1. Abre **Ajustes preestablecidos** en el menú y pulsa **Nuevo ajuste**.
+1. Abre **Ordenar → Ajustes preestablecidos** en el menú y pulsa **Nuevo ajuste**.
 2. Ponle un **Nombre del ajuste**, como «Mi copyright» o «Boda Hansen 2026».
 3. Rellena solo los campos que quieras que ponga. **Solo los campos rellenados forman parte del ajuste**: los vacíos no se tocan al aplicarlo.
 4. Marca **Aplicar a las nuevas subidas** para rellenar estos campos en cada foto nueva cuando el archivo los deja vacíos. Un ajuste de copyright es el uso clásico.

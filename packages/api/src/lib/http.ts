@@ -29,6 +29,20 @@ export function optionalString(body: Record<string, unknown>, field: string, max
   return value.trim()
 }
 
+/** A web link (http or https only, so never javascript:), '' to clear it, or undefined if not sent. */
+export function optionalLink(body: Record<string, unknown>, field: string): string | undefined {
+  const value = optionalString(body, field, 2000)
+  if (!value) return value
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new BadRequest(`${field} must be a web address.`)
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new BadRequest(`${field} must be a web address.`)
+  return url.href
+}
+
 export function stringArray(body: Record<string, unknown>, field: string): string[] | undefined {
   const value = body[field]
   if (value === undefined) return undefined

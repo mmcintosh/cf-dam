@@ -55,6 +55,16 @@ describe('jobs', () => {
     expect((await h.fetch('/api/jobs', { ...json({ title: 'No client' }), cookie: admin })).status).toBe(400)
     expect((await h.fetch('/api/jobs', { ...json({ clientId, title: 'Backwards', shootStart: '2024-06-15', shootEnd: '2024-06-14' }), cookie: admin })).status).toBe(400)
     expect((await h.fetch('/api/jobs', { ...json({ clientId: 'nobody', title: 'Lost' }), cookie: admin })).status).toBe(404)
+
+    // A link to the job in the photographer's CRM: a web address only, and '' takes it away.
+    const { job: made } = await create({ title: 'Linked' })
+    const edit = (crmUrl: string) => h.fetch(`/api/jobs/${made.id}`, { method: 'PATCH', body: JSON.stringify({ crmUrl }), cookie: admin })
+    expect((await edit('javascript:alert(1)')).status).toBe(400)
+    expect((await edit('not a link')).status).toBe(400)
+    expect((await edit('https://app.honeybook.com/project/123')).status).toBe(200)
+    expect(((await job(made.id)).job as Job & { crmUrl: string }).crmUrl).toBe('https://app.honeybook.com/project/123')
+    expect((await edit('')).status).toBe(200)
+    expect(((await job(made.id)).job as Job & { crmUrl: string }).crmUrl).toBe('')
   })
 
   it('makes a job from a Library filter, with an album of those photos, and a new client by name', async () => {

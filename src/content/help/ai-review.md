@@ -21,7 +21,7 @@ To accept suggestions for many photos at once, select them in the library and us
 
 ## The AI review page
 
-**AI review** in the menu shows how many photos are **analysed**, **in the queue**, **never analysed** and **failed**, and what it costs per 1,000 photos on your archive.
+**AI review** (under **Setup** in the menu) shows how many photos are **analysed**, **in the queue**, **never analysed** and **failed**, and what it costs per 1,000 photos on your archive.
 
 ### Settings (administrators)
 

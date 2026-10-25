@@ -18,13 +18,9 @@ The menu on the left takes you to each part:
 | **Library** | Every photo, newest first, with filters down the side. |
 | **Albums** | Photos you've grouped by hand. |
 | **Client work** | Jobs, clients and client galleries, with a tab for each along the top. Client galleries are albums shared through a private link. |
-| **Keywords** | Your keyword list: rename, merge and tidy it. |
-| **Presets** | Ready-made sets of credit, copyright and contact details to add to photos. |
-| **Duplicates** | Identical files and look-alikes, with a suggestion of which to keep. |
-| **AI review** | Captions, alt text and keyword suggestions written by AI, for you to approve. |
-| **Storage** | Where original files are kept: Cloudflare's own storage, Amazon S3 and others. |
-| **Computers and NAS** | Small helpers that catalogue photos on your NAS or computer without moving them. |
-| **People** | Who can sign in, and what each person may do. |
+| **Tidy up** | **Duplicates** (identical files and look-alikes, with a suggestion of which to keep), **Keywords** (rename, merge and tidy your keyword list) and **Presets** (ready-made credit, copyright and contact details to add to photos). |
+| **Setup** | **Storage** (where original files are kept: Cloudflare's own storage, Amazon S3 and others), **Computers and NAS** (small helpers that catalogue photos on your NAS or computer without moving them) and **AI review** (captions, alt text and keyword suggestions written by AI, for you to approve). |
+| **Team** | **People** (who can sign in, and what each person may do), **Activity** (what was done, by whom) and **Alerts** (problems that need someone; the number beside **Team** is how many are open). |
 | **Account** | Your password, passkeys, two-step sign-in and how cf-dam looks for you. |
 
 Some of these only show for administrators. Every page has a **?** beside its title that opens the help for that page.

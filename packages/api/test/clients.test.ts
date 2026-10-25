@@ -189,8 +189,9 @@ describe('clients (the Clients section)', () => {
     expect((await h.fetch(`/api/clients/${muller.id}/past`, { ...json({ past: true }), cookie: admin })).status).toBe(200)
     expect(await search('')).toEqual(['Anna Hansen'])
     expect(await search('', true)).toEqual(['Jürgen Müller'])
-    const changed = await h.fetch(`/api/clients/${muller.id}`, { method: 'PATCH', body: JSON.stringify({ notes: 'Prefers matte prints', language: 'de' }), cookie: admin })
-    expect(await changed.json()).toMatchObject({ client: { notes: 'Prefers matte prints', language: 'de', pastAt: expect.any(String) } })
+    const changed = await h.fetch(`/api/clients/${muller.id}`, { method: 'PATCH', body: JSON.stringify({ notes: 'Prefers matte prints', language: 'de', crmUrl: 'https://my.studioninja.co/clients/42' }), cookie: admin })
+    expect(await changed.json()).toMatchObject({ client: { notes: 'Prefers matte prints', language: 'de', crmUrl: 'https://my.studioninja.co/clients/42', pastAt: expect.any(String) } })
+    expect((await h.fetch(`/api/clients/${muller.id}`, { method: 'PATCH', body: JSON.stringify({ crmUrl: 'javascript:alert(1)' }), cookie: admin })).status).toBe(400)
   })
 
   it('links logins to one client, finds them by their people, and shows their galleries and downloads', async () => {

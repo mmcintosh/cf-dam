@@ -4,7 +4,7 @@ summary: "Qué es cf-dam, cómo está organizado y lo primero que conviene hacer
 section: Getting started
 order: 1
 review: machine
-source: c79f2fb88a23
+source: 36b76be0bf35
 ---
 
 cf-dam es un archivo privado para tus fotos (y vídeos). Guarda un catálogo de todo lo que tienes: qué es cada foto, cuándo y dónde se tomó, quién aparece, qué palabras clave tiene y dónde se guarda el archivo original. Así encuentras cualquier foto en segundos, compartes algunas con un cliente y mantienes los originales a salvo en el almacenamiento que mejor te venga.
@@ -20,13 +20,9 @@ El menú de la izquierda te lleva a cada parte:
 | **Biblioteca** | Todas las fotos, las más recientes primero, con filtros en el lateral. |
 | **Álbumes** | Fotos que has agrupado a mano. |
 | **Trabajo con clientes** | Trabajos, clientes y galerías de clientes, con una pestaña para cada uno arriba. Las galerías de clientes son álbumes compartidos mediante un enlace privado. |
-| **Palabras clave** | Tu lista de palabras clave: cámbiales el nombre, fusiónalas y ordénalas. |
-| **Ajustes preestablecidos** | Conjuntos listos de crédito, copyright y datos de contacto para añadir a las fotos. |
-| **Duplicados** | Archivos idénticos y fotos parecidas, con una sugerencia de cuál conservar. |
-| **Revisión con IA** | Pies de foto, texto alternativo y palabras clave sugeridos por la IA, para que los apruebes. |
-| **Almacenamiento** | Dónde se guardan los archivos originales: el almacenamiento propio de Cloudflare, Amazon S3 y otros. |
-| **Ordenadores y NAS** | Pequeños asistentes que catalogan las fotos de tu NAS u ordenador sin moverlas. |
-| **Personas** | Quién puede iniciar sesión y qué puede hacer cada persona. |
+| **Ordenar** | **Duplicados** (archivos idénticos y fotos parecidas, con una sugerencia de cuál conservar), **Palabras clave** (cambia el nombre, fusiona y ordena tu lista) y **Ajustes preestablecidos** (conjuntos listos de crédito, copyright y datos de contacto para añadir a las fotos). |
+| **Configuración** | **Almacenamiento** (dónde se guardan los originales: el almacenamiento propio de Cloudflare, Amazon S3 y otros), **Ordenadores y NAS** (pequeños asistentes que catalogan las fotos de tu NAS u ordenador sin moverlas) y **Revisión con IA** (pies de foto, texto alternativo y palabras clave sugeridos por la IA, para que los apruebes). |
+| **Equipo** | **Personas** (quién puede iniciar sesión y qué puede hacer cada persona), **Actividad** (qué se hizo y quién) y **Avisos** (problemas que necesitan a alguien; el número junto a **Equipo** indica cuántos hay abiertos). |
 | **Cuenta** | Tu contraseña, tus llaves de acceso, la verificación en dos pasos y cómo ves cf-dam. |
 
 Algunas de estas partes solo las ven los administradores. Cada página tiene un **?** junto a su título que abre la ayuda de esa página.

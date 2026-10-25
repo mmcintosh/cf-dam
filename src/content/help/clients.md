@@ -38,6 +38,10 @@ The client's page lists every gallery shared with any of their people or made fr
 
 On **People**, the **Clients** tab shows which client each login belongs to.
 
+## Your CRM
+
+cf-dam keeps no contracts, invoices or bookings. If you use a CRM for those (HoneyBook, Studio Ninja, Dubsado, VSCO Workspace…), paste the address of the client's record there into **Link to your CRM** and save. **Open in…** beside it then takes you straight there. A job has the same box for its own record.
+
 ## Past clients
 
 **Mark as past client** hides a client from the list once the work is done; nothing is deleted. **Past clients** at the top of the list shows them, and **Make current again** brings one back.

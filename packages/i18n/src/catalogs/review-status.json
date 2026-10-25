@@ -4139,6 +4139,30 @@
     "fr": "machine",
     "it": "machine"
   },
+  "crm.clientPlaceholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "crm.jobPlaceholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "crm.link": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "crm.open": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "dupes.choose": {
     "es": "machine",
     "de": "machine",
@@ -8462,6 +8486,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "nav.setup": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "nav.sources": {
     "es": "machine",
     "de": "machine",
@@ -8469,6 +8499,18 @@
     "it": "ai-reviewed"
   },
   "nav.storage": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "nav.team": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "nav.tidyUp": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

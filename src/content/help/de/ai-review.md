@@ -4,7 +4,7 @@ summary: "Wie ein KI-Modell deine Fotos beschreibt, was das kostet und wie du be
 section: Your photos
 order: 5
 review: machine
-source: 48fdc91af68c
+source: bae228056176
 ---
 
 Die KI-Prüfung sieht sich jedes Foto an und schreibt Vorschläge: **Alternativtext**, eine **Bildunterschrift**, eine längere Beschreibung dessen, **was sie gesehen hat**, **Text im Bild** (Schilder, Dokumente), vorgeschlagene **Stichwörter** und eine Notiz zur Qualität. So wird ein großes Archiv auf eine Weise durchsuchbar, für die niemand von Hand Zeit hat, und genau das liest die [Suche nach Bedeutung](/help/search).
@@ -23,7 +23,7 @@ Um Vorschläge für viele Fotos auf einmal zu übernehmen, wähle sie in der Bib
 
 ## Die Seite KI-Prüfung
 
-**KI-Prüfung** im Menü zeigt, wie viele Fotos **analysiert**, **in der Warteschlange**, **nie analysiert** und **fehlgeschlagen** sind, und was es für dein Archiv pro 1.000 Fotos kostet.
+**KI-Prüfung** (unter **Einrichtung** im Menü) zeigt, wie viele Fotos **analysiert**, **in der Warteschlange**, **nie analysiert** und **fehlgeschlagen** sind, und was es für dein Archiv pro 1.000 Fotos kostet.
 
 ### Einstellungen (Administratoren)
 

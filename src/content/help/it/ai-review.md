@@ -4,7 +4,7 @@ summary: "Far descrivere le tue foto a un modello di IA, quanto costa e come res
 section: Your photos
 order: 5
 review: machine
-source: 48fdc91af68c
+source: bae228056176
 ---
 
 La revisione IA guarda ogni foto e scrive dei suggerimenti: **testo alternativo**, una **didascalia**, una descrizione più lunga di **ciò che ha visto**, l’eventuale **testo nell’immagine** (cartelli, documenti), **parole chiave** suggerite e una nota sulla qualità. Rende ricercabile un grande archivio in un modo che nessuno ha il tempo di fare a mano, ed è ciò che legge la [ricerca per significato](/help/search).
@@ -23,7 +23,7 @@ Per accettare i suggerimenti di molte foto insieme, selezionale nella libreria e
 
 ## La pagina Revisione IA
 
-**Revisione IA** nel menu mostra quante foto sono **analizzate**, **in coda**, **mai analizzate** e **non riuscite**, e quanto costa ogni 1.000 foto sul tuo archivio.
+**Revisione IA** (sotto **Configurazione** nel menu) mostra quante foto sono **analizzate**, **in coda**, **mai analizzate** e **non riuscite**, e quanto costa ogni 1.000 foto sul tuo archivio.
 
 ### Impostazioni (amministratori)
 

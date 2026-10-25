@@ -4,7 +4,7 @@ summary: "Seguire ogni lavoro per un cliente dalla prenotazione alla consegna: d
 section: Sharing
 order: 4
 review: machine
-source: 845d2cf93cb4
+source: 8885dfc0fa09
 ---
 
 Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è la prima scheda di **Lavoro per i clienti** nel menu, accanto a **Clienti** e **Gallerie clienti**; come per i clienti, lo vedono solo gli **amministratori**.
@@ -16,6 +16,8 @@ Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un serv
 - **Da Lavori**: **Nuovo lavoro**. Nello stesso modulo puoi creare un nuovo cliente: scegli **+ Nuovo cliente** e scrivi il nome.
 
 Dagli un titolo per il tuo team (*Matrimonio Rossi*) e, se vuoi, un **Nome che vede il cliente** (*Il vostro matrimonio*), il tipo di lavoro, la data del servizio (e l’ultimo giorno, per un servizio di più giorni), il luogo e la data prevista di consegna.
+
+Nella pagina del lavoro, **Link al tuo CRM** conserva l’indirizzo di questo lavoro nel tuo CRM, con **Apri in…** accanto (vedi [Clienti](/help/clients)).
 
 ## Fasi
 

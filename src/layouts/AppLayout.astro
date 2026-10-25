@@ -37,22 +37,46 @@ const nav: NavItem[] = [
     href: '/jobs',
     label: t('nav.clientWork'),
     icon: 'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',
-    // Jobs, clients and their galleries are one part of the app, with tabs along the top.
+    // Jobs, clients and their galleries are one part of the app, with tabs along the top; so are the groups below.
     children: [
       { href: '/jobs', label: t('nav.jobs'), needs: 'clients:manage' },
       { href: '/clients', label: t('nav.clients'), needs: 'clients:manage' },
       { href: '/galleries', label: t('nav.galleries'), needs: 'shares:manage' },
     ],
   },
-  { href: '/keywords', label: t('nav.keywords'), icon: 'M3 12V4h8l9 9-8 8z M7.5 7.5h.01', needs: 'assets:read' },
-  { href: '/presets', label: t('nav.presets'), icon: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5', needs: 'assets:read' },
-  { href: '/duplicates', label: t('nav.duplicates'), icon: 'M8 8h11v11H8z M5 16V5h11' },
-  { href: '/settings/ai', label: t('nav.ai'), icon: 'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z', needs: 'ai:run' },
-  { href: '/settings/storage', label: t('nav.storage'), icon: 'M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3', needs: 'sources:manage' },
-  { href: '/sources', label: t('nav.sources'), icon: 'M4 6h16v5H4z M4 13h16v5H4z M7 8.5h.01 M7 15.5h.01', needs: 'sources:manage' },
-  { href: '/admin/users', label: t('nav.people'), icon: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M3 20c.8-3.4 3.3-5 6-5s5.2 1.6 6 5 M16 4.5a3.5 3.5 0 0 1 0 6.5 M18 15c1.6.6 2.7 2.2 3 5', needs: 'users:manage' },
-  { href: '/admin/activity', label: t('nav.activity'), icon: 'M3 12h4l3-8 4 16 3-8h4', needs: 'activity:read' },
-  { href: '/admin/alerts', label: t('nav.alerts'), icon: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5a2 2 0 0 0 4 0', needs: 'alerts:read' },
+  {
+    href: '/duplicates',
+    label: t('nav.tidyUp'),
+    icon: 'M8 8h11v11H8z M5 16V5h11',
+    // Occasional tidying, not daily work.
+    children: [
+      { href: '/duplicates', label: t('nav.duplicates') },
+      { href: '/keywords', label: t('nav.keywords'), needs: 'assets:read' },
+      { href: '/presets', label: t('nav.presets'), needs: 'assets:read' },
+    ],
+  },
+  {
+    href: '/settings/storage',
+    label: t('nav.setup'),
+    icon: 'M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
+    // Where photos are kept, the helpers that find them, and the AI that reads them.
+    children: [
+      { href: '/settings/storage', label: t('nav.storage'), needs: 'sources:manage' },
+      { href: '/sources', label: t('nav.sources'), needs: 'sources:manage' },
+      { href: '/settings/ai', label: t('nav.ai'), needs: 'ai:run' },
+    ],
+  },
+  {
+    href: '/admin/users',
+    label: t('nav.team'),
+    icon: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M3 20c.8-3.4 3.3-5 6-5s5.2 1.6 6 5 M16 4.5a3.5 3.5 0 0 1 0 6.5 M18 15c1.6.6 2.7 2.2 3 5',
+    // Who signs in, what they did, and what needs someone.
+    children: [
+      { href: '/admin/users', label: t('nav.people'), needs: 'users:manage' },
+      { href: '/admin/activity', label: t('nav.activity'), needs: 'activity:read' },
+      { href: '/admin/alerts', label: t('nav.alerts'), needs: 'alerts:read' },
+    ],
+  },
   { href: '/account', label: t('common.account'), icon: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21c1-4 4.3-6 8-6s7 2 8 6' },
   { href: '/help', label: t('common.help'), icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6 M12 17h.01' },
 ]
@@ -76,6 +100,8 @@ const visible = client
     })
 const isActive = (item: NavItem): boolean => (item.children ? item.children.some(isActive) : item.href === '/' ? path === '/' : path.startsWith(item.href))
 const section = visible.find((item) => item.children && isActive(item))
+// The open alerts count shows on Alerts and on the group it's in.
+const hasAlerts = (item: NavItem): boolean => item.href === '/admin/alerts' || !!item.children?.some(hasAlerts)
 // Problems that need someone, for those who see alerts: one small query.
 const alerts = principal.permissions.has('alerts:read') ? await alertCount(env.DB).catch(() => 0) : 0
 const initials = (principal.name || principal.email)
@@ -102,7 +128,7 @@ const initials = (principal.name || principal.email)
             <a class:list={['nav-item', { active }]} href={item.href} aria-current={active ? 'page' : undefined}>
               <svg viewBox="0 0 24 24"><path d={item.icon} /></svg>
               {item.label}
-              {item.href === '/admin/alerts' && alerts > 0 && <span class="count" title={t('nav.alertsOpen', { count: alerts })}>{alerts}</span>}
+              {hasAlerts(item) && alerts > 0 && <span class="count" title={t('nav.alertsOpen', { count: alerts })}>{alerts}</span>}
             </a>
           )
         })}
@@ -134,7 +160,10 @@ const initials = (principal.name || principal.email)
       {section && (
         <nav class="section-tabs" aria-label={section.label}>
           {section.children!.map((tab) => (
-            <a class:list={{ on: isActive(tab) }} href={tab.href} aria-current={isActive(tab) ? 'page' : undefined}>{tab.label}</a>
+            <a class:list={{ on: isActive(tab) }} href={tab.href} aria-current={isActive(tab) ? 'page' : undefined}>
+              {tab.label}
+              {hasAlerts(tab) && alerts > 0 && <span class="count" title={t('nav.alertsOpen', { count: alerts })}>{alerts}</span>}
+            </a>
           ))}
         </nav>
       )}
@@ -336,6 +365,9 @@ const initials = (principal.name || principal.email)
   .section-tabs a:hover {
     color: var(--text);
     text-decoration: none;
+  }
+  .section-tabs .count {
+    margin-left: 6px;
   }
   .section-tabs a.on {
     color: var(--text);

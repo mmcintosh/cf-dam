@@ -15,6 +15,8 @@ A **job** is one piece of work for a client: a wedding, a portrait session, a pr
 
 Give it a title for your team (*Hansen wedding*) and, if you like, a **Name the client sees** (*Your wedding*), the kind of job, the shoot date (and the last day, for a shoot over several days), the place, and when delivery is due.
 
+On the job's page, **Link to your CRM** keeps the address of this job in your CRM, with **Open in…** beside it (see [Clients](/help/clients)).
+
 ## Stages
 
 A job moves through **Booked**, **Shot**, **Editing**, **Proofing**, **Final edits**, **Delivered** and **Completed**, or is **Cancelled**. Press a stage on the job's page to move it there, forward or back. **Proofing** and **Final edits** (dashed) can be skipped: a portrait session or a product shoot often has no proofing.

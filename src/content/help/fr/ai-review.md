@@ -4,7 +4,7 @@ summary: "Laisser un modèle d’IA décrire vos photos, ce que cela coûte, et 
 section: Your photos
 order: 5
 review: machine
-source: 48fdc91af68c
+source: bae228056176
 ---
 
 L’analyse par IA examine chaque photo et rédige des suggestions : un **texte alternatif**, une **légende**, une description plus longue de **ce qu’elle a vu**, tout **texte dans l’image** (panneaux, documents), des **mots-clés** suggérés et une note sur la qualité. Elle rend de grandes archives consultables d’une façon que personne n’a le temps de faire à la main, et c’est ce que lit la [recherche par le sens](/help/search).
@@ -23,7 +23,7 @@ Pour accepter les suggestions de nombreuses photos à la fois, sélectionnez-les
 
 ## La page Analyse par IA
 
-**Analyse par IA** dans le menu indique combien de photos sont **analysées**, **en file d’attente**, **jamais analysées** et **en échec**, et ce que cela coûte pour 1 000 photos de vos archives.
+**Analyse par IA** (sous **Configuration** dans le menu) indique combien de photos sont **analysées**, **en file d’attente**, **jamais analysées** et **en échec**, et ce que cela coûte pour 1 000 photos de vos archives.
 
 ### Réglages (administrateurs)
 

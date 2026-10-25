@@ -21,7 +21,11 @@
     place: job.place,
     dueOn: job.dueOn ?? '',
     notes: job.notes,
+    crmUrl: job.crmUrl,
   })
+  // The saved link, so "Open" never goes somewhere half-typed.
+  // svelte-ignore state_referenced_locally
+  let crmSaved = $state(job.crmUrl)
   let busy = $state(false)
   let saved = $state(false)
   let error = $state('')
@@ -38,6 +42,7 @@
         body: JSON.stringify({ ...form, shootStart: form.shootStart || null, shootEnd: form.shootEnd || null, dueOn: form.dueOn || null }),
       })
       saved = true
+      crmSaved = form.crmUrl.trim()
       if (form.title !== job.title || form.clientId !== job.client.id) location.reload()
     } catch (e) {
       error = e instanceof Error ? e.message : t('common.couldNotSave')
@@ -106,6 +111,13 @@
       <input id="jd-due" type="date" bind:value={form.dueOn} />
     </div>
     <div class="field wide">
+      <label for="jd-crm">{t('crm.link')}</label>
+      <div class="row link">
+        <input id="jd-crm" type="url" maxlength="2000" placeholder={t('crm.jobPlaceholder')} bind:value={form.crmUrl} />
+        {#if crmSaved}<a class="btn" href={crmSaved} target="_blank" rel="noopener noreferrer">{t('crm.open', { host: new URL(crmSaved).host })} ↗</a>{/if}
+      </div>
+    </div>
+    <div class="field wide">
       <label for="jd-notes">{t('clientsPage.notes')}</label>
       <textarea id="jd-notes" rows="4" maxlength="10000" bind:value={form.notes}></textarea>
     </div>
@@ -127,6 +139,13 @@
   }
   .wide {
     grid-column: 1 / -1;
+  }
+  .link {
+    gap: 8px;
+  }
+  .link input {
+    flex: 1;
+    min-width: 0;
   }
   .actions {
     gap: 10px;

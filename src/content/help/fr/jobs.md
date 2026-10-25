@@ -4,7 +4,7 @@ summary: "Suivre chaque travail pour un client, de la réservation à la livrais
 section: Sharing
 order: 4
 review: machine
-source: 845d2cf93cb4
+source: 8885dfc0fa09
 ---
 
 Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** est le premier onglet de **Travail client** dans le menu, à côté de **Clients** et **Galeries clients** ; comme les clients, seuls les **administrateurs** le voient.
@@ -16,6 +16,8 @@ Un **travail** est une prestation pour un client : un mariage, une séance portr
 - **Depuis Travaux** : **Nouveau travail**. Vous pouvez créer un nouveau client dans le même formulaire : choisissez **+ Nouveau client** et tapez son nom.
 
 Donnez-lui un titre pour votre équipe (*Mariage Martin*) et, si vous le souhaitez, un **Nom vu par le client** (*Votre mariage*), le type de travail, la date de la séance (et le dernier jour, pour une séance sur plusieurs jours), le lieu et la date de livraison prévue.
+
+Sur la page du travail, **Lien vers votre CRM** garde l’adresse de ce travail dans votre CRM, avec **Ouvrir dans…** à côté (voir [Clients](/help/clients)).
 
 ## Étapes
 

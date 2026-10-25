@@ -4,7 +4,7 @@ summary: "Jede Arbeit für einen Kunden von der Buchung bis zur Lieferung verfol
 section: Sharing
 order: 4
 review: machine
-source: 845d2cf93cb4
+source: 8885dfc0fa09
 ---
 
 Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** ist der erste Reiter von **Kundenarbeit** im Menü, neben **Kunden** und **Kundengalerien**; wie Kunden sehen das nur **Administratoren**.
@@ -16,6 +16,8 @@ Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtsh
 - **Unter Aufträge**: **Neuer Auftrag**. Im selben Formular kannst du einen neuen Kunden anlegen: Wähle **+ Neuer Kunde** und gib den Namen ein.
 
 Gib ihm einen Titel für dein Team (*Hochzeit Hansen*) und, wenn du magst, einen Namen unter **Name für den Kunden** (*Eure Hochzeit*), die Art des Auftrags, das Datum des Shootings (und den letzten Tag, wenn es mehrere Tage dauert), den Ort und wann die Lieferung fällig ist.
+
+Auf der Seite des Auftrags hält **Link zu deinem CRM** die Adresse dieses Auftrags in deinem CRM fest, mit **In … öffnen** daneben (siehe [Kunden](/help/clients)).
 
 ## Phasen
 

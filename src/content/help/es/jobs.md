@@ -4,7 +4,7 @@ summary: "Seguir cada trabajo para un cliente desde la reserva hasta la entrega:
 section: Sharing
 order: 4
 review: machine
-source: 845d2cf93cb4
+source: 8885dfc0fa09
 ---
 
 Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** es la primera pestaña de **Trabajo con clientes** en el menú, junto a **Clientes** y **Galerías de clientes**; como los clientes, solo lo ven los **administradores**.
@@ -16,6 +16,8 @@ Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, 
 - **Desde Trabajos**: **Nuevo trabajo**. Puedes crear un cliente nuevo en el mismo formulario: elige **+ Nuevo cliente** y escribe su nombre.
 
 Ponle un título para tu equipo (*Boda García*) y, si quieres, un **Nombre que ve el cliente** (*Vuestra boda*), el tipo de trabajo, la fecha de la sesión (y el último día, si dura varios días), el lugar y cuándo hay que entregarlo.
+
+En la página del trabajo, **Enlace a tu CRM** guarda la dirección de este trabajo en tu CRM, con **Abrir en…** al lado (consulta [Clientes](/help/clients)).
 
 ## Etapas
 

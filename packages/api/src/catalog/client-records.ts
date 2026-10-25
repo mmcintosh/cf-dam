@@ -9,7 +9,7 @@
 import { asLanguage, type Language } from '@cf-dam/i18n'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
-import { BadRequest, optionalString } from '../lib/http'
+import { BadRequest, optionalLink, optionalString } from '../lib/http'
 import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { clientAccount, isClientOnly, newInvite } from './clients'
@@ -28,6 +28,7 @@ interface ClientRow {
   address: string
   language: string | null
   notes: string
+  crm_url: string
   past_at: string | null
   created_at: string
   updated_at: string
@@ -52,6 +53,8 @@ export interface ClientJson extends ClientSummary {
   address: string
   language: Language | null
   notes: string
+  /** The client in the photographer's CRM; '' if none. */
+  crmUrl: string
   createdAt: string
   updatedAt: string
 }
@@ -63,6 +66,7 @@ export interface ClientInput {
   phone?: string
   address?: string
   notes?: string
+  crmUrl?: string
   /** null: no preference. */
   language?: Language | null
 }
@@ -81,6 +85,7 @@ export function parseClientInput(body: Record<string, unknown>, creating: boolea
     phone: optionalString(body, 'phone', 60),
     address: optionalString(body, 'address', 1000),
     notes: optionalString(body, 'notes', 10_000),
+    crmUrl: optionalLink(body, 'crmUrl'),
   }
   if (body.language === null || body.language === '') input.language = null
   else if (body.language !== undefined) {
@@ -138,6 +143,7 @@ export async function getClient(db: D1Database, id: string): Promise<ClientJson 
     address: row.address,
     language: (asLanguage(row.language) as Language | null) ?? null,
     notes: row.notes,
+    crmUrl: row.crm_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -169,7 +175,7 @@ export async function createClient(db: D1Database, input: ClientInput, actorId: 
   return id
 }
 
-const COLUMNS: Record<keyof ClientInput, string> = { name: 'name', company: 'company', email: 'email', phone: 'phone', address: 'address', notes: 'notes', language: 'language' }
+const COLUMNS: Record<keyof ClientInput, string> = { name: 'name', company: 'company', email: 'email', phone: 'phone', address: 'address', notes: 'notes', crmUrl: 'crm_url', language: 'language' }
 
 /** Change the given fields. Returns the names of the fields that were sent, or null if there's no such client. */
 export async function updateClient(db: D1Database, id: string, input: ClientInput): Promise<string[] | null> {

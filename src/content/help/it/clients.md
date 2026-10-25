@@ -4,7 +4,7 @@ summary: "Tenere traccia delle persone e delle aziende per cui lavori: recapiti,
 section: Sharing
 order: 3
 review: machine
-source: dec53b48546f
+source: b2e619e7c543
 ---
 
 **Clienti** tiene traccia di ogni persona o azienda per cui lavori: una coppia, una famiglia, un’impresa. Ogni cliente ha una pagina con recapiti e note, le persone che accedono per suo conto, le gallerie clienti condivise con queste persone, cosa hanno scaricato e una cronologia di ciò che è successo.
@@ -39,6 +39,10 @@ Ogni incarico del cliente, come un matrimonio o un ritratto, è un **lavoro**, e
 La pagina del cliente elenca ogni galleria condivisa con una qualsiasi delle sue persone o creata da uno degli album dei suoi lavori: se è aperta, quando chiude, e le sue visite, preferite e download. **Download** mostra cosa è stato scaricato, da chi, in quale dimensione e da quale galleria. **Cronologia** mostra cosa è stato fatto al cliente e ai suoi accessi: aggiunto, modificato, invitato, unito, accesso effettuato.
 
 In **Persone**, la scheda **Clienti** mostra a quale cliente appartiene ogni accesso.
+
+## Il tuo CRM
+
+cf-dam non gestisce contratti, fatture o prenotazioni. Se per questo usi un CRM (HoneyBook, Studio Ninja, Dubsado, VSCO Workspace…), incolla l’indirizzo della scheda del cliente in **Link al tuo CRM** e salva. **Apri in…**, accanto, ti porta direttamente lì. Un lavoro ha la stessa casella per la propria scheda.
 
 ## Clienti passati
 

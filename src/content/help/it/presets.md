@@ -4,14 +4,14 @@ summary: "Insiemi pronti di crediti, copyright e contatti da aggiungere a molte 
 section: Your photos
 order: 8
 review: machine
-source: 3a7ae050f4e5
+source: 8d7e7403a1c0
 ---
 
 Una **preimpostazione** è un insieme con un nome dei campi di crediti, diritti e luogo che altrimenti scriveresti ogni volta: la tua nota di copyright, la riga dei crediti, le condizioni d’uso, l’email e il sito di contatto, o i dettagli del lavoro di un cliente.
 
 ## Crearne una
 
-1. Apri **Preimpostazioni** nel menu e premi **Nuova preimpostazione**.
+1. Apri **Riordina → Preimpostazioni** nel menu e premi **Nuova preimpostazione**.
 2. Dalle un **Nome della preimpostazione**, ad esempio «Il mio copyright» o «Matrimonio Hansen 2026».
 3. Compila solo i campi che vuoi impostare. **Solo i campi compilati fanno parte della preimpostazione**: quelli vuoti restano intatti quando la applichi.
 4. Spunta **Applica ai nuovi caricamenti** per compilare questi campi su ogni nuova foto in cui il file li ha lasciati vuoti. L’uso classico è una preimpostazione di copyright.
