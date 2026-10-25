@@ -1,0 +1,29 @@
+---
+/**
+ * An order's page (plans/PLAN-SELL-v2.md §2): where Stripe sends the buyer after paying, and the link they keep. The key
+ * in the address is the order's key; nothing else is needed. While Stripe is still settling, the page asks again.
+ */
+import { getT } from '@cf-dam/i18n'
+import Base from '../../../../layouts/Base.astro'
+import OrderView from '../../../../components/OrderView.svelte'
+
+const t = getT(Astro.locals.lang)
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+Astro.response.headers.set('Cache-Control', 'private, no-store')
+const id = Astro.params.id ?? ''
+const key = Astro.url.searchParams.get('k') ?? ''
+---
+<Base title={t('order.title')} bare>
+  <main class="order">
+    <OrderView client:load {id} {key} token={Astro.params.token ?? ''} />
+  </main>
+</Base>
+
+<style>
+  .order {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+</style>

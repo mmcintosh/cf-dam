@@ -28,6 +28,8 @@ import { runInLanguage } from '@cf-dam/i18n'
 import { requestLanguage } from './lib/language'
 import { mailRoutes } from './routes/mail'
 import { peopleRoutes } from './routes/people'
+import { paymentRoutes } from './routes/payments'
+import { storeRoutes } from './routes/store'
 import { emailOffRoutes } from './routes/email-off'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
@@ -84,6 +86,8 @@ export function createDamApi() {
   api.route('/setup', setupRoutes)
   // Client galleries: no account, the link is the key (routes/gallery.ts).
   api.route('/public/galleries', galleryRoutes)
+  // Selling (selling/orders.ts): order links, bought files and Stripe's webhook, all without sign-in.
+  api.route('/public', storeRoutes)
   // A new client choosing their password from their invite link (routes/invites.ts).
   api.route('/invites', inviteRoutes)
 
@@ -102,6 +106,7 @@ export function createDamApi() {
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
   api.route('/people', peopleRoutes)
+  api.route('/payments', paymentRoutes)
   api.route('/shares', shareRoutes)
   api.route('/clients', clientRoutes)
   api.route('/jobs', jobRoutes)
@@ -138,12 +143,13 @@ export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { getMailSettings, mailReady } from './mail/outbox'
 export { assetPeople, getPerson, listPeople, type PersonJson } from './catalog/people'
+export { listOrders } from './selling/orders'
 export { facetProblems, facetsAvailable, facetStats, type FacetProblem, type FacetStats } from './catalog/jev-facets'
 export { meaningAvailable, resolveNear } from './catalog/meaning'
 export { DEFAULT_PREFERENCES, getPreferences, preferenceAttributes, type Preferences } from './catalog/preferences'
 export { handleWork, type WorkMessage } from './catalog/work'
 export { USD_PER_1000_NEURONS, VISION_MODELS, type VisionModel } from './catalog/vision'
-export { galleryJson } from './routes/gallery'
+export { galleryJson, galleryPage } from './routes/gallery'
 export { CLIENT_ROLE, clientGalleries, isClientOnly, readInvite, type ClientGalleryJson, type MemberJson } from './catalog/clients'
 export { clientDownloads, clientPeople, countPastClients, getClient, listClients, type ClientDownloadJson, type ClientJson, type ClientPersonJson, type ClientSummary } from './catalog/client-records'
 export { jobArchiveStatus, ARCHIVE_JOB_CLASSES } from './catalog/archive-jobs'

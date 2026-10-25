@@ -130,6 +130,12 @@ export function readableNow(location: Pick<LocationRow, 'state' | 'storage_class
   return location.state === 'restored' && location.restore_expires_at !== null && location.restore_expires_at > now
 }
 
+/** Where the original can be read from for a client: never a NAS, never deep storage that isn't restored. */
+export function reachableForClient(locations: LocationRow[], nas: Set<string>): LocationRow | null {
+  const usable = locations.filter((l) => !nas.has(l.connection_id) && readableNow(l))
+  return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
+}
+
 /** The location to read the original from: the built-in R2 first, then any copy readable now, then any there. */
 export function primaryLocation(locations: LocationRow[]): LocationRow | null {
   const usable = locations.filter((l) => l.state !== 'pending' && l.state !== 'gone')

@@ -7,7 +7,7 @@
 import { Hono, type Context } from 'hono'
 import { consumeRateLimit } from '../auth/rate-limit'
 import { verifyPassword } from '../auth/password'
-import { getAsset, getLocations, readableNow, type LocationRow } from '../catalog/assets'
+import { getAsset, getLocations, reachableForClient } from '../catalog/assets'
 import {
   addVisitor,
   cookieHeader,
@@ -17,6 +17,8 @@ import {
   isDownloadSize,
   JPEG_LONG_EDGE,
   openGallery,
+  buyerCookieName,
+  readCookies,
   recordEvent,
   setPick,
   submitPicks,
@@ -29,12 +31,16 @@ import {
   type VisitorRow,
 } from '../catalog/shares'
 import { galleryImage, getWatermark } from '../catalog/watermark'
-import type { DamEnv } from '../env'
+import type { DamBindings, DamEnv } from '../env'
 import { BadRequest, optionalString, readJsonObject, requiredString } from '../lib/http'
 import { applyGalleryLanguage, say } from '../lib/language'
 import { attachmentDisposition, StorageError } from '../storage/types'
 import { originalResponse } from '../storage/original'
 import { notifyFinished } from '../mail/gallery-mail'
+import { buyerOrders, galleryStore, SIZES, startCheckout, type CheckoutRequest, type SaleSize } from '../selling/orders'
+import { StripeError } from '../selling/stripe'
+import { deliverItem } from './store'
+import { randomId } from '../lib/crypto'
 
 export const galleryRoutes = new Hono<DamEnv>()
 
@@ -100,7 +106,62 @@ galleryRoutes.get('/:token', async (c) => {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
   await recordEvent(c.env.DB, gallery.share, { kind: 'open', visitorId: gallery.visitor?.id })
-  return c.json(await galleryJson(c.env.DB, gallery.share, gallery.visitor, gallery.member))
+  return c.json(await galleryPage(c.env, c.req.raw, gallery.share, gallery.visitor, gallery.member))
+})
+
+/** Everything the gallery page shows: the gallery, what it sells (selling/orders.ts) and what this browser bought. */
+export async function galleryPage(env: DamBindings, request: Request, share: ShareRow, visitor: VisitorRow | null, member: { name: string } | null) {
+  const buyer = readCookies(request).get(buyerCookieName(share.id))
+  const [base, store, purchases] = await Promise.all([
+    galleryJson(env.DB, share, visitor, member),
+    galleryStore(env, share),
+    buyer && /^[0-9a-f]{32}$/.test(buyer) ? buyerOrders(env.DB, share.id, buyer) : Promise.resolve([]),
+  ])
+  return { ...base, store, purchases }
+}
+
+const CHECKOUT_RULE = { max: 10, windowMs: 3_600_000, keyPrefix: 'gallery-checkout' }
+
+/**
+ * Buy: a photo at a size, or every photo. Answers with Stripe's checkout page to go to (the page goes there with
+ * location.assign, not a form post: the CSP allows forms to this site only).
+ */
+galleryRoutes.post('/:token/checkout', async (c) => {
+  const gallery = await access(c)
+  if (gallery instanceof Response) return gallery
+  const limited = (await consumeRateLimit(c, CHECKOUT_RULE)) ?? (await consumeRateLimit(c, { ...CHECKOUT_RULE, max: 60, keyPrefix: 'gallery-checkout-share' }, gallery.share.id))
+  if (limited) return limited
+  const body = (await c.req.json().catch(() => ({}))) as { assetId?: unknown; size?: unknown; all?: unknown }
+  const request: CheckoutRequest | null =
+    body.all === true ? { all: true } : typeof body.assetId === 'string' && (SIZES as readonly string[]).includes(String(body.size)) ? { assetId: body.assetId, size: body.size as SaleSize } : null
+  if (!request) return c.json({ error: 'invalid_request' }, 400)
+  let buyer = readCookies(c.req.raw).get(buyerCookieName(gallery.share.id))
+  if (!buyer || !/^[0-9a-f]{32}$/.test(buyer)) {
+    buyer = randomId()
+    c.header('Set-Cookie', cookieHeader(c.req.raw, buyerCookieName(gallery.share.id), buyer, 365 * 24 * 60 * 60))
+  }
+  try {
+    return c.json(await startCheckout(c.env, gallery.share, buyer, request, new URL(c.req.url).origin))
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+    if (error instanceof StripeError) return c.json({ error: 'payments_unavailable', message: say('gallery.api.paymentsDown') }, 502)
+    throw error
+  }
+})
+
+/** A file this browser bought in this gallery (by the buyer cookie; the order link works anywhere). */
+galleryRoutes.get('/:token/purchases/:orderId/:itemId', async (c) => {
+  const gallery = await access(c)
+  if (gallery instanceof Response) return gallery
+  const buyer = readCookies(c.req.raw).get(buyerCookieName(gallery.share.id))
+  if (!buyer) return c.json({ error: 'not_found' }, 404)
+  const item = await c.env.DB.prepare(
+    `SELECT i.asset_id, i.size, i.filename FROM order_items i JOIN orders o ON o.id = i.order_id
+     WHERE i.id = ? AND o.id = ? AND o.share_id = ? AND o.buyer = ? AND o.status = 'paid' AND i.refunded_at IS NULL`,
+  )
+    .bind(c.req.param('itemId'), c.req.param('orderId'), gallery.share.id, buyer)
+    .first<{ asset_id: string | null; size: string; filename: string }>()
+  return item ? deliverItem(c, item) : c.json({ error: 'not_found' }, 404)
 })
 
 galleryRoutes.post('/:token/unlock', async (c) => {
@@ -184,11 +245,6 @@ galleryRoutes.get('/:token/assets/:assetId/:name{thumb|preview}', async (c) => {
   })
 })
 
-/** Where the original can be read from for a client: never a NAS, never deep storage that isn't restored. */
-function reachable(locations: LocationRow[], nas: Set<string>): LocationRow | null {
-  const usable = locations.filter((l) => !nas.has(l.connection_id) && readableNow(l))
-  return usable.find((l) => l.connection_id === 'r2') ?? usable[0] ?? null
-}
 
 galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
   const gallery = await access(c)
@@ -203,7 +259,7 @@ galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
 
   if (size === 'original') {
     const { results: nas } = await c.env.DB.prepare("SELECT id FROM storage_connections WHERE provider = 'nas'").all<{ id: string }>()
-    const location = reachable(await getLocations(c.env.DB, assetId), new Set(nas.map((n) => n.id)))
+    const location = reachableForClient(await getLocations(c.env.DB, assetId), new Set(nas.map((n) => n.id)))
     if (!location) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
     try {
       const response = await originalResponse(c.env, c.req.raw, asset, location)

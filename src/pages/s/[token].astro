@@ -4,7 +4,7 @@
  * The data comes from the same functions as /api/public/galleries, so the page and the API agree.
  */
 import { env } from 'cloudflare:workers'
-import { applyGalleryLanguage, galleryJson, openGallery, pseudoAllowed, recordEvent } from '@cf-dam/api'
+import { applyGalleryLanguage, galleryPage, openGallery, pseudoAllowed, recordEvent } from '@cf-dam/api'
 import { createFormat, getT } from '@cf-dam/i18n'
 import Base from '../../layouts/Base.astro'
 import ClientGallery from '../../components/ClientGallery.svelte'
@@ -22,7 +22,7 @@ Astro.response.headers.set('Cache-Control', 'private, no-store')
 let initial = null
 if (access.state === 'open') {
   await recordEvent(env.DB, access.share, { kind: 'open', visitorId: access.visitor?.id })
-  initial = await galleryJson(env.DB, access.share, access.visitor, access.member)
+  initial = await galleryPage(env as Parameters<typeof galleryPage>[0], Astro.request, access.share, access.visitor, access.member)
 }
 if (access.state === 'gone') Astro.response.status = 404
 if (access.state === 'expired') Astro.response.status = 410

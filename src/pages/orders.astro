@@ -1,0 +1,95 @@
+---
+/**
+ * Orders (plans/PLAN-SELL-v2.md S1): what clients bought, by status; refunds are made in Stripe's dashboard and follow
+ * here. Administrators also connect Stripe and keep the price lists.
+ */
+import { env } from 'cloudflare:workers'
+import { listOrders } from '@cf-dam/api'
+import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
+import AppLayout from '../layouts/AppLayout.astro'
+import PaymentsSetup from '../components/PaymentsSetup.svelte'
+import PriceLists from '../components/PriceLists.svelte'
+
+const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
+const fmt = createFormat(Astro.locals.lang)
+const STATUSES = ['', 'paid', 'needs_review', 'refunded', 'disputed', 'open', 'expired'] as const
+const asked = Astro.url.searchParams.get('status') ?? ''
+const status = (STATUSES as readonly string[]).includes(asked) ? asked : ''
+const orders = await listOrders(env.DB, status || undefined)
+const money = (amount: number | null, currency: string) => (amount === null ? '—' : fmt.number(amount / (currency === 'jpy' ? 1 : 100), { style: 'currency', currency: currency.toUpperCase() }))
+const canSetUp = principal.permissions.has('payments:setup')
+---
+<AppLayout help="selling" title={t('orders.title')} subtitle={t('orders.subtitle')}>
+  <nav class="filters" aria-label={t('orders.which')}>
+    {STATUSES.map((s) => (
+      <a href={s ? `/orders?status=${s}` : '/orders'} class:list={['chip', { on: status === s }]} aria-current={status === s ? 'page' : undefined}>{t((s ? `orders.status.${s}` : 'orders.status.all') as MessageKey)}</a>
+    ))}
+  </nav>
+  <section class="card">
+    {orders.length === 0 ? (
+      <p class="muted">{t('orders.none')}</p>
+    ) : (
+      <div class="scroll">
+        <table class="table">
+          <thead><tr><th>{t('orders.when')}</th><th>{t('orders.buyer')}</th><th>{t('orders.gallery')}</th><th>{t('orders.photos')}</th><th>{t('orders.total')}</th><th>{t('common.status')}</th></tr></thead>
+          <tbody>
+            {orders.map((o) => (
+              <tr>
+                <td class="muted">{fmt.dateTime(o.paidAt ?? o.createdAt)}</td>
+                <td>{o.name ?? '—'}<br /><span class="muted small">{o.email ?? ''}</span></td>
+                <td>{o.shareToken ? <a href={`/s/${o.shareToken}`}>{o.gallery}</a> : o.gallery}</td>
+                <td>{o.photos}</td>
+                <td>{money(o.total ?? o.subtotal, o.currency)}</td>
+                <td><span class:list={['badge', { 'badge-ok': o.status === 'paid', 'badge-warn': o.status === 'needs_review' || o.status === 'disputed' }]}>{t(`orders.status.${o.status}` as MessageKey)}</span>{o.problem && <span class="muted small"> {o.problem}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+    <p class="muted small">{t('orders.refundsLead')}</p>
+  </section>
+
+  {canSetUp && (
+    <>
+      <h2 class="group">{t('orders.setupTitle')}</h2>
+      <section class="card"><PaymentsSetup client:visible origin={Astro.url.origin} /></section>
+      <section class="card"><PriceLists client:visible /></section>
+    </>
+  )}
+</AppLayout>
+
+<style>
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    padding: 5px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 99px;
+    font-size: 0.85rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .chip.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+  .group {
+    font-size: 1.1rem;
+    margin: 28px 0 12px;
+  }
+  section + section {
+    margin-top: 16px;
+  }
+</style>

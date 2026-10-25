@@ -39,6 +39,8 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   pairing_requests: 'agent pairings in progress',
   uploads: 'uploads in progress',
   mail_outbox: 'email addresses and one-time links',
+  payment_secrets: 'the Stripe key and webhook secret (enter them again after a restore)',
+  stripe_events: 'Stripe events already handled',
   archive_items: 'archive copies in progress (the sweep finds the photos again from their jobs)',
   restore_items: 'restores being asked for (the sweep finds the photos again from their locations)',
   asset_hash_bands: 'rebuilt from assets',

@@ -12,6 +12,9 @@
     /** A client signed in to their account: a way back to their galleries, and no "not you?". */
     member: { name: string } | null
     picks: string[]
+    /** What it sells (null: nothing), and what this browser has bought here. */
+    store: { currency: string; prices: { small: number | null; large: number | null; full: number | null; all: number | null } } | null
+    purchases: { orderId: string; itemId: string; assetId: string; size: string; paid: boolean }[]
   }
   interface Props {
     token: string
@@ -42,6 +45,27 @@
   const ratio = (i: GalleryItem) => (i.width && i.height ? Math.min(Math.max(i.width / i.height, 0.4), 3) : 1.5)
   const label = (i: GalleryItem) => i.title || i.filename || ''
   const sizesFor = (i: GalleryItem) => (data?.gallery.downloadSizes ?? []).filter((s) => (s === 'original' ? i.originalReachable : !i.video))
+  /** Prices in the gallery's currency (minor units: cents, or yen as they are). */
+  const money = (amount: number) => format().number(amount / (data?.store?.currency === 'jpy' ? 1 : 100), { style: 'currency', currency: (data?.store?.currency ?? 'usd').toUpperCase() })
+  const SALE_LABELS: Record<'small' | 'large' | 'full', MessageKey> = { small: 'gallery.size.small', large: 'gallery.size.large', full: 'gallery.buy.full' }
+  const forSale = (i: GalleryItem) =>
+    !data?.store || i.video ? [] : (['small', 'large', 'full'] as const).filter((s) => data!.store!.prices[s] !== null && (s !== 'full' || i.originalReachable))
+  const bought = (i: GalleryItem) => (data?.purchases ?? []).filter((p) => p.assetId === i.id)
+  let buying = $state(false)
+
+  /** To Stripe's checkout page (a JSON request, then location.assign: forms may only post to this site). */
+  async function buy(body: Record<string, unknown>) {
+    buying = true
+    error = ''
+    try {
+      const { url } = await request<{ url: string }>('/checkout', { method: 'POST', body: JSON.stringify(body) })
+      location.assign(url)
+    } catch (e) {
+      note = e instanceof Error ? e.message : t('gallery.buy.failed')
+      buying = false
+    }
+  }
+
   // The last day it's open (expiry is the start of the next day).
   const expires = $derived(data?.gallery.expiresAt ? format().date(new Date(data.gallery.expiresAt).getTime() - 1) : null)
 
@@ -205,6 +229,11 @@
           {t('common.photos', { count: data.items.length })}{expires ? ` · ${t('gallery.openUntil', { date: expires })}` : ''}
         </p>
       </div>
+      {#if data.store?.prices.all}
+        <div class="store">
+          <button class="btn btn-sm btn-primary" disabled={buying} onclick={() => buy({ all: true })}>{t('gallery.buy.all', { price: money(data.store.prices.all) })}</button>
+        </div>
+      {/if}
       {#if data.gallery.proofing}
         <div class="proofing">
           {#if data.visitor}
@@ -267,6 +296,19 @@
           {#each sizesFor(current) as size (size)}
             <a class="btn btn-sm" href={`${base}/assets/${current.id}/download/${size}`} download>⤓ {t(SIZE_LABELS[size])}</a>
           {/each}
+          {#each bought(current) as p (p.itemId)}
+            {#if p.paid}
+              <a class="btn btn-sm" href={`${base}/purchases/${p.orderId}/${p.itemId}`} download>⤓ {t('gallery.buy.bought', { size: t(SALE_LABELS[p.size as 'small' | 'large' | 'full'] ?? 'gallery.size.large') })}</a>
+            {:else}
+              <span class="muted small">{t('gallery.buy.paying')}</span>
+            {/if}
+          {/each}
+          {#if forSale(current).length > 0 && bought(current).length === 0}
+            <select class="buy" aria-label={t('gallery.buy.label')} disabled={buying} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) buy({ assetId: current!.id, size: v }) }}>
+              <option value="">{t('gallery.buy.menu')}</option>
+              {#each forSale(current) as size (size)}<option value={size}>{t(SALE_LABELS[size])} · {money(data.store!.prices[size]!)}</option>{/each}
+            </select>
+          {/if}
           {#if data.gallery.downloadSizes.includes('original') && !current.originalReachable}
             <span class="muted small">{t('gallery.originalAsk')}</span>
           {/if}
@@ -310,6 +352,16 @@
 {/if}
 
 <style>
+  .buy {
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-size: 0.85rem;
+  }
+  .store {
+    display: flex;
+    align-items: flex-start;
+  }
   .lock {
     min-height: 100vh;
     display: grid;

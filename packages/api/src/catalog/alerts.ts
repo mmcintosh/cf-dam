@@ -231,7 +231,7 @@ export async function noteSweepFailure(db: D1Database, stage: string, error: unk
 }
 
 /** A sweep stage's name, for "Background work (…) is failing". */
-export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'jobs', 'alerts', 'facets', 'mail']
+export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'jobs', 'alerts', 'facets', 'mail', 'orders']
 
 /** When the sweep last ran, if that's long enough ago to mean it has stopped. */
 export async function sweepStalledSince(db: D1Database, now = new Date()): Promise<string | null> {

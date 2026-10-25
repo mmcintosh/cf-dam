@@ -151,6 +151,12 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.keywordDeleted', { who })
     case 'storage.connection_created':
       return t('act.connectionCreated', { who })
+    case 'payments.settings_changed':
+      return t('act.paymentsSettings', { who })
+    case 'payments.keys_changed':
+      return t('act.paymentsKeys', { who })
+    case 'share.price_list':
+      return d.selling === true ? t('act.priceListSet', { who }) : t('act.priceListOff', { who })
     case 'person.created':
       return t('act.personCreated', { who })
     case 'person.changed':

@@ -5,6 +5,7 @@
   import type { ShareJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
   import ShareClients from './ShareClients.svelte'
+  import GallerySelling from './GallerySelling.svelte'
   import { LANGUAGES } from '@cf-dam/i18n/languages'
 
   interface Props {
@@ -184,6 +185,7 @@
             </button>
           </div>
           {#if share.status === 'active'}<ShareClients shareId={share.id} />{/if}
+          {#if share.status === 'active'}<GallerySelling shareId={share.id} />{/if}
         </li>
       {/each}
     </ul>

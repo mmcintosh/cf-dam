@@ -48,6 +48,8 @@ export interface ShareRow {
   created_at: string
   updated_at: string
   revoked_at: string | null
+  /** What it sells (selling/orders.ts); null: nothing. */
+  price_list_id?: string | null
 }
 
 export type ShareStatus = 'active' | 'expired' | 'revoked'
@@ -310,6 +312,8 @@ export async function revokeShare(db: D1Database, id: string): Promise<boolean> 
 
 export const unlockCookieName = (shareId: string) => `cfdam_g_${shareId}`
 export const visitorCookieName = (shareId: string) => `cfdam_v_${shareId}`
+/** Who started a purchase in this gallery (selling/orders.ts): random, separate from the favourites visitor. */
+export const buyerCookieName = (shareId: string) => `cfdam_b_${shareId}`
 
 async function unlockKey(secret: string): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'HKDF', false, ['deriveKey'])
@@ -425,11 +429,12 @@ export async function galleryItems(db: D1Database, share: Pick<ShareRow, 'album_
          EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'preview') AS has_preview,
          EXISTS (SELECT 1 FROM asset_locations l JOIN storage_connections c ON c.id = l.connection_id
                  WHERE l.asset_id = a.id AND c.provider <> 'nas' AND l.state NOT IN ('pending', 'gone')
-                   AND (l.storage_class NOT IN ('GLACIER', 'DEEP_ARCHIVE') OR l.state = 'restored')) AS reachable
+                   AND (l.storage_class NOT IN ('GLACIER', 'DEEP_ARCHIVE') OR (l.state = 'restored' AND l.restore_expires_at > ?3))) AS reachable
        FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
-       WHERE ai.album_id = ? ORDER BY ai.position, ai.added_at LIMIT ?`,
+       WHERE ai.album_id = ?1 ORDER BY ai.position, ai.added_at LIMIT ?2`,
     )
-    .bind(share.album_id, MAX_GALLERY_ITEMS)
+    // A restored copy counts only while it's still restored.
+    .bind(share.album_id, MAX_GALLERY_ITEMS, nowIso())
     .all<{ id: string; width: number | null; height: number | null; filename: string; title: string | null; caption: string | null; alt: string | null; mime_type: string; edit: string | null; edited_at: string | null; has_thumb: number; has_preview: number; reachable: number }>()
   return results.map((r) => {
     // The size of the picture shown: an edit may turn or crop it.

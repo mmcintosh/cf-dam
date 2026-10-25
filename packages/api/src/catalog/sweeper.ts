@@ -55,10 +55,11 @@ import { mailSweep } from '../mail/outbox'
 import { mailAvailable } from '../mail/mailer'
 import { closingSoonSweep } from '../mail/gallery-mail'
 import { alertEmailSweep } from '../mail/alert-mail'
+import { reconcileOrders } from '../selling/orders'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 225 },
+  process: { ms: 15_000, queries: 215 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -75,6 +76,7 @@ export const SLICES = {
   alerts: { ms: 3_000, queries: 10 },
   jobs: { ms: 5_000, queries: 15 },
   mail: { ms: 5_000, queries: 20 },
+  orders: { ms: 5_000, queries: 10 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -248,6 +250,17 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       if (waiting > 0) await nudge(env, 'facets', waiting)
     } catch (error) {
       await noteSweepFailure(db, 'facets', error)
+    }
+  }
+
+  // Orders a webhook hasn't settled (selling/orders.ts): checked with Stripe, a few at a time, every five minutes
+  // (an order is only looked at once it's five minutes old). One query when there are none.
+  if (new Date().getUTCMinutes() % 5 === 3 && slice('orders').more()) {
+    try {
+      const open = await db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'open'").first<{ n: number }>()
+      if ((open?.n ?? 0) > 0) await reconcileOrders(env, 2)
+    } catch (error) {
+      await noteSweepFailure(db, 'orders', error)
     }
   }
 
