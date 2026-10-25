@@ -51,10 +51,12 @@ import { indexAssets, unindexed } from './search'
 import { facetsAvailable, facetsSweep } from './jev-facets'
 import { meaningStep } from './meaning'
 import { pruneGalleryCache } from './watermark'
+import { mailSweep } from '../mail/outbox'
+import { mailAvailable } from '../mail/mailer'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
-  process: { ms: 15_000, queries: 245 },
+  process: { ms: 15_000, queries: 225 },
   recover: { ms: 5_000, queries: 60 },
   index: { ms: 5_000, queries: 60 },
   places: { ms: 3_000, queries: 20 },
@@ -70,6 +72,7 @@ export const SLICES = {
   previews: { ms: 10_000, queries: 40 },
   alerts: { ms: 3_000, queries: 10 },
   jobs: { ms: 5_000, queries: 15 },
+  mail: { ms: 5_000, queries: 20 },
 } satisfies Record<string, { ms: number; queries: number }>
 // Headroom for the queries a stage starts before it sees its slice is used up.
 const SLICED = Object.values(SLICES).reduce((n, s) => n + s.queries, 0)
@@ -243,6 +246,16 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
       if (waiting > 0) await nudge(env, 'facets', waiting)
     } catch (error) {
       await noteSweepFailure(db, 'facets', error)
+    }
+  }
+
+  // Email (mail/outbox.ts): put back messages cut short, forget old ones, send or nudge what's due. Nothing without
+  // the MAIL binding.
+  if (mailAvailable(env) && slice('mail').more()) {
+    try {
+      await mailSweep(env)
+    } catch (error) {
+      await noteSweepFailure(db, 'mail', error)
     }
   }
 

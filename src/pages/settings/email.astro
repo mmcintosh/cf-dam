@@ -1,0 +1,10 @@
+---
+import { getT } from '@cf-dam/i18n'
+import AppLayout from '../../layouts/AppLayout.astro'
+import MailSettings from '../../components/MailSettings.svelte'
+
+const t = getT(Astro.locals.lang)
+---
+<AppLayout help="email" title={t('mailPage.title')} subtitle={t('mailPage.subtitle')}>
+  <MailSettings client:load />
+</AppLayout>

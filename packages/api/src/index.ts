@@ -26,6 +26,7 @@ import { galleryRoutes } from './routes/gallery'
 import { inviteRoutes } from './routes/invites'
 import { runInLanguage } from '@cf-dam/i18n'
 import { requestLanguage } from './lib/language'
+import { mailRoutes } from './routes/mail'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
 import { shareRoutes } from './routes/shares'
@@ -85,6 +86,7 @@ export function createDamApi() {
   api.route('/users', userRoutes)
   api.route('/activity', activityRoutes)
   api.route('/alerts', alertRoutes)
+  api.route('/mail', mailRoutes)
   api.route('/roles', roleRoutes)
   api.route('/connections', connectionRoutes)
   api.route('/storage-checks', checkRoutes)

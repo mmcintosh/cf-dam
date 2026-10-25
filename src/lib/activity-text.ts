@@ -148,6 +148,10 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.keywordDeleted', { who })
     case 'storage.connection_created':
       return t('act.connectionCreated', { who })
+    case 'mail.settings_changed':
+      return d.on === true ? t('act.mailOn', { who }) : t('act.mailSettings', { who })
+    case 'mail.test':
+      return d.ok === true ? t('act.mailTest', { who }) : t('act.mailTestFailed', { who, code: str(d.code) })
     case 'storage.connection_changed':
       return t('act.connectionChanged', { who, name: str(d.name) })
     case 'storage.imported':

@@ -35,6 +35,15 @@ export interface DamBindings {
    * all of it, once a minute.
    */
   WORK?: Queue<import('./catalog/work').WorkMessage>
+  /**
+   * Cloudflare Email Sending (mail/mailer.ts), added at deploy only when MAIL_FROM's domain can send
+   * (scripts/optional-bindings.mjs). Without it, no email is sent and invites and resets are links copied by hand.
+   */
+  MAIL?: import('./mail/mailer').MailBinding
+  /** The address email comes from (set with the binding). */
+  MAIL_FROM?: string
+  /** Staging only: the addresses and @domains it may email (comma-separated); nobody else is ever sent anything. */
+  MAIL_ALLOW_TO?: string
   /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
   ASSETS?: Fetcher
   /** Tests only: a smaller archive part size (bytes; S3 takes parts down to 5 MiB) than the 64 MiB used. */

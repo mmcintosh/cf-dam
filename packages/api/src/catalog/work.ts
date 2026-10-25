@@ -18,14 +18,15 @@ import { archiveOne } from './archive-jobs'
 import { claimFacets, facetAsset, facetsOn } from './jev-facets'
 import { askRestores } from './job-storage'
 import { processAsset } from './process'
+import { MAIL_CLAIM, sendDueMail } from '../mail/outbox'
 
-export type WorkKind = 'ai' | 'process' | 'restore' | 'archive' | 'facets'
+export type WorkKind = 'ai' | 'process' | 'restore' | 'archive' | 'facets' | 'mail'
 export interface WorkMessage {
   kind: WorkKind
 }
 
 /** Photos one message takes: a few model calls' time, well inside one invocation's limits. */
-export const CLAIM = { ai: 8, process: 4, restore: 20, archive: 1, facets: 8 } as const
+export const CLAIM = { ai: 8, process: 4, restore: 20, archive: 1, facets: 8, mail: MAIL_CLAIM } as const
 /** Model calls at once within one message. */
 const AI_PARALLEL = 4
 /** Chains started for a lot of waiting work; each carries on until nothing is left. */
@@ -34,7 +35,7 @@ export const MAX_CHAINS = 4
  * Archive copies hold a 16 MiB part each and run for minutes: two at most, so imports and AI keep moving. Facets
  * (an outside service whose rate limits we don't know) one chain; the consumer's concurrency is shared by all kinds.
  */
-const KIND_CHAINS: Partial<Record<WorkKind, number>> = { archive: 2, facets: 1 }
+const KIND_CHAINS: Partial<Record<WorkKind, number>> = { archive: 2, facets: 1, mail: 1 }
 
 /**
  * Say that work of this kind is waiting: one chain per CLAIM photos, at most MAX_CHAINS. Best effort:
@@ -102,6 +103,12 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
     if (ids.length === CLAIM.facets && !outcomes.includes('failed')) await nudge(env, 'facets')
     return ids.length
   }
+  if (kind === 'mail') {
+    // Emails waiting in the outbox (mail/outbox.ts), a handful at a time, one chain.
+    const sent = await sendDueMail(env, CLAIM.mail)
+    if (sent === CLAIM.mail) await nudge(env, 'mail')
+    return sent
+  }
   if (kind === 'archive') {
     // One original copied (or carried on) per message (archive-jobs.ts).
     const result = await archiveOne(env)
@@ -128,7 +135,7 @@ export async function doWork(env: DamBindings, kind: WorkKind): Promise<number> 
 export async function handleWork(env: DamBindings, batch: MessageBatch<WorkMessage>): Promise<void> {
   for (const message of batch.messages) {
     const kind = message.body?.kind
-    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore' && kind !== 'archive' && kind !== 'facets') {
+    if (kind !== 'ai' && kind !== 'process' && kind !== 'restore' && kind !== 'archive' && kind !== 'facets' && kind !== 'mail') {
       message.ack()
       continue
     }

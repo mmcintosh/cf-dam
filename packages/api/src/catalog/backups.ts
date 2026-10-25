@@ -38,6 +38,7 @@ export const OMITTED_TABLES: Readonly<Record<string, string>> = {
   signing_keys: 'private keys for keyless AWS (new ones are made)',
   pairing_requests: 'agent pairings in progress',
   uploads: 'uploads in progress',
+  mail_outbox: 'email addresses and one-time links',
   archive_items: 'archive copies in progress (the sweep finds the photos again from their jobs)',
   restore_items: 'restores being asked for (the sweep finds the photos again from their locations)',
   asset_hash_bands: 'rebuilt from assets',

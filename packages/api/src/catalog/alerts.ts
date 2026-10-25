@@ -164,6 +164,26 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     findings.push({ key: `images.usage:${images.month}`, kind: 'images.usage', text: { key: 'alert.imagesUsage', params: { count: images.count, limit: images.alertAt } }, link: '/settings/storage' })
   }
 
+  // Email (mail/outbox.ts): sending stopped (the account or sender is wrong), the last five sends failed, or the day's
+  // quota ran out. Worked out here, so they close by themselves once mail works again; never emailed themselves.
+  const mail = await db
+    .prepare(
+      `SELECT (SELECT value FROM settings WHERE key = 'mail.stopped') AS stopped,
+              (SELECT GROUP_CONCAT(status) FROM (SELECT status FROM mail_outbox WHERE status IN ('sent', 'failed') AND kind != 'test' ORDER BY created_at DESC LIMIT 5)) AS recent,
+              (SELECT MAX(error) FROM (SELECT error FROM mail_outbox WHERE status = 'failed' AND kind != 'test' ORDER BY created_at DESC LIMIT 1)) AS error,
+              (SELECT COUNT(*) FROM mail_outbox WHERE status = 'queued' AND error LIKE 'E_DAILY_LIMIT_EXCEEDED%') AS quota`,
+    )
+    .first<{ stopped: string | null; recent: string | null; error: string | null; quota: number }>()
+  if (mail?.stopped) {
+    const stopped = json<{ code?: string }>(mail.stopped, {})
+    findings.push({ key: 'mail.stopped', kind: 'mail.stopped', text: { key: 'alert.mailStopped', params: { code: stopped.code ?? '?' } }, link: '/settings/email' })
+  } else if (mail?.recent && mail.recent.split(',').length === 5 && mail.recent.split(',').every((s) => s === 'failed')) {
+    findings.push({ key: 'mail.failing', kind: 'mail.failing', text: { key: 'alert.mailFailing', params: { error: clip(mail.error ?? '') } }, link: '/settings/email' })
+  }
+  if ((mail?.quota ?? 0) > 0) {
+    findings.push({ key: 'mail.quota', kind: 'mail.quota', text: { key: 'alert.mailQuota', params: { count: mail!.quota } }, link: '/settings/email' })
+  }
+
   return { findings, open: open!.results as unknown as OpenRow[] }
 }
 
@@ -211,7 +231,7 @@ export async function noteSweepFailure(db: D1Database, stage: string, error: unk
 }
 
 /** A sweep stage's name, for "Background work (…) is failing". */
-export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'jobs', 'alerts', 'facets']
+export const SWEEP_STAGES = ['recover', 'archive', 'restores', 'gallery', 'checks', 'backup', 'stats', 'previews', 'meaning', 'jobs', 'alerts', 'facets', 'mail']
 
 /** When the sweep last ran, if that's long enough ago to mean it has stopped. */
 export async function sweepStalledSince(db: D1Database, now = new Date()): Promise<string | null> {

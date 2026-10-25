@@ -26,6 +26,10 @@ const names = [
   ...(config.vectorize ?? []).map((v) => ['Vectorize', v.index_name]),
 ]
 const problems = []
+// Email: staging only ever to its allow list; production never with one (it would quietly email nobody).
+const mail = (config.send_email ?? []).find((b) => b.name === 'MAIL')
+if (mail && want === 'staging' && !config.vars?.MAIL_ALLOW_TO) problems.push('staging email has no allow list (STAGING_MAIL_ALLOW_TO)')
+if (mail && want === 'production' && config.vars?.MAIL_ALLOW_TO) problems.push('production email has an allow list: that is for staging')
 if (built !== want) problems.push(`the build in dist/ is for ${built}, not ${want}`)
 for (const [kind, name] of names) {
   const isStaging = typeof name === 'string' && name.includes('staging')
