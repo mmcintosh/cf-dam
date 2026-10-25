@@ -363,6 +363,8 @@ export interface ListFilters {
   orientation?: Orientation
   /** From the library facets (jev-facets.ts): 'yes' is any number of people, 'no' none, or one count. */
   people?: PeopleFilter
+  /** People named by hand or from the file (catalog/people.ts): photos with all of them. */
+  person?: number[]
   type?: FileKind
   tier?: Tier
   sort?: 'captured' | 'added'
@@ -506,6 +508,12 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
       params.push(filters.people === 'no' ? 'none' : filters.people)
     }
   }
+  if (use('person') && filters.person!.length > 0) {
+    for (const id of filters.person!) {
+      where.push('EXISTS (SELECT 1 FROM asset_people ap WHERE ap.asset_id = a.id AND ap.person_id = ?)')
+      params.push(id)
+    }
+  }
   if (use('type')) {
     where.push(`(${KIND_SQL}) = ?`)
     params.push(filters.type)
@@ -641,6 +649,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     missing: query.missing === '1' ? true : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     people: (PEOPLE_FILTERS as readonly string[]).includes(query.people ?? '') ? (query.people as PeopleFilter) : undefined,
+    person: query.person && /^\d{1,12}(,\d{1,12}){0,4}$/.test(query.person) ? [...new Set(query.person.split(',').map(Number))] : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,
     sort: query.sort === 'added' ? 'added' : 'captured',

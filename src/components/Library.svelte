@@ -55,6 +55,8 @@
     labelNames: Record<Label, string>
     /** Metadata presets that can be stamped on a selection. */
     presets: { id: string; name: string }[]
+    /** Can name people in photos (catalog/people.ts). */
+    canNamePeople?: boolean
     /** Can make client galleries (with canEdit, to make the album for them). */
     canShare?: boolean
   }
@@ -62,7 +64,7 @@
   const LABEL_KEYS: Record<string, Label> = { '6': 'red', '7': 'yellow', '8': 'green', '9': 'blue' }
   /** The most one bulk edit takes (the server's MAX_BULK). */
   const MAX_BULK = 500
-  let { initial, initialTotal, initialTotalExact, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets, canShare = false }: Props = $props()
+  let { initial, initialTotal, initialTotalExact, query, pageSize, canEdit, canDelete, canRunAi, labelNames, presets, canShare = false, canNamePeople = false }: Props = $props()
 
   let assets = $state<Asset[]>([...initial])
   let total = $state(initialTotal)
@@ -279,6 +281,22 @@
     if (await bulk({ action: 'people', people: value })) say(t(value === 'jev' ? 'library.say.peopleJev' : 'library.say.peopleSet', { count }))
   }
 
+  /** A named person added to or taken off the selection (catalog/people.ts); a new name makes the person. */
+  let personInput = $state('')
+  let everyone = $state<{ id: number; name: string }[]>([])
+  async function person(add: boolean) {
+    const typed = personInput.trim()
+    if (!typed) return
+    const known = everyone.find((p) => p.name.toLowerCase() === typed.toLowerCase())
+    if (!add && !known) return
+    const count = targets().length
+    if (await bulk({ action: 'person', ...(known ? { personId: known.id } : { name: typed }), add })) {
+      say(t(add ? 'library.say.personAdded' : 'library.say.personRemoved', { name: known?.name ?? typed, count }))
+      personInput = ''
+      if (!known) void api<{ people: { id: number; name: string }[] }>('/api/people').then((r) => (everyone = r.people)).catch(() => {})
+    }
+  }
+
   async function aiAction(choice: string) {
     const count = targets().length
     if (choice === 'queue') {
@@ -411,6 +429,7 @@
     const index = hashed ? assets.findIndex((a) => a.id === hashed) : -1
     if (index >= 0) openLoupe(index)
     if (canEdit) api<{ albums: { id: string; name: string }[] }>('/api/albums').then((r) => (albums = r.albums)).catch(() => {})
+    if (canNamePeople) api<{ people: { id: number; name: string }[] }>('/api/people').then((r) => (everyone = r.people)).catch(() => {})
     // Infinite scroll: fetch the next page as the end of the grid comes into view.
     const sentinel = document.getElementById('library-end')
     if (!sentinel) return
@@ -501,6 +520,14 @@
         <option value="six_or_more">{t('photoPeople.sixOrMore')}</option>
         <option value="jev">{t('photoPeople.backToJev')}</option>
       </select>
+      {#if canNamePeople}
+        <form class="row tag-form" onsubmit={(e) => (e.preventDefault(), person(true))}>
+          <input type="text" list="library-people" maxlength="120" placeholder={t('library.personPlaceholder')} aria-label={t('library.person')} bind:value={personInput} />
+          <datalist id="library-people">{#each everyone as p (p.id)}<option value={p.name}></option>{/each}</datalist>
+          <button class="btn btn-sm" type="submit">{t('library.personAdd')}</button>
+          <button class="btn btn-sm" type="button" onclick={() => person(false)}>{t('library.personRemove')}</button>
+        </form>
+      {/if}
       {#if presets.length > 0}
         <select aria-label={t('library.applyPreset')} onchange={(e) => { const v = e.currentTarget.value; e.currentTarget.value = ''; if (v) applyPreset(v) }}>
           <option value="">{t('library.presetMenu')}</option>

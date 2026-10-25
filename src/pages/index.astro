@@ -116,6 +116,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
             canDelete={principal.permissions.has('assets:delete')}
             canRunAi={canRunAi}
             canShare={principal.permissions.has('shares:manage')}
+            canNamePeople={principal.permissions.has('people:manage')}
             labelNames={displayLabelNames(labelNames, t)}
             presets={presets.map((p) => ({ id: p.id, name: p.name }))}
           />

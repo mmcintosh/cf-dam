@@ -4,7 +4,7 @@ summary: "Clés d’accès, connexion en deux étapes, votre mot de passe, les e
 section: People and security
 order: 2
 review: machine
-source: 1f368c995355
+source: f65cab557caa
 ---
 
 Votre page **Compte** (le dernier élément du menu) regroupe tout ce qui concerne votre connexion. C’est aussi là que se trouve [Apparence et accessibilité](/help/appearance).
@@ -31,7 +31,7 @@ Si vous vous connectez avec un mot de passe, ajoutez une deuxième étape : un c
 
 Vous n’avez pas besoin de codes quand vous vous connectez avec une clé d’accès. Votre administrateur peut exiger l’un ou l’autre pour tout le monde (voir [Personnes et rôles](/help/people-and-roles)).
 
-**Vous avez perdu votre téléphone et vos codes de secours ?** Demandez à un administrateur : sur **Personnes**, **Téléphone ou clé d’accès perdu** désactive vos codes pour que vous puissiez les reconfigurer.
+**Vous avez perdu votre téléphone et vos codes de secours ?** Demandez à un administrateur : sur **Équipe → Comptes**, **Téléphone ou clé d’accès perdu** désactive vos codes pour que vous puissiez les reconfigurer.
 
 ## Votre mot de passe
 

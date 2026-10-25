@@ -4,7 +4,7 @@ summary: "Passkeys, Zwei-Faktor-Anmeldung, dein Passwort, wo du angemeldet bist,
 section: People and security
 order: 2
 review: machine
-source: 1f368c995355
+source: f65cab557caa
 ---
 
 Deine Seite **Konto** (der letzte Punkt im Menü) enthält alles dazu, wie du dich anmeldest. Dort findest du auch [Darstellung und Barrierefreiheit](/help/appearance).
@@ -31,7 +31,7 @@ Wenn du dich mit einem Passwort anmeldest, füge einen zweiten Schritt hinzu: ei
 
 Wenn du dich mit einem Passkey anmeldest, brauchst du keine Codes. Dein Administrator kann das eine oder das andere für alle verlangen (siehe [Personen und Rollen](/help/people-and-roles)).
 
-**Telefon und Backup-Codes verloren?** Frag einen Administrator: Unter **Personen** schaltet **Telefon oder Passkey verloren** deine Codes aus, damit du sie neu einrichten kannst.
+**Telefon und Backup-Codes verloren?** Frag einen Administrator: Unter **Team → Konten** schaltet **Telefon oder Passkey verloren** deine Codes aus, damit du sie neu einrichten kannst.
 
 ## Dein Passwort
 

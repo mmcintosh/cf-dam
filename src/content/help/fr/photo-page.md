@@ -4,7 +4,7 @@ summary: "Tout sur une photo : ses détails, ses mots-clés, crédit et droits, 
 section: Your photos
 order: 4
 review: machine
-source: 096a1c31007b
+source: c0166dd371df
 ---
 
 Ouvrez une photo dans la photothèque et appuyez sur **Ouvrir les détails** (ou cliquez sur une photo partout où elle sert de lien) pour accéder à sa propre page. La photo est à gauche ; tout ce qui la concerne est à droite.
@@ -29,7 +29,9 @@ Si l’[analyse par IA](/help/ai-review) a examiné la photo, **Suggestions de l
 
 ## Personnes
 
-Quand [Personnes sur les photos](/help/ai-review) est configuré, **Personnes** indique si Jev de TypeSafe a vu quelqu’un, et combien : **Personne**, **Une personne**, **2 à 5 personnes**, **6 ou plus**, ou qu’il n’a pas encore regardé. Si c’est faux, appuyez sur la bonne réponse : c’est elle que le filtre **Personnes** de la photothèque utilise ensuite, et Jev ne la changera pas. **Revenir à la réponse de Jev** l’annule.
+Quand le [comptage des personnes](/help/ai-review) est configuré, **Personnes** indique si Jev de TypeSafe a vu quelqu’un, et combien : **Personne**, **Une personne**, **2 à 5 personnes**, **6 ou plus**, ou qu’il n’a pas encore regardé. Si c’est faux, appuyez sur la bonne réponse : c’est elle que le filtre **Personnes** de la photothèque utilise ensuite, et Jev ne la changera pas. **Revenir à la réponse de Jev** l’annule.
+
+La même carte indique **qui y figure** : tapez un nom et appuyez sur **Ajouter**, ou sur **×** pour en retirer un. Les noms lus dans le fichier (tels que Lightroom les écrit) sont marqués **du fichier**. Voir [Personnes sur les photos](/help/people-in-photos).
 
 ## Crédit, droits et lieu
 

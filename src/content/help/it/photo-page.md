@@ -4,7 +4,7 @@ summary: "Tutto su una foto: dettagli, parole chiave, crediti e diritti, rotazio
 section: Your photos
 order: 4
 review: machine
-source: 096a1c31007b
+source: c0166dd371df
 ---
 
 Apri una foto nella libreria e premi **Apri i dettagli** (o fai clic su una foto ovunque sia un link) per arrivare alla sua pagina. La foto è a sinistra; tutto ciò che la riguarda è a destra.
@@ -29,7 +29,9 @@ Se la [revisione IA](/help/ai-review) ha esaminato la foto, **Suggerimenti IA** 
 
 ## Persone
 
-Se [Persone nelle foto](/help/ai-review) è configurato, **Persone** dice se Jev di TypeSafe ha visto qualcuno, e quanti: **Nessuna persona**, **Una persona**, **2–5 persone**, **6 o più**, oppure che non l’ha ancora guardata. Se sbaglia, premi la risposta giusta: da allora è quella che usa il filtro **Persone** della libreria, e Jev non la cambia. **Tornare alla risposta di Jev** la annulla.
+Se il [conteggio delle persone](/help/ai-review) è configurato, **Persone** dice se Jev di TypeSafe ha visto qualcuno, e quanti: **Nessuna persona**, **Una persona**, **2–5 persone**, **6 o più**, oppure che non l’ha ancora guardata. Se sbaglia, premi la risposta giusta: da allora è quella che usa il filtro **Persone** della libreria, e Jev non la cambia. **Tornare alla risposta di Jev** la annulla.
+
+La stessa scheda dice **chi c’è**: scrivi un nome e premi **Aggiungi**, oppure **×** per toglierne uno. I nomi letti dal file (come li scrive Lightroom) sono segnati **dal file**. Vedi [Persone nelle foto](/help/people-in-photos).
 
 ## Crediti, diritti e luogo
 

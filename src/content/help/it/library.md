@@ -4,7 +4,7 @@ summary: "Sfogliare le foto, restringere la scelta, valutarle ed etichettarle, e
 section: Your photos
 order: 1
 review: machine
-source: 6685af550274
+source: 117881a2ecdb
 ---
 
 La **Libreria** mostra tutte le foto e i video, dal più recente, in righe che rispettano la forma di ogni foto. Scorri in basso e premi **Carica altre** per andare più indietro.
@@ -50,6 +50,7 @@ Seleziona le foto con **⌘-clic** (Mac) o **Ctrl-clic** (Windows), oppure **Mai
 - valutare, etichettare, scegliere o scartare;
 - aggiungere parole chiave (**Aggiungi tag**);
 - **Aggiungi all’album…**;
+- nominare una persona in tutte (**Nomina una persona…**, poi **Aggiungi** o **Togli**): vedi [Persone nelle foto](/help/people-in-photos);
 - applicare una **Preimpostazione…** (compilando i campi vuoti o sovrascrivendoli): vedi [Preimpostazioni](/help/presets);
 - **IA…**: analizzarle di nuovo, oppure usare testo alternativo, didascalie o parole chiave dell’IA dove sono vuoti: vedi [Revisione IA](/help/ai-review);
 - **Confronta** da due a quattro foto affiancate (**Z** le ingrandisce tutte insieme);

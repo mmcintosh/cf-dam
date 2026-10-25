@@ -36,7 +36,7 @@ Each piece of work for the client, such as a wedding or a portrait session, is a
 
 The client's page lists every gallery shared with any of their people or made from one of their jobs' albums, with whether it's open, when it closes, and its opens, favourites and downloads. **Downloads** shows what they downloaded, by whom, in which size and from which gallery. **History** shows what was done to the client and their logins: added, changed, invited, joined, signed in.
 
-On **People**, the **Clients** tab shows which client each login belongs to.
+On **Team → Accounts**, the **Clients** tab shows which client each login belongs to.
 
 ## Your CRM
 

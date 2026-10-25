@@ -7,7 +7,7 @@ order: 1
 
 Everyone who signs in to cf-dam has their own account, and a **role** that decides what they can do.
 
-**Clients** are different: they see only the client galleries you invite them to, nothing else. You invite them from a gallery or from a client's page under **Clients**, not from here, and they're listed apart, on the **Clients** tab of **People**, which has a search box like the **Team** tab and shows which client each login belongs to. A client can also just be sent a link, without an account. See [Client galleries](/help/client-galleries) and [Clients](/help/clients).
+**Clients** are different: they see only the client galleries you invite them to, nothing else. You invite them from a gallery or from a client's page under **Clients**, not from here, and they're listed apart, on the **Clients** tab of **Accounts**, which has a search box like the **Team** tab and shows which client each login belongs to. A client can also just be sent a link, without an account. See [Client galleries](/help/client-galleries) and [Clients](/help/clients).
 
 ## The roles
 
@@ -25,13 +25,13 @@ Everyone who signs in to cf-dam has their own account, and a **role** that decid
 
 ## Adding someone
 
-On **People**, press **Add person**, and give their **Name**, **Email**, a **Temporary password** and a **Role**. Press **Create**, then tell them the address of your cf-dam and the temporary password (in person or by phone is safest). The first time they sign in, they're asked to choose their own password.
+On **Team → Accounts**, press **Add person**, and give their **Name**, **Email**, a **Temporary password** and a **Role**. Press **Create**, then tell them the address of your cf-dam and the temporary password (in person or by phone is safest). The first time they sign in, they're asked to choose their own password.
 
 When this archive can send email (see [Email](/help/email)), leave **Email them a link to choose their own password** ticked instead: there's no temporary password at all, they get a link that works once, for 72 hours, and nobody else ever knows their password. The link is also shown on the page in case the email doesn't arrive.
 
 ## Two-step sign-in for everyone
 
-At the top of **People**, **Two-factor sign-in → Required for** can be **Nobody**, **Administrators** or **Everyone on the team** (clients are never made to, though they can turn it on themselves). People who must have it and don't are asked to set up a passkey or an authenticator app before they can do anything else. **Everyone on the team** is the safest choice. See [Your account and sign-in](/help/account-security).
+At the top of **Accounts**, **Two-factor sign-in → Required for** can be **Nobody**, **Administrators** or **Everyone on the team** (clients are never made to, though they can turn it on themselves). People who must have it and don't are asked to set up a passkey or an authenticator app before they can do anything else. **Everyone on the team** is the safest choice. See [Your account and sign-in](/help/account-security).
 
 ## Helping someone
 

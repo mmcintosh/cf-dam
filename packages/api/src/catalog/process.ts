@@ -20,6 +20,8 @@ import { getAiSettings } from './ai'
 import { hashFromThumbnail, recordHashes } from './phash'
 import { indexAsset, indexAssets } from './search'
 import { nudge } from './work'
+import { resolvePeople } from './people'
+import { fold } from '../lib/fold'
 import exifr from 'exifr'
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
@@ -30,12 +32,15 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> 
 export interface MetadataLookups {
   labels: LabelNames | null
   keywords: Map<string, string>
+  /** People named in the files, by folded name (catalog/people.ts). */
+  people: Map<string, number>
 }
 
 export async function metadataLookups(db: D1Database, metas: NormalizedMetadata[]): Promise<MetadataLookups> {
   return {
     labels: metas.some((m) => m.label) ? await getLabelNames(db) : null,
     keywords: await resolveKeywords(db, metas.flatMap((m) => m.keywords.slice(0, 200))),
+    people: await resolvePeople(db, metas.flatMap((m) => (m.people ?? []).slice(0, 50))),
   }
 }
 
@@ -93,6 +98,15 @@ export function metadataStatements(db: D1Database, assetId: string, meta: Normal
   if (iptc) statements.push(iptc)
   const tags = [...new Set(meta.keywords.slice(0, 200).map((k) => lookups.keywords.get(k)).filter((id): id is string => id !== undefined))]
   if (tags.length > 0) statements.push(tagStatement(db, tags.map((id) => [assetId, id] as const), 'import'))
+  // People named in the file are tagged like its keywords (catalog/people.ts).
+  const people = [...new Set((meta.people ?? []).map((n) => lookups.people.get(fold(n))).filter((id): id is number => id !== undefined))]
+  if (people.length > 0) {
+    statements.push(
+      db
+        .prepare("INSERT OR IGNORE INTO asset_people (asset_id, person_id, how, created_at) SELECT ?, value, 'file', ? FROM json_each(?)")
+        .bind(assetId, nowIso(), JSON.stringify(people)),
+    )
+  }
   return statements
 }
 

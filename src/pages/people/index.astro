@@ -1,0 +1,92 @@
+---
+/** People named in photos (catalog/people.ts, plans/PLAN-FN-v2.md FN1): everyone, with a photo and how many. */
+import { env } from 'cloudflare:workers'
+import { listPeople } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
+import AppLayout from '../../layouts/AppLayout.astro'
+import NewPerson from '../../components/NewPerson.svelte'
+
+const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
+const q = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 120)
+const people = await listPeople(env.DB, q)
+---
+<AppLayout help="people-in-photos" title={t('nav.namedPeople')} subtitle={t('peoplePage.subtitle')}>
+  <div class="bar">
+    <form method="get" action="/people" class="search" role="search">
+      <input type="search" name="q" value={q} aria-label={t('peoplePage.search')} placeholder={t('peoplePage.search')} />
+      <button class="btn" type="submit">{t('clientsPage.searchButton')}</button>
+    </form>
+    {principal.permissions.has('people:manage') && <NewPerson client:idle />}
+  </div>
+  {people.length === 0 ? (
+    <section class="card"><p class="muted">{q ? t('peoplePage.noMatch', { q }) : t('peoplePage.none')}</p></section>
+  ) : (
+    <ul class="people">
+      {people.map((p) => (
+        <li>
+          <a class="person" href={`/people/${p.id}`}>
+            <span class="cover">{p.coverId ? <img src={`/api/assets/${p.coverId}/renditions/thumb`} alt="" loading="lazy" /> : <span class="muted">{p.name.slice(0, 1)}</span>}</span>
+            <strong>{p.name}</strong>
+            <span class="muted small">{t('common.photos', { count: p.photos })}{p.isChild ? ` · ${t('peoplePage.child')}` : ''}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</AppLayout>
+
+<style>
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .search {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 260px;
+    max-width: 420px;
+  }
+  .search input {
+    flex: 1;
+  }
+  .people {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 18px;
+  }
+  .person {
+    display: grid;
+    gap: 4px;
+    color: var(--text);
+    text-align: center;
+  }
+  .person:hover {
+    text-decoration: none;
+  }
+  .cover {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: var(--surface-strong);
+    border: 1px solid var(--border);
+    font-size: 2rem;
+  }
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+</style>

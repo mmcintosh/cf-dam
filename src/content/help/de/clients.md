@@ -4,7 +4,7 @@ summary: "Die Personen und Firmen festhalten, für die du arbeitest: Kontaktdate
 section: Sharing
 order: 3
 review: machine
-source: 0d751d7ee2e9
+source: e5abd5bf184b
 ---
 
 **Kunden** hält jede Person oder Firma fest, für die du arbeitest: ein Paar, eine Familie, ein Unternehmen. Jeder Kunde hat eine Seite mit Kontaktdaten und Notizen, den Personen, die sich für ihn anmelden, den Kundengalerien, die mit diesen Personen geteilt sind, dem, was heruntergeladen wurde, und einem Verlauf dessen, was passiert ist.
@@ -38,7 +38,7 @@ Jede Arbeit für den Kunden, etwa eine Hochzeit oder ein Porträtshooting, ist e
 
 Die Seite des Kunden listet jede Galerie, die mit einer seiner Personen geteilt ist oder aus einem Album eines seiner Aufträge stammt: ob sie offen ist, wann sie schließt, und ihre Aufrufe, Favoriten und Downloads. **Downloads** zeigt, was heruntergeladen wurde, von wem, in welcher Größe und aus welcher Galerie. **Verlauf** zeigt, was mit dem Kunden und seinen Anmeldungen geschah: angelegt, geändert, eingeladen, beigetreten, angemeldet.
 
-Unter **Personen** zeigt der Reiter **Kunden**, zu welchem Kunden jede Anmeldung gehört.
+Unter **Team → Konten** zeigt der Reiter **Kunden**, zu welchem Kunden jede Anmeldung gehört.
 
 ## Dein CRM
 

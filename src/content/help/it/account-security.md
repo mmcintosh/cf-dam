@@ -4,7 +4,7 @@ summary: "Passkey, accesso in due passaggi, la tua password, dove hai effettuato
 section: People and security
 order: 2
 review: machine
-source: 1f368c995355
+source: f65cab557caa
 ---
 
 La pagina **Account** (l’ultima voce del menu) raccoglie tutto ciò che riguarda il modo in cui accedi. È anche dove si trova [Aspetto e accessibilità](/help/appearance).
@@ -31,7 +31,7 @@ Se accedi con una password, aggiungi un secondo passaggio: un codice di sei cifr
 
 Non ti servono i codici quando accedi con una passkey. L’amministratore può rendere obbligatorio l’uno o l’altro per tutti (vedi [Persone e ruoli](/help/people-and-roles)).
 
-**Hai perso il telefono e i codici di backup?** Chiedi a un amministratore: in **Persone**, **Telefono o passkey persi** disattiva i tuoi codici così puoi configurarli di nuovo.
+**Hai perso il telefono e i codici di backup?** Chiedi a un amministratore: in **Team → Utenti**, **Telefono o passkey persi** disattiva i tuoi codici così puoi configurarli di nuovo.
 
 ## La tua password
 

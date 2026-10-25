@@ -29,7 +29,7 @@ If you sign in with a password, add a second step: a six-digit code from an app 
 
 You don't need codes when you sign in with a passkey. Your administrator may require one or the other for everyone (see [People and roles](/help/people-and-roles)).
 
-**Lost your phone and your backup codes?** Ask an administrator: on **People**, **Lost phone or passkey** turns your codes off so you can set them up again.
+**Lost your phone and your backup codes?** Ask an administrator: on **Team → Accounts**, **Lost phone or passkey** turns your codes off so you can set them up again.
 
 ## Your password
 

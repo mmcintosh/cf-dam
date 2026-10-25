@@ -1,0 +1,52 @@
+---
+/** One person named in photos: their photos, name and notes, merging and deleting (plans/PLAN-FN-v2.md FN1). */
+import { env } from 'cloudflare:workers'
+import { getPerson, listPeople } from '@cf-dam/api'
+import { getT } from '@cf-dam/i18n'
+import AppLayout from '../../layouts/AppLayout.astro'
+import PersonDetails from '../../components/PersonDetails.svelte'
+
+const principal = Astro.locals.principal!
+const t = getT(Astro.locals.lang)
+const id = /^\d{1,12}$/.test(Astro.params.id ?? '') ? Number(Astro.params.id) : null
+const person = id === null ? null : await getPerson(env.DB, id)
+if (!person) return Astro.redirect('/people')
+const canManage = principal.permissions.has('people:manage')
+const others = canManage ? (await listPeople(env.DB)).filter((p) => p.id !== person.id).map((p) => ({ id: p.id, name: p.name })) : []
+const { results: recent } = await env.DB.prepare(
+  `SELECT a.id FROM asset_people ap JOIN assets a ON a.id = ap.asset_id AND a.deleted_at IS NULL WHERE ap.person_id = ? ORDER BY a.captured_at DESC LIMIT 24`,
+).bind(person.id).all<{ id: string }>()
+---
+<AppLayout help="people-in-photos" title={person.name} subtitle={t('common.photos', { count: person.photos })}>
+  <div class="row top">
+    <a class="btn btn-sm" href="/people">← {t('nav.namedPeople')}</a>
+    {person.photos > 0 && <a class="btn btn-sm btn-primary" href={`/?person=${person.id}`}>{t('peoplePage.seeAll')}</a>}
+  </div>
+  {recent.length > 0 && (
+    <section class="strip">
+      {recent.map((r) => <a href={`/assets/${r.id}`}><img src={`/api/assets/${r.id}/renditions/thumb`} alt="" loading="lazy" /></a>)}
+    </section>
+  )}
+  <section class="card">
+    <PersonDetails client:load {person} {others} {canManage} />
+  </section>
+</AppLayout>
+
+<style>
+  .top {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .strip img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+</style>

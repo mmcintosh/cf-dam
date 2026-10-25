@@ -37,6 +37,16 @@ interface IndexRow {
   ai_text: string | null
 }
 
+/** The names of people tagged on these photos (catalog/people.ts), for the index. */
+async function namesOnPhotos(db: D1Database, assetIds: string[]): Promise<Map<string, string>> {
+  if (assetIds.length === 0) return new Map()
+  const { results } = await db
+    .prepare("SELECT ap.asset_id, GROUP_CONCAT(p.name, ' ') AS names FROM asset_people ap JOIN people p ON p.id = ap.person_id WHERE ap.asset_id IN (SELECT value FROM json_each(?)) GROUP BY ap.asset_id")
+    .bind(JSON.stringify(assetIds))
+    .all<{ asset_id: string; names: string }>()
+  return new Map(results.map((r) => [r.asset_id, r.names]))
+}
+
 /** Assets per round of writes: their text (AI descriptions, captions) is bound as one JSON value. */
 const CHUNK = 50
 
@@ -55,6 +65,8 @@ export async function indexAssets(db: D1Database, assetIds: string[]): Promise<v
       .all<IndexRow>()
     const live = rows.filter((r) => !r.deleted_at)
     const terms = await searchTerms(db, live.map((r) => r.id))
+    // People named on the photo (catalog/people.ts): "Anna" finds photos tagged with her.
+    const names = await namesOnPhotos(db, live.map((r) => r.id))
     const docs = live.map((row) => {
       const place = iptcSearchText(row as unknown as Record<string, unknown>)
       return {
@@ -64,7 +76,7 @@ export async function indexAssets(db: D1Database, assetIds: string[]): Promise<v
         title: [row.title, place.extra].filter(Boolean).join(' '),
         caption: row.caption ?? '',
         // Keywords with their ancestors and synonyms: a photo tagged Bergen is found by "norway".
-        tags: terms.get(row.id) ?? '',
+        tags: [terms.get(row.id), names.get(row.id)].filter(Boolean).join(' '),
         camera: [row.camera_make, row.camera_model, row.lens].filter(Boolean).join(' '),
         place: place.place,
         // What the AI saw (and any text in the picture), so "red boat at dusk" finds photos nobody has keyworded.

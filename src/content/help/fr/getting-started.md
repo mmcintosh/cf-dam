@@ -4,7 +4,7 @@ summary: "Ce qu’est cf-dam, comment il est organisé et les premières choses 
 section: Getting started
 order: 1
 review: machine
-source: 36b76be0bf35
+source: 8ec83e8c5080
 ---
 
 cf-dam est une archive privée pour vos photos (et vos vidéos). Il tient un catalogue de tout ce que vous avez : ce que montre chaque photo, quand et où elle a été prise, qui y figure, quels mots-clés elle porte et où se trouve le fichier original. Vous pouvez ensuite retrouver n’importe quelle photo en quelques secondes, en partager certaines avec un client et garder les originaux en sécurité dans le stockage qui vous convient.
@@ -19,10 +19,11 @@ Le menu de gauche mène à chaque partie :
 | --- | --- |
 | **Photothèque** | Toutes les photos, des plus récentes aux plus anciennes, avec des filtres sur le côté. |
 | **Albums** | Les photos que vous avez regroupées à la main. |
+| **Personnes** | Toutes les personnes que vous avez nommées sur vos photos, et toutes les photos de chacune. |
 | **Travail client** | Les travaux, les clients et les galeries clients, avec un onglet pour chacun en haut de la page. Les galeries clients sont des albums partagés par un lien privé. |
 | **Rangement** | **Doublons** (les fichiers identiques et les photos similaires, avec une suggestion de celle à garder), **Mots-clés** (renommez, fusionnez et rangez votre liste) et **Préréglages** (des ensembles tout prêts de crédit, de copyright et de coordonnées à ajouter aux photos). |
 | **Configuration** | **Stockage** (l’endroit où sont gardés les originaux : le stockage de Cloudflare, Amazon S3 et d’autres), **Ordinateurs et NAS** (de petits assistants qui cataloguent les photos de votre NAS ou de votre ordinateur sans les déplacer) et **Analyse par IA** (légendes, textes alternatifs et suggestions de mots-clés rédigés par l’IA, à vous de les approuver). |
-| **Équipe** | **Personnes** (qui peut se connecter, et ce que chacun a le droit de faire), **Activité** (ce qui a été fait, et par qui) et **Alertes** (les problèmes qui demandent quelqu’un ; le nombre à côté d’**Équipe** indique combien sont ouverts). |
+| **Équipe** | **Comptes** (qui peut se connecter, et ce que chacun a le droit de faire), **Activité** (ce qui a été fait, et par qui) et **Alertes** (les problèmes qui demandent quelqu’un ; le nombre à côté d’**Équipe** indique combien sont ouverts). |
 | **Compte** | Votre mot de passe, vos clés d’accès, la connexion en deux étapes et l’apparence de cf-dam pour vous. |
 
 Certaines parties ne s’affichent que pour les administrateurs. Chaque page a un **?** à côté de son titre qui ouvre l’aide de cette page.

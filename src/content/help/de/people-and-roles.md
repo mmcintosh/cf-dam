@@ -4,12 +4,12 @@ summary: "Kollegen einladen, was jede Rolle darf, und jemandem helfen, der sich 
 section: People and security
 order: 1
 review: machine
-source: b3c8c9bd073d
+source: c9f289e6cc60
 ---
 
 Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, die festlegt, was er tun kann.
 
-**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie aus einer Galerie oder von der Seite eines Kunden unter **Kunden** ein, nicht hier, und sie stehen getrennt im Reiter **Kunden** auf **Personen**, der wie der Reiter **Team** eine Suche hat und zeigt, zu welchem Kunden jede Anmeldung gehört. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries) und [Kunden](/help/clients).
+**Kunden** sind anders: Sie sehen nur die Kundengalerien, zu denen du sie einlädst, sonst nichts. Du lädst sie aus einer Galerie oder von der Seite eines Kunden unter **Kunden** ein, nicht hier, und sie stehen getrennt im Reiter **Kunden** auf **Konten**, der wie der Reiter **Team** eine Suche hat und zeigt, zu welchem Kunden jede Anmeldung gehört. Einem Kunden kannst du auch einfach einen Link schicken, ohne Konto. Siehe [Kundengalerien](/help/client-galleries) und [Kunden](/help/clients).
 
 ## Die Rollen
 
@@ -27,13 +27,13 @@ Jeder, der sich bei cf-dam anmeldet, hat ein eigenes Konto und eine **Rolle**, d
 
 ## Jemanden hinzufügen
 
-Drücke unter **Personen** auf **Person hinzufügen** und gib **Name**, **E-Mail**, ein **Vorläufiges Passwort** und eine **Rolle** an. Drücke **Anlegen** und teil der Person dann die Adresse deines cf-dam und das vorläufige Passwort mit (persönlich oder am Telefon ist am sichersten). Bei der ersten Anmeldung wird sie gebeten, ein eigenes Passwort zu wählen.
+Drücke unter **Team → Konten** auf **Person hinzufügen** und gib **Name**, **E-Mail**, ein **Vorläufiges Passwort** und eine **Rolle** an. Drücke **Anlegen** und teil der Person dann die Adresse deines cf-dam und das vorläufige Passwort mit (persönlich oder am Telefon ist am sichersten). Bei der ersten Anmeldung wird sie gebeten, ein eigenes Passwort zu wählen.
 
 Wenn dieses Archiv E-Mails senden kann (siehe [E-Mail](/help/email)), lass stattdessen **Per E-Mail einen Link schicken, um ein eigenes Passwort zu wählen** angehakt: Dann gibt es überhaupt kein vorläufiges Passwort, die Person bekommt einen Link, der einmal und 72 Stunden lang funktioniert, und niemand sonst kennt je ihr Passwort. Der Link wird auch auf der Seite angezeigt, falls die E-Mail nicht ankommt.
 
 ## Zwei-Faktor-Anmeldung für alle
 
-Oben auf **Personen** kann **Zwei-Faktor-Anmeldung → Erforderlich für** auf **Niemanden**, **Administratoren** oder **Das ganze Team** stehen (Kunden werden nie dazu verpflichtet, können sie aber selbst einschalten). Wer sie haben muss und noch nicht hat, wird gebeten, einen Passkey oder eine Authenticator-App einzurichten, bevor er irgendetwas anderes tun kann. **Das ganze Team** ist die sicherste Wahl. Siehe [Dein Konto und die Anmeldung](/help/account-security).
+Oben auf **Konten** kann **Zwei-Faktor-Anmeldung → Erforderlich für** auf **Niemanden**, **Administratoren** oder **Das ganze Team** stehen (Kunden werden nie dazu verpflichtet, können sie aber selbst einschalten). Wer sie haben muss und noch nicht hat, wird gebeten, einen Passkey oder eine Authenticator-App einzurichten, bevor er irgendetwas anderes tun kann. **Das ganze Team** ist die sicherste Wahl. Siehe [Dein Konto und die Anmeldung](/help/account-security).
 
 ## Jemandem helfen
 

@@ -4,7 +4,7 @@ summary: "Alles zu einem Foto: Details, Stichwörter, Urheber und Rechte, Drehen
 section: Your photos
 order: 4
 review: machine
-source: 096a1c31007b
+source: c0166dd371df
 ---
 
 Öffne ein Foto in der Bibliothek und drücke **Details öffnen** (oder klicke auf ein Foto, wo immer es verlinkt ist), um zu seiner eigenen Seite zu kommen. Links ist das Foto, rechts alles darüber.
@@ -29,7 +29,9 @@ Hat die [KI-Prüfung](/help/ai-review) sich das Foto angesehen, zeigt **KI-Vorsc
 
 ## Personen
 
-Ist [Personen auf Fotos](/help/ai-review) eingerichtet, zeigt **Personen**, ob Jev von TypeSafe jemanden gesehen hat und wie viele: **Keine Personen**, **Eine Person**, **2–5 Personen**, **6 oder mehr**, oder dass es noch nicht nachgesehen hat. Stimmt es nicht, drücke die richtige Antwort: Die nutzt der Filter **Personen** der Bibliothek ab dann, und Jev ändert sie nicht. **Zurück zu Jevs Antwort** macht das rückgängig.
+Ist das [Zählen von Personen](/help/ai-review) eingerichtet, zeigt **Personen**, ob Jev von TypeSafe jemanden gesehen hat und wie viele: **Keine Personen**, **Eine Person**, **2–5 Personen**, **6 oder mehr**, oder dass es noch nicht nachgesehen hat. Stimmt es nicht, drücke die richtige Antwort: Die nutzt der Filter **Personen** der Bibliothek ab dann, und Jev ändert sie nicht. **Zurück zu Jevs Antwort** macht das rückgängig.
+
+Dieselbe Karte nennt, **wer darauf ist**: Gib einen Namen ein und drücke **Hinzufügen**, oder **×**, um einen zu entfernen. Namen, die aus der Datei gelesen wurden (so wie Lightroom sie schreibt), sind mit **aus der Datei** markiert. Siehe [Personen auf Fotos](/help/people-in-photos).
 
 ## Urheber, Rechte und Ort
 

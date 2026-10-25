@@ -46,6 +46,7 @@ const BULK: Record<string, MessageKey> = {
   'ai-queue': 'act.bulk.aiQueue',
   'ai-accept': 'act.bulk.aiAccept',
   people: 'act.bulk.people',
+  person: 'act.bulk.person',
 }
 
 const SCOPES: Record<string, MessageKey> = { admins: 'act.scope.admins', everyone: 'act.scope.everyone' }
@@ -150,6 +151,14 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.keywordDeleted', { who })
     case 'storage.connection_created':
       return t('act.connectionCreated', { who })
+    case 'person.created':
+      return t('act.personCreated', { who })
+    case 'person.changed':
+      return t('act.personChanged', { who })
+    case 'person.merged':
+      return t('act.personMerged', { who, photos: typeof d.photos === 'number' ? d.photos : 0 })
+    case 'person.deleted':
+      return t('act.personDeleted', { who, photos: typeof d.photos === 'number' ? d.photos : 0 })
     case 'mail.settings_changed':
       return d.on === true ? t('act.mailOn', { who }) : t('act.mailSettings', { who })
     case 'mail.test':

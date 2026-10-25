@@ -61,6 +61,8 @@ export interface AgentMetadata {
   caption: string | null
   /** Flat keywords, plus Lightroom paths ('Places|Norway|Bergen') for the keyword tree. */
   keywords: string[]
+  /** People named in the file: XMP PersonInImage and MWG face region names (the Worker's peopleInFile). */
+  people: string[]
   iptc: Record<string, string | null>
   label: string | null
   video: { duration: number | null; codec: string | null; frameRate: number | null } | null
@@ -87,6 +89,25 @@ export function exifDate(v: unknown): string | null {
 }
 
 const LENS_JUNK = /^[\d\s.]+$/ // numeric lens codes ("2 30 10") are not names
+
+/** XMP PersonInImage plus the names of MWG face regions, as Lightroom's People view writes them. */
+export function peopleInFile(t: T): string[] {
+  const names = list(t.PersonInImage)
+  const info = t.RegionInfo as { RegionList?: unknown } | undefined
+  const regions = Array.isArray(info?.RegionList) ? info!.RegionList : info?.RegionList ? [info.RegionList] : []
+  for (const region of regions as { Name?: unknown; Type?: unknown }[]) {
+    if (region && typeof region === 'object' && (region.Type === undefined || String(region.Type).toLowerCase() === 'face')) names.push(...list(region.Name))
+  }
+  // Without the struct, ExifTool flattens regions into parallel lists.
+  if (regions.length === 0) {
+    const regionNames = list(t.RegionName)
+    const types = list(t.RegionType)
+    regionNames.forEach((n, i) => {
+      if (types[i] === undefined || types[i]!.toLowerCase() === 'face') names.push(n)
+    })
+  }
+  return [...new Set(names.map((n) => n.replace(/\s+/g, ' ').trim()).filter((n) => n && n.length <= 120))].slice(0, 50)
+}
 
 /** ExifTool tags → cf-dam's metadata shape. Mirrors the Worker's exifr mapping field for field. */
 export function mapTags(t: T): AgentMetadata {
@@ -123,6 +144,7 @@ export function mapTags(t: T): AgentMetadata {
     title: str(t.ObjectName) ?? str(t.Title) ?? str(t.Headline),
     caption: str(t.ImageDescription) ?? str(t['Caption-Abstract']) ?? str(t.Description),
     keywords: [...new Set([...paths, ...flat])].slice(0, 200),
+    people: peopleInFile(t),
     iptc: {
       headline: str(t.Headline),
       // IPTC By-line first, as the Worker does: ExifTool can report an XMP Creator echoing the EXIF Artist.

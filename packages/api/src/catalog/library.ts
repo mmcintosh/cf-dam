@@ -11,6 +11,7 @@ import { displayPath, matchKeywords, SUBTREE } from './keywords'
 import { acceptSuggestions, queueForAi, type AcceptField } from './ai'
 import { indexAssets } from './search'
 import { getStats, PLAIN_FACETS, topValues, type PlainFacet } from './stats'
+import { tagPeople } from './people'
 import { setPeople, type PeopleChoice } from './jev-facets'
 
 export interface FacetValue {
@@ -43,6 +44,8 @@ export interface Facets {
   type: FacetValue[]
   tier: FacetValue[]
   people: FacetValue[]
+  /** People named by hand or from files (catalog/people.ts), the most photographed first, within what's shown. */
+  named: { id: number; name: string; count: number }[]
 }
 
 /**
@@ -119,7 +122,16 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
       .bind(...params, limit)
   })
   const needsTags = !live('tag')
-  const results = await db.batch([...statements, ...(needsTags ? [db.prepare('SELECT id, parent_id AS parentId, name, full_path AS path FROM tags ORDER BY path LIMIT 1000')] : [])])
+  // Named people, counted from their tags (a small table) within what's shown, in the same round trip.
+  const all = buildWhere(filters)
+  const named = db
+    .prepare(
+      `SELECT p.id, p.name, COUNT(*) AS count FROM asset_people ap JOIN people p ON p.id = ap.person_id JOIN assets a ON a.id = ap.asset_id
+       WHERE ${all.clause} GROUP BY p.id ORDER BY count DESC, p.name_key LIMIT 30`,
+    )
+    .bind(...all.params)
+  const results = await db.batch([named, ...statements, ...(needsTags ? [db.prepare('SELECT id, parent_id AS parentId, name, full_path AS path FROM tags ORDER BY path LIMIT 1000')] : [])])
+  const namedPeople = results.shift()!.results as { id: number; name: string; count: number }[]
   const liveResults = new Map(liveNames.map((name, i) => [name, results[i]!.results]))
 
   const out = {} as Record<string, unknown>
@@ -141,6 +153,7 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
       .filter((k) => (stats?.keywords[k.id]?.total ?? 0) > 0)
       .map((k) => ({ ...k, path: displayPath(k.path), count: counted ? stats!.keywords[k.id]!.total : null }))
   }
+  out.named = namedPeople
   return out as unknown as Facets
 }
 
@@ -191,9 +204,12 @@ export type BulkAction =
   | { action: 'ai-accept'; fields: AcceptField[]; overwrite: boolean }
   /** People in the photo set by hand ('jev': back to Jev's answer; jev-facets.ts). */
   | { action: 'people'; people: PeopleChoice | 'jev'; userId: string }
+  /** A named person added to (or taken off) the photos (catalog/people.ts). */
+  | { action: 'person'; personId: number; add: boolean }
 
 /** The permission each bulk action needs. */
 export const BULK_PERMISSION: Record<BulkAction['action'], string> = {
+  person: 'people:manage',
   'tag-add': 'assets:edit',
   'tag-remove': 'assets:edit',
   rating: 'assets:edit',
@@ -287,6 +303,8 @@ export async function applyBulk(db: D1Database, ids: string[], bulk: BulkAction)
       return live.length
     case 'people':
       return setPeople(db, live, bulk.people, bulk.userId)
+    case 'person':
+      return tagPeople(db, live, bulk.personId, bulk.add)
   }
   // Titles, captions and tags are searchable; keep the index in step. (After a GPS change the caller
   // looks the new places up, then reindexes.)

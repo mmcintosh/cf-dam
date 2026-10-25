@@ -27,7 +27,9 @@ If [AI review](/help/ai-review) has looked at the photo, **AI suggestions** show
 
 ## People
 
-When [People in photos](/help/ai-review) is set up, **People** says whether TypeSafe's Jev saw anyone, and how many: **No people**, **One person**, **2–5 people**, **6 or more**, or that it hasn't looked yet. If it's wrong, press the right answer: that's what the library's **People** filter uses from then on, and Jev won't change it. **Back to Jev's answer** undoes it.
+When [counting people](/help/ai-review) is set up, **People** says whether TypeSafe's Jev saw anyone, and how many: **No people**, **One person**, **2–5 people**, **6 or more**, or that it hasn't looked yet. If it's wrong, press the right answer: that's what the library's **People** filter uses from then on, and Jev won't change it. **Back to Jev's answer** undoes it.
+
+The same card names **who's in it**: type a name and press **Add**, or **×** to take one off. Names read from the file (as Lightroom writes them) are marked **from the file**. See [People in photos](/help/people-in-photos).
 
 ## Credit, rights and place
 

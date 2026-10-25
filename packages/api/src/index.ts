@@ -27,6 +27,7 @@ import { inviteRoutes } from './routes/invites'
 import { runInLanguage } from '@cf-dam/i18n'
 import { requestLanguage } from './lib/language'
 import { mailRoutes } from './routes/mail'
+import { peopleRoutes } from './routes/people'
 import { emailOffRoutes } from './routes/email-off'
 import { meRoutes } from './routes/me'
 import { setupRoutes } from './routes/setup'
@@ -100,6 +101,7 @@ export function createDamApi() {
   api.route('/uploads', uploadRoutes)
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
+  api.route('/people', peopleRoutes)
   api.route('/shares', shareRoutes)
   api.route('/clients', clientRoutes)
   api.route('/jobs', jobRoutes)
@@ -135,6 +137,7 @@ export { LABELS, type Label } from './catalog/assets'
 export { duplicateCounts, exactGroups, similarGroups, type DuplicateGroup } from './catalog/duplicates'
 export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog/ai'
 export { getMailSettings, mailReady } from './mail/outbox'
+export { assetPeople, getPerson, listPeople, type PersonJson } from './catalog/people'
 export { facetProblems, facetsAvailable, facetStats, type FacetProblem, type FacetStats } from './catalog/jev-facets'
 export { meaningAvailable, resolveNear } from './catalog/meaning'
 export { DEFAULT_PREFERENCES, getPreferences, preferenceAttributes, type Preferences } from './catalog/preferences'

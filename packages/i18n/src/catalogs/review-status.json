@@ -395,6 +395,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.bulk.person": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.bulk.preset": {
     "es": "ai-reviewed",
     "de": "machine",
@@ -732,6 +738,30 @@
     "it": "machine"
   },
   "act.passwordReset": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.personChanged": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.personCreated": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.personDeleted": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.personMerged": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -5578,6 +5608,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "facets.named": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "facets.noKeyword": {
     "es": "machine",
     "de": "machine",
@@ -5645,6 +5681,12 @@
     "it": "machine"
   },
   "facets.people.yes": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.person": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -8342,6 +8384,30 @@
     "fr": "machine",
     "it": "machine"
   },
+  "library.person": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.personAdd": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.personPlaceholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.personRemove": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "library.pick": {
     "es": "machine",
     "de": "machine",
@@ -8475,6 +8541,18 @@
     "it": "machine"
   },
   "library.say.peopleSet": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.say.personAdded": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "library.say.personRemoved": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -9344,6 +9422,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "nav.namedPeople": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "nav.people": {
     "es": "machine",
     "de": "machine",
@@ -10055,6 +10139,96 @@
     "fr": "machine",
     "it": "machine"
   },
+  "peoplePage.add": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.child": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.choose": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.delete": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.deleteConfirm": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.isChild": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.merge": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.mergeInto": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.mergeLead": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.newName": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.noMatch": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.none": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.search": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.seeAll": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.subtitle": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "photo.credit": {
     "es": "machine",
     "de": "ai-reviewed",
@@ -10128,6 +10302,48 @@
     "it": "machine"
   },
   "photo.xmpTitle": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.add": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.addPlaceholder": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.fromFile": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.fromFileTitle": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.named": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.none": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "photoNames.remove": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

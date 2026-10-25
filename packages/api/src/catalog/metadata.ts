@@ -32,6 +32,8 @@ export interface NormalizedMetadata {
   caption: string | null
   /** Flat keywords and Lightroom keyword paths ('Places|Norway|Bergen'). */
   keywords: string[]
+  /** People named in the file: XMP PersonInImage and MWG face region names (as Lightroom writes them). */
+  people: string[]
   /** IPTC Core: creator, rights, contact, place, job. */
   iptc: IptcValues
   /** xmp:Label as written (a colour name, or a custom name from Lightroom's label set). */
@@ -89,6 +91,20 @@ function keywords(raw: Raw): string[] {
   return [...new Set([...paths, ...flat])].slice(0, 200)
 }
 
+/**
+ * People named in the file: IPTC Extension's PersonInImage, and the names of MWG face regions (Lightroom's People
+ * view writes both). Names only; the regions' boxes aren't used yet.
+ */
+export function peopleInFile(raw: Raw): string[] {
+  const names = list(raw.PersonInImage)
+  const info = raw.RegionInfo as { RegionList?: unknown } | undefined
+  const regions = Array.isArray(info?.RegionList) ? info!.RegionList : info?.RegionList ? [info.RegionList] : []
+  for (const region of regions as { Name?: unknown; Type?: unknown }[]) {
+    if (region && typeof region === 'object' && (region.Type === undefined || String(region.Type).toLowerCase() === 'face')) names.push(...list(region.Name))
+  }
+  return [...new Set(names.map((n) => n.replace(/\s+/g, ' ').trim()).filter((n) => n && n.length <= 120))].slice(0, 50)
+}
+
 function jsonSafe(raw: Raw): Raw {
   const out: Raw = {}
   for (const [key, value] of Object.entries(raw)) {
@@ -144,6 +160,7 @@ export async function extractMetadata(head: Uint8Array | ArrayBuffer, mimeType =
     title: str(raw.ObjectName) ?? str(raw.title) ?? str(raw.Headline),
     caption: str(raw.ImageDescription) ?? str(raw.Caption) ?? str(raw.description),
     keywords: keywords(raw),
+    people: peopleInFile(raw),
     iptc: iptcFromRaw(raw),
     label: str(raw.Label),
     raw: jsonSafe(raw),
@@ -205,6 +222,7 @@ export function normalizeAgentMetadata(input: unknown): NormalizedMetadata | nul
     title: text(m.title, 300),
     caption: text(m.caption, 5000),
     keywords: keywordList,
+    people: Array.isArray(m.people) ? m.people.filter((p): p is string => typeof p === 'string' && p.trim() !== '').map((p) => p.trim().slice(0, 120)).slice(0, 50) : [],
     iptc: typeof m.iptc === 'object' && m.iptc !== null ? clean(m.iptc as Record<string, unknown>) : {},
     label: text(m.label, 40),
     video:

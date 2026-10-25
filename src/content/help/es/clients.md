@@ -4,7 +4,7 @@ summary: "Llevar un registro de las personas y empresas para las que trabajas: d
 section: Sharing
 order: 3
 review: machine
-source: 0d751d7ee2e9
+source: e5abd5bf184b
 ---
 
 **Clientes** guarda un registro de cada persona o empresa para la que trabajas: una pareja, una familia, un negocio. Cada cliente tiene una página con sus datos de contacto y notas, las personas que inician sesión en su nombre, las galerías de cliente compartidas con esas personas, lo que descargaron y un historial de lo que ha pasado.
@@ -38,7 +38,7 @@ Cada encargo del cliente, como una boda o una sesión de retrato, es un **trabaj
 
 La página del cliente muestra todas las galerías compartidas con cualquiera de sus personas o creadas a partir de los álbumes de uno de sus trabajos: si están abiertas, cuándo se cierran, y sus visitas, favoritas y descargas. **Descargas** muestra qué descargaron, quién, en qué tamaño y desde qué galería. **Historial** muestra lo que se hizo con el cliente y sus accesos: alta, cambios, invitaciones, uniones, inicios de sesión.
 
-En **Personas**, la pestaña **Clientes** muestra a qué cliente pertenece cada acceso.
+En **Equipo → Cuentas**, la pestaña **Clientes** muestra a qué cliente pertenece cada acceso.
 
 ## Tu CRM
 

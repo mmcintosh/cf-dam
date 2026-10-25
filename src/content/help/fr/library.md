@@ -4,7 +4,7 @@ summary: "Parcourir vos photos, affiner la sélection, les noter et leur attribu
 section: Your photos
 order: 1
 review: machine
-source: 6685af550274
+source: 117881a2ecdb
 ---
 
 La **Photothèque** affiche toutes les photos et vidéos, des plus récentes aux plus anciennes, en rangées qui respectent la forme de chaque photo. Faites défiler vers le bas et appuyez sur **Charger plus** pour remonter dans le temps.
@@ -50,6 +50,7 @@ Sélectionnez des photos avec **⌘-clic** (Mac) ou **Ctrl-clic** (Windows), ou 
 - noter, attribuer un libellé, retenir ou rejeter ;
 - ajouter des mots-clés (**Taguer**) ;
 - **Ajouter à l’album…** ;
+- nommer une personne sur toutes (**Nommer une personne…**, puis **Ajouter** ou **Retirer**) : voir [Personnes sur les photos](/help/people-in-photos) ;
 - appliquer un **Préréglage…** (remplir les champs vides, ou les remplacer) : voir [Préréglages](/help/presets) ;
 - **IA…** : les analyser à nouveau, ou utiliser le texte alternatif, les légendes ou les mots-clés de l’IA là où ils sont vides : voir [Analyse par IA](/help/ai-review) ;
 - **Comparer** deux à quatre photos côte à côte (**Z** les zoome toutes ensemble) ;

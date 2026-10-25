@@ -4,7 +4,7 @@ summary: "Recorrer tus fotos, filtrarlas, valorarlas y etiquetarlas, y trabajar 
 section: Your photos
 order: 1
 review: machine
-source: 6685af550274
+source: 117881a2ecdb
 ---
 
 La **Biblioteca** muestra todas las fotos y vídeos, los más recientes primero, en filas que respetan la forma de cada foto. Desplázate hacia abajo y pulsa **Cargar más** para ver fotos más antiguas.
@@ -50,6 +50,7 @@ Selecciona fotos con **⌘-clic** (Mac) o **Ctrl-clic** (Windows), o con **Shift
 - valorarlas, ponerles etiqueta de color, elegirlas o descartarlas;
 - añadir palabras clave (**Etiquetar**);
 - **Añadir al álbum…**;
+- nombrar a una persona en todas ellas (**Nombrar a una persona…**, y luego **Añadir** o **Quitar**): consulta [Personas en las fotos](/help/people-in-photos);
 - aplicar un **Ajuste preestablecido…** (rellenar los campos vacíos o sobrescribirlos): consulta [Ajustes preestablecidos](/help/presets);
 - **IA…**: volver a analizarlas, o usar el texto alternativo, los pies de foto o las palabras clave de la IA donde estén vacíos: consulta [Revisión con IA](/help/ai-review);
 - **Comparar** de dos a cuatro fotos una junto a otra (**Z** las amplía todas a la vez);

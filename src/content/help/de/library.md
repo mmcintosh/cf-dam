@@ -4,7 +4,7 @@ summary: "Deine Fotos durchsehen, eingrenzen, bewerten und markieren, und viele 
 section: Your photos
 order: 1
 review: machine
-source: 6685af550274
+source: 117881a2ecdb
 ---
 
 Die **Bibliothek** zeigt jedes Foto und Video, das neueste zuerst, in Reihen, die die Form jedes Fotos beibehalten. Scroll nach unten und drücke **Mehr laden**, um weiter zurückzugehen.
@@ -50,6 +50,7 @@ Wähle Fotos mit **⌘-click** (Mac) oder **Ctrl-click** (Windows) aus, oder mit
 - bewerten, markieren, auswählen oder ablehnen;
 - Stichwörter hinzufügen (**Verschlagworten**);
 - **Zum Album hinzufügen**;
+- in allen eine Person benennen (**Person benennen…**, dann **Hinzufügen** oder **Entfernen**): siehe [Personen auf Fotos](/help/people-in-photos);
 - eine **Vorlage…** anwenden (leere Felder füllen oder überschreiben): siehe [Vorlagen](/help/presets);
 - **KI…**: noch einmal analysieren oder Alternativtext, Bildunterschriften oder Stichwörter der KI dort nutzen, wo sie leer sind: siehe [KI-Prüfung](/help/ai-review);
 - zwei bis vier Fotos nebeneinander **Vergleichen** (**Z** zoomt alle gemeinsam);

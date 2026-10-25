@@ -4,7 +4,7 @@ summary: "Llaves de acceso, verificación en dos pasos, tu contraseña, dónde t
 section: People and security
 order: 2
 review: machine
-source: 1f368c995355
+source: f65cab557caa
 ---
 
 Tu página **Cuenta** (el último elemento del menú) reúne todo lo relacionado con cómo inicias sesión. Ahí también está [Apariencia y accesibilidad](/help/appearance).
@@ -31,7 +31,7 @@ Si inicias sesión con contraseña, añade un segundo paso: un código de seis c
 
 No necesitas códigos cuando inicias sesión con una llave de acceso. Tu administrador puede exigir una cosa u otra a todo el mundo (consulta [Personas y funciones](/help/people-and-roles)).
 
-**¿Has perdido el teléfono y los códigos de respaldo?** Pídeselo a un administrador: en **Personas**, **Teléfono o llave de acceso perdidos** desactiva tus códigos para que puedas configurarlos de nuevo.
+**¿Has perdido el teléfono y los códigos de respaldo?** Pídeselo a un administrador: en **Equipo → Cuentas**, **Teléfono o llave de acceso perdidos** desactiva tus códigos para que puedas configurarlos de nuevo.
 
 ## Tu contraseña
 

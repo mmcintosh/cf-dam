@@ -48,6 +48,7 @@ Select photos with **⌘-click** (Mac) or **Ctrl-click** (Windows), or **Shift-c
 - rate, label, pick or reject;
 - add keywords (**Tag**);
 - **Add to album…**;
+- name a person in all of them (**Name a person…**, then **Add** or **Take off**): see [People in photos](/help/people-in-photos);
 - apply a **Preset…** (fill empty fields, or overwrite them): see [Presets](/help/presets);
 - **AI…**: analyse them again, or use the AI's alt text, captions or keywords where they're empty: see [AI review](/help/ai-review);
 - **Compare** two to four photos side by side (**Z** zooms all of them together);

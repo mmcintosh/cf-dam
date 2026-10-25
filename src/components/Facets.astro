@@ -69,6 +69,17 @@ for (const [key, prefix] of CHIPS) {
   active.push({ key, text: prefix ? t('facets.chip', { name: t(prefix), value: shown }) : shown })
 }
 
+// People named in photos (catalog/people.ts): ?person=1,2 is photos with all of them.
+const chosen = (params.get('person') ?? '').split(',').filter((v) => /^\d+$/.test(v))
+for (const id of chosen) {
+  const name = facets.named.find((p) => String(p.id) === id)?.name ?? `#${id}`
+  active.push({ key: 'person', text: t('facets.chip', { name: t('facets.person'), value: name }) })
+}
+const togglePerson = (id: number) => {
+  const next = chosen.includes(String(id)) ? chosen.filter((v) => v !== String(id)) : [...chosen, String(id)].slice(-5)
+  return link({ person: next.length ? next.join(',') : null })
+}
+
 const sections: { key: string; title: string; values: FacetValue[]; open: boolean }[] = [
   { key: 'type', title: t('facets.type'), values: facets.type, open: true },
   { key: 'flag', title: t('facets.flag'), values: facets.flag, open: true },
@@ -140,6 +151,17 @@ const rootKeywords = facets.tag
       <ul class="values">
         {ratingCounts.map((r) => (
           <li><a href={link({ rating: params.get('rating') === String(r.stars) ? null : String(r.stars) })} class:list={{ on: params.get('rating') === String(r.stars) }}><span class="stars">{r.stars < 5 ? t('facets.andUp', { stars: '★'.repeat(r.stars) }) : '★'.repeat(r.stars)}</span><span class="count">{r.count}</span></a></li>
+        ))}
+      </ul>
+    </details>
+  )}
+
+  {facets.named.length > 0 && (
+    <details open={chosen.length > 0 || facets.named.length <= 12}>
+      <summary>{t('facets.named')}</summary>
+      <ul class="values">
+        {facets.named.map((p) => (
+          <li><a href={togglePerson(p.id)} class:list={{ on: chosen.includes(String(p.id)) }}><span>{p.name}</span><span class="count">{p.count}</span></a></li>
         ))}
       </ul>
     </details>

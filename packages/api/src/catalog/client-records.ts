@@ -10,14 +10,15 @@ import { asLanguage, type Language } from '@cf-dam/i18n'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { BadRequest, optionalLink, optionalString } from '../lib/http'
+import { fold } from '../lib/fold'
 import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { clientAccount, isClientOnly, newInvite } from './clients'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Lower case without accents, so "muller" finds "Müller" (D1's LIKE folds ASCII only). */
-export const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+/** Folding names for search lives in lib/fold.ts (shared with catalog/people.ts); kept here for older imports. */
+export { fold }
 
 interface ClientRow {
   id: string

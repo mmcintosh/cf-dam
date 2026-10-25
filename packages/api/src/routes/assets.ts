@@ -25,6 +25,7 @@ import { nowIso } from '../lib/time'
 import { getConnection, providerFor, renditionStore } from '../storage/connections'
 import { originalResponse } from '../storage/original'
 import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, StorageError, type RestoreTier } from '../storage/types'
+import { personByName } from '../catalog/people'
 import { say } from '../lib/language'
 
 export const assetRoutes = new Hono<DamEnv>()
@@ -129,6 +130,14 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
         bulk = { action, people: people as PeopleChoice | 'jev', userId: principal.userId }
         break
       }
+      case 'person': {
+        // An existing person by id, or one named here (made if new).
+        let personId = typeof body.personId === 'number' && Number.isInteger(body.personId) ? body.personId : null
+        if (personId === null && typeof body.name === 'string' && principal.permissions.has('people:manage')) personId = (await personByName(c.env.DB, body.name, principal.userId)).id
+        if (personId === null) throw new BadRequest('personId or name is required.')
+        bulk = { action, personId, add: body.add !== false }
+        break
+      }
       default:
         throw new BadRequest('Unknown action.')
     }
@@ -143,7 +152,7 @@ assetRoutes.post('/bulk', requirePermission('assets:read'), async (c) => {
       if (bulk.lat !== null) await fillPlacesFromGps(c.env, ids.slice(0, MAX_BULK))
       await indexAssets(c.env.DB, ids.slice(0, MAX_BULK))
     }
-    await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed, ...(bulk.action === 'people' ? { people: bulk.people } : {}) } })
+    await logActivity(c.env.DB, { userId: principal.userId, action: `asset.bulk_${bulk.action}`, targetType: 'asset', details: { count: changed, ...(bulk.action === 'people' ? { people: bulk.people } : {}), ...(bulk.action === 'person' ? { add: bulk.add } : {}) } })
     return c.json({ changed })
   } catch (error) {
     return storageFailure(c, error)

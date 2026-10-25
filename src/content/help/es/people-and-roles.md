@@ -4,12 +4,12 @@ summary: "Invitar a compañeros, qué puede hacer cada función y cómo ayudar a
 section: People and security
 order: 1
 review: machine
-source: b3c8c9bd073d
+source: c9f289e6cc60
 ---
 
 Cada persona que inicia sesión en cf-dam tiene su propia cuenta y una **función** que decide lo que puede hacer.
 
-Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde una galería o desde la página de un cliente en **Clientes**, no desde aquí, y aparecen aparte, en la pestaña **Clientes** de **Personas**, que tiene un buscador como la pestaña **Equipo** y muestra a qué cliente pertenece cada acceso. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries) y [Clientes](/help/clients).
+Los **clientes** son distintos: solo ven las galerías de cliente a las que los invitas, nada más. Los invitas desde una galería o desde la página de un cliente en **Clientes**, no desde aquí, y aparecen aparte, en la pestaña **Clientes** de **Cuentas**, que tiene un buscador como la pestaña **Equipo** y muestra a qué cliente pertenece cada acceso. A un cliente también puedes enviarle solo un enlace, sin cuenta. Consulta [Galerías de clientes](/help/client-galleries) y [Clientes](/help/clients).
 
 ## Las funciones
 
@@ -27,13 +27,13 @@ Los **clientes** son distintos: solo ven las galerías de cliente a las que los 
 
 ## Añadir a alguien
 
-En **Personas**, pulsa **Añadir persona** e indica su **Nombre**, su **Correo electrónico**, una **Contraseña temporal** y una **Función**. Pulsa **Crear** y luego dile la dirección de tu cf-dam y la contraseña temporal (en persona o por teléfono es lo más seguro). La primera vez que inicie sesión, se le pedirá que elija su propia contraseña.
+En **Equipo → Cuentas**, pulsa **Añadir persona** e indica su **Nombre**, su **Correo electrónico**, una **Contraseña temporal** y una **Función**. Pulsa **Crear** y luego dile la dirección de tu cf-dam y la contraseña temporal (en persona o por teléfono es lo más seguro). La primera vez que inicie sesión, se le pedirá que elija su propia contraseña.
 
 Cuando este archivo puede enviar correos (consulta [Correo](/help/email)), deja marcado **Enviarles por correo un enlace para elegir su contraseña** en su lugar: no hay ninguna contraseña temporal, la persona recibe un enlace que funciona una vez, durante 72 horas, y nadie más conoce nunca su contraseña. El enlace también se muestra en la página por si el correo no llega.
 
 ## Verificación en dos pasos para todos
 
-Arriba en **Personas**, **Verificación en dos pasos → Obligatoria para** puede ser **Nadie**, **Administradores** o **Todo el equipo** (a los clientes nunca se les obliga, aunque pueden activarla ellos mismos). Quienes deban tenerla y no la tengan tendrán que configurar una llave de acceso o una app de autenticación antes de poder hacer nada más. **Todo el equipo** es la opción más segura. Consulta [Tu cuenta y el inicio de sesión](/help/account-security).
+Arriba en **Cuentas**, **Verificación en dos pasos → Obligatoria para** puede ser **Nadie**, **Administradores** o **Todo el equipo** (a los clientes nunca se les obliga, aunque pueden activarla ellos mismos). Quienes deban tenerla y no la tengan tendrán que configurar una llave de acceso o una app de autenticación antes de poder hacer nada más. **Todo el equipo** es la opción más segura. Consulta [Tu cuenta y el inicio de sesión](/help/account-security).
 
 ## Ayudar a alguien
 

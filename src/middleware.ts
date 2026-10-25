@@ -30,6 +30,7 @@ const PAGE_PERMISSIONS: [string, string][] = [
   ['/settings/email', 'settings:manage'],
   ['/sources', 'sources:manage'],
   ['/albums', 'assets:read'],
+  ['/people', 'assets:read'],
   ['/assets', 'assets:read'],
   ['/map', 'assets:read'],
   ['/duplicates', 'assets:read'],

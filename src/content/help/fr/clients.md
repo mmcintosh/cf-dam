@@ -4,7 +4,7 @@ summary: "Garder une trace des personnes et des entreprises pour qui vous travai
 section: Sharing
 order: 3
 review: machine
-source: 0d751d7ee2e9
+source: e5abd5bf184b
 ---
 
 **Clients** garde une trace de chaque personne ou entreprise pour qui vous travaillez : un couple, une famille, une société. Chaque client a une page avec ses coordonnées et des notes, les personnes qui se connectent pour lui, les galeries clients partagées avec ces personnes, ce qu’elles ont téléchargé, et l’historique de ce qui s’est passé.
@@ -38,7 +38,7 @@ Chaque prestation pour le client, comme un mariage ou une séance portrait, est 
 
 La page du client liste chaque galerie partagée avec l’une de ses personnes ou créée à partir des albums d’un de ses travaux : si elle est ouverte, quand elle ferme, et ses ouvertures, favoris et téléchargements. **Téléchargements** montre ce qui a été téléchargé, par qui, dans quelle taille et depuis quelle galerie. **Historique** montre ce qui a été fait pour le client et ses comptes : ajout, modification, invitation, inscription, connexion.
 
-Sur **Personnes**, l’onglet **Clients** indique à quel client appartient chaque compte.
+Sur **Équipe → Comptes**, l’onglet **Clients** indique à quel client appartient chaque compte.
 
 ## Votre CRM
 
