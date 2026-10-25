@@ -4,7 +4,7 @@ summary: "Cos’è cf-dam, com’è organizzato e le prime cose da fare."
 section: Getting started
 order: 1
 review: machine
-source: e15f8c49ab6f
+source: c79f2fb88a23
 ---
 
 cf-dam è un archivio privato per le tue foto (e i tuoi video). Tiene un catalogo di tutto ciò che hai: cosa mostra ogni foto, quando e dove è stata scattata, chi c’è dentro, quali parole chiave ha e dove si trova il file originale. Così trovi qualsiasi foto in pochi secondi, ne condividi alcune con un cliente e tieni al sicuro gli originali nello spazio di archiviazione che preferisci.
@@ -19,7 +19,7 @@ Il menu a sinistra ti porta in ogni sezione:
 | --- | --- |
 | **Libreria** | Tutte le foto, dalla più recente, con i filtri di lato. |
 | **Album** | Foto che hai raggruppato a mano. |
-| **Gallerie clienti** | Album condivisi con i clienti tramite un link privato. |
+| **Lavoro per i clienti** | Lavori, clienti e gallerie clienti, con una scheda per ciascuno in alto. Le gallerie clienti sono album condivisi tramite un link privato. |
 | **Parole chiave** | Il tuo elenco di parole chiave: rinominale, uniscile e mettile in ordine. |
 | **Preimpostazioni** | Insiemi pronti di credito, copyright e contatti da aggiungere alle foto. |
 | **Duplicati** | File identici e foto simili, con un suggerimento su quale tenere. |

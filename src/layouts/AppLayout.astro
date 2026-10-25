@@ -24,17 +24,26 @@ const path = Astro.url.pathname
 interface NavItem {
   href: string
   label: string
-  icon: string
+  /** 24×24 stroke paths; tabs inside a group have none. */
+  icon?: string
   soon?: string
   needs?: string
+  children?: NavItem[]
 }
-// Icons are 24×24 stroke paths.
 const nav: NavItem[] = [
   { href: '/', label: t('nav.library'), icon: 'M4 5h16v14H4z M4 15l4.5-4.5 4 4 2.5-2.5L20 17' },
   { href: '/albums', label: t('nav.albums'), icon: 'M5 7h14v12H5z M8 4h8' },
-  { href: '/clients', label: t('nav.clients'), icon: 'M5 4h12v16H5z M11 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M7.5 16.5c.6-1.7 1.9-2.6 3.5-2.6s2.9.9 3.5 2.6 M19 7v2 M19 12v2', needs: 'clients:manage' },
-  { href: '/jobs', label: t('nav.jobs'), icon: 'M4 8h16v11H4z M9 8V5h6v3 M4 13h16', needs: 'clients:manage' },
-  { href: '/galleries', label: t('nav.galleries'), icon: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1', needs: 'shares:manage' },
+  {
+    href: '/jobs',
+    label: t('nav.clientWork'),
+    icon: 'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',
+    // Jobs, clients and their galleries are one part of the app, with tabs along the top.
+    children: [
+      { href: '/jobs', label: t('nav.jobs'), needs: 'clients:manage' },
+      { href: '/clients', label: t('nav.clients'), needs: 'clients:manage' },
+      { href: '/galleries', label: t('nav.galleries'), needs: 'shares:manage' },
+    ],
+  },
   { href: '/keywords', label: t('nav.keywords'), icon: 'M3 12V4h8l9 9-8 8z M7.5 7.5h.01', needs: 'assets:read' },
   { href: '/presets', label: t('nav.presets'), icon: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5', needs: 'assets:read' },
   { href: '/duplicates', label: t('nav.duplicates'), icon: 'M8 8h11v11H8z M5 16V5h11' },
@@ -56,7 +65,17 @@ const clientNav: NavItem[] = [
 ]
 const helpPage = client ? 'for-clients' : help
 const preferences = Astro.locals.preferences ?? (await getPreferences(env.DB, principal.userId))
-const visible = client ? clientNav : nav.filter((item) => !item.needs || principal.permissions.has(item.needs))
+const allowed = (item: NavItem) => !item.needs || principal.permissions.has(item.needs)
+// A group shows when any of its pages may be seen, and opens the first of them.
+const visible = client
+  ? clientNav
+  : nav.flatMap((item) => {
+      if (!item.children) return allowed(item) ? [item] : []
+      const children = item.children.filter(allowed)
+      return children.length > 0 ? [{ ...item, href: children[0]!.href, children }] : []
+    })
+const isActive = (item: NavItem): boolean => (item.children ? item.children.some(isActive) : item.href === '/' ? path === '/' : path.startsWith(item.href))
+const section = visible.find((item) => item.children && isActive(item))
 // Problems that need someone, for those who see alerts: one small query.
 const alerts = principal.permissions.has('alerts:read') ? await alertCount(env.DB).catch(() => 0) : 0
 const initials = (principal.name || principal.email)
@@ -72,7 +91,7 @@ const initials = (principal.name || principal.email)
       <a class="brand" href={client ? '/my-galleries' : '/'}><Logo /><span>cf-dam</span></a>
       <nav>
         {visible.map((item) => {
-          const active = item.href === '/' ? path === '/' : path.startsWith(item.href)
+          const active = isActive(item)
           return item.soon ? (
             <span class="nav-item disabled" title={t('nav.comingIn', { phase: item.soon })}>
               <svg viewBox="0 0 24 24"><path d={item.icon} /></svg>
@@ -112,6 +131,13 @@ const initials = (principal.name || principal.email)
       })
     </script>
     <main class:list={["content", { wide }]} id="main" tabindex="-1">
+      {section && (
+        <nav class="section-tabs" aria-label={section.label}>
+          {section.children!.map((tab) => (
+            <a class:list={{ on: isActive(tab) }} href={tab.href} aria-current={isActive(tab) ? 'page' : undefined}>{tab.label}</a>
+          ))}
+        </nav>
+      )}
       <header class="page-head">
         <div>
           <h1>
@@ -292,6 +318,28 @@ const initials = (principal.name || principal.email)
   }
   .skip:focus {
     top: 12px;
+  }
+  .section-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: -8px 0 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-tabs a {
+    padding: 8px 14px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .section-tabs a:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .section-tabs a.on {
+    color: var(--text);
+    border-bottom-color: var(--accent);
   }
   .page-head {
     display: flex;

@@ -17,7 +17,7 @@ The menu on the left takes you to each part:
 | --- | --- |
 | **Library** | Every photo, newest first, with filters down the side. |
 | **Albums** | Photos you've grouped by hand. |
-| **Client galleries** | Albums shared with clients through a private link. |
+| **Client work** | Jobs, clients and client galleries, with a tab for each along the top. Client galleries are albums shared through a private link. |
 | **Keywords** | Your keyword list: rename, merge and tidy it. |
 | **Presets** | Ready-made sets of credit, copyright and contact details to add to photos. |
 | **Duplicates** | Identical files and look-alikes, with a suggestion of which to keep. |

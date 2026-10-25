@@ -4,10 +4,10 @@ summary: "Seguir cada trabajo para un cliente desde la reserva hasta la entrega:
 section: Sharing
 order: 4
 review: machine
-source: 3c44ab054383
+source: 845d2cf93cb4
 ---
 
-Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** está en el menú, debajo de **Clientes**; como los clientes, solo lo ven los **administradores**.
+Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** es la primera pestaña de **Trabajo con clientes** en el menú, junto a **Clientes** y **Galerías de clientes**; como los clientes, solo lo ven los **administradores**.
 
 ## Crear un trabajo
 

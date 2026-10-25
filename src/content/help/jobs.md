@@ -5,7 +5,7 @@ section: Sharing
 order: 4
 ---
 
-A **job** is one piece of work for a client: a wedding, a portrait session, a product shoot. It keeps the shoot dates, the place, where the work has got to, and its albums. Its galleries are its albums' galleries. **Jobs** is in the menu, under **Clients**; like clients, only **administrators** see it.
+A **job** is one piece of work for a client: a wedding, a portrait session, a product shoot. It keeps the shoot dates, the place, where the work has got to, and its albums. Its galleries are its albums' galleries. **Jobs** is the first tab of **Client work** in the menu, beside **Clients** and **Client galleries**; like clients, only **administrators** see it.
 
 ## Making a job
 

@@ -4,10 +4,10 @@ summary: "Jede Arbeit für einen Kunden von der Buchung bis zur Lieferung verfol
 section: Sharing
 order: 4
 review: machine
-source: 3c44ab054383
+source: 845d2cf93cb4
 ---
 
-Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** steht im Menü unter **Kunden**; wie Kunden sehen das nur **Administratoren**.
+Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** ist der erste Reiter von **Kundenarbeit** im Menü, neben **Kunden** und **Kundengalerien**; wie Kunden sehen das nur **Administratoren**.
 
 ## Einen Auftrag anlegen
 

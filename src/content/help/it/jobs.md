@@ -4,10 +4,10 @@ summary: "Seguire ogni lavoro per un cliente dalla prenotazione alla consegna: d
 section: Sharing
 order: 4
 review: machine
-source: 3c44ab054383
+source: 845d2cf93cb4
 ---
 
-Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è nel menu, sotto **Clienti**; come per i clienti, lo vedono solo gli **amministratori**.
+Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è la prima scheda di **Lavoro per i clienti** nel menu, accanto a **Clienti** e **Gallerie clienti**; come per i clienti, lo vedono solo gli **amministratori**.
 
 ## Creare un lavoro
 

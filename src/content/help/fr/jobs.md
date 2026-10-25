@@ -4,10 +4,10 @@ summary: "Suivre chaque travail pour un client, de la réservation à la livrais
 section: Sharing
 order: 4
 review: machine
-source: 3c44ab054383
+source: 845d2cf93cb4
 ---
 
-Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** se trouve dans le menu, sous **Clients** ; comme les clients, seuls les **administrateurs** le voient.
+Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** est le premier onglet de **Travail client** dans le menu, à côté de **Clients** et **Galeries clients** ; comme les clients, seuls les **administrateurs** le voient.
 
 ## Créer un travail
 

@@ -1328,6 +1328,7 @@ export type MessageKey =
   | 'nav.albums'
   | 'nav.alerts'
   | 'nav.alertsOpen'
+  | 'nav.clientWork'
   | 'nav.clients'
   | 'nav.comingIn'
   | 'nav.duplicates'
