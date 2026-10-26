@@ -303,7 +303,11 @@ describe.skipIf(!s3Endpoint)('an S3 connection (against a real S3-compatible ser
     expect(res.status).toBe(200)
     expect(res.headers.get('location')).toBeNull()
     expect(res.headers.get('content-disposition')).toContain('filename="smith-wedding-001.jpg"')
-    expect(new Uint8Array(await res.arrayBuffer())).toEqual(camera)
+    // Cleaned on the way out (storage/clean.ts): the same picture, without the GPS.
+    const sent = new Uint8Array(await res.arrayBuffer())
+    const sharp = (await import('sharp')).default
+    expect(await sharp(sent).raw().toBuffer()).toEqual(await sharp(camera).raw().toBuffer())
+    expect(await (await import('exifr')).default.gps(sent)).toBeUndefined()
   })
 
   it('won’t remove a connection that holds originals, and won’t offer classes it lacks', async () => {
