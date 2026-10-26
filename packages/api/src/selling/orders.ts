@@ -15,12 +15,14 @@ import { randomId, sha256Hex } from '../lib/crypto'
 import { BadRequest } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { getAsset, getLocations, reachableForClient } from '../catalog/assets'
-import { inGallery, type ShareRow } from '../catalog/shares'
+import { GALLERY_ORDER, galleryNumber, type ShareRow } from '../catalog/shares'
+import { say } from '../lib/language'
 import { CURRENCIES, getPaymentSecret, getPaymentSettings, keyMode } from './settings'
 import { sessionPaymentIntent, stripe, type CheckoutSession } from './stripe'
 
 export const SIZES = ['small', 'large', 'full'] as const
 export type SaleSize = (typeof SIZES)[number]
+const SIZE_NAMES = { small: 'gallery.size.small', large: 'gallery.size.large', full: 'gallery.buy.full' } as const
 
 export interface PriceList {
   id: string
@@ -127,28 +129,35 @@ export async function startCheckout(
   if (!store || !key) throw new BadRequest('This gallery sells nothing.')
   const settings = await getPaymentSettings(db)
 
-  // What's being bought, at today's prices.
-  let items: { assetId: string; filename: string; size: SaleSize; amount: number }[]
+  // What's being bought, at today's prices. The buyer sees a photo by its real name only when the gallery shows
+  // filenames; otherwise as "Photo 42", its place in the gallery (n), also on Stripe's page and receipt.
+  const showFilenames = share.show_filenames === 1
+  const label = (filename: string) => (showFilenames ? filename : null)
+  let items: { assetId: string; filename: string; n: number; label: string | null; size: SaleSize; amount: number }[]
   let lines: Record<string, unknown>[]
   if ('all' in request) {
     if (store.prices.all === null) throw new BadRequest('The whole gallery isn’t for sale.')
-    // The real filenames (the gallery may hide them), photos only.
-    const { results: photos } = await db
-      .prepare("SELECT a.id, a.filename FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = ? AND a.mime_type NOT LIKE 'video/%' ORDER BY ai.position LIMIT 2000")
+    // In the gallery's order, numbered as the gallery shows them (videos count), then photos only.
+    const { results: shown } = await db
+      .prepare(`SELECT a.id, a.filename, a.mime_type FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = ? ORDER BY ${GALLERY_ORDER} LIMIT 2000`)
       .bind(share.album_id)
-      .all<{ id: string; filename: string }>()
+      .all<{ id: string; filename: string; mime_type: string }>()
+    const photos = shown.map((p, i) => ({ ...p, n: i + 1 })).filter((p) => !p.mime_type.startsWith('video/'))
     if (photos.length === 0) throw new BadRequest('Nothing to buy.')
     // Every photo at Large (or Small), for one price; the order lists each file.
     const size: SaleSize = store.prices.large !== null || share.download_sizes.includes('large') ? 'large' : 'small'
-    items = photos.map((p, i) => ({ assetId: p.id, filename: p.filename, size, amount: i === 0 ? store.prices.all! : 0 }))
+    items = photos.map((p, i) => ({ assetId: p.id, filename: p.filename, n: p.n, label: label(p.filename), size, amount: i === 0 ? store.prices.all! : 0 }))
     lines = [{ quantity: 1, price_data: { currency: store.currency, unit_amount: store.prices.all, product_data: { name: `${share.title || share.name}: ${photos.length} photos`, metadata: { kind: 'all' } } } }]
   } else {
     const amount = store.prices[request.size]
     if (amount === null || amount === undefined) throw new BadRequest('That size isn’t for sale.')
-    if (!(await inGallery(db, share, request.assetId)) || !(await sellable(env, request.assetId, request.size))) throw new BadRequest('That photo can’t be bought at that size.')
+    const n = await galleryNumber(db, share, request.assetId)
+    if (n === null || !(await sellable(env, request.assetId, request.size))) throw new BadRequest('That photo can’t be bought at that size.')
     const asset = (await getAsset(db, request.assetId))!
-    items = [{ assetId: asset.id, filename: asset.filename, size: request.size, amount }]
-    lines = [{ quantity: 1, price_data: { currency: store.currency, unit_amount: amount, product_data: { name: `${asset.title || asset.filename} (${request.size})`, metadata: { kind: request.size } } } }]
+    items = [{ assetId: asset.id, filename: asset.filename, n, label: label(asset.filename), size: request.size, amount }]
+    // In the gallery's language (the gallery route set it): "Photo 42 · Large (2048 px)".
+    const name = `${label(asset.filename) ?? say('order.photoN', { n })} · ${say(SIZE_NAMES[request.size])}`
+    lines = [{ quantity: 1, price_data: { currency: store.currency, unit_amount: amount, product_data: { name, metadata: { kind: request.size } } } }]
   }
 
   const orderId = randomId()
@@ -164,8 +173,9 @@ export async function startCheckout(
       .bind(orderId, share.id, share.title || share.name, share.token, buyer, store.currency, subtotal, await sha256Hex(linkKey), now, now),
     db
       .prepare(
-        `INSERT INTO order_items (id, order_id, asset_id, filename, size, unit_amount)
-         SELECT lower(hex(randomblob(16))), ?, json_extract(j.value, '$.assetId'), json_extract(j.value, '$.filename'), json_extract(j.value, '$.size'), json_extract(j.value, '$.amount')
+        `INSERT INTO order_items (id, order_id, asset_id, filename, n, label, size, unit_amount)
+         SELECT lower(hex(randomblob(16))), ?, json_extract(j.value, '$.assetId'), json_extract(j.value, '$.filename'), json_extract(j.value, '$.n'),
+                json_extract(j.value, '$.label'), json_extract(j.value, '$.size'), json_extract(j.value, '$.amount')
          FROM json_each(?) j`,
       )
       .bind(orderId, JSON.stringify(items)),
@@ -297,16 +307,23 @@ export interface OrderView {
   email: string | null
   createdAt: string
   paidAt: string | null
-  items: { id: string; filename: string; size: string; amount: number; refunded: boolean; assetId: string | null }[]
+  /**
+   * label: the real filename, only if the gallery showed filenames when this was bought; otherwise the buyer sees
+   * "Photo {n}". filename: for the team only (never in what the buyer's order link returns).
+   */
+  items: { id: string; label: string | null; n: number | null; filename?: string; size: string; amount: number; refunded: boolean; assetId: string | null }[]
 }
 
-async function orderJson(db: D1Database, id: string): Promise<OrderView | null> {
+async function orderJson(db: D1Database, id: string, team: boolean): Promise<OrderView | null> {
   const order = await db
     .prepare('SELECT id, status, gallery_name, share_token, currency, amount_total, amount_subtotal, email, created_at, paid_at FROM orders WHERE id = ?')
     .bind(id)
     .first<{ id: string; status: string; gallery_name: string; share_token: string | null; currency: string; amount_total: number | null; amount_subtotal: number; email: string | null; created_at: string; paid_at: string | null }>()
   if (!order) return null
-  const { results } = await db.prepare('SELECT id, filename, size, unit_amount, refunded_at, asset_id FROM order_items WHERE order_id = ? ORDER BY filename').bind(id).all<{ id: string; filename: string; size: string; unit_amount: number; refunded_at: string | null; asset_id: string | null }>()
+  const { results } = await db
+    .prepare('SELECT id, filename, n, label, size, unit_amount, refunded_at, asset_id FROM order_items WHERE order_id = ? ORDER BY n, filename')
+    .bind(id)
+    .all<{ id: string; filename: string; n: number | null; label: string | null; size: string; unit_amount: number; refunded_at: string | null; asset_id: string | null }>()
   return {
     id: order.id,
     status: order.status,
@@ -318,7 +335,16 @@ async function orderJson(db: D1Database, id: string): Promise<OrderView | null> 
     email: order.email,
     createdAt: order.created_at,
     paidAt: order.paid_at,
-    items: results.map((r) => ({ id: r.id, filename: r.filename, size: r.size, amount: r.unit_amount, refunded: r.refunded_at !== null, assetId: r.asset_id })),
+    items: results.map((r) => ({
+      id: r.id,
+      label: r.label,
+      n: r.n,
+      ...(team ? { filename: r.filename } : {}),
+      size: r.size,
+      amount: r.unit_amount,
+      refunded: r.refunded_at !== null,
+      assetId: r.asset_id,
+    })),
   }
 }
 
@@ -327,10 +353,11 @@ export async function orderByLink(db: D1Database, id: string, key: string): Prom
   if (!/^[0-9a-f]{32}$/.test(id) || !/^[0-9a-f]{64}$/.test(key)) return null
   const row = await db.prepare('SELECT link_hash FROM orders WHERE id = ?').bind(id).first<{ link_hash: string }>()
   if (!row || row.link_hash !== (await sha256Hex(key))) return null
-  return orderJson(db, id)
+  return orderJson(db, id, false)
 }
 
-export const getOrder = orderJson
+/** An order for the team (Orders tab), with each photo's real filename. */
+export const getOrder = (db: D1Database, id: string) => orderJson(db, id, true)
 
 /** Orders for the Orders tab, newest first, by status. */
 export async function listOrders(db: D1Database, status?: string): Promise<(Omit<OrderView, 'items'> & { name: string | null; photos: number; problem: string | null })[]> {

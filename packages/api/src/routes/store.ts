@@ -7,7 +7,7 @@
 import { Hono, type Context } from 'hono'
 import type { DamEnv, DamBindings } from '../env'
 import { getAsset, getLocations, reachableForClient } from '../catalog/assets'
-import { JPEG_LONG_EDGE } from '../catalog/shares'
+import { clientFileBase, JPEG_LONG_EDGE } from '../catalog/shares'
 import { galleryImage } from '../catalog/watermark'
 import { nowIso } from '../lib/time'
 import { chargeChanged, fulfil, orderByLink } from '../selling/orders'
@@ -26,19 +26,36 @@ storeRoutes.use('/orders/*', async (c, next) => {
   c.res.headers.set('Cache-Control', 'private, no-store')
 })
 
-/** The file an order item bought, made the same way whether reached by the order link or the buyer's cookie. */
-export async function deliverItem(c: Context<DamEnv>, item: { asset_id: string | null; size: string; filename: string }): Promise<Response> {
+export interface BoughtItem {
+  asset_id: string | null
+  size: string
+  filename: string
+  /** Set at checkout (migration 0061): the real filename if the gallery showed filenames, and the photo's place. */
+  label: string | null
+  n: number | null
+  gallery_name: string
+}
+
+/** The columns `deliverItem` needs, from order_items `i` joined to orders `o`. */
+export const BOUGHT_ITEM_COLUMNS = 'i.asset_id, i.size, i.filename, i.label, i.n, o.gallery_name'
+
+/**
+ * The file an order item bought, made the same way whether reached by the order link or the buyer's cookie. Named as
+ * the buyer saw it: the real filename only if the gallery showed filenames, otherwise "smith-wedding-042".
+ */
+export async function deliverItem(c: Context<DamEnv>, item: BoughtItem): Promise<Response> {
   if (!item.asset_id) return c.json({ error: 'gone', message: 'This photo is no longer in the archive. Ask the photographer.' }, 410)
   const env: DamBindings = c.env
   const asset = await getAsset(env.DB, item.asset_id)
   if (!asset) return c.json({ error: 'gone' }, 410)
-  const base = item.filename.replace(/\.[^.]*$/, '') || 'photo'
+  const base = clientFileBase({ title: item.gallery_name, showFilenames: item.label !== null }, item.label ?? item.filename, item.n)
   if (item.size === 'full') {
     const { results: nas } = await env.DB.prepare("SELECT id FROM storage_connections WHERE provider = 'nas'").all<{ id: string }>()
     const location = reachableForClient(await getLocations(env.DB, asset.id), new Set(nas.map((n) => n.id)))
     if (!location) return c.json({ error: 'unavailable', message: 'The original is being brought back from storage. Try again later or ask the photographer.' }, 409)
     try {
-      return (await originalResponse(env, c.req.raw, asset, location)) ?? c.json({ error: 'unavailable' }, 409)
+      const downloadName = base + (/\.[^.]*$/.exec(asset.filename)?.[0] ?? '')
+      return (await originalResponse(env, c.req.raw, asset, location, { downloadName, presign: false })) ?? c.json({ error: 'unavailable' }, 409)
     } catch (error) {
       if (error instanceof StorageError) return c.json({ error: 'unavailable' }, 502)
       throw error
@@ -70,7 +87,9 @@ storeRoutes.get('/orders/:id/items/:itemId', async (c) => {
   const order = await orderByLink(c.env.DB, c.req.param('id'), c.req.query('k') ?? '')
   if (!order) return c.json({ error: 'not_found' }, 404)
   if (order.status !== 'paid') return c.json({ error: 'not_paid', message: 'This order isn’t paid, or was refunded.' }, 403)
-  const item = await c.env.DB.prepare('SELECT asset_id, size, filename, refunded_at FROM order_items WHERE id = ? AND order_id = ?').bind(c.req.param('itemId'), order.id).first<{ asset_id: string | null; size: string; filename: string; refunded_at: string | null }>()
+  const item = await c.env.DB.prepare(`SELECT ${BOUGHT_ITEM_COLUMNS}, i.refunded_at FROM order_items i JOIN orders o ON o.id = i.order_id WHERE i.id = ? AND i.order_id = ?`)
+    .bind(c.req.param('itemId'), order.id)
+    .first<BoughtItem & { refunded_at: string | null }>()
   if (!item || item.refunded_at) return c.json({ error: 'not_found' }, 404)
   return deliverItem(c, item)
 })

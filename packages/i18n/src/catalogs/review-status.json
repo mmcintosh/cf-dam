@@ -9602,6 +9602,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "order.photo": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "order.photoN": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "order.refunded": {
     "es": "machine",
     "de": "machine",
@@ -11744,6 +11756,12 @@
     "it": "machine"
   },
   "share.showFilenames": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.showFilenamesHint": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

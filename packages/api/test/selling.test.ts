@@ -91,6 +91,28 @@ const gallery = async (cookie?: string) => (await (await h.fetch(`/api/public/ga
 const checkout = (body: Record<string, unknown>, cookie?: string) => h.fetch(`/api/public/galleries/${share.token}/checkout`, { ...json(body), ...(cookie ? { cookie } : {}) })
 
 describe('paid digital downloads (plans/PLAN-SELL-v2.md S1)', () => {
+  it('names a bought photo as the buyer saw it: "Photo 2" when the gallery hides filenames, the real name for the team', async () => {
+    expect((await h.fetch(`/api/shares/${share.id}`, { method: 'PATCH', body: JSON.stringify({ showFilenames: false }), cookie: admin })).status).toBe(200)
+    const res = await checkout({ assetId: ids[1], size: 'large' })
+    const { orderId } = (await res.json()) as { orderId: string }
+    expect(fake.created[0]!.get('line_items[0][price_data][product_data][name]')).toBe('Photo 2 · Large (2048 px)')
+    const k = new URL(fake.created[0]!.get('success_url')!).searchParams.get('k')!
+    fake.pay('cs_test_1')
+    const order = ((await (await h.fetch(`/api/public/orders/${orderId}?k=${k}`)).json()) as { order: { items: Record<string, unknown>[] } }).order
+    expect(order.items[0]).toMatchObject({ label: null, n: 2, size: 'large' })
+    expect(order.items[0]).not.toHaveProperty('filename')
+    expect(JSON.stringify(order)).not.toContain('b.jpg')
+    const file = await h.fetch(`/api/public/orders/${orderId}/items/${order.items[0]!.id}?k=${k}`)
+    expect(file.headers.get('content-disposition')).toContain('filename="your-wedding-002-large.jpg"')
+    const team = ((await (await h.fetch(`/api/payments/orders/${orderId}`, { cookie: admin })).json()) as { order: { items: { filename: string }[] } }).order
+    expect(team.items[0]!.filename).toBe('b.jpg')
+
+    // With filenames shown, the buyer sees and gets the real name.
+    expect((await h.fetch(`/api/shares/${share.id}`, { method: 'PATCH', body: JSON.stringify({ showFilenames: true }), cookie: admin })).status).toBe(200)
+    await checkout({ assetId: ids[0], size: 'small' })
+    expect(fake.created[1]!.get('line_items[0][price_data][product_data][name]')).toBe('a.jpg · Small (1024 px)')
+  })
+
   it('sells a photo at the price list’s price, and unlocks it only once Stripe says it’s paid', async () => {
     expect((await gallery()).store).toEqual({ currency: 'usd', prices: { small: 500, large: 1500, full: 3000, all: 20000 } })
     const res = await checkout({ assetId: ids[0], size: 'large', amount: 1 })

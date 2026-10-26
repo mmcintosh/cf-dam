@@ -252,6 +252,7 @@
         <legend class="label">{t('share.options')}</legend>
         <label class="check"><input type="checkbox" bind:checked={draft.proofing} /> {t('share.proofing')}</label>
         <label class="check"><input type="checkbox" bind:checked={draft.showFilenames} /> {t('share.showFilenames')}</label>
+        {#if !draft.showFilenames}<p class="muted small">{t('share.showFilenamesHint')}</p>{/if}
         {#if inJob}
           <label class="check"><input type="checkbox" bind:checked={draft.finalDelivery} /> {t('share.finalDelivery')} <span class="muted small">{t('share.finalDeliveryLead')}</span></label>
         {/if}

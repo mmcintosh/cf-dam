@@ -403,7 +403,7 @@ assetRoutes.get('/:id/original', requirePermission('assets:read'), async (c) => 
     return c.json({ error: 'archived', message: say('err.archived'), storageClass: location.storage_class }, 409)
   }
   try {
-    return (await originalResponse(c.env, c.req.raw, asset, location)) ?? c.json({ error: 'not_found' }, 404)
+    return (await originalResponse(c.env, c.req.raw, asset, location, { downloadName: asset.filename, presign: true })) ?? c.json({ error: 'not_found' }, 404)
   } catch (error) {
     return storageFailure(c, error)
   }

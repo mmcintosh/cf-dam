@@ -4,7 +4,7 @@ summary: "Partager un album avec un client par un lien privé ou en l’invitant
 section: Sharing
 order: 1
 review: machine
-source: 2d92bffd9371
+source: 0a381deb5a0c
 ---
 
 Une **galerie client** montre un album à quelqu’un d’extérieur à votre équipe : un couple qui choisit ses photos de mariage, un directeur artistique qui sélectionne des images, une famille qui télécharge des tirages. Vous lui envoyez un lien ; il ne voit que cet album, rien d’autre de vos archives.
@@ -23,7 +23,7 @@ Le plus rapide : sélectionnez des photos dans la **Photothèque** et choisissez
    - **Téléchargements :** les tailles qu’il peut télécharger, le cas échéant (petit JPEG, grand JPEG, l’original).
    - **Filigrane** : affiche votre filigrane sur tout ce qu’il voit et télécharge (définissez-en un d’abord : voir plus bas).
    - **Les clients peuvent choisir des favoris :** active la sélection (voir plus bas).
-   - **Afficher les noms de fichier :** affiche le nom de fichier de chaque photo, pratique pour commander des tirages par numéro.
+   - **Afficher les noms de fichier :** affiche le nom de fichier de chaque photo, pratique pour commander des tirages par numéro. Désactivé, les téléchargements portent à la place le nom de la galerie et un numéro (voir [Ce que reçoivent les clients](/help/what-clients-receive)).
    - **Livraison finale** (seulement pour un album qui fait partie d’un travail) : ce sont les photos terminées. Créer le lien fait passer le travail à **Livré** (voir [Travaux](/help/jobs)).
 4. Appuyez sur **Créer le lien**, puis sur **Copier le lien**, et envoyez-le.
 

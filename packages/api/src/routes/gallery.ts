@@ -13,6 +13,8 @@ import {
   cookieHeader,
   downloadSizes,
   galleryItems,
+  clientFileBase,
+  galleryNumber,
   inGallery,
   isDownloadSize,
   JPEG_LONG_EDGE,
@@ -39,7 +41,7 @@ import { originalResponse } from '../storage/original'
 import { notifyFinished } from '../mail/gallery-mail'
 import { buyerOrders, galleryStore, SIZES, startCheckout, type CheckoutRequest, type SaleSize } from '../selling/orders'
 import { StripeError } from '../selling/stripe'
-import { deliverItem } from './store'
+import { deliverItem, BOUGHT_ITEM_COLUMNS, type BoughtItem } from './store'
 import { randomId } from '../lib/crypto'
 
 export const galleryRoutes = new Hono<DamEnv>()
@@ -106,6 +108,8 @@ galleryRoutes.get('/:token', async (c) => {
   const gallery = await access(c)
   if (gallery instanceof Response) return gallery
   await recordEvent(c.env.DB, gallery.share, { kind: 'open', visitorId: gallery.visitor?.id })
+  // Differs by who's asking (picks, purchases, and later the people shown to the couple): never stored by a cache.
+  c.header('Cache-Control', 'private, no-store')
   return c.json(await galleryPage(c.env, c.req.raw, gallery.share, gallery.visitor, gallery.member))
 })
 
@@ -156,11 +160,11 @@ galleryRoutes.get('/:token/purchases/:orderId/:itemId', async (c) => {
   const buyer = readCookies(c.req.raw).get(buyerCookieName(gallery.share.id))
   if (!buyer) return c.json({ error: 'not_found' }, 404)
   const item = await c.env.DB.prepare(
-    `SELECT i.asset_id, i.size, i.filename FROM order_items i JOIN orders o ON o.id = i.order_id
+    `SELECT ${BOUGHT_ITEM_COLUMNS} FROM order_items i JOIN orders o ON o.id = i.order_id
      WHERE i.id = ? AND o.id = ? AND o.share_id = ? AND o.buyer = ? AND o.status = 'paid' AND i.refunded_at IS NULL`,
   )
     .bind(c.req.param('itemId'), c.req.param('orderId'), gallery.share.id, buyer)
-    .first<{ asset_id: string | null; size: string; filename: string }>()
+    .first<BoughtItem>()
   return item ? deliverItem(c, item) : c.json({ error: 'not_found' }, 404)
 })
 
@@ -252,17 +256,16 @@ galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
   const { assetId, size } = c.req.param()
   const share = gallery.share
   if (!isDownloadSize(size) || !downloadSizes(share).includes(size)) return c.json({ error: 'forbidden', message: say('gallery.api.sizeNotOffered') }, 403)
-  if (!(await inGallery(c.env.DB, share, assetId))) return c.json({ error: 'not_found' }, 404)
-  const asset = await getAsset(c.env.DB, assetId)
-  if (!asset) return c.json({ error: 'not_found' }, 404)
-  const base = asset.filename.replace(/\.[^.]*$/, '') || 'photo'
+  const [n, asset] = await Promise.all([galleryNumber(c.env.DB, share, assetId), getAsset(c.env.DB, assetId)])
+  if (n === null || !asset) return c.json({ error: 'not_found' }, 404)
+  const base = clientFileBase({ title: share.title || share.name, showFilenames: share.show_filenames === 1 }, asset.filename, n)
 
   if (size === 'original') {
     const { results: nas } = await c.env.DB.prepare("SELECT id FROM storage_connections WHERE provider = 'nas'").all<{ id: string }>()
     const location = reachableForClient(await getLocations(c.env.DB, assetId), new Set(nas.map((n) => n.id)))
     if (!location) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
     try {
-      const response = await originalResponse(c.env, c.req.raw, asset, location)
+      const response = await originalResponse(c.env, c.req.raw, asset, location, { downloadName: base + (/\.[^.]*$/.exec(asset.filename)?.[0] ?? ''), presign: false })
       if (!response) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
       if (!c.req.header('Range')) await recordEvent(c.env.DB, share, { kind: 'download', visitorId: gallery.visitor?.id, assetId, size })
       return response

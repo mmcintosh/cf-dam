@@ -14,7 +14,8 @@
     subtotal: number
     email: string | null
     paidAt: string | null
-    items: { id: string; filename: string; size: string; refunded: boolean }[]
+    /** label: the real filename, only when the gallery showed filenames; otherwise "Photo {n}". */
+    items: { id: string; label: string | null; n: number | null; size: string; refunded: boolean }[]
   }
   let order = $state<Order | null>(null)
   let missing = $state(false)
@@ -53,7 +54,7 @@
     <ul class="files">
       {#each order.items as item (item.id)}
         <li>
-          <span>{item.filename} <span class="muted small">· {t(SIZE[item.size] ?? 'gallery.size.large')}</span></span>
+          <span>{item.label ?? (item.n !== null ? t('order.photoN', { n: item.n }) : t('order.photo'))} <span class="muted small">· {t(SIZE[item.size] ?? 'gallery.size.large')}</span></span>
           {#if item.refunded}<span class="muted small">{t('order.refunded')}</span>{:else}<a class="btn btn-sm" href={`/api/public/orders/${id}/items/${item.id}?${query}`} download>⤓ {t('order.download')}</a>{/if}
         </li>
       {/each}

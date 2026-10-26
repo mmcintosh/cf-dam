@@ -21,7 +21,7 @@ The quickest way: select photos in the **Library** and choose **Share with a cli
    - **Downloads:** which sizes they may download, if any (small JPEG, large JPEG, the original).
    - **Watermark**: show your watermark on everything they see and download (set one up first: below).
    - **Clients can pick favourites:** turns on picking (below).
-   - **Show filenames:** shows each photo's file name, handy for ordering prints by number.
+   - **Show filenames:** shows each photo's file name, handy for ordering prints by number. With it off, downloads are named after the gallery and a number instead (see [What clients receive](/help/what-clients-receive)).
    - **Final delivery** (only for an album that's part of a job): these are the finished photos. Making the link moves the job to **Delivered** (see [Jobs](/help/jobs)).
 4. Press **Make the link**, then **Copy link** and send it.
 

@@ -292,6 +292,20 @@ describe.skipIf(!s3Endpoint)('an S3 connection (against a real S3-compatible ser
     expect(new Uint8Array(await download.arrayBuffer())).toEqual(camera)
   })
 
+  it('sends a client’s original through cf-dam, never as a presigned link naming the file and bucket', async () => {
+    const connectionId = await createConnection()
+    const id = await upload(camera, 'DSC_0001.jpg', { connectionId })
+    const album = ((await (await h.fetch('/api/albums', { ...json({ name: 'Wedding' }), cookie: admin })).json()) as { album: { id: string } }).album.id
+    await h.fetch(`/api/albums/${album}/items`, { ...json({ assetIds: [id] }), cookie: admin })
+    const created = await h.fetch('/api/shares', { ...json({ albumId: album, name: 'Smiths', title: 'Smith Wedding', downloadSizes: ['original'], showFilenames: false }), cookie: admin })
+    const { token } = ((await created.json()) as { share: { token: string } }).share
+    const res = await h.fetch(`/api/public/galleries/${token}/assets/${id}/download/original`, { redirect: 'manual' })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('location')).toBeNull()
+    expect(res.headers.get('content-disposition')).toContain('filename="smith-wedding-001.jpg"')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(camera)
+  })
+
   it('won’t remove a connection that holds originals, and won’t offer classes it lacks', async () => {
     const connectionId = await createConnection()
     const id = await upload(camera, 'kept.jpg', { connectionId })

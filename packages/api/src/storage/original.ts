@@ -1,7 +1,8 @@
 /**
- * Sending an original file: a short-lived presigned link where the store can sign one, otherwise the
- * bytes through the Worker, with byte ranges so a <video> can seek. Always a download unless the type
- * is safe to show inline.
+ * Sending an original file: the bytes through the Worker, with byte ranges so a <video> can seek. Always a download
+ * unless the type is safe to show inline. The team may get a short-lived presigned link instead, where the store can
+ * sign one; clients never do, because the link carries the stored file's name, its object key and the bucket
+ * (plans/PLAN-FN-GALLERY-v3.md §3).
  */
 import type { AssetRow, LocationRow } from '../catalog/assets'
 import { SAFE_INLINE_TYPES } from '../catalog/metadata'
@@ -11,13 +12,20 @@ import { attachmentDisposition } from './types'
 
 const PLAYABLE_VIDEO: ReadonlySet<string> = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'])
 
+export interface OriginalOptions {
+  /** The name the download is saved as. */
+  downloadName: string
+  /** Only for the team: a presigned link where the store can sign one. */
+  presign: boolean
+}
+
 /** The response for `asset`'s original at `location`, or null when it isn't there. Storage errors are thrown. */
-export async function originalResponse(env: DamBindings, request: Request, asset: AssetRow, location: LocationRow): Promise<Response | null> {
+export async function originalResponse(env: DamBindings, request: Request, asset: AssetRow, location: LocationRow, options: OriginalOptions): Promise<Response | null> {
   const connection = await getConnection(env.DB, location.connection_id)
   if (!connection) return null
   const provider = providerFor(env, connection)
-  if (provider.presignGet) {
-    const signed = await provider.presignGet(location.key, { expiresSeconds: 300, downloadName: asset.filename })
+  if (options.presign && provider.presignGet) {
+    const signed = await provider.presignGet(location.key, { expiresSeconds: 300, downloadName: options.downloadName })
     return new Response(null, { status: 302, headers: { Location: signed.url, 'Cache-Control': 'private, no-store' } })
   }
   // Byte ranges let a <video> seek without downloading the whole file first.
@@ -37,7 +45,7 @@ export async function originalResponse(env: DamBindings, request: Request, asset
       'Content-Length': String(object.size),
       'Accept-Ranges': 'bytes',
       ...(start !== null ? { 'Content-Range': `bytes ${start}-${start + object.size - 1}/${asset.size}` } : {}),
-      'Content-Disposition': attachmentDisposition(asset.filename),
+      'Content-Disposition': attachmentDisposition(options.downloadName),
       'Cache-Control': 'private, no-store',
     },
   })

@@ -13,6 +13,7 @@ import type { DamBindings } from '../env'
 import { hashPassword } from '../auth/password'
 import { randomBase62, randomId, timingSafeEqual, toHex } from '../lib/crypto'
 import { BadRequest, optionalString, requiredString } from '../lib/http'
+import { fold } from '../lib/fold'
 import { nowIso } from '../lib/time'
 import { say } from '../lib/language'
 
@@ -25,6 +26,9 @@ export const isDownloadSize = (value: unknown): value is DownloadSize => typeof 
 
 /** A gallery shows at most this many photos (an album bigger than this is cut off, newest additions last). */
 export const MAX_GALLERY_ITEMS = 2000
+
+/** The order a gallery shows its photos in, everywhere (album_items as `ai`). */
+export const GALLERY_ORDER = 'ai.position, ai.added_at'
 /** How long an unlocked gallery stays unlocked in one browser. */
 const UNLOCK_SECONDS = 30 * 24 * 60 * 60
 
@@ -431,7 +435,7 @@ export async function galleryItems(db: D1Database, share: Pick<ShareRow, 'album_
                  WHERE l.asset_id = a.id AND c.provider <> 'nas' AND l.state NOT IN ('pending', 'gone')
                    AND (l.storage_class NOT IN ('GLACIER', 'DEEP_ARCHIVE') OR (l.state = 'restored' AND l.restore_expires_at > ?3))) AS reachable
        FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
-       WHERE ai.album_id = ?1 ORDER BY ai.position, ai.added_at LIMIT ?2`,
+       WHERE ai.album_id = ?1 ORDER BY ${GALLERY_ORDER} LIMIT ?2`,
     )
     // A restored copy counts only while it's still restored.
     .bind(share.album_id, MAX_GALLERY_ITEMS, nowIso())
@@ -454,6 +458,33 @@ export async function galleryItems(db: D1Database, share: Pick<ShareRow, 'album_
       originalReachable: r.reachable === 1,
     }
   })
+}
+
+/**
+ * Where a photo sits in its gallery (1 for the first), or null when the gallery doesn't show it. Clients get files
+ * named by this number when the gallery hides filenames (plans/PLAN-FN-GALLERY-v3.md §3).
+ */
+export async function galleryNumber(db: D1Database, share: Pick<ShareRow, 'album_id'>, assetId: string): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `SELECT n FROM (SELECT ai.asset_id, ROW_NUMBER() OVER (ORDER BY ${GALLERY_ORDER}) AS n
+                      FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = ?1)
+       WHERE asset_id = ?2`,
+    )
+    .bind(share.album_id, assetId)
+    .first<{ n: number }>()
+  return row?.n ?? null
+}
+
+/** "smith-wedding" from "Smith Wedding": the start of file names clients get when filenames are hidden. */
+export function gallerySlug(title: string): string {
+  return fold(title).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '') || 'photo'
+}
+
+/** The name (without extension) a client's copy of a photo gets: the real one if the gallery shows filenames. */
+export function clientFileBase(gallery: { title: string; showFilenames: boolean }, filename: string, n: number | null): string {
+  if (gallery.showFilenames) return filename.replace(/\.[^.]*$/, '') || 'photo'
+  return n === null ? gallerySlug(gallery.title) : `${gallerySlug(gallery.title)}-${String(n).padStart(3, '0')}`
 }
 
 /** Whether an asset is shown by this gallery (in its album and not deleted). */
