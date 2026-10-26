@@ -6,11 +6,13 @@
  * views and JPEG downloads are made once with the Images binding and kept in R2 under a key naming
  * the watermark version and the preview they were made from, so a gallery viewed many times costs
  * one transform per photo and size, and a new watermark or a re-made preview is never served stale.
+ * JPEG downloads get the photographer's credit written in as they're sent (storage/clean.ts creditJpeg).
  */
 import { countedImages } from '../lib/images'
 import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
+import { creditJpeg, type Credit } from '../storage/clean'
 import { renditionStore } from '../storage/connections'
 import { renditionKey, type RenditionName } from './renditions'
 
@@ -203,7 +205,7 @@ export async function galleryImage(
   // Named after the rendition it was made from, so a re-made preview is never served stale.
   const key = `gallery/${version ?? 'plain'}/${assetId}/${what}-${renditionStamp(source.created_at)}.${ext}`
   const cached = await store.get(key)
-  if (cached) return { body: cached.body, size: cached.size, contentType }
+  if (cached) return jpeg ? credited(env.DB, assetId, await new Response(cached.body).arrayBuffer()) : { body: cached.body, size: cached.size, contentType }
 
   const images = countedImages(env)
   const original = await store.get(renditionKey(assetId, sourceName))
@@ -222,7 +224,18 @@ export async function galleryImage(
   const output = await image.output(jpeg ? { format: 'image/jpeg', quality: 88 } : { format: 'image/webp', quality: 82 })
   const bytes = await output.response().arrayBuffer()
   await store.put(key, bytes, { contentType })
+  if (jpeg) return credited(env.DB, assetId, bytes)
   return { body: new Blob([bytes]).stream(), size: bytes.byteLength, contentType }
+}
+
+/**
+ * A JPEG download with the photographer's credit from the catalogue written in (Images outputs none). Added as it's
+ * sent, not kept in the cache, so a changed copyright notice applies at once.
+ */
+async function credited(db: D1Database, assetId: string, bytes: ArrayBuffer) {
+  const credit = await db.prepare('SELECT creator, copyright FROM assets WHERE id = ?').bind(assetId).first<Credit>()
+  const out = creditJpeg(new Uint8Array(bytes), credit ?? { creator: null, copyright: null })
+  return { body: new Blob([out.slice()]).stream(), size: out.length, contentType: 'image/jpeg' }
 }
 
 /** The watermark sized for a photo `width` pixels wide. Passed to draw() as plain bytes. */

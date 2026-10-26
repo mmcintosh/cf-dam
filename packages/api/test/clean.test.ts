@@ -3,8 +3,9 @@ import { crc32 } from 'node:zlib'
 import exifr from 'exifr'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cleanExif, cleanOriginal, CleanError, webpWithoutMetadata, type Credit } from '../src/storage/clean'
+import { cleanExif, cleanOriginal, CleanError, creditJpeg, webpWithoutMetadata, type Credit } from '../src/storage/clean'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
+import { sharpImages } from './sharp-images'
 
 const fixture = (name: string) => new Uint8Array(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)))
 const privateJpeg = fixture('private.jpg')
@@ -195,6 +196,23 @@ describe('cleaning originals for clients (plans/PLAN-FN-GALLERY-v3.md G0b)', () 
     expect(await exifr.parse(out, { gps: true })).not.toHaveProperty('latitude')
   })
 
+  it('writes the credit into a JPEG Images made, after its JFIF, once, leaving the picture alone', async () => {
+    const jfif = segment(0xe0, new Uint8Array([...new TextEncoder().encode('JFIF\0'), 1, 1, 0, 0, 1, 0, 1, 0, 0]))
+    const plain = afterSoi(new Uint8Array(await sharp({ create: { width: 8, height: 6, channels: 3, background: '#808080' } }).jpeg().toBuffer()), jfif)
+    const out = creditJpeg(plain, credit)
+    expect(await pixels(out)).toBe(await pixels(plain))
+    expect(out.subarray(2, 2 + jfif.length)).toEqual(jfif) // the JFIF segment still leads
+    const meta = await exifr.parse(out, { xmp: true, mergeOutput: false })
+    expect(meta.ifd0).toMatchObject({ Artist: 'Test Photographer', Copyright: '© 2024 Test Studio' })
+    expect(text(out)).toContain('<rdf:li>Test Photographer</rdf:li>')
+    // Credited again (a cached download sent twice), it isn't doubled.
+    expect(creditJpeg(out, credit)).toBe(out)
+    // A short credit fits inside its Exif entry.
+    expect((await exifr.parse(creditJpeg(plain, { creator: 'Ann', copyright: null }))).Artist).toBe('Ann')
+    expect(creditJpeg(plain, { creator: null, copyright: '  ' })).toBe(plain)
+    expect(creditJpeg(new Uint8Array([1, 2, 3]), credit)).toEqual(new Uint8Array([1, 2, 3]))
+  })
+
   it('takes EXIF and XMP out of a WebP rendition', async () => {
     const tagged = new Uint8Array(await sharp(privateJpeg).resize(100).webp().withMetadata().toBuffer())
     expect(text(tagged)).toMatch(/EXIF|XMP /)
@@ -239,6 +257,26 @@ describe('originals in a gallery', () => {
 
     expect((await h.fetch(`/api/shares/${share.id}`, { method: 'PATCH', body: JSON.stringify({ originalsAsStored: true }), cookie: admin })).status).toBe(200)
     expect(new Uint8Array(await (await h.fetch(url)).arrayBuffer())).toEqual(privateJpeg)
+  })
+
+  it('credits the photographer in Small and Large downloads, which Images makes without metadata', async () => {
+    // The local emulator ignores the output format; sharp makes real JPEGs.
+    await h.dispose()
+    h = await createHarness({ IMAGES: sharpImages() })
+    admin = await setUpAdmin(h)
+    const { assetId, share } = await galleryWith(privateJpeg, 'lily.jpg', { downloadSizes: ['small', 'large'] })
+    for (const size of ['small', 'large']) {
+      const res = await h.fetch(`/api/public/galleries/${share.token}/assets/${assetId}/download/${size}`)
+      expect(res.status).toBe(200)
+      const out = new Uint8Array(await res.arrayBuffer())
+      expect(res.headers.get('content-length')).toBe(String(out.length))
+      expect((await exifr.parse(out)).Copyright).toBe('© 2024 Test Studio')
+      for (const secret of SECRETS) expect(text(out)).not.toContain(secret)
+    }
+    // A changed notice applies at once, though the JPEG itself is cached.
+    await h.env.DB.prepare("UPDATE assets SET copyright = '© 2025 New Studio' WHERE id = ?").bind(assetId).run()
+    const again = new Uint8Array(await (await h.fetch(`/api/public/galleries/${share.token}/assets/${assetId}/download/small`)).arrayBuffer())
+    expect((await exifr.parse(again)).Copyright).toBe('© 2025 New Studio')
   })
 
   it('refuses an original it can’t clean, and tells the team', async () => {

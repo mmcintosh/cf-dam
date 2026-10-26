@@ -19,7 +19,7 @@ With **Show filenames** off, nothing a client receives carries the real file nam
 
 ## Small and Large downloads
 
-Small and Large downloads are JPEGs that cf-dam makes from the photo, with your edits (crops and turns) and the watermark if the gallery has one.
+Small and Large downloads are JPEGs that cf-dam makes from the photo, with your edits (crops and turns) and the watermark if the gallery has one. They carry nothing from the original file except your **creator** and **copyright notice**, from the photo's Rights fields in cf-dam. If you change those, the next download has the new ones.
 
 ## Originals
 

@@ -4,7 +4,7 @@ summary: "Was in den Dateien steckt, die Kunden aus einer Galerie herunterladen 
 section: Sharing
 order: 6
 review: machine
-source: bc827434a0e0
+source: 95d3e6ae60c7
 ---
 
 Eine Galerie zeigt Ihre Fotos, aber eine heruntergeladene Datei kann mehr enthalten als das Bild. Diese Seite listet auf, was Kunden erhalten, damit nichts mitgeht, was Sie privat halten wollten.
@@ -21,7 +21,7 @@ Ist **Dateinamen anzeigen** aus, trägt nichts, was ein Kunde erhält, den echte
 
 ## Downloads Klein und Groß
 
-Die Downloads Klein und Groß sind JPEGs, die cf-dam aus dem Foto erstellt, mit Ihren Bearbeitungen (Zuschnitt und Drehen) und dem Wasserzeichen, wenn die Galerie eines hat.
+Die Downloads Klein und Groß sind JPEGs, die cf-dam aus dem Foto erstellt, mit Ihren Bearbeitungen (Zuschnitt und Drehen) und dem Wasserzeichen, wenn die Galerie eines hat. Sie enthalten nichts aus der Originaldatei außer Ihrem **Urheber** und Ihrem **Copyright-Vermerk** aus den Rechte-Feldern des Fotos in cf-dam. Wenn Sie diese ändern, enthält der nächste Download die neuen.
 
 ## Originale
 

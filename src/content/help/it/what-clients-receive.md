@@ -4,7 +4,7 @@ summary: "Cosa c’è nei file che i clienti scaricano o acquistano da una galle
 section: Sharing
 order: 6
 review: machine
-source: bc827434a0e0
+source: 95d3e6ae60c7
 ---
 
 Una galleria mostra le tue foto, ma un file scaricato può contenere più dell’immagine. Questa pagina elenca cosa ricevono i clienti, così non se ne va con il file niente che volevi tenere privato.
@@ -21,7 +21,7 @@ Con **Mostra i nomi dei file** disattivato, niente di ciò che riceve un cliente
 
 ## Download Piccolo e Grande
 
-I download Piccolo e Grande sono JPEG che cf-dam crea dalla foto, con le tue modifiche (ritagli e rotazioni) e la filigrana se la galleria ne ha una.
+I download Piccolo e Grande sono JPEG che cf-dam crea dalla foto, con le tue modifiche (ritagli e rotazioni) e la filigrana se la galleria ne ha una. Non contengono nulla del file originale tranne il tuo **autore** e il tuo **avviso di copyright**, presi dai campi Diritti della foto in cf-dam. Se li cambi, il download successivo riporta quelli nuovi.
 
 ## Originali
 

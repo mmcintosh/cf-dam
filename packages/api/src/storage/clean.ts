@@ -130,10 +130,11 @@ function streamOf(chunks: AsyncGenerator<Uint8Array>, length: number | null, can
 
 const xml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+const creditText = (credit: Credit) => ({ creator: credit.creator?.trim().slice(0, 200), rights: credit.copyright?.trim().slice(0, 500) })
+
 /** An XMP packet holding only the creator and copyright notice, or null with neither. */
 export function creditXmp(credit: Credit): string | null {
-  const creator = credit.creator?.trim().slice(0, 200)
-  const rights = credit.copyright?.trim().slice(0, 500)
+  const { creator, rights } = creditText(credit)
   if (!creator && !rights) return null
   return (
     '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">' +
@@ -155,6 +156,67 @@ function xmpSegment(packet: string): Uint8Array {
   out.set([0xff, 0xe1, ((body.length + 2) >> 8) & 0xff, (body.length + 2) & 0xff])
   out.set(body, 4)
   return out
+}
+
+/** APP1 Exif segment holding only Artist and Copyright (UTF-8, as Lightroom writes them), or null with neither. */
+function creditExifSegment(credit: Credit): Uint8Array | null {
+  const { creator, rights } = creditText(credit)
+  const values = (
+    [
+      [0x013b, creator], // Artist
+      [0x8298, rights], // Copyright
+    ] as const
+  ).flatMap(([tag, text]) => (text ? [{ tag, bytes: new TextEncoder().encode(`${text}\0`) }] : []))
+  if (!values.length) return null
+  const ifdSize = 2 + values.length * 12 + 4
+  const tiff = new Uint8Array(8 + ifdSize + values.reduce((n, v) => n + (v.bytes.length > 4 ? v.bytes.length : 0), 0))
+  const view = new DataView(tiff.buffer)
+  tiff.set([0x4d, 0x4d, 0x00, 0x2a]) // big-endian TIFF
+  view.setUint32(4, 8)
+  view.setUint16(8, values.length)
+  let data = 8 + ifdSize
+  values.forEach((v, i) => {
+    const entry = 10 + i * 12
+    view.setUint16(entry, v.tag)
+    view.setUint16(entry + 2, 2) // ASCII
+    view.setUint32(entry + 4, v.bytes.length)
+    if (v.bytes.length <= 4) tiff.set(v.bytes, entry + 8)
+    else {
+      view.setUint32(entry + 8, data)
+      tiff.set(v.bytes, data)
+      data += v.bytes.length
+    }
+  })
+  const body = concat([new TextEncoder().encode('Exif\0\0'), tiff])
+  return concat([new Uint8Array([0xff, 0xe1, ((body.length + 2) >> 8) & 0xff, (body.length + 2) & 0xff]), body])
+}
+
+/**
+ * Write the credit into a JPEG cf-dam made itself (a Small or Large download), which Cloudflare Images outputs with
+ * no metadata: Exif Artist and Copyright, which most viewers show, and the same XMP as a cleaned original. Placed after
+ * SOI and a leading JFIF segment; a kind the file already has isn't added twice. Anything that isn't a JPEG is
+ * returned as it is.
+ */
+export function creditJpeg(bytes: Uint8Array, credit: Credit): Uint8Array {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return bytes
+  let insertAt = 2
+  let hasExif = false
+  let hasXmp = false
+  // The leading APPn segments: where to insert, and what is already there.
+  for (let at = 2; at + 4 <= bytes.length && bytes[at] === 0xff && bytes[at + 1]! >= 0xe0 && bytes[at + 1]! <= 0xef; ) {
+    const end = at + 2 + ((bytes[at + 2]! << 8) | bytes[at + 3]!)
+    if (end > bytes.length) return bytes
+    if (bytes[at + 1] === 0xe0 && insertAt === at && startsWith(bytes, at + 4, 'JFIF\0')) insertAt = end
+    if (bytes[at + 1] === 0xe1) {
+      hasExif ||= startsWith(bytes, at + 4, 'Exif\0\0')
+      hasXmp ||= startsWith(bytes, at + 4, XMP_ID)
+    }
+    at = end
+  }
+  const exif = hasExif ? null : creditExifSegment(credit)
+  const packet = hasXmp ? null : creditXmp(credit)
+  if (!exif && !packet) return bytes
+  return concat([bytes.subarray(0, insertAt), ...(exif ? [exif] : []), ...(packet ? [xmpSegment(packet)] : []), bytes.subarray(insertAt)])
 }
 
 async function cleanJpeg(reader: Buffered, size: number, credit: Credit, endsWithEoi: boolean): Promise<Cleaned> {

@@ -4,7 +4,7 @@ summary: "Ce que contiennent les fichiers que les clients téléchargent ou ach�
 section: Sharing
 order: 6
 review: machine
-source: bc827434a0e0
+source: 95d3e6ae60c7
 ---
 
 Une galerie montre vos photos, mais un fichier téléchargé peut contenir plus que l’image. Cette page liste ce que reçoivent les clients, pour que rien de ce que vous vouliez garder privé ne parte avec.
@@ -21,7 +21,7 @@ Avec **Afficher les noms de fichier** désactivé, rien de ce que reçoit un cli
 
 ## Téléchargements Petit et Grand
 
-Les téléchargements Petit et Grand sont des JPEG que cf-dam crée à partir de la photo, avec vos retouches (recadrages et rotations) et le filigrane si la galerie en a un.
+Les téléchargements Petit et Grand sont des JPEG que cf-dam crée à partir de la photo, avec vos retouches (recadrages et rotations) et le filigrane si la galerie en a un. Ils ne contiennent rien du fichier d’origine, sauf votre **créateur** et votre **mention de copyright**, tirés des champs Droits de la photo dans cf-dam. Si vous les modifiez, le téléchargement suivant porte les nouveaux.
 
 ## Originaux
 

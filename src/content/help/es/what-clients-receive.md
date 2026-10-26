@@ -4,7 +4,7 @@ summary: "Qué hay en los archivos que los clientes descargan o compran desde un
 section: Sharing
 order: 6
 review: machine
-source: bc827434a0e0
+source: 95d3e6ae60c7
 ---
 
 Una galería muestra tus fotos, pero un archivo descargado puede llevar más que la imagen. Esta página enumera lo que reciben los clientes, para que no se vaya con él nada que quisieras mantener privado.
@@ -21,7 +21,7 @@ Con **Mostrar los nombres de archivo** desactivado, nada de lo que recibe un cli
 
 ## Descargas Pequeña y Grande
 
-Las descargas Pequeña y Grande son JPEG que cf-dam crea a partir de la foto, con tus ediciones (recortes y giros) y la marca de agua si la galería tiene una.
+Las descargas Pequeña y Grande son JPEG que cf-dam crea a partir de la foto, con tus ediciones (recortes y giros) y la marca de agua si la galería tiene una. No llevan nada del archivo original salvo tu **autoría** y tu **aviso de copyright**, tomados de los campos de Derechos de la foto en cf-dam. Si los cambias, la siguiente descarga lleva los nuevos.
 
 ## Originales
 
