@@ -6,6 +6,7 @@
 import type { DamBindings } from '../env'
 import { countedImages } from '../lib/images'
 import { nowIso } from '../lib/time'
+import { webpWithoutMetadata } from '../storage/clean'
 import { renditionStore } from '../storage/connections'
 import { baseKey, editImage, getEdit } from './edits'
 
@@ -159,8 +160,8 @@ export function webpSize(bytes: Uint8Array): { width: number; height: number } |
 }
 
 /**
- * A rendition made by a paired NAS agent. It is stored as sent (no Images transform, so a big first
- * import costs nothing extra), after checking it really is a WebP of the right size: it is served to
+ * A rendition made by a paired NAS agent. It is stored as sent, less any EXIF or XMP (no Images transform, so a big
+ * first import costs nothing extra), after checking it really is a WebP of the right size: it is served to
  * browsers from our own origin, so it must be what it claims.
  */
 export async function storeAgentRendition(env: DamBindings, assetId: string, name: RenditionName, bytes: ArrayBuffer): Promise<{ width: number; height: number }> {
@@ -174,7 +175,9 @@ export async function storeAgentRendition(env: DamBindings, assetId: string, nam
   if (Math.max(size.width, size.height) > longEdge + 8 || Math.min(size.width, size.height) < 1) {
     throw new RenditionRejected(`A ${name} is at most ${longEdge} px on its long edge.`)
   }
-  await store(env, assetId, name, bytes, 'image/webp', size, 'agent')
+  // Served to clients in galleries: whatever metadata a helper's encoder kept (EXIF, XMP) is left out.
+  const kept = webpWithoutMetadata(new Uint8Array(bytes))
+  await store(env, assetId, name, kept.byteLength === bytes.byteLength ? bytes : (kept.slice().buffer as ArrayBuffer), 'image/webp', size, 'agent')
   return size
 }
 

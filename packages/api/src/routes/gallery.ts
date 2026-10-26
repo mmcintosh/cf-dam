@@ -37,11 +37,12 @@ import type { DamBindings, DamEnv } from '../env'
 import { BadRequest, optionalString, readJsonObject, requiredString } from '../lib/http'
 import { applyGalleryLanguage, say } from '../lib/language'
 import { attachmentDisposition, StorageError } from '../storage/types'
+import { CleanError } from '../storage/clean'
 import { originalResponse } from '../storage/original'
 import { notifyFinished } from '../mail/gallery-mail'
 import { buyerOrders, galleryStore, SIZES, startCheckout, type CheckoutRequest, type SaleSize } from '../selling/orders'
 import { StripeError } from '../selling/stripe'
-import { deliverItem, BOUGHT_ITEM_COLUMNS, type BoughtItem } from './store'
+import { deliverItem, BOUGHT_ITEM_COLUMNS, originalRefused, type BoughtItem } from './store'
 import { randomId } from '../lib/crypto'
 
 export const galleryRoutes = new Hono<DamEnv>()
@@ -265,12 +266,14 @@ galleryRoutes.get('/:token/assets/:assetId/download/:size', async (c) => {
     const location = reachableForClient(await getLocations(c.env.DB, assetId), new Set(nas.map((n) => n.id)))
     if (!location) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
     try {
-      const response = await originalResponse(c.env, c.req.raw, asset, location, { downloadName: base + (/\.[^.]*$/.exec(asset.filename)?.[0] ?? ''), presign: false })
+      const downloadName = base + (/\.[^.]*$/.exec(asset.filename)?.[0] ?? '')
+      const response = await originalResponse(c.env, c.req.raw, asset, location, { downloadName, presign: false, clean: share.originals_as_stored !== 1 })
       if (!response) return c.json({ error: 'unavailable', message: say('gallery.api.originalUnavailable') }, 409)
       if (!c.req.header('Range')) await recordEvent(c.env.DB, share, { kind: 'download', visitorId: gallery.visitor?.id, assetId, size })
       return response
     } catch (error) {
       if (error instanceof StorageError) return c.json({ error: 'unavailable', message: say('gallery.api.originalLater') }, 502)
+      if (error instanceof CleanError) return originalRefused(c, share, assetId, error)
       throw error
     }
   }

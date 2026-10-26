@@ -209,6 +209,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.aGallery": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.aJob": {
     "es": "machine",
     "de": "machine",
@@ -684,6 +690,12 @@
     "it": "machine"
   },
   "act.method.setup": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.originalRefused": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -6017,6 +6029,12 @@
     "it": "machine"
   },
   "gallery.addFavourite": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "gallery.api.cannotPrepare": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -11678,6 +11696,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "share.originalsAsStored": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.originalsAsStoredHint": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "share.originalsNasOnly.many": {
     "es": "machine",
     "fr": "machine",
@@ -11828,6 +11858,12 @@
     "it": "machine"
   },
   "share.watermarkOption": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "share.whatClientsReceive": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

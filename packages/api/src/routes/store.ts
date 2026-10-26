@@ -13,6 +13,9 @@ import { nowIso } from '../lib/time'
 import { chargeChanged, fulfil, orderByLink } from '../selling/orders'
 import { getPaymentSecret } from '../selling/settings'
 import { verifyStripeSignature } from '../selling/stripe'
+import { logActivity } from '../lib/activity'
+import { say } from '../lib/language'
+import { CleanError } from '../storage/clean'
 import { originalResponse } from '../storage/original'
 import { attachmentDisposition, StorageError } from '../storage/types'
 
@@ -34,10 +37,29 @@ export interface BoughtItem {
   label: string | null
   n: number | null
   gallery_name: string
+  /** The gallery's "send originals exactly as stored" (null: the gallery is gone, so cleaned). */
+  as_stored: number | null
+  share_id: string | null
 }
 
 /** The columns `deliverItem` needs, from order_items `i` joined to orders `o`. */
-export const BOUGHT_ITEM_COLUMNS = 'i.asset_id, i.size, i.filename, i.label, i.n, o.gallery_name'
+export const BOUGHT_ITEM_COLUMNS = 'i.asset_id, i.size, i.filename, i.label, i.n, o.gallery_name, o.share_id, (SELECT s.originals_as_stored FROM shares s WHERE s.id = o.share_id) AS as_stored'
+
+/**
+ * An original that couldn't be cleaned is never sent as stored: the client is asked to contact the photographer, and
+ * the team sees it in Activity (with what to do).
+ */
+export async function originalRefused(c: Context<DamEnv>, share: { id: string; title: string; name: string } | null, assetId: string, error: CleanError): Promise<Response> {
+  console.warn('[clean] refused', assetId, error.message)
+  await logActivity(c.env.DB, {
+    userId: null,
+    action: 'share.original_refused',
+    targetType: 'asset',
+    targetId: assetId,
+    details: { title: share ? share.title || share.name : null, shareId: share?.id ?? null, reason: error.message },
+  })
+  return c.json({ error: 'cannot_prepare', message: say('gallery.api.cannotPrepare') }, 422)
+}
 
 /**
  * The file an order item bought, made the same way whether reached by the order link or the buyer's cookie. Named as
@@ -55,9 +77,10 @@ export async function deliverItem(c: Context<DamEnv>, item: BoughtItem): Promise
     if (!location) return c.json({ error: 'unavailable', message: 'The original is being brought back from storage. Try again later or ask the photographer.' }, 409)
     try {
       const downloadName = base + (/\.[^.]*$/.exec(asset.filename)?.[0] ?? '')
-      return (await originalResponse(env, c.req.raw, asset, location, { downloadName, presign: false })) ?? c.json({ error: 'unavailable' }, 409)
+      return (await originalResponse(env, c.req.raw, asset, location, { downloadName, presign: false, clean: item.as_stored !== 1 })) ?? c.json({ error: 'unavailable' }, 409)
     } catch (error) {
       if (error instanceof StorageError) return c.json({ error: 'unavailable' }, 502)
+      if (error instanceof CleanError) return originalRefused(c, item.share_id ? { id: item.share_id, title: item.gallery_name, name: item.gallery_name } : null, asset.id, error)
       throw error
     }
   }

@@ -35,3 +35,18 @@ console.log('fixtures written')
 //     -XMP-iptcCore:CreatorWorkEmail="mark@example.com" -XMP-iptcCore:CreatorWorkTelephone="+47 555 0100" \
 //     -XMP-iptcCore:CreatorWorkURL="https://example.com" -XMP-iptcCore:CountryCode="NO" \
 //     -XMP-lr:HierarchicalSubject="Places|Norway|Bergen" -XMP-dc:Subject="Bergen" -XMP-xmp:Label="Red" iptc.jpg
+
+// private.jpg and private.png carry names, captions, keywords, comments, a camera owner and GPS, for the cleaning
+// tests (test/clean.test.ts), written with ExifTool:
+//   cp camera.jpg private.jpg && exiftool -overwrite_original \
+//     -XMP-iptcExt:PersonInImage="Lily Smith" -XMP-iptcExt:PersonInImage="Grandma Jo" \
+//     '-XMP-mwg-rs:RegionInfo={AppliedToDimensions={W=1200,H=800,Unit=pixel},RegionList=[{Area={X=0.5,Y=0.5,W=0.1,H=0.1,Unit=normalized},Name=Lily Smith,Type=Face}]}' \
+//     -XMP-dc:Description="Lily, 4, with Grandma Jo" -XMP-dc:Subject="smith family" -XMP-dc:Creator="Test Photographer" \
+//     -XMP-dc:Rights="© 2024 Test Studio" -IPTC:Caption-Abstract="Lily, 4, with Grandma Jo" -IPTC:Keywords="smith family" \
+//     -IPTC:CopyrightNotice="© 2024 Test Studio" -IPTC:By-line="Test Photographer" -EXIF:ImageDescription="Lily at the lake" \
+//     -EXIF:XPComment="Lily secret" -EXIF:UserComment="Lily usercomment" -ExifIFD:OwnerName="Jo Owner" \
+//     -Comment="Lily jpeg comment" private.jpg
+//   cp gradient.png private.png && exiftool -overwrite_original \
+//     -XMP-iptcExt:PersonInImage="Lily Smith" -XMP-dc:Description="Lily, 4, with Grandma Jo" -XMP-dc:Rights="© 2024 Test Studio" \
+//     -PNG:Comment="Lily png comment" -EXIF:GPSLatitude=62.4667 -EXIF:GPSLatitudeRef=N -EXIF:GPSLongitude=6.15 \
+//     -EXIF:GPSLongitudeRef=E -EXIF:ImageDescription="Lily at the lake" private.png

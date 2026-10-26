@@ -4,7 +4,7 @@ summary: "Cosa c’è nei file che i clienti scaricano o acquistano da una galle
 section: Sharing
 order: 6
 review: machine
-source: f6588c6151b7
+source: bc827434a0e0
 ---
 
 Una galleria mostra le tue foto, ma un file scaricato può contenere più dell’immagine. Questa pagina elenca cosa ricevono i clienti, così non se ne va con il file niente che volevi tenere privato.
@@ -25,23 +25,24 @@ I download Piccolo e Grande sono JPEG che cf-dam crea dalla foto, con le tue mod
 
 ## Originali
 
-Un originale scaricato è **il file esattamente com’è stato caricato**. Questo comprende:
+Un originale scaricato è il file com’è stato caricato, **ripulito** all’uscita quando è un JPEG o un PNG:
 
-- **Tutto ciò che il tuo programma di fotoritocco ci ha scritto:** per esempio Lightroom può scriverci nomi di persone, parole chiave, didascalie, valutazioni e i tuoi recapiti.
-- **Le informazioni della fotocamera:** alcune fotocamere e telefoni aggiungono la posizione GPS, il nome del proprietario della fotocamera e i propri nomi del riconoscimento facciale.
+- **Tolto:** i nomi delle persone (comprese le aree dei volti di Lightroom), didascalie e descrizioni, parole chiave, valutazioni, commenti, la posizione GPS, il nome del proprietario della fotocamera, le note private del produttore (alcune contengono nomi del riconoscimento facciale) e le credenziali dei contenuti (C2PA).
+- **Mantenuto:** l’immagine stessa, intatta; le impostazioni della fotocamera e la data; e il tuo **autore** e **avviso di copyright**, dai campi Diritti della foto in cf-dam.
+- **Le foto HDR da telefono**, che nascondono una seconda immagine nel file, arrivano come immagine standard.
 - **Nessuna modifica fatta in cf-dam.** Se qui hai tagliato fuori qualcuno con un ritaglio, nell’originale c’è ancora.
 
-Anche i download a pagamento in **Dimensione piena** sono originali, venduti solo per foto JPEG e PNG senza modifiche in cf-dam.
+Se un file non si può ripulire con certezza, non viene inviato affatto: al cliente viene chiesto di contattarti e l’**Attività** indica quale galleria.
 
-Prima di offrire gli originali, controlla cosa include la tua esportazione. In Lightroom, l’impostazione **Metadati** dell’esportazione può includere solo copyright e recapiti, e togliere le informazioni su persone e luogo.
+**Invia gli originali esattamente come archiviati** (nelle impostazioni della galleria, in Download) invia gli originali intatti, con tutto ciò che il tuo programma e la tua fotocamera ci hanno scritto. Usalo solo dopo aver controllato cosa include la tua esportazione. In Lightroom, l’impostazione **Metadati** dell’esportazione può includere solo copyright e recapiti.
+
+Anche i download a pagamento in **Dimensione piena** sono originali, ripuliti allo stesso modo, e venduti solo per foto JPEG e PNG senza modifiche in cf-dam.
 
 Gli originali arrivano sempre da cf-dam stesso. Anche se sono archiviati su Amazon S3, il cliente non riceve mai un link al tuo bucket.
 
-> **Prossimamente:** cf-dam toglierà nomi di persone, parole chiave, didascalie e posizione dagli originali JPEG e PNG quando i clienti li scaricano, mantenendo i dati della fotocamera e il tuo copyright. Ogni galleria avrà un interruttore per inviare gli originali esattamente come sono archiviati.
-
 ## Altri tipi di file
 
-Le foto RAW, TIFF, HEIC, WebP, AVIF e GIF e i video vengono sempre inviati come sono archiviati. Le foto da telefono (HEIC) e i video contengono spesso la posizione GPS.
+Le foto RAW, TIFF, HEIC, WebP, AVIF e GIF e i video vengono sempre inviati come sono archiviati, senza pulizia, qualunque sia l’impostazione della galleria. Le foto da telefono (HEIC) e i video contengono spesso la posizione GPS.
 
 ## Vedi anche
 

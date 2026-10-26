@@ -23,23 +23,24 @@ Small and Large downloads are JPEGs that cf-dam makes from the photo, with your 
 
 ## Originals
 
-An original download is **the file exactly as it was uploaded**. That includes:
+An original download is the file as it was uploaded, **cleaned** on the way out when it's a JPEG or PNG:
 
-- **Everything your editing software wrote into it:** for example, Lightroom can write people's names, keywords, captions, ratings and your contact details.
-- **The camera's information:** some cameras and phones add the GPS location, the camera owner's name and their own face-recognition names.
+- **Taken out:** people's names (including Lightroom's face regions), captions and descriptions, keywords, ratings, comments, the GPS location, the camera owner's name, the camera maker's private notes (some hold face-recognition names) and content credentials (C2PA).
+- **Kept:** the picture itself, untouched; the camera settings and date; and your **creator** and **copyright notice** from the photo's Rights fields in cf-dam.
+- **Phone HDR photos**, which hide a second picture inside the file, arrive as the standard picture.
 - **No edits made in cf-dam.** If you cropped someone out here, they're still in the original.
 
-Paid **Full size** downloads are originals too, sold only for JPEG and PNG photos with no edits in cf-dam.
+If a file can't be cleaned with certainty, it isn't sent at all: the client is asked to contact you, and **Activity** says which gallery.
 
-Before offering originals, check what your export includes. In Lightroom, the export's **Metadata** setting can include only copyright and contact details, and remove people and location information.
+**Send originals exactly as stored** (in the gallery's settings, under Downloads) sends originals untouched, with everything your software and camera wrote into them. Use it only when you've checked what your export includes. In Lightroom, the export's **Metadata** setting can include only copyright and contact details.
+
+Paid **Full size** downloads are originals too, cleaned the same way, and sold only for JPEG and PNG photos with no edits in cf-dam.
 
 Originals always come from cf-dam itself. Even when they're stored on Amazon S3, the client never gets a link to your bucket.
 
-> **Coming next:** cf-dam will remove people's names, keywords, captions and the location from JPEG and PNG originals as clients download them, and keep the camera details and your copyright. Each gallery will have a switch to send originals exactly as stored.
-
 ## Other file types
 
-RAW, TIFF, HEIC, WebP, AVIF and GIF photos and videos are always sent as stored. Phone photos (HEIC) and videos often hold the GPS location.
+RAW, TIFF, HEIC, WebP, AVIF and GIF photos and videos are always sent as stored, without cleaning, whatever the gallery's setting. Phone photos (HEIC) and videos often hold the GPS location.
 
 ## See also
 

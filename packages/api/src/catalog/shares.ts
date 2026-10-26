@@ -46,6 +46,8 @@ export interface ShareRow {
   proofing: number
   show_filenames: number
   final_delivery: number
+  /** 1: originals go to clients exactly as stored; 0: cleaned (storage/clean.ts). */
+  originals_as_stored: number
   /** The gallery's fixed language, or null for each visitor's own. */
   language: string | null
   created_by: string | null
@@ -95,6 +97,8 @@ export interface ShareJson {
   watermark: boolean
   proofing: boolean
   showFilenames: boolean
+  /** Originals go to clients exactly as stored, not cleaned (storage/clean.ts). */
+  originalsAsStored: boolean
   /** Made as the job's final delivery (catalog/jobs.ts markDelivered). */
   finalDelivery: boolean
   language: Language | null
@@ -137,6 +141,7 @@ function shareJson(row: ListedShareRow): ShareJson {
     watermark: row.watermark === 1,
     proofing: row.proofing === 1,
     showFilenames: row.show_filenames === 1,
+    originalsAsStored: row.originals_as_stored === 1,
     finalDelivery: row.final_delivery === 1,
     language: (asLanguage(row.language) as Language | null) ?? null,
     status: shareStatus(row),
@@ -194,6 +199,7 @@ export interface ShareInput {
   watermark?: boolean
   proofing?: boolean
   showFilenames?: boolean
+  originalsAsStored?: boolean
   finalDelivery?: boolean
   /** null: each visitor's own language. */
   language?: Language | null
@@ -215,6 +221,7 @@ export function parseShareInput(body: Record<string, unknown>, creating: boolean
     watermark: optionalBoolean(body, 'watermark'),
     proofing: optionalBoolean(body, 'proofing'),
     showFilenames: optionalBoolean(body, 'showFilenames'),
+    originalsAsStored: optionalBoolean(body, 'originalsAsStored'),
     finalDelivery: optionalBoolean(body, 'finalDelivery'),
   }
   if (input.name === '') throw new BadRequest('name is required.')
@@ -252,8 +259,8 @@ export async function createShare(db: D1Database, albumId: string, input: ShareI
   const now = nowIso()
   await db
     .prepare(
-      `INSERT INTO shares (id, token, album_id, name, title, message, password_hash, expires_at, download_sizes, watermark, proofing, show_filenames, language, final_delivery, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO shares (id, token, album_id, name, title, message, password_hash, expires_at, download_sizes, watermark, proofing, show_filenames, originals_as_stored, language, final_delivery, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -268,6 +275,7 @@ export async function createShare(db: D1Database, albumId: string, input: ShareI
       input.watermark ? 1 : 0,
       input.proofing === false ? 0 : 1,
       input.showFilenames === false ? 0 : 1,
+      input.originalsAsStored ? 1 : 0,
       input.language ?? null,
       input.finalDelivery ? 1 : 0,
       userId,
@@ -295,6 +303,7 @@ export async function updateShare(db: D1Database, id: string, input: ShareInput)
   if (input.watermark !== undefined) set('watermark', input.watermark ? 1 : 0)
   if (input.proofing !== undefined) set('proofing', input.proofing ? 1 : 0)
   if (input.showFilenames !== undefined) set('show_filenames', input.showFilenames ? 1 : 0)
+  if (input.originalsAsStored !== undefined) set('originals_as_stored', input.originalsAsStored ? 1 : 0)
   if (input.finalDelivery !== undefined) set('final_delivery', input.finalDelivery ? 1 : 0)
   if (input.language !== undefined) set('language', input.language)
   set('updated_at', nowIso())

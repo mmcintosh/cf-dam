@@ -42,11 +42,12 @@
     watermark: boolean
     proofing: boolean
     showFilenames: boolean
+    originalsAsStored: boolean
     finalDelivery: boolean
     /** '' for each visitor's own language. */
     language: string
   }
-  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true, finalDelivery: false, language: '' })
+  const blank = (): Draft => ({ name: '', title: albumName, message: '', password: '', removePassword: false, expires: '', downloadSizes: [], watermark: hasWatermark, proofing: true, showFilenames: true, originalsAsStored: false, finalDelivery: false, language: '' })
 
   let shares = $state<ShareJson[]>([])
   let editing = $state<string | null>(null)
@@ -92,6 +93,7 @@
       watermark: share.watermark,
       proofing: share.proofing,
       showFilenames: share.showFilenames,
+      originalsAsStored: share.originalsAsStored,
       finalDelivery: share.finalDelivery,
       language: share.language ?? '',
     }
@@ -113,6 +115,7 @@
         watermark: draft.watermark,
         proofing: draft.proofing,
         showFilenames: draft.showFilenames,
+        originalsAsStored: draft.originalsAsStored,
         language: draft.language || null,
         ...(inJob ? { finalDelivery: draft.finalDelivery } : {}),
       }
@@ -244,6 +247,8 @@
         {/each}
         {#if draft.downloadSizes.includes('original')}
           <p class="muted small">{t('share.originalsNote')}</p>
+          <label class="check"><input type="checkbox" bind:checked={draft.originalsAsStored} /> {t('share.originalsAsStored')}</label>
+          <p class="muted small">{t('share.originalsAsStoredHint')} <a href="/help/what-clients-receive">{t('share.whatClientsReceive')}</a></p>
           {#if originals && originals.needsRestore > 0}<p class="warn small" role="note">{t('share.originalsArchived', { count: originals.needsRestore })}</p>{/if}
           {#if originals && originals.nasOnly > 0}<p class="warn small" role="note">{t('share.originalsNasOnly', { count: originals.nasOnly })}</p>{/if}
         {/if}

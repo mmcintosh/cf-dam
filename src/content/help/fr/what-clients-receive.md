@@ -4,7 +4,7 @@ summary: "Ce que contiennent les fichiers que les clients téléchargent ou ach�
 section: Sharing
 order: 6
 review: machine
-source: f6588c6151b7
+source: bc827434a0e0
 ---
 
 Une galerie montre vos photos, mais un fichier téléchargé peut contenir plus que l’image. Cette page liste ce que reçoivent les clients, pour que rien de ce que vous vouliez garder privé ne parte avec.
@@ -25,23 +25,24 @@ Les téléchargements Petit et Grand sont des JPEG que cf-dam crée à partir de
 
 ## Originaux
 
-Un original téléchargé est **le fichier exactement tel qu’il a été envoyé**. Cela comprend :
+Un original téléchargé est le fichier tel qu’il a été envoyé, **nettoyé** au passage quand c’est un JPEG ou un PNG :
 
-- **Tout ce que votre logiciel de retouche y a écrit :** par exemple, Lightroom peut y écrire les noms des personnes, des mots-clés, des légendes, des notes et vos coordonnées.
-- **Les informations de l’appareil :** certains appareils et téléphones ajoutent la position GPS, le nom du propriétaire de l’appareil et leurs propres noms de reconnaissance faciale.
+- **Retiré :** les noms des personnes (y compris les zones de visage de Lightroom), les légendes et descriptions, les mots-clés, les notes, les commentaires, la position GPS, le nom du propriétaire de l’appareil, les notes privées du fabricant (certaines contiennent des noms de reconnaissance faciale) et les identifiants de contenu (C2PA).
+- **Conservé :** l’image elle-même, intacte ; les réglages de l’appareil et la date ; et votre **créateur** et votre **mention de copyright**, tirés des champs Droits de la photo dans cf-dam.
+- **Les photos HDR de téléphone**, qui cachent une seconde image dans le fichier, arrivent en image standard.
 - **Aucune retouche faite dans cf-dam.** Si vous avez recadré quelqu’un ici, il est toujours dans l’original.
 
-Les téléchargements payants **Taille réelle** sont aussi des originaux, vendus seulement pour les photos JPEG et PNG sans retouche dans cf-dam.
+Si un fichier ne peut pas être nettoyé avec certitude, il n’est pas envoyé du tout : le client est invité à vous contacter, et l’**Activité** indique quelle galerie.
 
-Avant de proposer les originaux, vérifiez ce que contient votre export. Dans Lightroom, le réglage **Métadonnées** de l’export peut n’inclure que le copyright et les coordonnées, et retirer les informations sur les personnes et le lieu.
+**Envoyer les originaux exactement tels qu’ils sont stockés** (dans les réglages de la galerie, sous Téléchargements) envoie les originaux intacts, avec tout ce que votre logiciel et votre appareil y ont écrit. Ne l’utilisez qu’après avoir vérifié ce que contient votre export. Dans Lightroom, le réglage **Métadonnées** de l’export peut n’inclure que le copyright et les coordonnées.
+
+Les téléchargements payants **Taille réelle** sont aussi des originaux, nettoyés de la même façon, et vendus seulement pour les photos JPEG et PNG sans retouche dans cf-dam.
 
 Les originaux viennent toujours de cf-dam lui-même. Même s’ils sont stockés sur Amazon S3, le client ne reçoit jamais de lien vers votre bucket.
 
-> **Prochainement :** cf-dam retirera les noms des personnes, les mots-clés, les légendes et la position des originaux JPEG et PNG au moment où les clients les téléchargent, en gardant les informations de l’appareil et votre copyright. Chaque galerie aura un réglage pour envoyer les originaux exactement tels qu’ils sont stockés.
-
 ## Autres types de fichier
 
-Les photos RAW, TIFF, HEIC, WebP, AVIF et GIF et les vidéos sont toujours envoyées telles qu’elles sont stockées. Les photos de téléphone (HEIC) et les vidéos contiennent souvent la position GPS.
+Les photos RAW, TIFF, HEIC, WebP, AVIF et GIF et les vidéos sont toujours envoyées telles qu’elles sont stockées, sans nettoyage, quel que soit le réglage de la galerie. Les photos de téléphone (HEIC) et les vidéos contiennent souvent la position GPS.
 
 ## Voir aussi
 

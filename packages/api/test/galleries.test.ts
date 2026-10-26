@@ -185,7 +185,10 @@ describe('downloads', () => {
     expect(small.headers.get('Content-Disposition')).toContain('a-small.jpg')
     const original = await gallery(link.token, `/assets/${ids[0]}/download/original`)
     expect(original.status).toBe(200)
-    expect(new Uint8Array(await original.arrayBuffer())).toEqual(camera)
+    // Cleaned on the way out (storage/clean.ts): the picture is the same, the GPS is gone.
+    const sent = new Uint8Array(await original.arrayBuffer())
+    expect(await (await import('sharp')).default(sent).raw().toBuffer()).toEqual(await (await import('sharp')).default(camera).raw().toBuffer())
+    expect(await (await import('exifr')).default.gps(sent)).toBeUndefined()
     const stats = (await (await h.fetch(`/api/shares/${link.id}`, { cookie: admin })).json()) as { share: Share; downloads: { size: string; count: number }[] }
     expect(stats.share.stats.downloads).toBe(2)
     expect(stats.downloads.map((d) => d.size).sort()).toEqual(['original', 'small'])

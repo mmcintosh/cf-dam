@@ -183,6 +183,8 @@ export function describeActivity(e: ActivityEntry): string {
       return typeof d.links === 'number' && d.links > 0
         ? t('act.albumDeletedLinks', { who, name: str(d.name), links: t('albumTools.links', { count: d.links }) })
         : t('act.albumDeleted', { who, name: str(d.name) })
+    case 'share.original_refused':
+      return t('act.originalRefused', { title: str(d.title) || t('act.aGallery') })
     case 'share.create':
       return t('act.shareCreate', { who })
     case 'share.revoke':
