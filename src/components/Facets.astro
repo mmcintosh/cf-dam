@@ -181,12 +181,12 @@ const rootKeywords = facets.tag
       <summary>{t('facets.groups')}</summary>
       <ul class="values">
         {groups.map((g) => (
-          <li><a href={link(groupId === String(g.id) ? { group: null, only: null } : { group: String(g.id) })} class:list={{ on: groupId === String(g.id) }}><span>{g.name} <span class="muted">· {g.clientName}</span></span></a></li>
+          <li><a href={link(groupId === String(g.id) ? { group: null, only: null } : { group: String(g.id) })} class:list={{ on: groupId === String(g.id) }} title={`${g.name} · ${g.clientName}`}><span>{g.name} <span class="muted">· {g.clientName}</span></span></a></li>
         ))}
       </ul>
       {groupId && (
         <ul class="values">
-          <li><a href={link({ only: params.get('only') === '1' ? null : '1' })} class:list={{ on: params.get('only') === '1' }}><span>{t('facets.groupOnly')}</span></a></li>
+          <li><a href={link({ only: params.get('only') === '1' ? null : '1' })} class:list={{ on: params.get('only') === '1' }}><span class="wrap">{t('facets.groupOnly')}</span></a></li>
         </ul>
       )}
     </details>
@@ -337,6 +337,7 @@ const rootKeywords = facets.tag
     color: var(--text-muted);
   }
   .values a span:first-child {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -349,6 +350,9 @@ const rootKeywords = facets.tag
   .values a.on {
     color: var(--text);
     background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .values a span.wrap {
+    white-space: normal;
   }
   .values .sub {
     padding-left: 12px;
