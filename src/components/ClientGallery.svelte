@@ -5,9 +5,20 @@
   import type { MessageKey } from '@cf-dam/i18n'
 
   type Size = 'small' | 'large' | 'original'
+  /** Someone the couple can find photos of (catalog/gallery-people.ts): `key` is what items list. */
+  interface PeopleChip {
+    key: number
+    label: string
+    kind: 'group' | 'person'
+    count: number
+  }
   interface GalleryData {
     gallery: { title: string; message: string; expiresAt: string | null; downloadSizes: Size[]; proofing: boolean; showFilenames: boolean; watermark: boolean; imageVersion: string }
-    items: GalleryItem[]
+    items: (GalleryItem & { people?: number[] })[]
+    /** Only for the gallery's client's own people, signed in, when it shows people. */
+    people?: PeopleChip[]
+    /** The gallery shows people to its client's people: ask anyone else here to sign in. Names nobody. */
+    peopleSignIn?: boolean
     visitor: { name: string; submittedAt: string | null } | null
     /** A client signed in to their account: a way back to their galleries, and no "not you?". */
     member: { name: string } | null
@@ -33,13 +44,21 @@
   let busy = $state(false)
   let picks = $state(new Set<string>(initial?.picks ?? []))
   let onlyPicks = $state(false)
+  /** Chips chosen: photos with all of them. */
+  let chosen = $state<number[]>([])
   let open = $state<number | null>(null)
   let asking = $state<string | null>(null)
   let name = $state('')
   let email = $state('')
   let note = $state('')
 
-  const shown = $derived(data ? (onlyPicks ? data.items.filter((i) => picks.has(i.id)) : data.items) : [])
+  const shown = $derived(
+    data ? data.items.filter((i) => (!onlyPicks || picks.has(i.id)) && chosen.every((key) => i.people?.includes(key))) : [],
+  )
+  function choose(key: number) {
+    chosen = chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key]
+    open = null
+  }
   const current = $derived(open === null ? null : (shown[open] ?? null))
   const image = (item: GalleryItem, name: 'thumb' | 'preview') => `${base}/assets/${item.id}/${name}?v=${data?.gallery.imageVersion ?? ''}-${item.imageVersion}`
   const ratio = (i: GalleryItem) => (i.width && i.height ? Math.min(Math.max(i.width / i.height, 0.4), 3) : 1.5)
@@ -255,10 +274,24 @@
         </div>
       {/if}
     </header>
+    {#if data.people && data.people.length > 0}
+      <div class="people" role="group" aria-label={t('gallery.people.label')}>
+        <span class="muted small">{t('gallery.people.find')}</span>
+        {#each data.people as chip (chip.key)}
+          <button class="btn btn-sm chip" class:on={chosen.includes(chip.key)} aria-pressed={chosen.includes(chip.key)} onclick={() => choose(chip.key)}>
+            {chip.label} <span class="muted">{chip.count}</span>
+          </button>
+        {/each}
+        {#if chosen.length > 0}<button class="link small" onclick={() => ((chosen = []), (open = null))}>{t('gallery.people.everyone')}</button>{/if}
+      </div>
+      {#if chosen.length > 1}<p class="muted small">{t('gallery.people.all')}</p>{/if}
+    {:else if data.peopleSignIn}
+      <p class="muted small">{t('gallery.people.invited')} <a href={`/login?next=${encodeURIComponent(`/s/${token}`)}`}>{t('gallery.people.signIn')}</a></p>
+    {/if}
     {#if note}<p class="note" role="status">{note}</p>{/if}
 
     {#if shown.length === 0}
-      <p class="muted">{onlyPicks ? t('gallery.noFavourites') : t('gallery.empty')}</p>
+      <p class="muted">{chosen.length > 0 ? t('gallery.people.none') : onlyPicks ? t('gallery.noFavourites') : t('gallery.empty')}</p>
     {:else}
       <div class="justified">
         {#each shown as item, i (item.id)}
@@ -352,6 +385,16 @@
 {/if}
 
 <style>
+  .people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin: 0 0 12px;
+  }
+  .people .chip {
+    border-radius: 999px;
+  }
   .buy {
     padding: 4px 8px;
     border-radius: var(--radius-sm);

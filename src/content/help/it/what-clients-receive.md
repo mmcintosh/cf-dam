@@ -4,7 +4,7 @@ summary: "Cosa c’è nei file che i clienti scaricano o acquistano da una galle
 section: Sharing
 order: 6
 review: machine
-source: 95d3e6ae60c7
+source: b8678ddf83a1
 ---
 
 Una galleria mostra le tue foto, ma un file scaricato può contenere più dell’immagine. Questa pagina elenca cosa ricevono i clienti, così non se ne va con il file niente che volevi tenere privato.
@@ -13,7 +13,7 @@ Una galleria mostra le tue foto, ma un file scaricato può contenere più dell�
 
 - **Titoli, didascalie e testi alternativi** sono visibili a chiunque apra il link. Una didascalia come «Lily, 4 anni, con la nonna» nomina delle persone, quindi controlla le didascalie prima di condividere un album.
 - **I nomi dei file** si vedono solo con **Mostra i nomi dei file** attivo.
-- **Le persone che hai nominato** in cf-dam non vengono mai mostrate, e nemmeno parole chiave, valutazioni, luoghi sulla mappa o note.
+- **Le persone che hai nominato** in cf-dam vengono mostrate solo alla coppia della galleria, con i nomi che scegli, quando imposti la galleria per farlo (vedi [Persone in una galleria cliente](/help/people-in-galleries)). Parole chiave, valutazioni, luoghi sulla mappa e note non vengono mai mostrati.
 
 ## Nomi dei file
 
@@ -49,3 +49,4 @@ Le foto RAW, TIFF, HEIC, WebP, AVIF e GIF e i video vengono sempre inviati come 
 - [Gallerie clienti](/help/client-galleries)
 - [Vendere foto](/help/selling)
 - [Persone nelle foto](/help/people-in-photos)
+- [Persone in una galleria cliente](/help/people-in-galleries)

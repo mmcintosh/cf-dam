@@ -13,8 +13,10 @@ interface Props {
   canSave: boolean
   /** Display name for the `on` filter (a NAS agent's or bucket's name rather than its id). */
   storedOnName?: string | null
+  /** Clients' groups of people (catalog/gallery-people.ts), for those who manage people; their names say who's related. */
+  groups?: { id: number; name: string; clientName: string }[] | null
 }
-const { facets, params, labelNames, savedSearches, canSave, storedOnName } = Astro.props
+const { facets, params, labelNames, savedSearches, canSave, storedOnName, groups = null } = Astro.props
 const current = normalizeQuery(params.toString())
 const alreadySaved = savedSearches.some((s) => s.query === current)
 
@@ -60,7 +62,7 @@ const ratingCounts = (() => {
 // Some facets go uncounted when too many photos match to count them quickly (FACET_LIVE_MAX).
 const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
-const active: { key: string; text: string }[] = []
+const active: { key: string; text: string; remove?: Record<string, null> }[] = []
 const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
 for (const [key, prefix] of CHIPS) {
   const value = params.get(key)
@@ -74,6 +76,13 @@ const chosen = (params.get('person') ?? '').split(',').filter((v) => /^\d+$/.tes
 for (const id of chosen) {
   const name = facets.named.find((p) => String(p.id) === id)?.name ?? `#${id}`
   active.push({ key: 'person', text: t('facets.chip', { name: t('facets.person'), value: name }) })
+}
+// A group of people: ?group=id is photos with anyone in it; &only=1 also leaves out photos naming anyone else.
+const groupId = params.get('group')
+const chosenGroup = groupId ? groups?.find((g) => String(g.id) === groupId) : undefined
+if (groupId && groups) {
+  active.push({ key: 'group', text: t('facets.chip', { name: t('facets.group'), value: chosenGroup?.name ?? `#${groupId}` }), remove: { group: null, only: null } })
+  if (params.get('only') === '1') active.push({ key: 'only', text: t('facets.groupOnly') })
 }
 const togglePerson = (id: number) => {
   const next = chosen.includes(String(id)) ? chosen.filter((v) => v !== String(id)) : [...chosen, String(id)].slice(-5)
@@ -115,7 +124,7 @@ const rootKeywords = facets.tag
   {active.length > 0 && (
     <div class="active">
       {active.map((chip) => (
-        <a class="chip" href={link({ [chip.key]: null })} title={t('facets.remove')}>{chip.text} <span aria-hidden="true">✕</span></a>
+        <a class="chip" href={link(chip.remove ?? { [chip.key]: null })} title={t('facets.remove')}>{chip.text} <span aria-hidden="true">✕</span></a>
       ))}
       {active.length > 1 && <a class="clear" href="/">{t('facets.clearAll')}</a>}
       {canSave && current && current !== 'sort=added' && !alreadySaved && <SaveSearch client:idle query={current} />}
@@ -164,6 +173,22 @@ const rootKeywords = facets.tag
           <li><a href={togglePerson(p.id)} class:list={{ on: chosen.includes(String(p.id)) }}><span>{p.name}</span><span class="count">{p.count}</span></a></li>
         ))}
       </ul>
+    </details>
+  )}
+
+  {groups && groups.length > 0 && (
+    <details open={Boolean(groupId)}>
+      <summary>{t('facets.groups')}</summary>
+      <ul class="values">
+        {groups.map((g) => (
+          <li><a href={link(groupId === String(g.id) ? { group: null, only: null } : { group: String(g.id) })} class:list={{ on: groupId === String(g.id) }}><span>{g.name} <span class="muted">· {g.clientName}</span></span></a></li>
+        ))}
+      </ul>
+      {groupId && (
+        <ul class="values">
+          <li><a href={link({ only: params.get('only') === '1' ? null : '1' })} class:list={{ on: params.get('only') === '1' }}><span>{t('facets.groupOnly')}</span></a></li>
+        </ul>
+      )}
     </details>
   )}
 

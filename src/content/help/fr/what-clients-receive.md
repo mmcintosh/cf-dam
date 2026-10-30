@@ -4,7 +4,7 @@ summary: "Ce que contiennent les fichiers que les clients téléchargent ou ach�
 section: Sharing
 order: 6
 review: machine
-source: 95d3e6ae60c7
+source: b8678ddf83a1
 ---
 
 Une galerie montre vos photos, mais un fichier téléchargé peut contenir plus que l’image. Cette page liste ce que reçoivent les clients, pour que rien de ce que vous vouliez garder privé ne parte avec.
@@ -13,7 +13,7 @@ Une galerie montre vos photos, mais un fichier téléchargé peut contenir plus 
 
 - **Les titres, légendes et textes alternatifs** sont visibles par toute personne qui ouvre le lien. Une légende comme « Lily, 4 ans, avec Mamie » nomme des personnes : vérifiez les légendes avant de partager un album.
 - **Les noms de fichier** ne sont visibles qu’avec **Afficher les noms de fichier** activé.
-- **Les personnes que vous avez nommées** dans cf-dam ne sont jamais montrées, pas plus que les mots-clés, les notes, les lieux sur la carte ou vos remarques.
+- **Les personnes que vous avez nommées** dans cf-dam ne sont montrées qu’au couple de la galerie, sous les noms que vous choisissez, quand vous réglez la galerie pour cela (voir [Personnes dans une galerie client](/help/people-in-galleries)). Les mots-clés, les notes, les lieux sur la carte et vos remarques ne sont jamais montrés.
 
 ## Noms de fichier
 
@@ -49,3 +49,4 @@ Les photos RAW, TIFF, HEIC, WebP, AVIF et GIF et les vidéos sont toujours envoy
 - [Galeries clients](/help/client-galleries)
 - [Vendre des photos](/help/selling)
 - [Personnes sur les photos](/help/people-in-photos)
+- [Personnes dans une galerie client](/help/people-in-galleries)

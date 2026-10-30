@@ -1,17 +1,27 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { clientDownloads, clientPeople, clientShares, getClient, getMailSettings, listJobs, mailReady } from '@cf-dam/api'
+import { clientDownloads, clientNamedPeople, clientPeople, clientShares, getClient, getMailSettings, listGroups, listJobs, mailReady } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import ClientDetails from '../../components/ClientDetails.svelte'
 import ClientErase from '../../components/ClientErase.svelte'
 import ClientPeople from '../../components/ClientPeople.svelte'
+import PeopleGroups from '../../components/PeopleGroups.svelte'
 
 const id = Astro.params.id!
 const client = await getClient(env.DB, id)
 if (!client) return Astro.redirect('/clients')
-const [people, galleries, downloads, jobs, mail] = await Promise.all([clientPeople(env.DB, id), clientShares(env.DB, id), clientDownloads(env.DB, id), listJobs(env.DB, { clientId: id }), getMailSettings(env.DB)])
+const canPeople = Astro.locals.principal!.permissions.has('people:manage')
+const [people, galleries, downloads, jobs, mail, groups, namedPeople] = await Promise.all([
+  clientPeople(env.DB, id),
+  clientShares(env.DB, id),
+  clientDownloads(env.DB, id),
+  listJobs(env.DB, { clientId: id }),
+  getMailSettings(env.DB),
+  canPeople ? listGroups(env.DB, id) : Promise.resolve(null),
+  clientNamedPeople(env.DB, id),
+])
 // Whether a new person's invite can also be emailed to them.
 const mailOn = mailReady(env as Parameters<typeof mailReady>[0], mail)
 const t = getT(Astro.locals.lang)
@@ -60,6 +70,13 @@ const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { d
     <h2>{t('clientsPage.peopleTitle')}</h2>
     <ClientPeople client:load clientId={client.id} initial={people} mailOn={mailOn} />
   </section>
+
+  {groups && (
+    <section class="card stack">
+      <h2>{t('groups.title')}</h2>
+      <PeopleGroups client:visible clientId={client.id} initial={groups} />
+    </section>
+  )}
 
   <section class="card stack">
     <h2>{t('clientsPage.galleries')}</h2>
@@ -120,7 +137,7 @@ const subtitle = [client.company, client.pastAt ? t('clientsPage.pastSince', { d
 
   <section class="card stack danger">
     <h2>{t('clientsPage.eraseTitle')}</h2>
-    <ClientErase client:load clientId={client.id} name={client.name} />
+    <ClientErase client:load clientId={client.id} name={client.name} namedPeople={namedPeople} />
   </section>
 </AppLayout>
 

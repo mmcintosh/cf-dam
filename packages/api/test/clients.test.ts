@@ -252,7 +252,7 @@ describe('clients (the Clients section)', () => {
 
     expect((await h.fetch(`/api/clients/${hansen.id}/erase`, { ...json({ confirm: 'Hansens' }), cookie: admin })).status).toBe(400)
     const erased = await h.fetch(`/api/clients/${hansen.id}/erase`, { ...json({ confirm: 'the hansens' }), cookie: admin })
-    expect(await erased.json()).toEqual({ people: 1 })
+    expect(await erased.json()).toEqual({ people: 1, namedPeople: 0 })
 
     expect((await h.fetch(`/api/clients/${hansen.id}`, { cookie: admin })).status).toBe(404)
     expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE id = ?').bind(member.userId).first<{ n: number }>()).toEqual({ n: 0 })

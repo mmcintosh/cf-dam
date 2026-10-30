@@ -11,7 +11,7 @@ A gallery shows your photos, but a downloaded file can carry more than the pictu
 
 - **Titles, captions and alt text** are shown to everyone who opens the link. A caption like "Lily, 4, with Grandma" names people, so check captions before you share an album.
 - **Filenames** are shown only with **Show filenames** on.
-- **People you named** in cf-dam are never shown, and neither are keywords, ratings, places on the map or notes.
+- **People you named** in cf-dam are shown only to the gallery's own couple, under the names you choose, when you set the gallery to (see [People in a client gallery](/help/people-in-galleries)). Keywords, ratings, places on the map and notes are never shown.
 
 ## File names
 
@@ -47,3 +47,4 @@ RAW, TIFF, HEIC, WebP, AVIF and GIF photos and videos are always sent as stored,
 - [Client galleries](/help/client-galleries)
 - [Selling photos](/help/selling)
 - [Naming people in photos](/help/people-in-photos)
+- [People in a client gallery](/help/people-in-galleries)

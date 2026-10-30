@@ -19,8 +19,10 @@
     inJob?: boolean
     /** Originals in the album clients couldn't download now: archived, or only on a NAS. */
     originals?: { needsRestore: number; nasOnly: number } | null
+    /** May set who a gallery shows its client's people (people:manage): a link to that, under each gallery. */
+    canPeople?: boolean
   }
-  let { albumId, albumName, hasWatermark, startNew = false, inJob = false, originals = null }: Props = $props()
+  let { albumId, albumName, hasWatermark, startNew = false, inJob = false, originals = null, canPeople = false }: Props = $props()
   let panel: HTMLElement | undefined = $state()
 
   type Size = 'small' | 'large' | 'original'
@@ -172,6 +174,7 @@
               {#if share.hasPassword}<span class="badge">{t('share.password')}</span>{/if}
               {#if share.watermark}<span class="badge">{t('share.watermark')}</span>{/if}
               {#if share.language}<span class="badge">{t('share.in', { language: LANGUAGES.find((l) => l.code === share.language)?.name ?? share.language })}</span>{/if}
+              {#if share.peopleShown}<span class="badge">{t('share.peopleBadge')}</span>{/if}
               {#if share.downloadSizes.length > 0}<span class="badge">{t('share.downloadsBadge', { sizes: format().list(share.downloadSizes.map((s) => t(SIZE_WORDS[s]))) })}</span>{/if}
             </span>
             <span class="muted small">
@@ -182,6 +185,7 @@
             <code class="url">{linkFor(share)}</code>
             <button class="btn btn-sm" onclick={() => copy(share)}>{copied === share.id ? t('share.copied') : t('share.copy')}</button>
             <a class="btn btn-sm" href={`/galleries/${share.id}`}>{t('share.picksStats')}</a>
+            {#if canPeople && inJob}<a class="btn btn-sm" href={`/galleries/${share.id}#people`}>{t('share.people')}</a>{/if}
             <button class="btn btn-sm" onclick={() => start(share)}>{t('common.edit')}</button>
             <button class="btn btn-sm btn-danger" onclick={() => revoke(share)} onblur={() => confirming === share.id && arm(null)}>
               {confirming === share.id ? t('share.clickRevoke') : t('share.revoke')}

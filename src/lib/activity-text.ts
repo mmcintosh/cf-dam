@@ -157,6 +157,14 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.paymentsKeys', { who })
     case 'share.price_list':
       return d.selling === true ? t('act.priceListSet', { who }) : t('act.priceListOff', { who })
+    case 'share.people':
+      return d.shown === true ? t('act.sharePeopleOn', { who, title: str(d.title) || t('act.aGallery') }) : t('act.sharePeople', { who, title: str(d.title) || t('act.aGallery') })
+    case 'people_group.created':
+      return t('act.groupCreated', { who })
+    case 'people_group.changed':
+      return t('act.groupChanged', { who })
+    case 'people_group.deleted':
+      return t('act.groupDeleted', { who })
     case 'person.created':
       return t('act.personCreated', { who })
     case 'person.changed':

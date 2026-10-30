@@ -18,6 +18,7 @@ import {
   type ShareRow,
 } from '../catalog/shares'
 import { inviteClient, newInvite, removeMember, shareMembers } from '../catalog/clients'
+import { parseSharePeople, setSharePeople, sharePeople } from '../catalog/gallery-people'
 import { markDelivered } from '../catalog/jobs'
 import { getWatermark, MAX_WATERMARK_BYTES, removeWatermarkImage, setWatermarkImage, updateWatermark, watermarkKey, WatermarkRejected, type WatermarkPosition } from '../catalog/watermark'
 import type { DamEnv } from '../env'
@@ -260,4 +261,37 @@ shareRoutes.delete('/:id/members/:userId', async (c) => {
   if (!(await removeMember(c.env.DB, id, userId))) return c.json({ error: 'not_found' }, 404)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'client.removed', targetType: 'user', targetId: userId, details: { shareId: id }, ipAddress: c.req.header('cf-connecting-ip') })
   return c.body(null, 204)
+})
+
+/**
+ * Who the gallery shows its client's own people (catalog/gallery-people.ts): the settings, what's tagged on its
+ * photos, the client's groups, a preview of exactly what they get, and warnings. Group and person names reveal a
+ * client's relationships, so this also needs `people:manage`.
+ */
+shareRoutes.get('/:id/people', requirePermission('people:manage'), async (c) => {
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE id = ?').bind(c.req.param('id')).first<ShareRow>()
+  if (!share) return c.json({ error: 'not_found' }, 404)
+  return c.json({ people: await sharePeople(c.env.DB, share) })
+})
+
+shareRoutes.put('/:id/people', requirePermission('people:manage'), async (c) => {
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE id = ? AND revoked_at IS NULL').bind(c.req.param('id')).first<ShareRow>()
+  if (!share) return c.json({ error: 'not_found', message: say('err.linkGone') }, 404)
+  try {
+    const input = parseSharePeople(await readJsonObject(c))
+    if ((await setSharePeople(c.env.DB, share, input)) === 'wrong_group') return c.json({ error: 'invalid_request', message: say('err.groupNotClients') }, 400)
+    // Who is listed stays out of Activity: only that the settings changed, and whether people are shown.
+    const now = (await c.env.DB.prepare('SELECT * FROM shares WHERE id = ?').bind(share.id).first<ShareRow>())!
+    await logActivity(c.env.DB, {
+      userId: c.get('principal')!.userId,
+      action: 'share.people',
+      targetType: 'share',
+      targetId: share.id,
+      details: { title: share.title, shown: now.people_shown === 1 },
+      ipAddress: c.req.header('cf-connecting-ip'),
+    })
+    return c.json({ people: await sharePeople(c.env.DB, now) })
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
 })

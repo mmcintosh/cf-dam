@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers'
 import { displayLabelNames } from '../lib/label-names'
 import { createFormat, getT } from '@cf-dam/i18n'
-import { DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
+import { allGroups, DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -31,14 +31,16 @@ const connections = canUpload
   : []
 // Only for people who may see the library: saved searches count photos, presets carry IPTC text,
 // and the "stored on" name is a connection's.
-const [labelNames, savedSearches, presets, storedOn] = canRead
+// Clients' groups of people only for those who manage people: a group's name says who's related.
+const [labelNames, savedSearches, presets, storedOn, groups] = canRead
   ? await Promise.all([
       getLabelNames(env.DB),
       listSavedSearches(env.DB),
       listPresets(env.DB),
       params.get('on') ? getConnection(env.DB, params.get('on')!) : null,
+      principal.permissions.has('people:manage') ? allGroups(env.DB) : null,
     ])
-  : [DEFAULT_LABEL_NAMES, [], [], null]
+  : [DEFAULT_LABEL_NAMES, [], [], null, null]
 const canRunAi = principal.permissions.has('ai:run') && Boolean(env.AI) && (await getAiSettings(env.DB)).enabled
 const filtered = [...params.keys()].some((k) => k !== 'sort')
 const sort = filters.sort
@@ -71,7 +73,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
     </div>
   ) : (
     <div class="library">
-      {facets && <Facets facets={facets} params={params} labelNames={displayLabelNames(labelNames, t)} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} storedOnName={storedOn?.name} />}
+      {facets && <Facets facets={facets} params={params} labelNames={displayLabelNames(labelNames, t)} savedSearches={savedSearches} canSave={principal.permissions.has('assets:edit')} storedOnName={storedOn?.name} groups={groups} />}
       <section class="main">
         <Timeline months={months} params={params} />
         {(filters.meaning || filters.like) && (

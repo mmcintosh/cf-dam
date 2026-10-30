@@ -4,7 +4,7 @@ summary: "Qué hay en los archivos que los clientes descargan o compran desde un
 section: Sharing
 order: 6
 review: machine
-source: 95d3e6ae60c7
+source: b8678ddf83a1
 ---
 
 Una galería muestra tus fotos, pero un archivo descargado puede llevar más que la imagen. Esta página enumera lo que reciben los clientes, para que no se vaya con él nada que quisieras mantener privado.
@@ -13,7 +13,7 @@ Una galería muestra tus fotos, pero un archivo descargado puede llevar más que
 
 - **Los títulos, pies de foto y textos alternativos** los ve cualquiera que abra el enlace. Un pie de foto como «Lily, 4 años, con la abuela» nombra a personas, así que revisa los pies de foto antes de compartir un álbum.
 - **Los nombres de archivo** solo se muestran con **Mostrar los nombres de archivo** activado.
-- **Las personas que has nombrado** en cf-dam nunca se muestran, ni tampoco las palabras clave, las valoraciones, los lugares del mapa o las notas.
+- **Las personas que has nombrado** en cf-dam solo se muestran a la propia pareja de la galería, con los nombres que elijas, cuando configuras la galería para ello (consulta [Personas en una galería de cliente](/help/people-in-galleries)). Las palabras clave, las valoraciones, los lugares del mapa y las notas nunca se muestran.
 
 ## Nombres de archivo
 
@@ -49,3 +49,4 @@ Las fotos RAW, TIFF, HEIC, WebP, AVIF y GIF y los vídeos siempre se envían com
 - [Galerías de clientes](/help/client-galleries)
 - [Vender fotos](/help/selling)
 - [Personas en las fotos](/help/people-in-photos)
+- [Personas en una galería de cliente](/help/people-in-galleries)

@@ -1,9 +1,10 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { getShare, shareDownloads, sharePicks, shareVisitors } from '@cf-dam/api'
+import { getShare, sharePeople, shareDownloads, sharePicks, shareVisitors } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import SharePicks from '../../components/SharePicks.svelte'
+import GalleryPeople from '../../components/GalleryPeople.svelte'
 
 const id = Astro.params.id!
 const share = await getShare(env.DB, id)
@@ -16,6 +17,11 @@ const { results: photos } = await env.DB.prepare(
 )
   .bind(share.albumId)
   .all<{ id: string; filename: string; has_thumb: number }>()
+// Who the gallery shows its client's own people: names and groups, so for those who manage people.
+const canPeople = Astro.locals.principal!.permissions.has('people:manage') && share.status !== 'revoked'
+const people = canPeople
+  ? await sharePeople(env.DB, (await env.DB.prepare('SELECT id, album_id, people_shown, children_named FROM shares WHERE id = ?').bind(id).first<{ id: string; album_id: string; people_shown: number; children_named: number }>())!)
+  : null
 const t = getT(Astro.locals.lang)
 const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 const link = `${Astro.url.origin}/s/${share.token}`
@@ -36,4 +42,20 @@ const link = `${Astro.url.origin}/s/${share.token}`
       downloads={downloads}
     />
   </section>
+  {people && (
+    <section class="card stack people" id="people">
+      <h2>{t('galleryPeople.title')}</h2>
+      <GalleryPeople client:load shareId={share.id} initial={people} />
+    </section>
+  )}
 </AppLayout>
+
+<style>
+  .people {
+    margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.05rem;
+    margin: 0;
+  }
+</style>

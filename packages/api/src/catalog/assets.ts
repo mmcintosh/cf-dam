@@ -371,6 +371,10 @@ export interface ListFilters {
   people?: PeopleFilter
   /** People named by hand or from the file (catalog/people.ts): photos with all of them. */
   person?: number[]
+  /** A group of people (catalog/gallery-people.ts): photos with anyone in it. */
+  group?: number
+  /** With `group`: only photos where everyone named is in the group (and someone is). */
+  groupOnly?: boolean
   type?: FileKind
   tier?: Tier
   sort?: 'captured' | 'added'
@@ -520,6 +524,15 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
       params.push(id)
     }
   }
+  if (use('group')) {
+    where.push('EXISTS (SELECT 1 FROM asset_people ap JOIN people_group_members gm ON gm.person_id = ap.person_id WHERE ap.asset_id = a.id AND gm.group_id = ?)')
+    params.push(filters.group)
+    // The team's "only them": counts only people named on the photo, as the filter's label says.
+    if (filters.groupOnly) {
+      where.push('NOT EXISTS (SELECT 1 FROM asset_people ap WHERE ap.asset_id = a.id AND ap.person_id NOT IN (SELECT gm.person_id FROM people_group_members gm WHERE gm.group_id = ?))')
+      params.push(filters.group)
+    }
+  }
   if (use('type')) {
     where.push(`(${KIND_SQL}) = ?`)
     params.push(filters.type)
@@ -656,6 +669,8 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     people: (PEOPLE_FILTERS as readonly string[]).includes(query.people ?? '') ? (query.people as PeopleFilter) : undefined,
     person: query.person && /^\d{1,12}(,\d{1,12}){0,4}$/.test(query.person) ? [...new Set(query.person.split(',').map(Number))] : undefined,
+    group: query.group && /^\d{1,12}$/.test(query.group) ? Number(query.group) : undefined,
+    groupOnly: query.group && query.only === '1' ? true : undefined,
     type: query.type && KINDS.has(query.type) ? (query.type as FileKind) : undefined,
     tier: query.tier && TIERS.has(query.tier) ? (query.tier as Tier) : undefined,
     sort: query.sort === 'added' ? 'added' : 'captured',

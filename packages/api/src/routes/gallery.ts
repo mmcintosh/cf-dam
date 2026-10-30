@@ -32,6 +32,7 @@ import {
   type ShareRow,
   type VisitorRow,
 } from '../catalog/shares'
+import { galleryPeople } from '../catalog/gallery-people'
 import { galleryImage, getWatermark } from '../catalog/watermark'
 import type { DamBindings, DamEnv } from '../env'
 import { BadRequest, optionalString, readJsonObject, requiredString } from '../lib/http'
@@ -75,13 +76,19 @@ async function access(c: Context<DamEnv>): Promise<Open | Response> {
   }
 }
 
-/** What the gallery page shows: the gallery's settings, its photos, and this visitor's picks. */
-export async function galleryJson(db: D1Database, share: ShareRow, visitor: VisitorRow | null, member: { name: string } | null = null) {
-  const [items, picks, watermark] = await Promise.all([
+/**
+ * What the gallery page shows: the gallery's settings, its photos, and this visitor's picks. For the client's own
+ * signed-in people, when the gallery says so, the people they can find photos of (catalog/gallery-people.ts).
+ */
+export async function galleryJson(db: D1Database, share: ShareRow, visitor: VisitorRow | null, member: { userId: string; name: string } | null = null) {
+  const [found, picks, watermark, people] = await Promise.all([
     galleryItems(db, share),
     visitor ? visitorPicks(db, visitor.id) : Promise.resolve([]),
     share.watermark === 1 ? getWatermark(db) : Promise.resolve(null),
+    share.people_shown === 1 && member ? galleryPeople(db, share, member) : Promise.resolve(null),
   ])
+  const chips = people && people.chips.length > 0 ? people : null
+  const items = chips ? found.map((item) => ({ ...item, people: chips.items.get(item.id) ?? [] })) : found
   return {
     gallery: {
       title: share.title,
@@ -102,6 +109,9 @@ export async function galleryJson(db: D1Database, share: ShareRow, visitor: Visi
     /** A client signed in to their account: picks are theirs, and there's a way back to their galleries. */
     member: member ? { name: member.name } : null,
     picks,
+    ...(chips ? { people: chips.chips } : {}),
+    /** The gallery shows people to its client's own people, who are asked to sign in to see them. Names nobody. */
+    ...(share.people_shown === 1 && !member ? { peopleSignIn: true } : {}),
   }
 }
 
@@ -115,7 +125,7 @@ galleryRoutes.get('/:token', async (c) => {
 })
 
 /** Everything the gallery page shows: the gallery, what it sells (selling/orders.ts) and what this browser bought. */
-export async function galleryPage(env: DamBindings, request: Request, share: ShareRow, visitor: VisitorRow | null, member: { name: string } | null) {
+export async function galleryPage(env: DamBindings, request: Request, share: ShareRow, visitor: VisitorRow | null, member: { userId: string; name: string } | null) {
   const buyer = readCookies(request).get(buyerCookieName(share.id))
   const [base, store, purchases] = await Promise.all([
     galleryJson(env.DB, share, visitor, member),

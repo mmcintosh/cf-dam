@@ -16,6 +16,8 @@ export interface PersonJson {
   notes: string
   clientId: string | null
   isChild: boolean
+  /** Never shown to any client, in any gallery (catalog/gallery-people.ts). */
+  hiddenFromClients: boolean
   /** Photos tagged with them (not in the trash). */
   photos: number
   /** A photo of them to show beside the name. */
@@ -29,6 +31,7 @@ interface PersonRow {
   notes: string
   client_id: string | null
   is_child: number
+  hidden_from_clients: number
   created_at: string
   photos: number
   cover: string | null
@@ -40,12 +43,13 @@ const toJson = (r: PersonRow): PersonJson => ({
   notes: r.notes,
   clientId: r.client_id,
   isChild: r.is_child === 1,
+  hiddenFromClients: r.hidden_from_clients === 1,
   photos: r.photos,
   coverId: r.cover,
   createdAt: r.created_at,
 })
 
-const SELECT = `SELECT p.id, p.name, p.notes, p.client_id, p.is_child, p.created_at,
+const SELECT = `SELECT p.id, p.name, p.notes, p.client_id, p.is_child, p.hidden_from_clients, p.created_at,
   (SELECT COUNT(*) FROM asset_people ap JOIN assets a ON a.id = ap.asset_id AND a.deleted_at IS NULL WHERE ap.person_id = p.id) AS photos,
   (SELECT ap.asset_id FROM asset_people ap JOIN assets a ON a.id = ap.asset_id AND a.deleted_at IS NULL WHERE ap.person_id = p.id ORDER BY a.captured_at DESC LIMIT 1) AS cover
   FROM people p`
@@ -57,6 +61,11 @@ export async function listPeople(db: D1Database, q = ''): Promise<PersonJson[]> 
     ? await db.prepare(`${SELECT} WHERE p.name_key LIKE ? ESCAPE '\\' ORDER BY p.name_key LIMIT 500`).bind(`%${key.replace(/[\\%_]/g, (m) => `\\${m}`)}%`).all<PersonRow>()
     : await db.prepare(`${SELECT} ORDER BY p.name_key LIMIT 2000`).all<PersonRow>()
   return results.map(toJson)
+}
+
+/** How many people are linked to a client (offered for deleting when the client is erased). */
+export async function clientNamedPeople(db: D1Database, clientId: string): Promise<number> {
+  return (await db.prepare('SELECT COUNT(*) AS n FROM people WHERE client_id = ?').bind(clientId).first<{ n: number }>())?.n ?? 0
 }
 
 export async function getPerson(db: D1Database, id: number): Promise<PersonJson | null> {
@@ -111,6 +120,7 @@ export interface PersonPatch {
   notes?: string
   clientId?: string | null
   isChild?: boolean
+  hiddenFromClients?: boolean
 }
 
 export function parsePersonPatch(body: Record<string, unknown>): PersonPatch {
@@ -122,6 +132,7 @@ export function parsePersonPatch(body: Record<string, unknown>): PersonPatch {
   }
   if (body.clientId !== undefined) patch.clientId = typeof body.clientId === 'string' && body.clientId ? body.clientId.slice(0, 64) : null
   if (body.isChild !== undefined) patch.isChild = body.isChild === true
+  if (body.hiddenFromClients !== undefined) patch.hiddenFromClients = body.hiddenFromClients === true
   return patch
 }
 
@@ -142,6 +153,7 @@ export async function updatePerson(db: D1Database, id: number, patch: PersonPatc
   if (patch.notes !== undefined) set('notes', patch.notes)
   if (patch.clientId !== undefined) set('client_id', patch.clientId)
   if (patch.isChild !== undefined) set('is_child', patch.isChild ? 1 : 0)
+  if (patch.hiddenFromClients !== undefined) set('hidden_from_clients', patch.hiddenFromClients ? 1 : 0)
   const result = await db
     .prepare(`UPDATE people SET ${[...sets, 'updated_at = ?'].join(', ')} WHERE id = ?`)
     .bind(...binds, nowIso(), id)
@@ -167,7 +179,11 @@ export async function deletePerson(db: D1Database, id: number): Promise<number |
   return results.length
 }
 
-/** Merge `from` into `into`: its photos become theirs, and `from` goes. Returns photos moved, or null. */
+/**
+ * Merge `from` into `into`: its photos become theirs, and `from` goes. They also join `from`'s groups (a group of
+ * another client's too) and galleries, keeping their own name where both were listed; a child or a person never
+ * shown to clients stays so. Returns photos moved, or null.
+ */
 export async function mergePeople(db: D1Database, from: number, into: number): Promise<number | null> {
   if (from === into) throw new BadRequest('Choose someone else to merge into.')
   const both = await db.prepare('SELECT COUNT(*) AS n FROM people WHERE id IN (?, ?)').bind(from, into).first<{ n: number }>()
@@ -175,6 +191,14 @@ export async function mergePeople(db: D1Database, from: number, into: number): P
   const { results } = await db.prepare('SELECT asset_id FROM asset_people WHERE person_id = ?').bind(from).all<{ asset_id: string }>()
   await db.batch([
     db.prepare('INSERT OR IGNORE INTO asset_people (asset_id, person_id, how, created_at) SELECT asset_id, ?, how, created_at FROM asset_people WHERE person_id = ?').bind(into, from),
+    db.prepare('INSERT OR IGNORE INTO people_group_members (group_id, person_id) SELECT group_id, ? FROM people_group_members WHERE person_id = ?').bind(into, from),
+    db.prepare('INSERT OR IGNORE INTO share_people (share_id, person_id, label, position) SELECT share_id, ?, label, position FROM share_people WHERE person_id = ?').bind(into, from),
+    db
+      .prepare(
+        `UPDATE people SET is_child = max(is_child, (SELECT is_child FROM people WHERE id = ?1)),
+           hidden_from_clients = max(hidden_from_clients, (SELECT hidden_from_clients FROM people WHERE id = ?1)) WHERE id = ?2`,
+      )
+      .bind(from, into),
     db.prepare('DELETE FROM people WHERE id = ?').bind(from),
   ])
   await markUnindexed(db, results.map((r) => r.asset_id))

@@ -5,7 +5,7 @@ section: Your photos
 order: 10
 ---
 
-**People** in the menu lists everyone you've named in your photos, with a photo of them and how many photos they're in. Names are for you and your team: **clients never see them**, in galleries or anywhere else.
+**People** in the menu lists everyone you've named in your photos, with a photo of them and how many photos they're in. Names are for you and your team. **Clients see them only where you choose**: a gallery can let its own couple find people by the names you list for it (see [People in a client gallery](/help/people-in-galleries)). Nowhere else, and never anyone else.
 
 Naming is done by hand, like keywords. cf-dam doesn't recognise faces.
 
@@ -35,7 +35,8 @@ If you named people in Lightroom (its People view) or another program that write
 On a person's page you can:
 
 - change their **Name** (a name someone else already has is refused: merge them instead), add **Notes**, and mark them as **A child (under 18)**;
-- **Merge** them with someone else who's the same person: their photos move over and this name goes;
+- turn on **Never show to clients**, which leaves them out of every gallery's people, whatever its settings;
+- **Merge** them with someone else who's the same person: their photos move over and this name goes. The other person also joins their groups and galleries, and stays a child or never shown if either was;
 - **Delete this person**: the name comes off every photo it's on, including photos in the trash.
 
 Naming, merging and deleting need permission to name people (administrators and editors by default). Viewers see the names on photos they can see. Activity records that a person was added, changed, merged or deleted, but not who, so a deleted name doesn't linger there.

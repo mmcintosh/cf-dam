@@ -4,10 +4,10 @@ summary: "Dare un nome a chi c’è nelle tue foto, trovare tutte le foto di qua
 section: Your photos
 order: 10
 review: machine
-source: 84b8c892f514
+source: cee611a851a5
 ---
 
-**Persone** nel menu elenca tutte le persone che hai nominato nelle tue foto, con una loro foto e in quante foto compaiono. I nomi sono per te e il tuo team: **i clienti non li vedono mai**, né nelle gallerie né altrove.
+**Persone** nel menu elenca tutte le persone che hai nominato nelle tue foto, con una loro foto e in quante foto compaiono. I nomi sono per te e il tuo team. **I clienti li vedono solo dove scegli tu**: una galleria può permettere alla propria coppia di trovare le persone con i nomi che indichi per essa (vedi [Persone in una galleria cliente](/help/people-in-galleries)). Da nessun’altra parte, e mai nessun altro.
 
 I nomi si mettono a mano, come le parole chiave. cf-dam non riconosce i volti.
 
@@ -37,7 +37,8 @@ Se hai nominato delle persone in Lightroom (nella sua vista Persone) o in un alt
 Nella pagina di una persona puoi:
 
 - cambiarne il **Nome** (un nome che ha già qualcun altro viene rifiutato: in quel caso uniscile), aggiungere delle **Note** e segnarla come **Un minore (sotto i 18 anni)**;
-- **Unisci** a qualcun altro che è la stessa persona: le sue foto passano all’altra e questo nome sparisce;
+- attivare **Non mostrare mai ai clienti**, che la esclude dalle persone di ogni galleria, qualunque siano le impostazioni;
+- **Unisci** a qualcun altro che è la stessa persona: le sue foto passano all’altra e questo nome sparisce. L’altra persona entra anche nei suoi gruppi e nelle sue gallerie, e resta un minore o mai mostrata se una delle due lo era;
 - **Elimina questa persona**: il nome viene tolto da ogni foto in cui compare, comprese le foto nel cestino.
 
 Nominare, unire ed eliminare richiedono il permesso di nominare persone (di default amministratori ed editor). I visualizzatori vedono i nomi sulle foto che possono vedere. L’attività registra che una persona è stata aggiunta, modificata, unita o eliminata, ma non chi, così un nome eliminato non ci resta.

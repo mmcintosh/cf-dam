@@ -34,7 +34,7 @@ const originals = canShare ? await albumStorage(env.DB, id) : null
   {canEdit && <AlbumTools client:load albumId={album.id} name={album.name} description={album.description} links={album.links} items={items} coverId={album.cover} />}
   {canShare && (
     <div class="share">
-      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} originals={originals ? { needsRestore: originals.needsRestore, nasOnly: originals.nasOnly } : null} />
+      <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} originals={originals ? { needsRestore: originals.needsRestore, nasOnly: originals.nasOnly } : null} canPeople={Astro.locals.principal!.permissions.has('people:manage')} />
     </div>
   )}
   {assets.length > 0 ? (

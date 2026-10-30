@@ -545,6 +545,24 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.groupChanged": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "act.groupCreated": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "act.groupDeleted": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "act.imported": {
     "es": "machine",
     "de": "machine",
@@ -861,6 +879,18 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "act.sharePeople": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "act.sharePeopleOn": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "act.shareRevoke": {
@@ -3208,6 +3238,23 @@
     "fr": "machine",
     "it": "machine"
   },
+  "clientsPage.eraseNamedPeople.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "clientsPage.eraseNamedPeople.one": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "clientsPage.eraseNamedPeople.other": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "clientsPage.eraseTitle": {
     "es": "machine",
     "de": "machine",
@@ -5188,6 +5235,24 @@
     "fr": "machine",
     "it": "machine"
   },
+  "err.groupName": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "err.groupNotClients": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "err.groupTaken": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "err.jobClient": {
     "es": "machine",
     "de": "machine",
@@ -5390,6 +5455,12 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "err.peopleLabel": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "err.presetEmpty": {
@@ -5606,6 +5677,24 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "facets.group": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facets.groupOnly": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facets.groups": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "facets.keyword": {
@@ -6298,6 +6387,48 @@
     "fr": "machine",
     "it": "machine"
   },
+  "gallery.people.all": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.everyone": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.find": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.invited": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.label": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.none": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "gallery.people.signIn": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "gallery.photo": {
     "es": "machine",
     "de": "machine",
@@ -6398,6 +6529,311 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.add": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.addGroup": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.addTicked.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.addTicked.one": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.addTicked.other": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.captionWarning": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.childrenNamed": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.childrenNamedHint": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.down": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.fromFile": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.group": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.groupsTitle": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.help": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.isChild": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.isChildHint": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.label": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.labelWarning": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.lead": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.leftTitle": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.listEmpty": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.listTitle": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.noClient": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.person": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.previewNone": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.previewOff": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.previewSaved": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.previewTitle": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.remove": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.save": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.show": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.suggest": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.suggestLead": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.title": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.undo": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.up": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.warningsTitle": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.why.child": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.why.childRule": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.why.hidden": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "galleryPeople.why.noPhotos": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.deleteConfirm": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.empty": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.lead": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.make": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.name": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.namePlaceholder": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.new": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.noCandidates": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.none": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.title": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "groups.who": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "help.all": {
@@ -10601,6 +11037,24 @@
     "fr": "machine",
     "it": "machine"
   },
+  "peoplePage.hiddenBadge": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "peoplePage.hiddenFromClients": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "peoplePage.hiddenFromClientsHint": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "peoplePage.isChild": {
     "es": "machine",
     "de": "machine",
@@ -10611,6 +11065,12 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "peoplePage.mergeGroups": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "peoplePage.mergeInto": {
@@ -11741,6 +12201,18 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "share.people": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "share.peopleBadge": {
+    "fr": "machine",
+    "de": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "share.picksStats": {

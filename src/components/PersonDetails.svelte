@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** A person's name, notes and child flag; merging into someone else; deleting (every tag of them goes). */
+  /** A person's name, notes, child flag and whether clients may ever see them; merging into someone else; deleting. */
   import { t } from '@cf-dam/i18n/client'
   import type { PersonJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
@@ -7,7 +7,7 @@
   let { person, others, canManage }: { person: PersonJson; others: { id: number; name: string }[]; canManage: boolean } = $props()
 
   // svelte-ignore state_referenced_locally
-  let form = $state({ name: person.name, notes: person.notes, isChild: person.isChild })
+  let form = $state({ name: person.name, notes: person.notes, isChild: person.isChild, hiddenFromClients: person.hiddenFromClients })
   let into = $state('')
   let busy = $state(false)
   let saved = $state(false)
@@ -67,6 +67,10 @@
       <textarea id="pd-notes" rows="3" maxlength="5000" bind:value={form.notes}></textarea>
     </div>
     <label class="row check"><input type="checkbox" bind:checked={form.isChild} /> {t('peoplePage.isChild')}</label>
+    <div>
+      <label class="row check"><input type="checkbox" bind:checked={form.hiddenFromClients} /> {t('peoplePage.hiddenFromClients')}</label>
+      <p class="muted small">{t('peoplePage.hiddenFromClientsHint')}</p>
+    </div>
     <div class="row actions">
       <button class="btn btn-primary" type="submit" disabled={busy || !form.name.trim()}>{t('common.save')}</button>
       {#if saved}<span class="muted small" role="status">{t('common.saved')}</span>{/if}
@@ -82,7 +86,7 @@
       </select>
       <button class="btn btn-sm" type="button" disabled={!into} onclick={merge}>{t('peoplePage.merge')}</button>
     </div>
-    <p class="muted small">{t('peoplePage.mergeLead')}</p>
+    <p class="muted small">{t('peoplePage.mergeLead')} {t('peoplePage.mergeGroups')}</p>
   {/if}
 
   <div class="row actions">
@@ -92,6 +96,7 @@
 {:else}
   {#if person.notes}<p>{person.notes}</p>{/if}
   {#if person.isChild}<p class="muted">{t('peoplePage.child')}</p>{/if}
+  {#if person.hiddenFromClients}<p class="muted">{t('peoplePage.hiddenBadge')}</p>{/if}
 {/if}
 
 <style>
@@ -103,6 +108,9 @@
   }
   .merge {
     margin-top: 20px;
+  }
+  p.small {
+    margin: 2px 0 0 26px;
   }
   textarea {
     width: 100%;

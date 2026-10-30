@@ -48,6 +48,10 @@ export interface ShareRow {
   final_delivery: number
   /** 1: originals go to clients exactly as stored; 0: cleaned (storage/clean.ts). */
   originals_as_stored: number
+  /** 1: the client's own invited people can find people by name (catalog/gallery-people.ts). */
+  people_shown: number
+  /** 1: children get chips of their own, not only inside groups. */
+  children_named: number
   /** The gallery's fixed language, or null for each visitor's own. */
   language: string | null
   created_by: string | null
@@ -99,6 +103,8 @@ export interface ShareJson {
   showFilenames: boolean
   /** Originals go to clients exactly as stored, not cleaned (storage/clean.ts). */
   originalsAsStored: boolean
+  /** Shows people to the client's own invited people (catalog/gallery-people.ts). */
+  peopleShown: boolean
   /** Made as the job's final delivery (catalog/jobs.ts markDelivered). */
   finalDelivery: boolean
   language: Language | null
@@ -142,6 +148,7 @@ function shareJson(row: ListedShareRow): ShareJson {
     proofing: row.proofing === 1,
     showFilenames: row.show_filenames === 1,
     originalsAsStored: row.originals_as_stored === 1,
+    peopleShown: row.people_shown === 1,
     finalDelivery: row.final_delivery === 1,
     language: (asLanguage(row.language) as Language | null) ?? null,
     status: shareStatus(row),

@@ -14,6 +14,7 @@ import { fold } from '../lib/fold'
 import { say } from '../lib/language'
 import { nowIso } from '../lib/time'
 import { clientAccount, isClientOnly, newInvite } from './clients'
+import { markUnindexed } from './search'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -330,12 +331,19 @@ export async function clientDownloads(db: D1Database, clientId: string, limit = 
 
 /**
  * Erase a client: their record, their logins (with sessions, invites and gallery memberships), the names and
- * emails they gave as gallery visitors, their jobs, and their details in the activity log. Their galleries,
- * albums and photos stay. Returns how many logins were removed, or null if there's no such client.
+ * emails they gave as gallery visitors, their jobs, their groups of people, the people their jobs' galleries
+ * listed, and their details in the activity log. Their galleries, albums and photos stay. With `namedPeople`, the
+ * people named in photos who are linked to them go too (catalog/people.ts deletePerson). Returns how many logins
+ * (and named people) were removed, or null if there's no such client.
  */
-export async function eraseClient(db: D1Database, clientId: string): Promise<{ people: number } | null> {
+export async function eraseClient(db: D1Database, clientId: string, options: { namedPeople?: boolean } = {}): Promise<{ people: number; namedPeople: number } | null> {
   const client = await db.prepare('SELECT email FROM clients WHERE id = ?').bind(clientId).first<{ email: string }>()
   if (!client) return null
+  // Photos that lose a named person are searched again without the name.
+  const { results: tagged } = options.namedPeople
+    ? await db.prepare('SELECT DISTINCT ap.asset_id FROM asset_people ap JOIN people p ON p.id = ap.person_id WHERE p.client_id = ?').bind(clientId).all<{ asset_id: string }>()
+    : { results: [] as { asset_id: string }[] }
+  const namedCount = options.namedPeople ? ((await db.prepare('SELECT COUNT(*) AS n FROM people WHERE client_id = ?').bind(clientId).first<{ n: number }>())?.n ?? 0) : 0
   const { results: people } = await db
     .prepare('SELECT u.id, lower(u.email) AS email FROM client_people p JOIN users u ON u.id = p.user_id WHERE p.client_id = ?')
     .bind(clientId)
@@ -362,10 +370,22 @@ export async function eraseClient(db: D1Database, clientId: string): Promise<{ p
     db
       .prepare("UPDATE activity_log SET details = NULL, ip_address = NULL WHERE target_type = 'job' AND target_id IN (SELECT id FROM jobs WHERE client_id = ?)")
       .bind(clientId),
+    // Their galleries stay, outside any job: no longer theirs, they show nobody.
+    db
+      .prepare(
+        `DELETE FROM share_people WHERE share_id IN (SELECT s.id FROM shares s JOIN albums al ON al.id = s.album_id JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)`,
+      )
+      .bind(clientId),
+    db
+      .prepare('UPDATE shares SET people_shown = 0 WHERE album_id IN (SELECT al.id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)')
+      .bind(clientId),
     db.prepare('DELETE FROM jobs WHERE client_id = ?').bind(clientId),
     // Sessions, passwords, passkeys, invites, gallery memberships and the client_people rows go with the users.
     db.prepare('DELETE FROM users WHERE id IN (SELECT value FROM json_each(?))').bind(ids),
+    ...(options.namedPeople ? [db.prepare('DELETE FROM people WHERE client_id = ?').bind(clientId)] : []),
+    // Their groups go with them (ON DELETE CASCADE).
     db.prepare('DELETE FROM clients WHERE id = ?').bind(clientId),
   ])
-  return { people: people.length }
+  await markUnindexed(db, tagged.map((r) => r.asset_id))
+  return { people: people.length, namedPeople: options.namedPeople ? namedCount : 0 }
 }

@@ -145,8 +145,8 @@ clientRoutes.post('/:id/erase', async (c) => {
   if (typeof body.confirm !== 'string' || body.confirm.trim().toLowerCase() !== client.name.trim().toLowerCase()) {
     return c.json({ error: 'invalid_request', message: say('err.eraseConfirm') }, 400)
   }
-  const erased = (await eraseClient(c.env.DB, id))!
+  const erased = (await eraseClient(c.env.DB, id, { namedPeople: body.namedPeople === true }))!
   // No name or email: the point is that they're gone.
-  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'client.erased', targetType: 'client', targetId: id, details: { people: erased.people }, ipAddress: c.req.header('cf-connecting-ip') })
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'client.erased', targetType: 'client', targetId: id, details: { people: erased.people, namedPeople: erased.namedPeople }, ipAddress: c.req.header('cf-connecting-ip') })
   return c.json(erased)
 })

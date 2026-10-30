@@ -4,10 +4,10 @@ summary: "Nommer qui figure sur vos photos, retrouver toutes les photos d’une 
 section: Your photos
 order: 10
 review: machine
-source: 84b8c892f514
+source: cee611a851a5
 ---
 
-**Personnes** dans le menu liste toutes les personnes que vous avez nommées sur vos photos, avec une photo de chacune et le nombre de photos où elle figure. Les noms sont pour vous et votre équipe : **les clients ne les voient jamais**, ni dans les galeries ni ailleurs.
+**Personnes** dans le menu liste toutes les personnes que vous avez nommées sur vos photos, avec une photo de chacune et le nombre de photos où elle figure. Les noms sont pour vous et votre équipe. **Les clients ne les voient que là où vous le choisissez** : une galerie peut permettre à son propre couple de retrouver des personnes sous les noms que vous lui indiquez (voir [Personnes dans une galerie client](/help/people-in-galleries)). Nulle part ailleurs, et jamais personne d’autre.
 
 Les noms s’ajoutent à la main, comme les mots-clés. cf-dam ne reconnaît pas les visages.
 
@@ -37,7 +37,8 @@ Si vous avez nommé des personnes dans Lightroom (sa vue Personnes) ou dans un a
 Sur la page d’une personne, vous pouvez :
 
 - modifier son **Nom** (un nom que quelqu’un d’autre porte déjà est refusé : fusionnez-les plutôt), ajouter des **Notes**, et l’indiquer comme **Un enfant (moins de 18 ans)** ;
-- **Fusionner** avec quelqu’un d’autre qui est la même personne : ses photos passent à l’autre et ce nom disparaît ;
+- activer **Ne jamais montrer aux clients**, qui l’exclut des personnes de toutes les galeries, quels que soient leurs réglages ;
+- **Fusionner** avec quelqu’un d’autre qui est la même personne : ses photos passent à l’autre et ce nom disparaît. L’autre personne rejoint aussi ses groupes et galeries, et reste un enfant ou jamais montrée si l’une des deux l’était ;
 - **Supprimer cette personne** : le nom est retiré de toutes les photos où il figure, y compris les photos de la corbeille.
 
 Nommer, fusionner et supprimer demandent l’autorisation de nommer des personnes (par défaut, les administrateurs et les éditeurs). Les lecteurs voient les noms sur les photos qu’ils peuvent voir. L’activité enregistre qu’une personne a été ajoutée, modifiée, fusionnée ou supprimée, mais pas laquelle, pour qu’un nom supprimé n’y reste pas.

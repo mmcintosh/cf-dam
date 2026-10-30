@@ -4,10 +4,10 @@ summary: "Poner nombre a quien aparece en tus fotos, encontrar todas las fotos d
 section: Your photos
 order: 10
 review: machine
-source: 84b8c892f514
+source: cee611a851a5
 ---
 
-**Personas** en el menú muestra a todas las personas que has nombrado en tus fotos, con una foto de cada una y en cuántas fotos aparece. Los nombres son para ti y tu equipo: **los clientes nunca los ven**, ni en las galerías ni en ningún otro sitio.
+**Personas** en el menú muestra a todas las personas que has nombrado en tus fotos, con una foto de cada una y en cuántas fotos aparece. Los nombres son para ti y tu equipo. **Los clientes solo los ven donde tú decides**: una galería puede dejar que su propia pareja encuentre a personas por los nombres que indiques para ella (consulta [Personas en una galería de cliente](/help/people-in-galleries)). En ningún otro sitio, y nunca nadie más.
 
 Los nombres se ponen a mano, como las palabras clave. cf-dam no reconoce caras.
 
@@ -37,7 +37,8 @@ Si nombraste a personas en Lightroom (en su vista Personas) o en otro programa q
 En la página de una persona puedes:
 
 - cambiar su **Nombre** (un nombre que ya tiene otra persona se rechaza: en ese caso, fusiónalas), añadir **Notas** y marcarla como **Menor de edad (menos de 18)**;
-- **Fusionar** con otra persona que es la misma: sus fotos pasan a ella y este nombre desaparece;
+- activar **No mostrar nunca a los clientes**, que la deja fuera de las personas de todas las galerías, sea cual sea su configuración;
+- **Fusionar** con otra persona que es la misma: sus fotos pasan a ella y este nombre desaparece. La otra persona también se une a sus grupos y galerías, y sigue siendo menor o sin mostrarse si alguna de las dos lo era;
 - **Eliminar esta persona**: el nombre se quita de todas las fotos en las que está, incluidas las fotos de la papelera.
 
 Nombrar, fusionar y eliminar requieren permiso para nombrar personas (por defecto, administradores y editores). Los lectores ven los nombres en las fotos que pueden ver. La actividad registra que se añadió, cambió, fusionó o eliminó una persona, pero no quién, para que un nombre eliminado no se quede ahí.

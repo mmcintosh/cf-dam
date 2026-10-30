@@ -4,10 +4,10 @@ summary: "Benennen, wer auf deinen Fotos ist, alle Fotos einer Person finden, un
 section: Your photos
 order: 10
 review: machine
-source: 84b8c892f514
+source: cee611a851a5
 ---
 
-**Personen** im Menü listet alle auf, die du auf deinen Fotos benannt hast, mit einem Foto von ihnen und der Zahl der Fotos, auf denen sie sind. Namen sind für dich und dein Team: **Kunden sehen sie nie**, weder in Galerien noch anderswo.
+**Personen** im Menü listet alle auf, die du auf deinen Fotos benannt hast, mit einem Foto von ihnen und der Zahl der Fotos, auf denen sie sind. Namen sind für dich und dein Team. **Kunden sehen sie nur dort, wo du es willst**: Eine Galerie kann ihr eigenes Paar Personen unter den Namen finden lassen, die du für sie festlegst (siehe [Personen in einer Kundengalerie](/help/people-in-galleries)). Sonst nirgends, und nie jemand anderes.
 
 Benannt wird von Hand, wie bei Stichwörtern. cf-dam erkennt keine Gesichter.
 
@@ -37,7 +37,8 @@ Hast du Personen in Lightroom (in seiner Ansicht Personen) oder in einem anderen
 Auf der Seite einer Person kannst du:
 
 - unter **Name** ihren Namen ändern (ein Name, den schon jemand anderes hat, wird abgelehnt: Führe die beiden stattdessen zusammen), **Notizen** hinzufügen und sie als **Ein Kind (unter 18)** markieren;
-- **Zusammenführen** mit jemand anderem, der dieselbe Person ist: Ihre Fotos wandern hinüber, und dieser Name verschwindet;
+- **Kunden nie zeigen** einschalten: Dann ist die Person in keiner Galerie bei den Personen dabei, egal wie sie eingestellt ist;
+- **Zusammenführen** mit jemand anderem, der dieselbe Person ist: Ihre Fotos wandern hinüber, und dieser Name verschwindet. Die andere Person kommt auch in ihre Gruppen und Galerien und bleibt ein Kind oder wird Kunden nie gezeigt, wenn das für eine der beiden galt;
 - **Diese Person löschen**: Der Name verschwindet von jedem Foto, auf dem er steht, auch von Fotos im Papierkorb.
 
 Benennen, Zusammenführen und Löschen brauchen die Berechtigung, Personen zu benennen (standardmäßig Administratoren und Bearbeiter). Betrachter sehen die Namen auf den Fotos, die sie sehen können. Die Aktivität hält fest, dass eine Person hinzugefügt, geändert, zusammengeführt oder gelöscht wurde, aber nicht wer, damit ein gelöschter Name dort nicht hängen bleibt.
