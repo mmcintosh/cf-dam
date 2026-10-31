@@ -4,7 +4,7 @@ summary: "Per i clienti: accedere, sfogliare le foto, scegliere le preferite e s
 section: Sharing
 order: 2
 review: machine
-source: 0eb398c31fbc
+source: 8601369c0d98
 ---
 
 Il tuo fotografo usa cf-dam per condividere foto con te. Con il tuo account vedi solo le gallerie che ha condiviso con te, da qualsiasi telefono, tablet o computer.
@@ -28,6 +28,10 @@ Se dimentichi la password, premi **Password dimenticata?** nella pagina di acces
 - Quando hai scelto, premi **Ho finito**. Il fotografo vedrà la tua selezione come conclusa. Puoi ancora modificarla dopo; lo vedrà anche lui.
 
 Le tue preferite restano nel tuo account: puoi iniziare sul telefono e finire sul computer.
+
+## Dire chi è chi
+
+Se il tuo fotografo l’ha attivato, la vista grande ha un pulsante **Chi c’è in questa foto?**. Scegli uno dei nomi sopra le foto o scrivi un nome, e spunta le altre foto in cui c’è quella persona. Il tuo fotografo controlla ogni nome prima di aggiungere qualcosa, e nessun altro vede i tuoi suggerimenti. Nel frattempo compare «in attesa del fotografo», e puoi **ritirare** i tuoi.
 
 ## Scaricare
 

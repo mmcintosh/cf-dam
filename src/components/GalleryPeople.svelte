@@ -138,6 +138,10 @@
         <input type="checkbox" checked={data.childrenNamed} disabled={busy} onchange={(e) => send({ childrenNamed: e.currentTarget.checked })} />
         <span>{t('galleryPeople.childrenNamed')}<br /><span class="muted small">{t('galleryPeople.childrenNamedHint')}</span></span>
       </label>
+      <label class="check">
+        <input type="checkbox" checked={data.suggestionsOn} disabled={busy || !data.peopleShown} onchange={(e) => send({ suggestionsOn: e.currentTarget.checked })} />
+        <span>{t('galleryPeople.suggestions')}<br /><span class="muted small">{data.peopleShown ? t('galleryPeople.suggestionsHint') : t('galleryPeople.suggestionsNeedPeople')}</span></span>
+      </label>
     </div>
 
     <div class="stack">
@@ -213,6 +217,7 @@
         </div>
       {/if}
       {#if !data.peopleShown && data.preview.length > 0}<p class="muted small">{t('galleryPeople.previewOff')}</p>{/if}
+      {#if data.peopleShown && data.suggestionsOn}<p class="muted small">{t('galleryPeople.suggestionsPreview')}</p>{/if}
       {#if data.left.length > 0}
         <p class="muted small">{t('galleryPeople.leftTitle')}</p>
         <ul class="notes">

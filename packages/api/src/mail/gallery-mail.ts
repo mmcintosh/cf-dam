@@ -185,21 +185,47 @@ export async function notifyFinished(env: DamBindings, shareId: string, who: str
     .bind(nowIso(), shareId, cutoff)
     .first<{ id: string; title: string; name: string; created_by: string | null }>()
   if (!claimed) return
-  const { results: to } = await db
-    .prepare(
-      `SELECT u.id, u.email FROM users u WHERE u.is_active = 1 AND (
-         u.id = ?1 OR (NOT EXISTS (SELECT 1 FROM users c WHERE c.id = ?1 AND c.is_active = 1)
-           AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.name = 'admin')))`,
-    )
-    .bind(claimed.created_by)
-    .all<{ id: string; email: string }>()
-  for (const person of to) {
+  for (const person of await galleryOwners(db, claimed.created_by)) {
     await queueMail(env, {
       kind: 'finished',
       to: person.email,
       userId: person.id,
       language: await personLanguage(db, person.id),
       params: { link: `${settings.origin}/galleries/${claimed.id}`, gallery: galleryTitle(claimed), who: who.slice(0, 100) },
+    })
+  }
+}
+
+/** Who hears about a gallery: whoever made it, or, if they've gone, the administrators. */
+async function galleryOwners(db: D1Database, createdBy: string | null): Promise<{ id: string; email: string }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT u.id, u.email FROM users u WHERE u.is_active = 1 AND (
+         u.id = ?1 OR (NOT EXISTS (SELECT 1 FROM users c WHERE c.id = ?1 AND c.is_active = 1)
+           AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.name = 'admin')))`,
+    )
+    .bind(createdBy)
+    .all<{ id: string; email: string }>()
+  return results
+}
+
+/**
+ * The couple suggested names (catalog/name-suggestions.ts): tell the photographer how many, with a link to Names to
+ * check. Never the names themselves. The caller limits it to once an hour per gallery.
+ */
+export async function notifyNames(env: DamBindings, shareId: string, count: number): Promise<void> {
+  const db = env.DB
+  const settings = await getMailSettings(db)
+  if (!mailReady(env, settings) || !settings.origin) return
+  const share = await db.prepare('SELECT id, title, name, created_by FROM shares WHERE id = ?').bind(shareId).first<{ id: string; title: string; name: string; created_by: string | null }>()
+  if (!share) return
+  for (const person of await galleryOwners(db, share.created_by)) {
+    await queueMail(env, {
+      kind: 'namesWaiting',
+      to: person.email,
+      userId: person.id,
+      language: await personLanguage(db, person.id),
+      params: { link: `${settings.origin}/galleries/${share.id}#names`, gallery: galleryTitle(share), count },
     })
   }
 }

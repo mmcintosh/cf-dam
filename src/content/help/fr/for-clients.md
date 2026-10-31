@@ -4,7 +4,7 @@ summary: "Pour les clients : se connecter, parcourir vos photos, choisir vos fav
 section: Sharing
 order: 2
 review: machine
-source: 0eb398c31fbc
+source: 8601369c0d98
 ---
 
 Votre photographe utilise cf-dam pour partager des photos avec vous. Avec votre propre compte, vous ne voyez que les galeries qu’il a partagées avec vous, depuis n’importe quel téléphone, tablette ou ordinateur.
@@ -28,6 +28,10 @@ Si vous oubliez votre mot de passe, appuyez sur **Mot de passe oublié ?** sur l
 - Quand vous avez choisi, appuyez sur **J’ai terminé**. Votre photographe verra votre sélection comme terminée. Vous pouvez encore la modifier ensuite ; il le verra aussi.
 
 Vos favoris sont conservés dans votre compte : vous pouvez commencer sur votre téléphone et finir sur votre ordinateur.
+
+## Dire qui est qui
+
+Si votre photographe l’a activé, la grande vue a un bouton **Qui est sur cette photo ?**. Choisissez l’un des noms au-dessus des photos ou saisissez un nom, et cochez les autres photos où la personne apparaît. Votre photographe vérifie chaque nom avant que quoi que ce soit soit ajouté, et personne d’autre ne voit vos propositions. En attendant, elles apparaissent « en attente du photographe », et vous pouvez **retirer** les vôtres.
 
 ## Télécharger
 

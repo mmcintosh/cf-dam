@@ -6,7 +6,7 @@
 import { createFormat, getT, type Translate, type UiLanguage } from '@cf-dam/i18n'
 import { alertSentence, type AlertText } from '../catalog/alerts'
 
-export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite' | 'galleryReady' | 'closingSoon' | 'finished' | 'alert'
+export type MailKind = 'test' | 'reset' | 'passwordChanged' | 'invite' | 'teamInvite' | 'galleryReady' | 'closingSoon' | 'finished' | 'namesWaiting' | 'alert'
 
 export interface MailParams {
   /** The studio's name, from Setup → Email. */
@@ -77,6 +77,13 @@ const KINDS: Record<MailKind, (p: MailParams, t: Translate, lang: UiLanguage) =>
     paragraphs: [t('mail.closing.body', { studio: p.studio, gallery: String(p.gallery ?? ''), date: day(lang, p.until) })],
     ...(p.link ? { button: { label: t('mail.gallery.button'), url: p.link } } : {}),
     why: t('mail.gallery.why', { studio: p.studio }),
+  }),
+  namesWaiting: (p, t) => ({
+    subject: t('mail.namesWaiting.subject', { gallery: String(p.gallery ?? '') }),
+    heading: t('mail.namesWaiting.heading'),
+    paragraphs: [t('mail.namesWaiting.body', { count: Number(p.count ?? 0), gallery: String(p.gallery ?? '') })],
+    ...(p.link ? { button: { label: t('mail.namesWaiting.button'), url: p.link } } : {}),
+    why: t('mail.namesWaiting.why'),
   }),
   finished: (p, t) => ({
     subject: t('mail.finished.subject', { who: String(p.who ?? ''), gallery: String(p.gallery ?? '') }),

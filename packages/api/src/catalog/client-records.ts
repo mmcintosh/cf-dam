@@ -332,7 +332,7 @@ export async function clientDownloads(db: D1Database, clientId: string, limit = 
 /**
  * Erase a client: their record, their logins (with sessions, invites and gallery memberships), the names and
  * emails they gave as gallery visitors, their jobs, their groups of people, the people their jobs' galleries
- * listed, and their details in the activity log. Their galleries, albums and photos stay. With `namedPeople`, the
+ * listed, the names suggested in those galleries, and their details in the activity log. Their galleries, albums and photos stay. With `namedPeople`, the
  * people named in photos who are linked to them go too (catalog/people.ts deletePerson). Returns how many logins
  * (and named people) were removed, or null if there's no such client.
  */
@@ -376,8 +376,14 @@ export async function eraseClient(db: D1Database, clientId: string, options: { n
         `DELETE FROM share_people WHERE share_id IN (SELECT s.id FROM shares s JOIN albums al ON al.id = s.album_id JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)`,
       )
       .bind(clientId),
+    // The names they suggested there, and any more (before the jobs go, as these find the galleries through them).
     db
-      .prepare('UPDATE shares SET people_shown = 0 WHERE album_id IN (SELECT al.id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)')
+      .prepare(
+        `DELETE FROM name_suggestions WHERE share_id IN (SELECT s.id FROM shares s JOIN albums al ON al.id = s.album_id JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)`,
+      )
+      .bind(clientId),
+    db
+      .prepare('UPDATE shares SET people_shown = 0, suggestions_on = 0 WHERE album_id IN (SELECT al.id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE j.client_id = ?)')
       .bind(clientId),
     db.prepare('DELETE FROM jobs WHERE client_id = ?').bind(clientId),
     // Sessions, passwords, passkeys, invites, gallery memberships and the client_people rows go with the users.

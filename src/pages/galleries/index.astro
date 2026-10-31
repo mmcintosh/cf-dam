@@ -1,13 +1,15 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT } from '@cf-dam/i18n'
-import { getWatermark, listShares } from '@cf-dam/api'
+import { getWatermark, listShares, waitingCounts } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import WatermarkSettings from '../../components/WatermarkSettings.svelte'
 import NewGallery from '../../components/NewGallery.svelte'
 
 const shares = await listShares(env.DB)
 const watermark = await getWatermark(env.DB)
+// Names the couple suggested, waiting to be checked: only for those who check them.
+const waitingNames = Astro.locals.principal!.permissions.has('people:manage') ? await waitingCounts(env.DB) : new Map<string, number>()
 const sample = await env.DB.prepare(
   "SELECT r.asset_id FROM renditions r JOIN assets a ON a.id = r.asset_id AND a.deleted_at IS NULL WHERE r.name = 'preview' AND a.width >= a.height ORDER BY a.created_at DESC LIMIT 1",
 ).first<{ asset_id: string }>()
@@ -55,7 +57,14 @@ const STATUS: Record<string, string> = { active: t('galleries.status.active'), e
           <tbody>
             {live.map((s) => (
               <tr>
-                <td><a href={`/galleries/${s.id}`}>{s.name}</a></td>
+                <td>
+                  <a href={`/galleries/${s.id}`}>{s.name}</a>
+                  {waitingNames.get(s.id) && (
+                    <a class="badge badge-ok" href={`/galleries/${s.id}#names`} title={t('namesToCheck.badgeTitle', { count: waitingNames.get(s.id)! })}>
+                      {t('namesToCheck.badge', { count: waitingNames.get(s.id)! })}
+                    </a>
+                  )}
+                </td>
                 <td><a href={`/albums/${s.albumId}`}>{s.albumName}</a></td>
                 <td><span class:list={['badge', { 'badge-ok': s.status === 'active' }]}>{STATUS[s.status]}</span></td>
                 <td class="muted">{s.expiresAt ? fmt(s.expiresAt) : t('galleries.never')}</td>

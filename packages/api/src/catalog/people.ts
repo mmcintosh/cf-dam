@@ -193,6 +193,8 @@ export async function mergePeople(db: D1Database, from: number, into: number): P
     db.prepare('INSERT OR IGNORE INTO asset_people (asset_id, person_id, how, created_at) SELECT asset_id, ?, how, created_at FROM asset_people WHERE person_id = ?').bind(into, from),
     db.prepare('INSERT OR IGNORE INTO people_group_members (group_id, person_id) SELECT group_id, ? FROM people_group_members WHERE person_id = ?').bind(into, from),
     db.prepare('INSERT OR IGNORE INTO share_people (share_id, person_id, label, position) SELECT share_id, ?, label, position FROM share_people WHERE person_id = ?').bind(into, from),
+    // Names the couple ticked for them wait for the person they're merged into.
+    db.prepare('UPDATE name_suggestions SET person_id = ? WHERE person_id = ?').bind(into, from),
     db
       .prepare(
         `UPDATE people SET is_child = max(is_child, (SELECT is_child FROM people WHERE id = ?1)),

@@ -33,6 +33,8 @@ import {
   type VisitorRow,
 } from '../catalog/shares'
 import { galleryPeople } from '../catalog/gallery-people'
+import { claimNote, coupleSuggestions, parseSuggestion, suggest, suggestedByPhoto, suggestionsOpen, takeBack, type SuggestionRow } from '../catalog/name-suggestions'
+import { logActivity } from '../lib/activity'
 import { galleryImage, getWatermark } from '../catalog/watermark'
 import type { DamBindings, DamEnv } from '../env'
 import { BadRequest, optionalString, readJsonObject, requiredString } from '../lib/http'
@@ -40,7 +42,7 @@ import { applyGalleryLanguage, say } from '../lib/language'
 import { attachmentDisposition, StorageError } from '../storage/types'
 import { CleanError } from '../storage/clean'
 import { originalResponse } from '../storage/original'
-import { notifyFinished } from '../mail/gallery-mail'
+import { notifyFinished, notifyNames } from '../mail/gallery-mail'
 import { buyerOrders, galleryStore, SIZES, startCheckout, type CheckoutRequest, type SaleSize } from '../selling/orders'
 import { StripeError } from '../selling/stripe'
 import { deliverItem, BOUGHT_ITEM_COLUMNS, originalRefused, type BoughtItem } from './store'
@@ -57,6 +59,8 @@ galleryRoutes.use('*', async (c, next) => {
 
 const UNLOCK_RULE = { max: 10, windowMs: 60_000 }
 const VISITOR_RULE = { max: 10, windowMs: 60_000, keyPrefix: 'gallery-visitor' }
+/** Loose: the real limits are the waiting counts (catalog/name-suggestions.ts), checked in the database. */
+const SUGGEST_RULE = { max: 60, windowMs: 60_000, keyPrefix: 'gallery-names' }
 
 type Open = Extract<GalleryAccess, { state: 'open' }>
 
@@ -78,17 +82,29 @@ async function access(c: Context<DamEnv>): Promise<Open | Response> {
 
 /**
  * What the gallery page shows: the gallery's settings, its photos, and this visitor's picks. For the client's own
- * signed-in people, when the gallery says so, the people they can find photos of (catalog/gallery-people.ts).
+ * signed-in people, when the gallery says so, the people they can find photos of (catalog/gallery-people.ts) and
+ * the names they've suggested that are waiting (catalog/name-suggestions.ts), read in the same round trip.
  */
 export async function galleryJson(db: D1Database, share: ShareRow, visitor: VisitorRow | null, member: { userId: string; name: string } | null = null) {
   const [found, picks, watermark, people] = await Promise.all([
     galleryItems(db, share),
     visitor ? visitorPicks(db, visitor.id) : Promise.resolve([]),
     share.watermark === 1 ? getWatermark(db) : Promise.resolve(null),
-    share.people_shown === 1 && member ? galleryPeople(db, share, member) : Promise.resolve(null),
+    share.people_shown === 1 && member
+      ? galleryPeople<SuggestionRow>(db, share, member, share.suggestions_on === 1 ? coupleSuggestions(db, share, member.userId) : undefined)
+      : Promise.resolve(null),
   ])
   const chips = people && people.chips.length > 0 ? people : null
-  const items = chips ? found.map((item) => ({ ...item, people: chips.items.get(item.id) ?? [] })) : found
+  const suggesting = people?.isCouple === true && suggestionsOpen(share)
+  const suggested = suggesting ? suggestedByPhoto(people!.extra) : null
+  const items =
+    chips || suggested
+      ? found.map((item) => ({
+          ...item,
+          ...(chips ? { people: chips.items.get(item.id) ?? [] } : {}),
+          ...(suggested ? { suggested: suggested.get(item.id) ?? [] } : {}),
+        }))
+      : found
   return {
     gallery: {
       title: share.title,
@@ -110,6 +126,8 @@ export async function galleryJson(db: D1Database, share: ShareRow, visitor: Visi
     member: member ? { name: member.name } : null,
     picks,
     ...(chips ? { people: chips.chips } : {}),
+    /** The couple can say who's on a photo: the photographer checks it before anything is tagged. */
+    ...(suggesting ? { suggesting: true } : {}),
     /** The gallery shows people to its client's own people, who are asked to sign in to see them. Names nobody. */
     ...(share.people_shown === 1 && !member ? { peopleSignIn: true } : {}),
   }
@@ -246,6 +264,47 @@ galleryRoutes.post('/:token/submit', async (c) => {
   if (gallery.visitor.user_id) c.executionCtx.waitUntil(notifyFinished(c.env, gallery.share.id, gallery.visitor.name).catch((e) => console.warn('[mail] finished', e)))
   return c.json({ ok: true })
 })
+
+/**
+ * The couple say who is on some photos (catalog/name-suggestions.ts). Every refusal of the same kind looks the same,
+ * so trying chips, photos or ids teaches nothing about anyone else.
+ */
+galleryRoutes.post('/:token/names', async (c) => {
+  const gallery = await access(c)
+  if (gallery instanceof Response) return gallery
+  const refused = () => c.json({ error: 'forbidden', message: say('gallery.api.noSuggestions') }, 403)
+  if (!gallery.member || !suggestionsOpen(gallery.share)) return refused()
+  const limited = await consumeRateLimit(c, SUGGEST_RULE, gallery.member.userId)
+  if (limited) return limited
+  try {
+    const outcome = await suggest(c.env.DB, gallery.share, gallery.member, parseSuggestion(await readJsonObject(c)))
+    if (outcome === 'not_couple') return refused()
+    if (outcome === 'chip_changed') return c.json({ error: 'changed', message: say('gallery.api.peopleChanged') }, 409)
+    if (outcome === 'not_in_gallery') return c.json({ error: 'not_found', message: say('gallery.api.photoGone') }, 404)
+    if (outcome === 'limit') return c.json({ error: 'limit', message: say('gallery.api.suggestLimit') }, 409)
+    c.executionCtx.waitUntil(noteNames(c.env, gallery.share).catch((e) => console.warn('[names] note', e)))
+    return c.json({ suggested: Object.fromEntries(outcome.suggested) }, 201)
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
+    throw error
+  }
+})
+
+/** Take back a name you suggested, while it's waiting. */
+galleryRoutes.delete('/:token/names/:id', async (c) => {
+  const gallery = await access(c)
+  if (gallery instanceof Response) return gallery
+  if (!gallery.member || !(await takeBack(c.env.DB, gallery.share, gallery.member.userId, c.req.param('id') ?? ''))) return c.json({ error: 'not_found' }, 404)
+  return c.body(null, 204)
+})
+
+/** At most hourly per gallery: a line in Activity naming nobody, and an email to the photographer with a count. */
+async function noteNames(env: DamBindings, share: ShareRow): Promise<void> {
+  const count = await claimNote(env.DB, share)
+  if (!count) return
+  await logActivity(env.DB, { userId: null, action: 'share.names_suggested', targetType: 'share', targetId: share.id, details: { title: share.title, count } })
+  await notifyNames(env, share.id, count)
+}
 
 /** Thumbnails and large views, watermarked when the link says so. */
 galleryRoutes.get('/:token/assets/:assetId/:name{thumb|preview}', async (c) => {

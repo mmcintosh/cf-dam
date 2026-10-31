@@ -3,6 +3,7 @@
   import type { GalleryItem } from '@cf-dam/api'
   import { format, t } from '@cf-dam/i18n/client'
   import type { MessageKey } from '@cf-dam/i18n'
+  import SuggestNames from './SuggestNames.svelte'
 
   type Size = 'small' | 'large' | 'original'
   /** Someone the couple can find photos of (catalog/gallery-people.ts): `key` is what items list. */
@@ -14,9 +15,11 @@
   }
   interface GalleryData {
     gallery: { title: string; message: string; expiresAt: string | null; downloadSizes: Size[]; proofing: boolean; showFilenames: boolean; watermark: boolean; imageVersion: string }
-    items: (GalleryItem & { people?: number[] })[]
+    items: (GalleryItem & { people?: number[]; suggested?: { id: string; label: string; mine: boolean }[] })[]
     /** Only for the gallery's client's own people, signed in, when it shows people. */
     people?: PeopleChip[]
+    /** The couple can say who's on a photo (catalog/name-suggestions.ts); items carry what's waiting. */
+    suggesting?: boolean
     /** The gallery shows people to its client's people: ask anyone else here to sign in. Names nobody. */
     peopleSignIn?: boolean
     visitor: { name: string; submittedAt: string | null } | null
@@ -48,6 +51,12 @@
   let chosen = $state<number[]>([])
   let open = $state<number | null>(null)
   let asking = $state<string | null>(null)
+  /** "Who's in this photo?" is open: the viewer's keys and swipes leave the photo alone. */
+  let suggestingOpen = $state(false)
+  function suggestedChanged(byPhoto: Record<string, { id: string; label: string; mine: boolean }[]>) {
+    if (!data) return
+    data.items = data.items.map((i) => (byPhoto[i.id] ? { ...i, suggested: byPhoto[i.id] } : i))
+  }
   let name = $state('')
   let email = $state('')
   let note = $state('')
@@ -186,7 +195,7 @@
   }
 
   function onKey(event: KeyboardEvent) {
-    if (open === null || asking) return
+    if (open === null || asking || suggestingOpen) return
     if (event.key === 'Escape') open = null
     else if (event.key === 'ArrowRight') step(1)
     else if (event.key === 'ArrowLeft') step(-1)
@@ -198,6 +207,7 @@
   let touchX = 0
   const touchStart = (event: TouchEvent) => (touchX = event.touches[0]?.clientX ?? 0)
   function touchEnd(event: TouchEvent) {
+    if (suggestingOpen) return
     const dx = (event.changedTouches[0]?.clientX ?? 0) - touchX
     if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1)
   }
@@ -357,7 +367,22 @@
         {/if}
         <button class="nav next" onclick={() => step(1)} aria-label={t('gallery.next')}>›</button>
       </div>
-      {#if current.caption}<p class="caption">{current.caption}</p>{/if}
+      {#if current.caption || data.suggesting}
+        <div class="foot">
+          {#if current.caption}<p class="caption">{current.caption}</p>{/if}
+          {#if data.suggesting}
+            <SuggestNames
+              {base}
+              item={current}
+              items={data.items}
+              chips={data.people ?? []}
+              thumb={(i) => image(i as GalleryItem, 'thumb')}
+              onchange={suggestedChanged}
+              onopen={(o) => (suggestingOpen = o)}
+            />
+          {/if}
+        </div>
+      {/if}
     </div>
   {/if}
 

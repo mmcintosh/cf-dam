@@ -52,6 +52,12 @@ export interface ShareRow {
   people_shown: number
   /** 1: children get chips of their own, not only inside groups. */
   children_named: number
+  /** 1: the couple can suggest names, while people are shown (catalog/name-suggestions.ts). */
+  suggestions_on: number
+  /** When the photographer last set suggestions_on; null: never. */
+  suggestions_set_at: string | null
+  /** The last hourly "names suggested" note (Activity and email). */
+  suggestions_noted_at: string | null
   /** The gallery's fixed language, or null for each visitor's own. */
   language: string | null
   created_by: string | null

@@ -159,6 +159,10 @@ export function describeActivity(e: ActivityEntry): string {
       return d.selling === true ? t('act.priceListSet', { who }) : t('act.priceListOff', { who })
     case 'share.people':
       return d.shown === true ? t('act.sharePeopleOn', { who, title: str(d.title) || t('act.aGallery') }) : t('act.sharePeople', { who, title: str(d.title) || t('act.aGallery') })
+    case 'share.names_suggested':
+      return t('act.namesSuggested', { count: typeof d.count === 'number' ? d.count : 0, title: str(d.title) || t('act.aGallery') })
+    case 'share.names_checked':
+      return t('act.namesChecked', { who, title: str(d.title) || t('act.aGallery'), accepted: num(d.accepted), rejected: num(d.rejected) })
     case 'people_group.created':
       return t('act.groupCreated', { who })
     case 'people_group.changed':

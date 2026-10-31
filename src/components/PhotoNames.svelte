@@ -56,6 +56,7 @@
       <li class="chip">
         <a href={`/people/${p.id}`}>{p.name}</a>
         {#if p.how === 'file'}<span class="muted small" title={t('photoNames.fromFileTitle')}>{t('photoNames.fromFile')}</span>{/if}
+        {#if p.how === 'client'}<span class="muted small" title={t('photoNames.fromClientTitle')}>{t('photoNames.fromClient')}</span>{/if}
         {#if canManage}<button class="x" type="button" disabled={busy} aria-label={t('photoNames.remove', { name: p.name })} onclick={() => change({ personId: p.id, add: false })}>×</button>{/if}
       </li>
     {/each}

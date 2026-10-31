@@ -4,7 +4,7 @@ summary: "Para clientes: iniciar sesión, ver tus fotos, elegir favoritas y desc
 section: Sharing
 order: 2
 review: machine
-source: 0eb398c31fbc
+source: 8601369c0d98
 ---
 
 Tu fotógrafo usa cf-dam para compartir fotos contigo. Con tu propia cuenta solo ves las galerías que ha compartido contigo, desde cualquier teléfono, tableta u ordenador.
@@ -28,6 +28,10 @@ Si olvidas tu contraseña, pulsa **¿Olvidaste tu contraseña?** en la página d
 - Cuando hayas elegido, pulsa **He terminado**. Tu fotógrafo verá tu selección como terminada. Aún puedes cambiarla después; también lo verá.
 
 Tus favoritas se guardan en tu cuenta, así que puedes empezar en el teléfono y terminar en el ordenador.
+
+## Decir quién es quién
+
+Si tu fotógrafo lo ha activado, la vista grande tiene un botón **¿Quién sale en esta foto?**. Elige uno de los nombres que hay encima de las fotos o escribe un nombre, y marca las demás fotos en las que sale. Tu fotógrafo revisa cada nombre antes de añadir nada, y nadie más ve lo que sugieres. Mientras tanto aparece como «pendiente del fotógrafo», y puedes **retirar** los tuyos.
 
 ## Descargar
 

@@ -22,14 +22,15 @@ import { nowIso } from '../lib/time'
 import { GALLERY_ORDER, MAX_GALLERY_ITEMS, type ShareRow } from './shares'
 
 /** The photos a gallery shows, in its order: `?1` the album, `?2` the limit. Shared with galleryItems' order. */
-const SHOWN = `shown AS (SELECT ai.asset_id FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
+export const SHOWN = `shown AS (SELECT ai.asset_id FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
   WHERE ai.album_id = ?1 ORDER BY ${GALLERY_ORDER} LIMIT ?2)`
 /** The client a gallery is for: its album's job's client, or null. `?1` the album. */
-const CLIENT_OF_ALBUM = '(SELECT j.client_id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE al.id = ?1)'
+export const CLIENT_OF_ALBUM = '(SELECT j.client_id FROM albums al JOIN jobs j ON j.id = al.job_id WHERE al.id = ?1)'
 
-const MAX_ENTRIES = 100
+export const MAX_ENTRIES = 100
 const MAX_GROUP_MEMBERS = 500
-const MAX_LABEL = 60
+export const MAX_ENTRY_LABEL = 60
+const MAX_LABEL = MAX_ENTRY_LABEL
 const MAX_GROUP_NAME = 80
 
 // ---- Groups ----
@@ -226,6 +227,8 @@ export interface ChipResult {
   items: Map<string, number[]>
   /** Entries left out, and why: for the photographer's preview, never for clients. */
   left: { entry: Entry; why: 'no_photos' | 'hidden' | 'child' | 'child_rule' }[]
+  /** The person behind each person chip, by key: for checking what the couple ticked, never sent to them. */
+  chipPerson: Map<number, number>
 }
 
 /** The rules of §5 over what was read (pure, so it is tested on its own). */
@@ -289,23 +292,31 @@ export function computeChips(
     for (const asset of photos) mark(asset, key)
     chips.push({ key, label: g.entry.label, kind: 'group', count: photos.size })
   }
+  const chipPerson = new Map<number, number>()
   for (const c of personChips) {
     const key = chips.length
     const photos = photosOf.get(c.person)!
     for (const asset of photos) mark(asset, key)
     chips.push({ key, label: c.entry.label, kind: 'person', count: photos.size })
+    chipPerson.set(key, c.person)
   }
-  return { chips, items, left }
+  return { chips, items, left, chipPerson }
 }
 
 /**
  * What a gallery shows of people: for `viewer` (a signed-in member) only if they are the gallery's client's own
- * person; 'team' reads it as the couple would see it, for the photographer's preview. One round trip.
+ * person; 'team' reads it as the couple would see it, for the photographer's preview. One round trip, with `extra`
+ * (the couple's own suggestions, catalog/name-suggestions.ts) read in the same batch when given.
  */
-export async function galleryPeople(db: D1Database, share: Pick<ShareRow, 'id' | 'album_id' | 'children_named'>, viewer: { userId: string } | 'team'): Promise<ChipResult> {
+export async function galleryPeople<T = never>(
+  db: D1Database,
+  share: Pick<ShareRow, 'id' | 'album_id' | 'children_named'>,
+  viewer: { userId: string } | 'team',
+  extra?: D1PreparedStatement,
+): Promise<ChipResult & { isCouple: boolean; extra: T[] }> {
   const team = viewer === 'team' ? 1 : 0
   const userId = viewer === 'team' ? '' : viewer.userId
-  const [entries, people, tags] = await db.batch([
+  const [entries, people, tags, couple, more] = await db.batch([
     // The gallery's list, only for its client's own people, and only groups of that client.
     db
       .prepare(
@@ -331,22 +342,28 @@ export async function galleryPeople(db: D1Database, share: Pick<ShareRow, 'id' |
          SELECT ap.asset_id, ap.person_id FROM shown JOIN asset_people ap ON ap.asset_id = shown.asset_id WHERE ap.person_id IN (SELECT person_id FROM wanted)`,
       )
       .bind(share.album_id, MAX_GALLERY_ITEMS, share.id),
+    // Whether the viewer is the couple, which the list alone can't tell when it's empty.
+    db.prepare(`SELECT EXISTS (SELECT 1 FROM client_people cp WHERE cp.user_id = ?2 AND cp.client_id = ${CLIENT_OF_ALBUM}) AS couple`).bind(share.album_id, userId),
+    ...(extra ? [extra] : []),
   ])
+  const isCouple = viewer !== 'team' && (couple!.results[0] as { couple: number } | undefined)?.couple === 1
+  const found = { isCouple, extra: (more?.results ?? []) as T[] }
   const rows = entries!.results as { person_id: number | null; group_id: number | null; label: string; position: number }[]
-  if (rows.length === 0) return { chips: [], items: new Map(), left: [] }
+  if (rows.length === 0) return { chips: [], items: new Map(), left: [], chipPerson: new Map(), ...found }
   const members = new Map<number, number[]>()
   const flags = new Map<number, Flags>()
   for (const r of people!.results as { group_id: number | null; id: number; is_child: number; hidden_from_clients: number }[]) {
     flags.set(r.id, { child: r.is_child === 1, hidden: r.hidden_from_clients === 1 })
     if (r.group_id !== null) members.set(r.group_id, [...(members.get(r.group_id) ?? []), r.id])
   }
-  return computeChips(
+  const chips = computeChips(
     rows.map((r) => ({ personId: r.person_id, groupId: r.group_id, label: r.label, position: r.position })),
     members,
     flags,
     tags!.results as { asset_id: string; person_id: number }[],
     share.children_named === 1,
   )
+  return { ...chips, ...found }
 }
 
 // ---- The photographer's settings ----
@@ -373,6 +390,8 @@ export interface SharePeopleJson {
   client: { id: string; name: string } | null
   peopleShown: boolean
   childrenNamed: boolean
+  /** The couple can suggest names (catalog/name-suggestions.ts); only while people are shown. */
+  suggestionsOn: boolean
   entries: SharePeopleEntry[]
   /** People tagged on the gallery's photos, the most photographed first. */
   tagged: (GroupMember & { photos: number; fromFile: boolean })[]
@@ -387,7 +406,7 @@ export interface SharePeopleJson {
   captionWarnings: { assetId: string; filename: string; name: string }[]
 }
 
-type SharePeopleShare = Pick<ShareRow, 'id' | 'album_id' | 'people_shown' | 'children_named'>
+type SharePeopleShare = Pick<ShareRow, 'id' | 'album_id' | 'people_shown' | 'children_named' | 'suggestions_on'>
 
 export async function sharePeople(db: D1Database, share: SharePeopleShare): Promise<SharePeopleJson> {
   const [client, entries, tagged, texts] = await db.batch([
@@ -445,6 +464,7 @@ export async function sharePeople(db: D1Database, share: SharePeopleShare): Prom
     client: owner,
     peopleShown: share.people_shown === 1,
     childrenNamed: share.children_named === 1,
+    suggestionsOn: share.suggestions_on === 1,
     entries: listed,
     tagged: (tagged!.results as { id: number; name: string; is_child: number; hidden_from_clients: number; photos: number; from_file: number }[]).map((r) => ({
       id: r.id,
@@ -474,12 +494,13 @@ function names(text: string, name: string): boolean {
 export interface SharePeopleInput {
   peopleShown?: boolean
   childrenNamed?: boolean
+  suggestionsOn?: boolean
   entries?: { personId: number | null; groupId: number | null; label: string }[]
 }
 
 export function parseSharePeople(body: Record<string, unknown>): SharePeopleInput {
   const input: SharePeopleInput = {}
-  for (const field of ['peopleShown', 'childrenNamed'] as const) {
+  for (const field of ['peopleShown', 'childrenNamed', 'suggestionsOn'] as const) {
     if (body[field] === undefined) continue
     if (typeof body[field] !== 'boolean') throw new BadRequest(`${field} must be true or false.`)
     input[field] = body[field]
@@ -537,6 +558,14 @@ export async function setSharePeople(db: D1Database, share: Pick<ShareRow, 'id' 
   }
   set('people_shown', input.peopleShown)
   set('children_named', input.childrenNamed)
+  set('suggestions_on', input.suggestionsOn)
+  if (input.suggestionsOn !== undefined) {
+    sets.push('suggestions_set_at = ?')
+    binds.push(nowIso())
+  } else if (input.peopleShown === true) {
+    // Showing people the first time lets the couple suggest names too, until the photographer says otherwise.
+    sets.push('suggestions_on = CASE WHEN suggestions_set_at IS NULL THEN 1 ELSE suggestions_on END')
+  }
   if (sets.length) statements.push(db.prepare(`UPDATE shares SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`).bind(...binds, nowIso(), share.id))
   if (statements.length) await db.batch(statements)
   return 'ok'

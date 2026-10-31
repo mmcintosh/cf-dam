@@ -4,7 +4,7 @@ summary: "Permettre au couple de retrouver toutes les photos d’une personne, d
 section: Sharing
 order: 7
 review: machine
-source: cbb50c52a7bf
+source: b25ea4cd34ad
 ---
 
 Une galerie de mariage peut contenir des centaines de photos. Une galerie peut permettre **au couple** de retrouver celles qu’il cherche : toutes les photos de Mamie, de la famille de la mariée, des enfants. Il choisit un nom au-dessus des photos, et la galerie n’affiche que les photos où figure cette personne ou ce groupe. En choisir deux affiche les photos où figurent les deux.
@@ -50,6 +50,22 @@ Les enfants (les personnes marquées **Un enfant (moins de 18 ans)**) sont trait
 
 Sur la page d’une personne, **Ne jamais montrer aux clients** l’exclut des personnes de toutes les galeries, quels que soient leurs réglages. Elle ne compte jamais non plus dans un groupe : un groupe n’est affiché que grâce à ses membres qui peuvent l’être.
 
+## Les noms proposés par le couple
+
+Le couple sait souvent mieux que vous qui est qui. Quand **Les laisser proposer des noms** est activé (cela s’active avec **Montrer les personnes** la première fois), la visionneuse de sa galerie a un bouton **Qui est sur cette photo ?**. Il peut cocher l’un des noms qu’il voit déjà, ou saisir un nom, pour cette photo et toutes les autres qu’il coche.
+
+Rien n’est identifié à ce moment-là. Ses propositions attendent sous **Noms à vérifier** sur la page de la galerie, et la liste des galeries clients indique combien attendent. Elles sont regroupées par nom : « Tante Marie » sur douze photos est une seule décision.
+
+- **Est-ce…** propose qui cela pourrait être, d’abord les personnes de cette galerie et celles du client. Quelqu’un d’un autre client apparaît avec le nom de ce client et n’est jamais choisi à votre place.
+- **Une nouvelle personne** la crée, liée à ce client : effacer le client avec ses personnes nommées la supprime aussi. Si quelqu’un porte déjà ce nom, on vous dit qui, et vous pouvez le choisir ou utiliser un autre nom.
+- Décochez les photos où ce n’est pas la personne : elles restent en attente. **Refuser** écarte celles qui sont cochées.
+- **L’afficher aussi dans cette galerie** l’ajoute à la liste, pour que le couple ait un nom pour la retrouver.
+- Pour décider « Tante Marie », « Tatie Marie » et « Marie » comme une seule personne, cochez d’abord la case à côté de chaque nom.
+
+Les noms acceptés sont identifiés comme les autres, avec « proposé par le client » sur la photo. Les refusés sont supprimés, sans que le couple en soit informé. Seul le couple peut proposer, et seuls ses propres comptes voient ce qui attend. Noms à vérifier fonctionne encore après la fermeture d’une galerie. Si le couple n’est plus le client de la galerie (l’album passe au travail d’un autre client, ou son compte est dissocié), ce qu’il a proposé disparaît.
+
+Si l’e-mail est configuré, vous êtes prévenu au plus une fois par heure et par galerie du nombre de noms en attente. L’e-mail ne contient jamais les noms.
+
 ## Avant de partager
 
 Les réglages vous avertissent de deux choses :
@@ -57,7 +73,7 @@ Les réglages vous avertissent de deux choses :
 - un **nom affiché** pour un groupe qui nomme un enfant ou une personne jamais montrée, comme « Les amis de Lily » ;
 - des photos dont le **titre, la légende ou le texte alternatif** nomme une personne identifiée dessus. Tout visiteur les voit, noms affichés ou non.
 
-À prévoir dans votre contrat ou votre politique de confidentialité : le couple verra les noms que vous listez, et pourra retrouver toutes les photos où figurent ces personnes.
+À prévoir dans votre contrat ou votre politique de confidentialité : le couple verra les noms que vous listez, et pourra retrouver toutes les photos où figurent ces personnes. S’il peut proposer des noms, il pourra aussi vous donner ceux de ses invités, enfants compris.
 
 ## Voir aussi
 

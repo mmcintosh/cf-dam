@@ -144,6 +144,7 @@ export { aiStats, getAiSettings, type AiSettings, type AiStats } from './catalog
 export { getMailSettings, mailReady } from './mail/outbox'
 export { assetPeople, clientNamedPeople, getPerson, listPeople, type PersonJson } from './catalog/people'
 export { allGroups, listGroups, sharePeople, type Chip, type GroupJson, type GroupMember, type SharePeopleJson } from './catalog/gallery-people'
+export { namesToCheck, waitingCount, waitingCounts, type Candidate, type NameGroup } from './catalog/name-suggestions'
 export { listOrders } from './selling/orders'
 export { facetProblems, facetsAvailable, facetStats, type FacetProblem, type FacetStats } from './catalog/jev-facets'
 export { meaningAvailable, resolveNear } from './catalog/meaning'

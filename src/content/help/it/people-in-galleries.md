@@ -4,7 +4,7 @@ summary: "Come la coppia trova nella sua galleria tutte le foto di qualcuno, di 
 section: Sharing
 order: 7
 review: machine
-source: cbb50c52a7bf
+source: b25ea4cd34ad
 ---
 
 Una galleria di matrimonio può contenere centinaia di foto. Una galleria può permettere alla **coppia** di trovare quelle che cerca: tutte le foto della nonna, della famiglia della sposa, dei bambini. Sceglie un nome sopra le foto e la galleria mostra solo le foto in cui compare quella persona o quel gruppo. Scegliendone due, mostra le foto in cui compaiono entrambi.
@@ -50,6 +50,22 @@ I minori (le persone segnate come **Un minore (sotto i 18 anni)**) sono trattati
 
 Nella pagina di una persona, **Non mostrare mai ai clienti** la esclude dalle persone di ogni galleria, qualunque siano le impostazioni. Non conta mai nemmeno in un gruppo: un gruppo viene mostrato solo grazie alle persone che possono esserlo.
 
+## Nomi suggeriti dalla coppia
+
+Spesso la coppia sa meglio di te chi è chi. Quando **Lascia che suggeriscano nomi** è attivo (si attiva con **Mostra le persone** la prima volta), il visualizzatore della loro galleria ha un pulsante **Chi c’è in questa foto?**. Possono spuntare uno dei nomi che vedono già, o scrivere un nome, per quella foto e per tutte le altre che spuntano.
+
+In quel momento non viene etichettato niente. I suggerimenti aspettano in **Nomi da controllare** nella pagina della galleria, e l’elenco delle gallerie clienti mostra quanti ce ne sono. Sono raggruppati per nome, quindi «Zia Mary» su dodici foto è una sola decisione:
+
+- **È…** propone chi potrebbe essere, prima le persone di questa galleria e quelle del cliente stesso. Qualcuno di un altro cliente compare con il nome di quel cliente e non viene mai scelto al posto tuo.
+- **Una nuova persona** la crea, collegata a questo cliente: cancellando il cliente con le sue persone nominate viene eliminata anche lei. Se qualcuno ha già quel nome, ti viene detto chi, e puoi sceglierlo o usare un altro nome.
+- Togli la spunta dalle foto in cui non c’è: restano in attesa. **Rifiuta** scarta quelle spuntate.
+- **Mostrala anche in questa galleria** la aggiunge all’elenco, così la coppia ha un nome per trovarla.
+- Per decidere «Zia Mary», «Zietta Mary» e «Mary» come una sola persona, spunta prima la casella accanto a ogni nome.
+
+I nomi accettati vengono etichettati come gli altri, con «suggerito dal cliente» sulla foto. Quelli rifiutati vengono eliminati senza avvisare la coppia. Solo la coppia può suggerire, e solo i suoi account vedono cosa è in attesa. Nomi da controllare funziona anche dopo la chiusura di una galleria. Se la coppia non è più il cliente della galleria (l’album passa al lavoro di un altro cliente, o il suo account viene scollegato), ciò che ha suggerito sparisce.
+
+Se l’email è configurata, ti avvisiamo al massimo una volta all’ora per galleria di quanti nomi sono in attesa. L’email non contiene mai i nomi.
+
 ## Prima di condividere
 
 Le impostazioni avvisano di due cose:
@@ -57,7 +73,7 @@ Le impostazioni avvisano di due cose:
 - un **nome mostrato** per un gruppo che nomina un minore o qualcuno mai mostrato, come «Gli amici di Lily»;
 - foto il cui **titolo, didascalia o testo alternativo** nomina qualcuno taggato in esse. Ogni visitatore li vede, con o senza nomi.
 
-Qualcosa per il tuo contratto o la tua informativa sulla privacy: la coppia vedrà i nomi che elenchi e potrà trovare ogni foto in cui compaiono quelle persone.
+Qualcosa per il tuo contratto o la tua informativa sulla privacy: la coppia vedrà i nomi che elenchi e potrà trovare ogni foto in cui compaiono quelle persone. Se può suggerire nomi, potrebbe darti anche quelli dei suoi invitati, minori compresi.
 
 ## Vedi anche
 

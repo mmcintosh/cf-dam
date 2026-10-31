@@ -4,7 +4,7 @@ summary: "Für Kunden: anmelden, Fotos ansehen, Favoriten auswählen und herunte
 section: Sharing
 order: 2
 review: machine
-source: 0eb398c31fbc
+source: 8601369c0d98
 ---
 
 Dein Fotograf teilt Fotos mit dir über cf-dam. Mit deinem eigenen Konto siehst du nur die Galerien, die er mit dir geteilt hat, auf jedem Telefon, Tablet oder Computer.
@@ -28,6 +28,10 @@ Wenn du dein Passwort vergisst, drück auf der Anmeldeseite **Passwort vergessen
 - Wenn du fertig bist, drücke **Ich bin fertig**. Dein Fotograf sieht deine Auswahl dann als abgeschlossen. Du kannst sie danach noch ändern; das sieht er auch.
 
 Deine Favoriten bleiben in deinem Konto gespeichert: Du kannst am Telefon anfangen und am Computer weitermachen.
+
+## Sagen, wer wer ist
+
+Wenn dein Fotograf es eingeschaltet hat, hat die große Ansicht einen Knopf **Wer ist auf diesem Foto?**. Wähle einen der Namen über den Fotos oder gib einen Namen ein, und hak alle weiteren Fotos an, auf denen die Person ist. Dein Fotograf prüft jeden Namen, bevor etwas hinzukommt, und niemand sonst sieht deine Vorschläge. Bis dahin steht dort „wartet auf den Fotografen“, und deine eigenen kannst du **zurücknehmen**.
 
 ## Herunterladen
 

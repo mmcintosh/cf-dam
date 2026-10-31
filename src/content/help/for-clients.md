@@ -27,6 +27,10 @@ If you forget your password, press **Forgot your password?** on the sign-in page
 
 Your favourites are kept with your account, so you can start on your phone and finish on your computer.
 
+## Saying who's who
+
+If your photographer has turned it on, the large view has a **Who's in this photo?** button. Choose one of the names above the photos or type a name, and tick any other photos they're on. Your photographer checks every name before anything is added, and nobody else sees what you suggest. Until then it shows as "waiting for the photographer", and you can **Take back** your own.
+
 ## Downloading
 
 If your photographer allows downloads, the large view has a **⤓** button for each size you may have: **Small** or **Large** JPEGs for sharing and printing, or the **Original file**. "Original: ask the photographer" means that file isn't kept online; they can send it to you.

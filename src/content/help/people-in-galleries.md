@@ -48,6 +48,22 @@ Children (people marked **A child (under 18)**) are handled carefully:
 
 On a person's page, **Never show to clients** leaves them out of every gallery's people, whatever its settings. They're never counted in a group either: a group shows only because of the people in it who can be shown.
 
+## Names from the couple
+
+The couple often know who's who better than you do. When **Let them suggest names** is on (it comes on with **Show people** the first time), the photo viewer in their gallery has a **Who's in this photo?** button. They can tick one of the names they already see, or type a name, for that photo and any others they tick.
+
+Nothing is tagged when they do. Their suggestions wait under **Names to check** on the gallery's page, and the list of client galleries shows how many are waiting. They're grouped by name, so "Aunt Mary" on twelve photos is one decision:
+
+- **Is this…** offers who it might be, people listed in this gallery and the client's own first. Someone of another client is shown with that client's name and never chosen for you.
+- **A new person** makes them, linked to this client, so erasing the client with their named people removes them too. If someone already has that name, you're told who, and can choose them or use a different name.
+- Untick the photos that aren't them: those keep waiting. **Reject** drops the ticked ones.
+- **Also show them in this gallery** lists them, so the couple get a name to find them by.
+- To decide "Aunt Mary", "Auntie Mary" and "Mary" as one person, tick the box beside each name first.
+
+Accepted names are tagged like any other, marked "suggested by the client" on the photo. Rejected ones are deleted, and the couple aren't told. Only the couple can suggest, and only their own logins see what's waiting. Names to check still works after a gallery closes. If the couple stop being the gallery's client (the album moves to another client's job, or their login is unlinked), what they suggested disappears.
+
+If email is set up, you hear at most once an hour per gallery how many names are waiting. The email never contains the names.
+
 ## Before you share
 
 The settings warn about two things:
@@ -55,7 +71,7 @@ The settings warn about two things:
 - A **name shown** for a group that names a child or someone never shown, like "Lily's friends".
 - Photos whose **title, caption or alt text** names someone tagged on them. Every visitor sees those, names or not.
 
-Something for your contract or privacy notice: the couple will see the names you list, and can find every photo those people are in.
+Something for your contract or privacy notice: the couple will see the names you list, and can find every photo those people are in. If they can suggest names, they may also give you the names of their guests, children included.
 
 ## See also
 

@@ -4,7 +4,7 @@ summary: "Cómo la pareja encuentra en su galería todas las fotos de alguien, d
 section: Sharing
 order: 7
 review: machine
-source: cbb50c52a7bf
+source: b25ea4cd34ad
 ---
 
 Una galería de boda puede tener cientos de fotos. Una galería puede dejar que **la pareja** encuentre las que busca: todas las fotos de la abuela, de la familia de la novia, de los niños. Elige un nombre encima de las fotos y la galería muestra solo las fotos en las que aparece esa persona o ese grupo. Si elige dos, muestra las fotos en las que aparecen ambos.
@@ -50,6 +50,22 @@ Los menores (las personas marcadas como **Menor de edad (menos de 18)**) se trat
 
 En la página de una persona, **No mostrar nunca a los clientes** la deja fuera de las personas de todas las galerías, sea cual sea su configuración. Tampoco cuenta nunca en un grupo: un grupo se muestra solo por las personas que pueden mostrarse.
 
+## Nombres que sugiere la pareja
+
+La pareja suele saber mejor que tú quién es quién. Cuando **Dejar que sugieran nombres** está activado (se activa con **Mostrar personas** la primera vez), el visor de su galería tiene un botón **¿Quién sale en esta foto?**. Pueden marcar uno de los nombres que ya ven, o escribir un nombre, para esa foto y las demás que marquen.
+
+Al hacerlo no se etiqueta nada. Sus sugerencias esperan en **Nombres por revisar** en la página de la galería, y la lista de galerías de clientes muestra cuántas hay. Se agrupan por nombre, así que «Tía Mary» en doce fotos es una sola decisión:
+
+- **¿Es…?** ofrece quién podría ser, primero las personas de esta galería y las del propio cliente. Alguien de otro cliente aparece con el nombre de ese cliente y nunca se elige por ti.
+- **Una persona nueva** la crea vinculada a este cliente, así que borrar al cliente con sus personas nombradas también la elimina. Si alguien ya tiene ese nombre, se te dice quién, y puedes elegirlo o usar otro nombre.
+- Desmarca las fotos en las que no sale: siguen pendientes. **Rechazar** descarta las marcadas.
+- **Mostrarla también en esta galería** la añade a la lista, para que la pareja tenga un nombre con el que encontrarla.
+- Para decidir «Tía Mary», «Tita Mary» y «Mary» como una sola persona, marca primero la casilla junto a cada nombre.
+
+Los nombres aceptados se etiquetan como cualquier otro, con «sugerido por el cliente» en la foto. Los rechazados se borran sin avisar a la pareja. Solo la pareja puede sugerir, y solo sus propias cuentas ven lo pendiente. Nombres por revisar sigue funcionando cuando una galería se cierra. Si la pareja deja de ser el cliente de la galería (el álbum pasa al trabajo de otro cliente o se desvincula su cuenta), lo que sugirió desaparece.
+
+Si el correo está configurado, te avisamos como mucho una vez por hora y galería de cuántos nombres esperan. El correo nunca incluye los nombres.
+
 ## Antes de compartir
 
 Los ajustes avisan de dos cosas:
@@ -57,7 +73,7 @@ Los ajustes avisan de dos cosas:
 - un **nombre mostrado** para un grupo que nombra a un menor o a alguien que nunca se muestra, como «Los amigos de Lily»;
 - fotos cuyo **título, pie de foto o texto alternativo** nombra a alguien etiquetado en ellas. Cualquier visitante los ve, con nombres o sin ellos.
 
-Algo para tu contrato o tu aviso de privacidad: la pareja verá los nombres que incluyas y podrá encontrar todas las fotos en las que aparecen esas personas.
+Algo para tu contrato o tu aviso de privacidad: la pareja verá los nombres que incluyas y podrá encontrar todas las fotos en las que aparecen esas personas. Si puede sugerir nombres, también puede darte los de sus invitados, menores incluidos.
 
 ## Consulta también
 

@@ -19,6 +19,7 @@ import {
 } from '../catalog/shares'
 import { inviteClient, newInvite, removeMember, shareMembers } from '../catalog/clients'
 import { parseSharePeople, setSharePeople, sharePeople } from '../catalog/gallery-people'
+import { acceptNames, namesToCheck, parseAccept, parseDecision, rejectNames } from '../catalog/name-suggestions'
 import { markDelivered } from '../catalog/jobs'
 import { getWatermark, MAX_WATERMARK_BYTES, removeWatermarkImage, setWatermarkImage, updateWatermark, watermarkKey, WatermarkRejected, type WatermarkPosition } from '../catalog/watermark'
 import type { DamEnv } from '../env'
@@ -295,3 +296,56 @@ shareRoutes.put('/:id/people', requirePermission('people:manage'), async (c) => 
     return c.json(invalid(error), 400)
   }
 })
+
+/**
+ * Names to check (catalog/name-suggestions.ts): what the couple suggested, grouped by name, with who it might be.
+ * Works on revoked and expired galleries too: deciding is the team's work. The names are the couple's guests, so
+ * this needs `people:manage`; Activity gets counts only.
+ */
+shareRoutes.get('/:id/names', requirePermission('people:manage'), async (c) => {
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE id = ?').bind(c.req.param('id')).first<ShareRow>()
+  if (!share) return c.json({ error: 'not_found' }, 404)
+  return c.json(await namesToCheck(c.env.DB, share))
+})
+
+shareRoutes.post('/:id/names/accept', requirePermission('people:manage'), async (c) => {
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE id = ?').bind(c.req.param('id')).first<ShareRow>()
+  if (!share) return c.json({ error: 'not_found' }, 404)
+  try {
+    const outcome = await acceptNames(c.env.DB, share, parseAccept(await readJsonObject(c)), c.get('principal')!.userId)
+    if ('error' in outcome) {
+      if (outcome.error === 'no_person') return c.json({ error: 'not_found', message: say('err.noPerson') }, 404)
+      const { name, clientName } = outcome.person
+      return c.json({ error: 'name_taken', message: clientName ? say('err.nameTakenBy', { name, client: clientName }) : say('err.nameTaken', { name }), person: outcome.person }, 409)
+    }
+    await logNames(c, share, outcome.accepted, 0)
+    return c.json({ ...outcome, ...(await namesToCheck(c.env.DB, share)) })
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
+})
+
+shareRoutes.post('/:id/names/reject', requirePermission('people:manage'), async (c) => {
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE id = ?').bind(c.req.param('id')).first<ShareRow>()
+  if (!share) return c.json({ error: 'not_found' }, 404)
+  try {
+    const outcome = await rejectNames(c.env.DB, share, parseDecision(await readJsonObject(c)))
+    await logNames(c, share, 0, outcome.rejected)
+    return c.json({ ...outcome, ...(await namesToCheck(c.env.DB, share)) })
+  } catch (error) {
+    return c.json(invalid(error), 400)
+  }
+})
+
+/** Activity names nobody: only how many were accepted or rejected. */
+async function logNames(c: Context<DamEnv>, share: ShareRow, accepted: number, rejected: number) {
+  if (accepted + rejected === 0) return
+  await logActivity(c.env.DB, {
+    userId: c.get('principal')!.userId,
+    action: 'share.names_checked',
+    targetType: 'share',
+    targetId: share.id,
+    details: { title: share.title, accepted, rejected },
+    ipAddress: c.req.header('cf-connecting-ip'),
+  })
+}
