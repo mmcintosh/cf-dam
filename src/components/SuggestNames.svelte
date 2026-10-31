@@ -126,6 +126,13 @@
     }
   }
 
+  // Another photo: what was said about the last one goes.
+  $effect(() => {
+    void item.id
+    thanks = ''
+    error = ''
+  })
+
   const focus = (node: HTMLElement) => node.focus()
   const label = (i: Item) => i.title || i.filename || ''
 </script>

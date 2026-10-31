@@ -49,7 +49,7 @@ const link = `${Astro.url.origin}/s/${share.token}`
   </section>
   {names && (names.count > 0 || row!.suggestions_on === 1) && (
     <section class="card stack people" id="names">
-      <h2>{t('namesToCheck.title')}{names.count > 0 && <span class="badge badge-ok count">{names.count}</span>}</h2>
+      <h2>{t('namesToCheck.title')}</h2>
       <NamesToCheck client:load shareId={share.id} initial={names} />
     </section>
   )}
@@ -64,10 +64,6 @@ const link = `${Astro.url.origin}/s/${share.token}`
 <style>
   .people {
     margin-top: 20px;
-  }
-  .count {
-    margin-left: 8px;
-    vertical-align: middle;
   }
   h2 {
     font-size: 1.05rem;
