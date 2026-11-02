@@ -71,7 +71,7 @@
     <p class="muted small">{t('faces.promise')}</p>
     <p class="state" role="status">
       <strong>{status.on ? t('faces.stateOn') : t('faces.statePaused')}</strong>
-      {t('faces.found', { count: status.counts.boxes })} · {t('faces.named', { count: status.counts.named })}{#if status.on} · {toLook}{/if}
+      {t('faces.found', { count: status.counts.boxes })}{' · '}{t('faces.named', { count: status.counts.named })}{#if status.on}{' · '}{toLook}{/if}
     </p>
 
     {#if canManage}

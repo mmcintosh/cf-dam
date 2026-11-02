@@ -249,10 +249,10 @@ export class Agent {
     }
   }
 
-  /** Between scans, older photos cf-dam asked about for faces, for about a minute at a time. */
-  async facesAll(): Promise<void> {
+  /** Between scans, older photos cf-dam asked about for faces, for about a minute at a time. Returns how many. */
+  async facesAll(): Promise<number> {
     const config = this.lastConfig
-    if (!config || this.facesEpoch === null) return
+    if (!config || this.facesEpoch === null) return 0
     const ctx: Ctx = {
       api: this.api,
       state: this.state,
@@ -265,9 +265,13 @@ export class Agent {
     }
     const roots = config.roots.map((root) => ({ root, here: locate(root, this.volumes) }))
     const until = Date.now() + 50_000
+    let looked = 0
     while (Date.now() < until && !this.stopping && !this.paused && this.facesEpoch !== null) {
-      if ((await findOlderFaces(ctx, roots, this.config.workers * 4)) === 0) return
+      const n = await findOlderFaces(ctx, roots, this.config.workers * 4)
+      if (n === 0) break
+      looked += n
     }
+    return looked
   }
 
   /** An archiving pass, with cf-dam kept posted as during a scan. */
@@ -331,9 +335,9 @@ export class Agent {
           }
           // Between scans: archive, for at most a scan interval at a time.
           if (!this.paused && !this.stopping) await this.archiveAll()
-          // Then older photos to look at for faces, when cf-dam asked; otherwise a minute's rest.
-          if (!this.paused && !this.stopping && this.facesEpoch !== null) await this.facesAll()
-          else await sleep(60_000)
+          // Then older photos to look at for faces, when cf-dam asked (about a minute's work); otherwise a minute's rest.
+          const looked = !this.paused && !this.stopping && this.facesEpoch !== null ? await this.facesAll() : 0
+          if (looked === 0) await sleep(60_000)
         }
       } catch (error) {
         if (error instanceof Unpaired) {
