@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { facets } from '../src/catalog/library'
 import { indexAssets } from '../src/catalog/search'
-import { peopleInFile } from '../src/catalog/metadata'
+import { extractMetadata, peopleInFile } from '../src/catalog/metadata'
 import { normalizeAgentMetadata } from '../src/catalog/metadata'
 import { metadataLookups, metadataStatements } from '../src/catalog/process'
 import { createHarness, createUser, cookiesFrom, json, setUpAdmin, signIn, type Harness } from './harness'
@@ -88,6 +88,22 @@ describe('people named by hand (plans/PLAN-FN-v2.md FN1)', () => {
     expect((await h.fetch('/api/people', { cookie: vera })).status).toBe(200)
     expect((await h.fetch('/api/people', { ...json({ name: 'Eve' }), cookie: vera })).status).toBe(403)
     expect((await bulk({ ids: [ids[0]], action: 'person', name: 'Eve' }, vera)).status).toBe(400)
+  })
+
+  it('reads face region names from a real file, as exifr returns them for uploads', async () => {
+    const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
+    const region = (name: string, type = 'Face') =>
+      `<rdf:li rdf:parseType="Resource"><mwg-rs:Area stArea:x="0.5" stArea:y="0.4" stArea:w="0.1" stArea:h="0.12" stArea:unit="normalized"/><mwg-rs:Name>${name}</mwg-rs:Name><mwg-rs:Type>${type}</mwg-rs:Type></rdf:li>`
+    // A JPEG with an XMP packet of MWG regions, as Lightroom and ExifTool write them, put in right after the SOI marker.
+    const withRegions = (regions: string[]) => {
+      const xmp = new TextEncoder().encode(
+        `http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:mwg-rs="http://www.metadataworkinggroup.com/schemas/regions/" xmlns:stArea="http://ns.adobe.com/xmp/sType/Area#" xmlns:stDim="http://ns.adobe.com/xap/1.0/sType/Dimensions#"><mwg-rs:Regions rdf:parseType="Resource"><mwg-rs:AppliedToDimensions stDim:w="1000" stDim:h="750" stDim:unit="pixel"/><mwg-rs:RegionList><rdf:Bag>${regions.join('')}</rdf:Bag></mwg-rs:RegionList></mwg-rs:Regions></rdf:Description></rdf:RDF></x:xmpmeta>`,
+      )
+      const length = xmp.length + 2
+      return new Uint8Array([0xff, 0xd8, 0xff, 0xe1, length >> 8, length & 0xff, ...xmp, ...camera.subarray(2)])
+    }
+    expect((await extractMetadata(withRegions([region('Anna Hansen')]), 'image/jpeg'))?.people).toEqual(['Anna Hansen'])
+    expect((await extractMetadata(withRegions([region('Tom'), region('Sign', 'Focus'), region('Max')]), 'image/jpeg'))?.people).toEqual(['Tom', 'Max'])
   })
 
   it('reads names Lightroom wrote into files, and tags them as from the file', async () => {

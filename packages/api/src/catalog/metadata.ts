@@ -93,11 +93,12 @@ function keywords(raw: Raw): string[] {
 
 /**
  * People named in the file: IPTC Extension's PersonInImage, and the names of MWG face regions (Lightroom's People
- * view writes both). Names only; the regions' boxes aren't used yet.
+ * view writes both). Names only; the regions' boxes aren't used yet. ExifTool (the agent) calls the region struct
+ * RegionInfo; exifr (here) keeps the XMP property's own name, Regions.
  */
 export function peopleInFile(raw: Raw): string[] {
   const names = list(raw.PersonInImage)
-  const info = raw.RegionInfo as { RegionList?: unknown } | undefined
+  const info = (raw.RegionInfo ?? raw.Regions) as { RegionList?: unknown } | undefined
   const regions = Array.isArray(info?.RegionList) ? info!.RegionList : info?.RegionList ? [info.RegionList] : []
   for (const region of regions as { Name?: unknown; Type?: unknown }[]) {
     if (region && typeof region === 'object' && (region.Type === undefined || String(region.Type).toLowerCase() === 'face')) names.push(...list(region.Name))
