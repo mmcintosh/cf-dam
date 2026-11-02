@@ -8,6 +8,7 @@ import { countedImages } from '../lib/images'
 import { nowIso } from '../lib/time'
 import { webpWithoutMetadata } from '../storage/clean'
 import { renditionStore } from '../storage/connections'
+import { previewStored } from './faces'
 import { baseKey, editImage, getEdit } from './edits'
 
 export const RENDITIONS = {
@@ -47,7 +48,9 @@ async function store(
   mimeType: string,
   dims: { width: number | null; height: number | null },
   source: RenditionSource,
-): Promise<void> {
+): Promise<string | null> {
+  // The unedited preview's identity, for face boxes (catalog/faces.ts): a new picture is looked at again.
+  const frame = name === 'preview' && dims.width && dims.height ? `${dims.width}x${dims.height}:${bytes.byteLength}` : null
   const edit = name === 'sheet' ? null : await getEdit(env.DB, assetId)
   const images = countedImages(env)
   if (edit && images && dims.width && dims.height) {
@@ -67,6 +70,8 @@ async function store(
   )
     .bind(assetId, name, renditionKey(assetId, name), mimeType, dims.width, dims.height, bytes.byteLength, source, nowIso())
     .run()
+  if (frame) await previewStored(env.DB, assetId, frame).run()
+  return frame
 }
 
 async function transform(images: ImagesBinding, input: ReadableStream, name: RenditionName) {
@@ -164,7 +169,7 @@ export function webpSize(bytes: Uint8Array): { width: number; height: number } |
  * first import costs nothing extra), after checking it really is a WebP of the right size: it is served to
  * browsers from our own origin, so it must be what it claims.
  */
-export async function storeAgentRendition(env: DamBindings, assetId: string, name: RenditionName, bytes: ArrayBuffer): Promise<{ width: number; height: number }> {
+export async function storeAgentRendition(env: DamBindings, assetId: string, name: RenditionName, bytes: ArrayBuffer): Promise<{ width: number; height: number; frame?: string }> {
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_CLIENT_RENDITION_BYTES) {
     throw new RenditionRejected(`A ${name} must be between 1 byte and ${MAX_CLIENT_RENDITION_BYTES / 1024 / 1024} MB.`)
   }
@@ -177,8 +182,9 @@ export async function storeAgentRendition(env: DamBindings, assetId: string, nam
   }
   // Served to clients in galleries: whatever metadata a helper's encoder kept (EXIF, XMP) is left out.
   const kept = webpWithoutMetadata(new Uint8Array(bytes))
-  await store(env, assetId, name, kept.byteLength === bytes.byteLength ? bytes : (kept.slice().buffer as ArrayBuffer), 'image/webp', size, 'agent')
-  return size
+  const frame = await store(env, assetId, name, kept.byteLength === bytes.byteLength ? bytes : (kept.slice().buffer as ArrayBuffer), 'image/webp', size, 'agent')
+  // The helper sends its face boxes for this frame (catalog/faces.ts).
+  return frame ? { ...size, frame } : size
 }
 
 export async function hasRendition(db: D1Database, assetId: string, name: RenditionName): Promise<boolean> {

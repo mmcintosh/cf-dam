@@ -87,6 +87,11 @@ export class State {
       CREATE INDEX IF NOT EXISTS files_hash ON files (root_id, quick_hash);
       CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
       -- Archiving (archive.ts): uploads under way, part by part, so a stop resumes mid-file.
+      -- Older photos cf-dam asked this helper to look at for faces (PLAN-FN2-v2): rendered again from the file.
+      CREATE TABLE IF NOT EXISTS faces_todo (
+        asset_id TEXT PRIMARY KEY,
+        asked_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS archive_uploads (
         asset_id   TEXT PRIMARY KEY,
         root_id    TEXT NOT NULL,
@@ -145,6 +150,29 @@ export class State {
   /** Files of a folder sent with their thumb only, whose previews are still to go, a page at a time. */
   previewsLater(rootId: string, limit: number): FileRow[] {
     return this.db.prepare("SELECT * FROM files WHERE root_id = ? AND preview_later = 1 AND status = 'done' ORDER BY path LIMIT ?").all(rootId, limit) as unknown as FileRow[]
+  }
+
+  /** Photos cf-dam asked about for faces; ones already waiting keep their place. */
+  askFaces(assetIds: string[]): number {
+    if (assetIds.length === 0) return 0
+    const now = new Date().toISOString()
+    return Number(this.db.prepare('INSERT OR IGNORE INTO faces_todo (asset_id, asked_at) SELECT value, ? FROM json_each(?)').run(now, JSON.stringify(assetIds)).changes)
+  }
+
+  /** The next photos to look at for faces, with the file each one is. */
+  facesTodo(limit: number): { asset_id: string; file: FileRow | null }[] {
+    const rows = this.db.prepare('SELECT asset_id FROM faces_todo ORDER BY asked_at LIMIT ?').all(limit) as { asset_id: string }[]
+    const file = this.db.prepare("SELECT * FROM files WHERE asset_id = ? AND status = 'done' LIMIT 1")
+    return rows.map((r) => ({ asset_id: r.asset_id, file: (file.get(r.asset_id) as unknown as FileRow | undefined) ?? null }))
+  }
+
+  facesDone(assetId: string): void {
+    this.db.prepare('DELETE FROM faces_todo WHERE asset_id = ?').run(assetId)
+  }
+
+  /** Faces paused: forget what was asked (cf-dam hands it out again when they're back on). */
+  clearFaces(): void {
+    this.db.prepare('DELETE FROM faces_todo').run()
   }
 
   /** Its preview went (or can't, and won't be tried again until the file changes). */

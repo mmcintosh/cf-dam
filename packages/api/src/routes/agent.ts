@@ -21,6 +21,7 @@ import {
   startPairing,
 } from '../catalog/agents'
 import { abortArchive, completeArchive, linkArchive, signArchivePart, startArchive } from '../catalog/archive'
+import { claimFaces, FACE_MODEL, facesInstalled, facesSetting, parseFound, parseModel, storeFound } from '../catalog/faces'
 import { isRenditionName, MAX_CLIENT_RENDITION_BYTES, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { BadRequest, readJsonObject } from '../lib/http'
@@ -49,6 +50,7 @@ agentRoutes.use('/assets/batch', limit(8 * 1024 * KIB))
 agentRoutes.use('/assets/complete', limit(256 * KIB))
 agentRoutes.use('/assets/:id/renditions/:name', limit(MAX_CLIENT_RENDITION_BYTES))
 agentRoutes.use('/scans/*', limit(8 * 1024 * KIB))
+agentRoutes.use('/faces', limit(256 * KIB))
 // A completion lists up to 10,000 parts.
 agentRoutes.use('/archive/*', limit(2 * 1024 * KIB))
 
@@ -100,13 +102,38 @@ agentRoutes.use('/roots/*', requirePermission('agent:sync'), asAgent)
 agentRoutes.use('/assets/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/scans/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/archive/*', requirePermission('agent:sync'), asAgent, notPaused)
+agentRoutes.use('/faces', requirePermission('agent:sync'), asAgent, notPaused)
 
 agentRoutes.get('/config', async (c) => c.json(await agentConfig(c.env.DB, c.get('source')!)))
 
 agentRoutes.post('/heartbeat', async (c) => {
   try {
-    return c.json(await heartbeat(c.env.DB, c.get('source')!, await readJsonObject(c)))
+    const body = await readJsonObject(c)
+    const beat = await heartbeat(c.env.DB, c.get('source')!, body)
+    // Face boxes (catalog/faces.ts): a helper that has our model hears whether Find faces is on, the epoch to send under,
+    // and up to 200 of its photos not looked at yet. Off, or not installed: `faces: null`, and it stops.
+    if (!facesInstalled(c.env)) return c.json(beat)
+    const setting = await facesSetting(c.env.DB)
+    if (!setting.on || body.faces !== FACE_MODEL || beat.paused) return c.json({ ...beat, faces: null })
+    const findFaces = await claimFaces(c.env.DB, { connectionId: c.get('source')!.connection_id }, 200)
+    return c.json({ ...beat, faces: { model: FACE_MODEL, epoch: setting.epoch }, ...(findFaces.length ? { findFaces } : {}) })
   } catch (error) {
+    return failure(c, error)
+  }
+})
+
+/** What the helper found: `{ model, epoch, photos: [{ assetId, frame, faces, quickHash? } | { assetId, failed: true }] }`, its own photos only. */
+agentRoutes.post('/faces', async (c) => {
+  if (!facesInstalled(c.env)) return c.json({ error: 'not_found' }, 404)
+  try {
+    const body = await readJsonObject(c)
+    const model = parseModel(body.model)
+    if (typeof body.epoch !== 'number' || !Number.isInteger(body.epoch)) throw new BadRequest('epoch is the one the heartbeat gave.')
+    const results = await storeFound(c.env.DB, parseFound(body.photos), model, body.epoch, { connectionId: c.get('source')!.connection_id })
+    if (results.some((r) => r.status === 'off')) return c.json({ error: 'faces_off', results }, 409)
+    return c.json({ results })
+  } catch (error) {
+    if (error instanceof BadRequest) return c.json({ error: 'invalid_request', message: error.message }, 400)
     return failure(c, error)
   }
 })

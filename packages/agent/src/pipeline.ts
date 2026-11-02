@@ -6,6 +6,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ApiError, isLinkError, type Api } from './api.ts'
 import type { AgentMetadata, Extractor } from './extract.ts'
+import { faceEngine, FACE_MODEL, findFaces, frameOf } from './faces.ts'
 import { render, renderSheet, type Rendered } from './render.ts'
 import { isVideo, plan, quickHash as qh, walk, type Found, type Plan } from './scan.ts'
 import { STOPPED_READING, type FileRow, type State } from './state.ts'
@@ -47,6 +48,41 @@ export interface Ctx {
   progress: Progress
   /** Checked between files and batches, so pausing or shutting down takes effect within a batch. */
   shouldStop: () => boolean
+  /** Find faces is on in cf-dam (heard with the heartbeat), with the epoch to send boxes under; null when off. */
+  faces?: () => { epoch: number } | null
+  /** cf-dam refused boxes because faces were paused meanwhile. */
+  facesOff?: () => void
+}
+
+type Box = { x: number; y: number; w: number; h: number; score: number }
+type FoundFaces = { assetId: string; frame: string; faces: Box[]; quickHash?: string } | { assetId: string; failed: true }
+
+/** The faces on a preview just made, when cf-dam wants them; null when off or this helper can't. */
+async function lookForFaces(ctx: Ctx, preview: Buffer | null): Promise<Box[] | null> {
+  if (!preview || !ctx.faces?.()) return null
+  const engine = await faceEngine()
+  if (!engine) return null
+  try {
+    return await findFaces(preview, engine)
+  } catch (error) {
+    ctx.progress.lastError = `faces: ${message(error)}`
+    return null
+  }
+}
+
+/** Boxes to cf-dam, 20 photos a request. A pause meanwhile stops it quietly; other refusals are only noted. */
+async function sendFaces(ctx: Ctx, found: FoundFaces[]): Promise<void> {
+  for (let i = 0; i < found.length; i += 20) {
+    const on = ctx.faces?.()
+    if (!on) return
+    try {
+      await ctx.api.call('POST', '/api/agent/faces', { model: FACE_MODEL, epoch: on.epoch, photos: found.slice(i, i + 20) })
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) return ctx.facesOff?.()
+      if (isLinkError(error)) throw error
+      ctx.progress.lastError = `faces: ${message(error)}`
+    }
+  }
 }
 
 /** Photos per request. Small enough that previews for a batch fit comfortably in memory. */
@@ -277,6 +313,7 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[], thum
 
   const results = await ingest(ctx, root, toSend)
   const pending: { p: Prepared; assetId: string; phash?: string; previewLater?: boolean }[] = []
+  const found: FoundFaces[] = []
   await inParallel(results, ctx.workers, async ({ r, p }) => {
     const file = p.item.file
     if (r.result === 'rejected' || !r.assetId) return failed(p.item, r.error ?? 'rejected')
@@ -292,9 +329,13 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[], thum
             if (bytes) uploads.push([name, bytes])
           }
           if (rendered.sheet) uploads.push(['sheet', rendered.sheet])
+          let frame: string | undefined
           for (const [name, bytes] of uploads) {
-            await api.call('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, { raw: new Uint8Array(bytes), contentType: 'image/webp' })
+            const sent = await api.call<{ frame?: string }>('PUT', `/api/agent/assets/${r.assetId}/renditions/${name}`, undefined, { raw: new Uint8Array(bytes), contentType: 'image/webp' })
+            if (name === 'preview') frame = sent.body.frame
           }
+          const faces = frame ? await lookForFaces(ctx, rendered.preview) : null
+          if (faces && frame) found.push({ assetId: r.assetId, frame, faces })
         }
         pending.push({ p, assetId: r.assetId, phash: rendered?.phash, previewLater: Boolean(rendered && !rendered.preview && r.needs.includes('preview')) })
       } else if (r.result === 'unchanged' && r.ready !== false) {
@@ -330,6 +371,9 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[], thum
     state.done(root.id, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash: p.item.quickHash, assetId, previewLater })
     progress.sent++
   }
+  // Faces once the photos are finished in cf-dam (it takes boxes only for a photo it knows the preview of).
+  const ready = new Set(finished.filter((f) => f.status === 'ready').map((f) => f.id))
+  await sendFaces(ctx, found.filter((f) => ready.has(f.assetId)))
 }
 
 /** Read a file and make its previews (or its thumb only), marked as being read while it is. */
@@ -357,6 +401,7 @@ async function sendPreviewsLater(ctx: Ctx, root: Root, here: string): Promise<vo
   for (;;) {
     const rows = state.previewsLater(root.id, 100)
     if (rows.length === 0 || ctx.shouldStop()) return
+    const found: FoundFaces[] = []
     await inParallel(rows, ctx.workers, async (row) => {
       if (ctx.shouldStop()) return
       const abs = join(here, row.path)
@@ -366,7 +411,9 @@ async function sendPreviewsLater(ctx: Ctx, root: Root, here: string): Promise<vo
         if (now.size !== row.size || Math.floor(now.mtimeMs) !== row.mtime_ms || !row.asset_id) return state.previewSent(root.id, row.path)
         const { rendered } = await readAndRender(ctx, root.id, abs, { path: row.path, size: row.size, mtimeMs: row.mtime_ms }, row.quick_hash ?? '', false)
         if (rendered?.preview) {
-          await api.call('PUT', `/api/agent/assets/${row.asset_id}/renditions/preview`, undefined, { raw: new Uint8Array(rendered.preview), contentType: 'image/webp' })
+          const sent = await api.call<{ frame?: string }>('PUT', `/api/agent/assets/${row.asset_id}/renditions/preview`, undefined, { raw: new Uint8Array(rendered.preview), contentType: 'image/webp' })
+          const faces = sent.body.frame ? await lookForFaces(ctx, rendered.preview) : null
+          if (faces && sent.body.frame) found.push({ assetId: row.asset_id, frame: sent.body.frame, faces })
         }
         state.previewSent(root.id, row.path)
       } catch (error) {
@@ -375,7 +422,40 @@ async function sendPreviewsLater(ctx: Ctx, root: Root, here: string): Promise<vo
         state.previewSent(root.id, row.path)
       }
     })
+    await sendFaces(ctx, found)
   }
+}
+
+/**
+ * Older photos cf-dam asked about (the heartbeat's findFaces): each rendered again from its file, at a few at a time,
+ * and only its boxes sent (cf-dam has its preview). A file that changed or can't be found is reported as failed;
+ * cf-dam stops asking after three tries, and a changed file is sent whole by the next scan anyway.
+ */
+export async function findOlderFaces(ctx: Ctx, roots: { root: Root; here: string | null }[], limit = 100): Promise<number> {
+  if (!ctx.faces?.()) return 0
+  const rows = ctx.state.facesTodo(limit)
+  const found: FoundFaces[] = []
+  await inParallel(rows, ctx.workers, async ({ asset_id, file }) => {
+    if (ctx.shouldStop() || !ctx.faces?.()) return
+    const at = file && roots.find((r) => r.root.id === file.root_id)
+    try {
+      if (!file || !at?.here) throw new Error('not on this helper now')
+      const abs = join(at.here, file.path)
+      const now = await stat(abs)
+      if (now.size !== file.size || Math.floor(now.mtimeMs) !== file.mtime_ms) throw new Error('changed since it was sent')
+      const { rendered } = await readAndRender(ctx, file.root_id, abs, { path: file.path, size: file.size, mtimeMs: file.mtime_ms }, file.quick_hash ?? '', false)
+      const faces = await lookForFaces(ctx, rendered?.preview ?? null)
+      if (!faces || !rendered?.preview) throw new Error('no preview to look at')
+      found.push({ assetId: asset_id, frame: await frameOf(rendered.preview), faces, ...(file.quick_hash ? { quickHash: file.quick_hash } : {}) })
+    } catch (error) {
+      if (isLinkError(error)) throw error
+      found.push({ assetId: asset_id, failed: true })
+    } finally {
+      ctx.state.facesDone(asset_id)
+    }
+  })
+  await sendFaces(ctx, found)
+  return rows.length
 }
 
 /**

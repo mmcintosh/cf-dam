@@ -35,3 +35,16 @@ This product includes place data from GeoNames (https://www.geonames.org),
 licensed under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/).
 The file public/places/cities1000.tsv.gz is derived from cities1000.txt, admin1CodesASCII.txt
 and countryInfo.txt by scripts/build-places.mjs.
+
+This product includes the BlazeFace full-range face detection model from Google's MediaPipe
+(https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector), licensed under the
+Apache License, Version 2.0. The file packages/agent/faces/blaze_face_full_range.onnx is a
+modified version: it was converted from blaze_face_full_range.tflite (float16, version 1,
+https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite,
+SHA-256 3698b18f063835bc609069ef052228fbe86d9c9a6dc8dcb7c7c2d69aed2b181b) to ONNX with tf2onnx 1.16.1
+(TensorFlow-CPU 2.16.2, opset 17). The ONNX file's SHA-256 is
+ec936267f18d07717e412f45f7bcc4468b26ccd58735643aa65f4c1dde997eee. Only the face boxes it finds are
+used; the facial points it also computes are never read or kept.
+
+This product uses ONNX Runtime (https://onnxruntime.ai), Copyright (c) Microsoft Corporation,
+licensed under the MIT License.

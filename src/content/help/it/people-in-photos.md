@@ -4,12 +4,12 @@ summary: "Dare un nome a chi c’è nelle tue foto, trovare tutte le foto di qua
 section: Your photos
 order: 10
 review: machine
-source: cee611a851a5
+source: 653dad8b48ae
 ---
 
 **Persone** nel menu elenca tutte le persone che hai nominato nelle tue foto, con una loro foto e in quante foto compaiono. I nomi sono per te e il tuo team. **I clienti li vedono solo dove scegli tu**: una galleria può permettere alla propria coppia di trovare le persone con i nomi che indichi per essa (vedi [Persone in una galleria cliente](/help/people-in-galleries)). Da nessun’altra parte, e mai nessun altro.
 
-I nomi si mettono a mano, come le parole chiave. cf-dam non riconosce i volti.
+I nomi si mettono a mano, come le parole chiave. cf-dam non riconosce i volti. Dove «Trova volti» è attivo, può trovare i volti in una foto perché tu li clicchi e dia loro un nome (vedi [Trovare i volti](/help/faces)); non stabilisce mai chi è qualcuno.
 
 ## Nominare qualcuno
 

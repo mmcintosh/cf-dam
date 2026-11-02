@@ -1,7 +1,8 @@
 /**
  * People named by hand (plans/PLAN-FN-v2.md FN1 in cf-dam-docs): a person is a name the photographer gives, and photos
  * are tagged with people like they are with keywords. Names already in files (XMP PersonInImage, MWG face region
- * names, as Lightroom writes them) are tagged the same way, marked 'file'. Nothing biometric: no faces, no matching.
+ * names, as Lightroom writes them) are tagged the same way, marked 'file'. Nothing biometric here: no matching. Faces
+ * (catalog/faces.ts) are boxes a person names; naming one tags the photo, marked 'face'.
  *
  * Names never reach clients: not in client galleries, not in their views. Activity names nobody.
  */
@@ -172,9 +173,13 @@ async function reindexPerson(db: D1Database, id: number): Promise<void> {
 /** Delete a person and every tag of them (trashed photos too). Returns how many photos lost the tag, or null. */
 export async function deletePerson(db: D1Database, id: number): Promise<number | null> {
   const { results } = await db.prepare('SELECT asset_id FROM asset_people WHERE person_id = ?').bind(id).all<{ asset_id: string }>()
+  // Their face boxes stay, set aside and nameless, so they aren't offered for naming again (catalog/faces.ts).
   // RETURNING, not meta.changes: D1 counts the tags the cascade removes too.
-  const gone = await db.prepare('DELETE FROM people WHERE id = ? RETURNING id').bind(id).first()
-  if (!gone) return null
+  const [, deleted] = await db.batch([
+    db.prepare('UPDATE faces SET person_id = NULL, set_aside = 1, named_by = NULL WHERE person_id = ?').bind(id),
+    db.prepare('DELETE FROM people WHERE id = ? RETURNING id').bind(id),
+  ])
+  if (deleted!.results.length === 0) return null
   await markUnindexed(db, results.map((r) => r.asset_id))
   return results.length
 }
@@ -195,6 +200,8 @@ export async function mergePeople(db: D1Database, from: number, into: number): P
     db.prepare('INSERT OR IGNORE INTO share_people (share_id, person_id, label, position) SELECT share_id, ?, label, position FROM share_people WHERE person_id = ?').bind(into, from),
     // Names the couple ticked for them wait for the person they're merged into.
     db.prepare('UPDATE name_suggestions SET person_id = ? WHERE person_id = ?').bind(into, from),
+    // Their faces too, before `from` goes (ON DELETE SET NULL would unname them).
+    db.prepare('UPDATE faces SET person_id = ? WHERE person_id = ?').bind(into, from),
     db
       .prepare(
         `UPDATE people SET is_child = max(is_child, (SELECT is_child FROM people WHERE id = ?1)),
@@ -216,7 +223,13 @@ export async function tagPeople(db: D1Database, assetIds: string[], personId: nu
         .prepare("INSERT OR IGNORE INTO asset_people (asset_id, person_id, how, created_at) SELECT a.id, ?, 'hand', ? FROM assets a WHERE a.id IN (SELECT value FROM json_each(?))")
         .bind(personId, nowIso(), ids)
         .run()
-    : await db.prepare('DELETE FROM asset_people WHERE person_id = ? AND asset_id IN (SELECT value FROM json_each(?))').bind(personId, ids).run()
+    : (
+        await db.batch([
+          // Taking someone off a photo takes their name off its faces too.
+          db.prepare('UPDATE faces SET person_id = NULL, named_by = NULL WHERE person_id = ? AND asset_id IN (SELECT value FROM json_each(?))').bind(personId, ids),
+          db.prepare('DELETE FROM asset_people WHERE person_id = ? AND asset_id IN (SELECT value FROM json_each(?))').bind(personId, ids),
+        ])
+      )[1]!
   if (result.meta.changes > 0) {
     await markUnindexed(db, [...new Set(assetIds)])
     // Someone is in it after all: a "no people" count becomes one, unless a person answered it by hand.

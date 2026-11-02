@@ -163,6 +163,12 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.namesSuggested', { count: typeof d.count === 'number' ? d.count : 0, title: str(d.title) || t('act.aGallery') })
     case 'share.names_checked':
       return t('act.namesChecked', { who, title: str(d.title) || t('act.aGallery'), accepted: num(d.accepted), rejected: num(d.rejected) })
+    case 'faces.turned_on':
+      return t('act.facesOn', { who })
+    case 'faces.paused':
+      return t('act.facesPaused', { who })
+    case 'faces.removed':
+      return t('act.facesRemoved', { who, count: num(d.boxes) })
     case 'people_group.created':
       return t('act.groupCreated', { who })
     case 'people_group.changed':

@@ -4,12 +4,12 @@ summary: "Benennen, wer auf deinen Fotos ist, alle Fotos einer Person finden, un
 section: Your photos
 order: 10
 review: machine
-source: cee611a851a5
+source: 653dad8b48ae
 ---
 
 **Personen** im Menü listet alle auf, die du auf deinen Fotos benannt hast, mit einem Foto von ihnen und der Zahl der Fotos, auf denen sie sind. Namen sind für dich und dein Team. **Kunden sehen sie nur dort, wo du es willst**: Eine Galerie kann ihr eigenes Paar Personen unter den Namen finden lassen, die du für sie festlegst (siehe [Personen in einer Kundengalerie](/help/people-in-galleries)). Sonst nirgends, und nie jemand anderes.
 
-Benannt wird von Hand, wie bei Stichwörtern. cf-dam erkennt keine Gesichter.
+Benannt wird von Hand, wie bei Stichwörtern. cf-dam erkennt keine Gesichter. Wo „Gesichter finden“ eingeschaltet ist, kann es die Gesichter auf einem Foto finden, damit du sie anklickst und benennst (siehe [Gesichter finden](/help/faces)); wer jemand ist, ermittelt es trotzdem nie.
 
 ## Jemanden benennen
 

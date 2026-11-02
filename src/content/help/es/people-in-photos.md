@@ -4,12 +4,12 @@ summary: "Poner nombre a quien aparece en tus fotos, encontrar todas las fotos d
 section: Your photos
 order: 10
 review: machine
-source: cee611a851a5
+source: 653dad8b48ae
 ---
 
 **Personas** en el menú muestra a todas las personas que has nombrado en tus fotos, con una foto de cada una y en cuántas fotos aparece. Los nombres son para ti y tu equipo. **Los clientes solo los ven donde tú decides**: una galería puede dejar que su propia pareja encuentre a personas por los nombres que indiques para ella (consulta [Personas en una galería de cliente](/help/people-in-galleries)). En ningún otro sitio, y nunca nadie más.
 
-Los nombres se ponen a mano, como las palabras clave. cf-dam no reconoce caras.
+Los nombres se ponen a mano, como las palabras clave. cf-dam no reconoce caras. Donde «Buscar caras» está activado, puede encontrar las caras de una foto para que hagas clic en ellas y les pongas nombre (consulta [Buscar caras](/help/faces)); aun así, nunca averigua quién es nadie.
 
 ## Nombrar a alguien
 

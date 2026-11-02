@@ -57,6 +57,7 @@ import { closingSoonSweep } from '../mail/gallery-mail'
 import { alertEmailSweep } from '../mail/alert-mail'
 import { reconcileOrders } from '../selling/orders'
 import { purgeStale } from './name-suggestions'
+import { removeSlice } from './faces'
 
 /** Each stage's slice: milliseconds, and round trips to D1 (of the invocation's 1,000). */
 export const SLICES = {
@@ -398,6 +399,8 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
     // Names suggested by people who are no longer the gallery's couple, or on photos it no longer shows
     // (catalog/name-suggestions.ts): every ten minutes is plenty.
     if (new Date().getUTCMinutes() % 10 === 7) await purgeStale(db).catch((error) => noteSweepFailure(db, 'gallery', error))
+    // Remove all face boxes, a slice a minute (catalog/faces.ts); one cheap look when there's nothing to do.
+    if (env.FACES === '1') await removeSlice(db).catch((error) => noteSweepFailure(db, 'gallery', error))
   }
 
   // 7. Originals still there and unchanged: a few each run, oldest check first.

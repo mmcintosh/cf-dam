@@ -7,12 +7,15 @@ COPY package.json package-lock.json ./
 COPY packages/api/package.json packages/api/
 COPY packages/agent/package.json packages/agent/
 RUN npm ci --workspace @cf-dam/agent --include-workspace-root=false --ignore-scripts --no-audit --no-fund
-# The agent shares one file with the Worker: the look-alike hash (no imports of its own).
-COPY packages/api/src/catalog/dhash.ts packages/api/src/catalog/
+# The agent shares two files with the Worker, neither with imports of its own: the look-alike hash and the face
+# detector (cf-dam-docs plans/PLAN-FN2-v2.md).
+COPY packages/api/src/catalog/dhash.ts packages/api/src/catalog/face-detect.ts packages/api/src/catalog/
 COPY packages/agent/src packages/agent/src
+# onnxruntime-node stays outside the bundle (it's installed below); onnxruntime-web, bundled, is the fallback. The
+# banner's createRequire is renamed: onnxruntime imports one of its own.
 RUN npx esbuild packages/agent/src/main.ts --bundle --platform=node --format=esm --target=node24 \
-      --outfile=packages/agent/dist/agent.mjs --external:sharp --external:exiftool-vendored \
-      "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
+      --outfile=packages/agent/dist/agent.mjs --external:sharp --external:exiftool-vendored --external:onnxruntime-node \
+      "--banner:js=import { createRequire as __cfdamRequire } from 'node:module'; const require = __cfdamRequire(import.meta.url);"
 
 FROM node:24-slim
 # ExifTool is Perl; tini reaps ExifTool's child processes and passes signals on; LibRaw (1 MB) decodes
@@ -25,8 +28,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends perl tini libra
 WORKDIR /app
 COPY packages/agent/docker/package.json ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+# Faces (off until cf-dam turns them on): onnxruntime-node, CPU only, without its install script (which would fetch
+# CUDA files) and with every other platform's binaries removed (about 20 MB left of 190), and the model.
+RUN npm install --omit=dev --no-audit --no-fund --ignore-scripts --no-save onnxruntime-node@1.31.1 \
+    && keep="linux/$([ "$(uname -m)" = aarch64 ] && echo arm64 || echo x64)" \
+    && find node_modules/onnxruntime-node/bin -mindepth 3 -maxdepth 3 -type d | grep -v "/$keep$" | xargs rm -rf \
+    && find node_modules/onnxruntime-node/bin -mindepth 2 -maxdepth 2 -type d -empty -delete \
+    && npm cache clean --force
+COPY packages/agent/faces/blaze_face_full_range.onnx ./faces/
 COPY --from=build /src/packages/agent/dist/agent.mjs ./
-ENV DATA_DIR=/data PHOTOS_DIR=/photos PORT=8790 NODE_NO_WARNINGS=1
+# ORT_DISABLE_TELEMETRY: onnxruntime-node would otherwise try to send usage events to Microsoft. Nothing leaves the helper
+# but what cf-dam is sent.
+ENV DATA_DIR=/data PHOTOS_DIR=/photos PORT=8790 NODE_NO_WARNINGS=1 ORT_DISABLE_TELEMETRY=1
 VOLUME /data
 EXPOSE 8790
 HEALTHCHECK --interval=60s --timeout=5s CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 8790) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]

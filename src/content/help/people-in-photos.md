@@ -7,7 +7,7 @@ order: 10
 
 **People** in the menu lists everyone you've named in your photos, with a photo of them and how many photos they're in. Names are for you and your team. **Clients see them only where you choose**: a gallery can let its own couple find people by the names you list for it (see [People in a client gallery](/help/people-in-galleries)). Nowhere else, and never anyone else.
 
-Naming is done by hand, like keywords. cf-dam doesn't recognise faces.
+Naming is done by hand, like keywords. cf-dam doesn't recognise faces. Where face finding is turned on, it can find the faces on a photo for you to click and name (see [Finding faces](/help/faces)); it still never works out who anyone is.
 
 ## Naming someone
 

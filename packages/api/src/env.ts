@@ -46,6 +46,11 @@ export interface DamBindings {
   MAIL_ALLOW_TO?: string
   /** Static assets (Astro's public/ files): the place list for filling in city and country from GPS. */
   ASSETS?: Fetcher
+  /**
+   * "1": this install has face finding (plans/PLAN-FN2-v2.md §14), chosen when deploying (scripts/optional-bindings.mjs,
+   * FACES=1 in .env.deploy). Otherwise there are no face routes, no switch, no chips and no detector files at all.
+   */
+  FACES?: string
   /** Tests only: a smaller archive part size (bytes; S3 takes parts down to 5 MiB) than the 64 MiB used. */
   ARCHIVE_PART_BYTES?: string
 }

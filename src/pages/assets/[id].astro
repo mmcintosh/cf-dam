@@ -2,13 +2,14 @@
 import { env } from 'cloudflare:workers'
 import { displayLabelNames } from '../../lib/label-names'
 import { createFormat, getT, intlTag } from '@cf-dam/i18n'
-import { ARCHIVE_CLASSES, assetJson, facetsAvailable, folderOf, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, facesInstalled, facetsAvailable, folderOf, photoFaces, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import ImageTools from '../../components/ImageTools.svelte'
 import IptcEditor from '../../components/IptcEditor.svelte'
 import PhotoPeople from '../../components/PhotoPeople.svelte'
 import PhotoNames from '../../components/PhotoNames.svelte'
+import PhotoFaces from '../../components/PhotoFaces.svelte'
 import StoragePanel from '../../components/StoragePanel.svelte'
 import TierBadge from '../../components/TierBadge.astro'
 
@@ -32,6 +33,8 @@ const [labelNames, presets, inAlbums] = await Promise.all([
     .all<{ id: string; name: string }>(),
 ])
 const asset = assetJson(row, renditionRows.results.map((r) => r.name))
+// Face boxes (plans/PLAN-FN2-v2.md), only where this install has them.
+const faces = facesInstalled(env as { FACES?: string }) ? await photoFaces(env.DB, id) : []
 // People from TypeSafe's Jev, or set by hand: photos only (videos aren't asked).
 const showPeople = !asset.video && (facetsAvailable(env as { TYPESAFE_API_KEY?: string }) || asset.people.value !== null)
 const primary = locations.find((l) => l.connection_id === 'r2') ?? locations[0]
@@ -135,6 +138,7 @@ const facts: [string, string][] = [
       <section class="card">
         {showPeople && <PhotoPeople client:visible assetId={id} initial={asset.people} canEdit={principal.permissions.has('assets:edit')} />}
         <PhotoNames client:visible assetId={id} canManage={principal.permissions.has('people:manage')} heading={!showPeople} />
+        {faces.length > 0 && <PhotoFaces client:visible assetId={id} initial={faces} canManage={principal.permissions.has('people:manage')} />}
       </section>
       <section class="card">
         <h2>{t('photo.credit')}</h2>

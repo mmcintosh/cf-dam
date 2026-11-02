@@ -26,6 +26,7 @@ import { getConnection, providerFor, renditionStore } from '../storage/connectio
 import { originalResponse } from '../storage/original'
 import { ARCHIVE_CLASSES, attachmentDisposition, isStorageClass, RESTORE_TIERS, StorageError, type RestoreTier } from '../storage/types'
 import { personByName } from '../catalog/people'
+import { facesInstalled, photoFaces } from '../catalog/faces'
 import { say } from '../lib/language'
 
 export const assetRoutes = new Hono<DamEnv>()
@@ -163,10 +164,12 @@ assetRoutes.get('/:id', requirePermission('assets:read'), async (c) => {
   const id = c.req.param('id')
   const row = await getAsset(c.env.DB, id)
   if (!row) return c.json({ error: 'not_found' }, 404)
-  const [locations, tags, renditions] = await Promise.all([
+  const [locations, tags, renditions, faces] = await Promise.all([
     getLocations(c.env.DB, id),
     getTags(c.env.DB, id),
     c.env.DB.prepare('SELECT name, width, height, size, source FROM renditions WHERE asset_id = ?').bind(id).all(),
+    // Face boxes (catalog/faces.ts), only when this install has faces.
+    facesInstalled(c.env) ? photoFaces(c.env.DB, id) : null,
   ])
   let metadata: unknown = null
   try {
@@ -188,6 +191,7 @@ assetRoutes.get('/:id', requirePermission('assets:read'), async (c) => {
       updatedAt: l.updated_at,
     })),
     renditionDetails: renditions.results,
+    ...(faces ? { faces } : {}),
   })
 })
 

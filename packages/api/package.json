@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./dhash": "./src/catalog/dhash.ts"
+    "./dhash": "./src/catalog/dhash.ts",
+    "./face-detect": "./src/catalog/face-detect.ts"
   },
   "scripts": {
     "test": "vitest run",

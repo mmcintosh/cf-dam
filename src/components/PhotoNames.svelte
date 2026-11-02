@@ -21,6 +21,12 @@
   onMount(() => {
     void load().catch(() => (named = []))
     if (canManage) void api<{ people: { id: number; name: string }[] }>('/api/people').then((r) => (everyone = r.people)).catch(() => {})
+    // A face named or cleared below (PhotoFaces) changes who's tagged here.
+    const changed = (e: Event) => {
+      if ((e as CustomEvent<{ from: string }>).detail?.from !== 'names') void load().catch(() => {})
+    }
+    window.addEventListener('cf-dam:people', changed)
+    return () => window.removeEventListener('cf-dam:people', changed)
   })
 
   async function change(body: Record<string, unknown>) {
@@ -30,6 +36,7 @@
       await api('/api/assets/bulk', { method: 'POST', body: JSON.stringify({ ids: [assetId], action: 'person', ...body }) })
       name = ''
       await load()
+      window.dispatchEvent(new CustomEvent('cf-dam:people', { detail: { from: 'names' } }))
     } catch (e) {
       error = e instanceof Error ? e.message : t('common.couldNotSave')
     } finally {
