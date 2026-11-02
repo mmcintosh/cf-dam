@@ -4,7 +4,7 @@ summary: "cf-dam die Gesichter auf deinen Fotos finden lassen, damit du Personen
 section: Your photos
 order: 11
 review: machine
-source: 8e435f8bf949
+source: d53b0307fe7a
 ---
 
 **Gesichter finden** zeigt auf der Seite eines Fotos unter **Personen** ein kleines Bild jedes gefundenen Gesichts. Klick eines an und gib ein, wer es ist: Das Foto wird mit der Person markiert, als hättest du den Namen von Hand hinzugefügt. Das spart Tipparbeit bei Fotos mit mehreren Personen, und so bekommt die Seite einer Person ein Bild ihres Gesichts.
@@ -22,7 +22,7 @@ Gesichter werden auf deinen eigenen Geräten gefunden, von deinem Helfer (dem Pr
 Lies unter **Einrichtung → KI-Prüfung → Gesichter finden**, was es bedeutet (siehe [Gesichter und das Recht](/help/faces-and-the-law)), hak **Ich habe das gelesen** an und drück **„Gesichter finden“ einschalten**. Dafür brauchst du die Berechtigung, Einstellungen zu ändern (standardmäßig Administratoren). Danach:
 
 - sieht sich dein Helfer jedes neue Foto an, während er die Vorschau macht, und arbeitet ältere Fotos im Hintergrund ab, einige Hundert pro Minute;
-- werden über die Website hochgeladene Fotos noch nicht angesehen (das kommt später, über die Seite eines Albums).
+- werden über die Website hochgeladene Fotos über ihr Album angesehen: Auf der Seite eines Albums (oder eines Auftrags) arbeitet **Gesichter in diesem Album finden** die noch nicht angesehenen Fotos in diesem Browser-Tab ab. Lass den Tab offen (und auf einem Telefon im Vordergrund), bis es fertig ist; Schließen stoppt, und der Rest wartet bis zum nächsten Mal. Ein Tab schafft einige Tausend Fotos pro Stunde.
 
 Dein Helfer muss aktuell sein: Ein älterer arbeitet weiter wie bisher, ohne Gesichter.
 

@@ -1,7 +1,7 @@
 ---
 import { env } from 'cloudflare:workers'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
-import { getJob, jobAlbums, jobArchiveStatus, jobRestoreStatus, jobShares, jobStorage } from '@cf-dam/api'
+import { facesInstalled, facesSetting, getJob, jobAlbums, jobArchiveStatus, jobRestoreStatus, jobShares, jobStorage, scopeCounts } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
 import JobAlbums from '../../components/JobAlbums.svelte'
@@ -9,6 +9,7 @@ import JobDetails from '../../components/JobDetails.svelte'
 import JobStage from '../../components/JobStage.svelte'
 import JobStorage from '../../components/JobStorage.svelte'
 import JobArchive from '../../components/JobArchive.svelte'
+import FindFaces from '../../components/FindFaces.svelte'
 
 const id = Astro.params.id!
 const job = await getJob(env.DB, id)
@@ -20,6 +21,11 @@ const archive = (await jobArchiveStatus(env.DB, id))!
 const { results: clients } = await env.DB.prepare('SELECT id, name FROM clients WHERE past_at IS NULL OR id = ? ORDER BY name COLLATE NOCASE LIMIT 2000')
   .bind(job.client.id)
   .all<{ id: string; name: string }>()
+// Find faces in this job's albums (plans/PLAN-FN2-v2.md FN2b).
+const faceCounts =
+  facesInstalled(env as { FACES?: string }) && Astro.locals.principal!.permissions.has('people:manage') && (await facesSetting(env.DB)).on
+    ? await scopeCounts(env.DB, { jobId: id })
+    : null
 const t = getT(Astro.locals.lang)
 const fmt = createFormat(Astro.locals.lang)
 const day = (d: string | null) => (d ? fmt.date(`${d.slice(0, 10)}T12:00:00Z`) : '—')
@@ -51,6 +57,8 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
     <h2>{t('nav.albums')}</h2>
     <JobAlbums client:load jobId={job.id} initial={albums} hasDates={Boolean(job.shootStart)} />
   </section>
+
+  {faceCounts && (faceCounts.toLook > 0 || faceCounts.done > 0) && <FindFaces client:idle scope="job" id={job.id} initial={faceCounts} />}
 
   <section class="card stack">
     <h2>{t('clientsPage.galleries')}</h2>

@@ -1,11 +1,12 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { albumStorage, getWatermark, listAssets } from '@cf-dam/api'
+import { albumStorage, facesInstalled, facesSetting, getWatermark, listAssets, scopeCounts } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetGrid from '../../components/AssetGrid.astro'
 import SharePanel from '../../components/SharePanel.svelte'
 import AlbumTools from '../../components/AlbumTools.svelte'
+import FindFaces from '../../components/FindFaces.svelte'
 
 const id = Astro.params.id!
 const album = await env.DB.prepare(
@@ -26,6 +27,11 @@ const items = assets.map((a) => ({ id: a.id, name: a.title ?? a.filename, alt: a
 const hasWatermark = canShare && (await getWatermark(env.DB)).version !== null
 // Job names are client work: shown to those who manage clients; anyone sharing still gets the Final delivery tick.
 const canJobs = Astro.locals.principal!.permissions.has('clients:manage')
+// Find faces in this album (plans/PLAN-FN2-v2.md FN2b): with faces in this install, on, and permission to name people.
+const faceCounts =
+  facesInstalled(env as { FACES?: string }) && Astro.locals.principal!.permissions.has('people:manage') && (await facesSetting(env.DB)).on
+    ? await scopeCounts(env.DB, { albumId: album.id })
+    : null
 // Originals clients couldn't download now (archived, or only on a NAS): the gallery form says so when they're offered.
 const originals = canShare ? await albumStorage(env.DB, id) : null
 ---
@@ -37,6 +43,7 @@ const originals = canShare ? await albumStorage(env.DB, id) : null
       <SharePanel client:load albumId={album.id} albumName={album.name} hasWatermark={hasWatermark} startNew={Astro.url.searchParams.get('share') === 'new'} inJob={album.job_id !== null} originals={originals ? { needsRestore: originals.needsRestore, nasOnly: originals.nasOnly } : null} canPeople={Astro.locals.principal!.permissions.has('people:manage')} />
     </div>
   )}
+  {faceCounts && (faceCounts.toLook > 0 || faceCounts.done > 0) && <FindFaces client:idle scope="album" id={album.id} initial={faceCounts} />}
   {assets.length > 0 ? (
     <AssetGrid assets={assets} />
   ) : (

@@ -4,7 +4,7 @@ summary: "Laisser cf-dam trouver les visages sur vos photos pour nommer les pers
 section: Your photos
 order: 11
 review: machine
-source: 8e435f8bf949
+source: d53b0307fe7a
 ---
 
 **Trouver les visages** affiche sur la page d’une photo, sous **Personnes**, une petite image de chaque visage trouvé. Cliquez sur l’une d’elles et saisissez de qui il s’agit : la photo est identifiée avec cette personne, comme si vous aviez ajouté le nom à la main. Cela évite de taper sur les photos de plusieurs personnes, et c’est ainsi que la page d’une personne obtient une image de son visage.
@@ -22,7 +22,7 @@ Les visages sont trouvés sur vos propres machines, par votre assistant (le prog
 Dans **Configuration → Analyse par IA → Trouver les visages**, lisez ce que cela implique (voir [Les visages et la loi](/help/faces-and-the-law)), cochez **J’ai lu ceci** et appuyez sur **Activer « Trouver les visages »**. Il faut l’autorisation de modifier les réglages (les administrateurs par défaut). Ensuite :
 
 - votre assistant examine chaque nouvelle photo en créant son aperçu, et traite les photos plus anciennes en arrière-plan, quelques centaines par minute ;
-- les photos importées par le site web ne sont pas encore examinées (cela viendra plus tard, depuis la page d’un album).
+- les photos importées par le site web sont examinées depuis leur album : sur la page d’un album (ou d’un travail), **Trouver les visages de cet album** traite les photos pas encore examinées, dans cet onglet. Laissez l’onglet ouvert (et au premier plan sur un téléphone) jusqu’à la fin ; le fermer arrête, et le reste attend la prochaine fois. Un onglet traite quelques milliers de photos par heure.
 
 Votre assistant doit être à jour : une version plus ancienne continue comme avant, sans visages.
 

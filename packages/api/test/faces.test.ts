@@ -90,6 +90,19 @@ describe('looking for faces in a browser tab', () => {
     expect((await h.env.DB.prepare('SELECT faces_state FROM assets WHERE id = ?').bind(a).first<{ faces_state: string }>())?.faces_state).toBe('done')
   })
 
+  it('counts an album’s photos for the panel, and a peek claims nothing', async () => {
+    const [a, b] = [await upload('a.jpg'), await upload('b.jpg')]
+    const albumId = await album([a, b])
+    await turnOn()
+    const peek = (await (await h.fetch(`/api/faces/queue?album=${albumId}&peek=1`, { cookie: admin })).json()) as { photos: unknown[]; counts: Record<string, number> }
+    expect(peek.photos).toEqual([])
+    expect(peek.counts).toEqual({ toLook: 2, done: 0, failed: 0, without: 0 })
+    const { epoch } = await queue(albumId)
+    await sendBoxes(a, [ANNA], epoch)
+    const after = (await (await h.fetch(`/api/faces/queue?album=${albumId}&peek=1`, { cookie: admin })).json()) as { counts: Record<string, number> }
+    expect(after.counts).toMatchObject({ toLook: 1, done: 1 })
+  })
+
   it('refuses boxes for an old preview, from another epoch, while paused, and anything but boxes', async () => {
     const a = await upload('a.jpg')
     const albumId = await album([a])

@@ -22,6 +22,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { facesAssets } from './faces-assets.mjs'
 
 const CONFIG = 'dist/server/wrangler.json'
 const config = JSON.parse(readFileSync(CONFIG, 'utf8'))
@@ -124,5 +125,7 @@ if (deployVars.FACES === '1') {
 } else {
   console.log('optional bindings: face finding left out (set FACES=1 in .env.deploy to include it)')
 }
+// The browser's face finder and its files, only with faces (scripts/faces-assets.mjs).
+await facesAssets(vars.FACES === '1')
 config.vars = vars
 writeFileSync(CONFIG, JSON.stringify(config))

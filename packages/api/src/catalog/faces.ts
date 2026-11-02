@@ -349,6 +349,39 @@ export function previewStored(db: D1Database, assetId: string, frame: string): D
     .bind(frame, assetId, frame)
 }
 
+const scopeWhere = (scope: { albumId: string } | { jobId: string } | { connectionId: string }): [string, string] =>
+  'albumId' in scope
+    ? ['a.id IN (SELECT asset_id FROM album_items WHERE album_id = ?)', scope.albumId]
+    : 'jobId' in scope
+      ? ['a.id IN (SELECT ai.asset_id FROM album_items ai JOIN albums al ON al.id = ai.album_id WHERE al.job_id = ?)', scope.jobId]
+      : ["a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state = 'present')", scope.connectionId]
+
+export interface ScopeCounts {
+  /** Photos with a preview, not looked at yet. */
+  toLook: number
+  done: number
+  failed: number
+  /** Photos with no preview yet (or videos): nothing to look at. */
+  without: number
+}
+
+/** How far an album's or a job's photos have got, for the panel beside Find faces in this album. */
+export async function scopeCounts(db: D1Database, scope: { albumId: string } | { jobId: string }): Promise<ScopeCounts> {
+  const [where, bind] = scopeWhere(scope)
+  const row = await db
+    .prepare(
+      `SELECT
+         SUM(a.faces_state IS NULL AND a.mime_type LIKE 'image/%' AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'preview')) AS to_look,
+         SUM(a.faces_state = 'done') AS done,
+         SUM(a.faces_state = 'failed') AS failed,
+         SUM(a.faces_state = 'skip' OR (a.faces_state IS NULL AND (a.mime_type NOT LIKE 'image/%' OR NOT EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = a.id AND r.name = 'preview')))) AS without
+       FROM assets a WHERE a.deleted_at IS NULL AND ${where}`,
+    )
+    .bind(bind)
+    .first<{ to_look: number | null; done: number | null; failed: number | null; without: number | null }>()
+  return { toLook: row?.to_look ?? 0, done: row?.done ?? 0, failed: row?.failed ?? 0, without: row?.without ?? 0 }
+}
+
 export interface Claimed {
   assetId: string
   frame: string | null
@@ -361,12 +394,7 @@ export interface Claimed {
 export async function claimFaces(db: D1Database, scope: { albumId: string } | { jobId: string } | { connectionId: string }, limit = FACE_BATCH): Promise<Claimed[]> {
   const now = nowIso()
   const stale = new Date(Date.now() - CLAIM_MS).toISOString()
-  const [where, bind] =
-    'albumId' in scope
-      ? ['a.id IN (SELECT asset_id FROM album_items WHERE album_id = ?)', scope.albumId]
-      : 'jobId' in scope
-        ? ['a.id IN (SELECT ai.asset_id FROM album_items ai JOIN albums al ON al.id = ai.album_id WHERE al.job_id = ?)', scope.jobId]
-        : ["a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state = 'present')", scope.connectionId]
+  const [where, bind] = scopeWhere(scope)
   const { results } = await db
     .prepare(
       `UPDATE assets SET faces_claimed_at = ?

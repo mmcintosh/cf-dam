@@ -20,7 +20,7 @@ Faces are found on your own machines, by your helper (the program on your NAS or
 In **Setup → AI review → Find faces**, read what it means (see [Faces and the law](/help/faces-and-the-law)), tick **I've read this**, and press **Turn on Find faces**. It needs permission to change settings (administrators by default). Then:
 
 - your helper looks at each new photo as it makes its preview, and works through older photos in the background, a few hundred a minute;
-- photos uploaded through the website aren't looked at yet (that comes later, from an album's page).
+- photos uploaded through the website are looked at from their album: on an album's page (or a job's), **Find faces in this album** works through the photos not looked at yet, in that browser tab. Keep the tab open (and in front, on a phone) until it's done; closing it stops, and the rest wait for next time. A tab does a few thousand photos an hour.
 
 Your helper needs to be up to date: an older one carries on as before, without faces.
 

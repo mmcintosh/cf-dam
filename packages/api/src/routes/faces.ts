@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, setFacesOn, storeFound, type FaceChoice } from '../catalog/faces'
+import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, scopeCounts, setFacesOn, storeFound, type FaceChoice } from '../catalog/faces'
 import { personByName } from '../catalog/people'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -60,8 +60,10 @@ faceRoutes.get('/queue', requirePermission('people:manage'), async (c) => {
   if (!album === !job) return c.json({ error: 'invalid_request', message: 'Give album or job.' }, 400)
   const setting = await facesSetting(c.env.DB)
   if (!setting.on) return c.json({ error: 'faces_off', message: say('err.facesOff') }, 409)
-  const photos = await claimFaces(c.env.DB, album ? { albumId: album } : { jobId: job! })
-  return c.json({ model: FACE_MODEL, epoch: setting.epoch, photos })
+  const scope = album ? { albumId: album } : { jobId: job! }
+  // `peek=1`: only the counts, for the panel before anything is claimed.
+  const photos = c.req.query('peek') === '1' ? [] : await claimFaces(c.env.DB, scope)
+  return c.json({ model: FACE_MODEL, epoch: setting.epoch, photos, counts: await scopeCounts(c.env.DB, scope) })
 })
 
 /** What a tab found: `{ model, epoch, photos: [{ assetId, frame, faces } | { assetId, failed: true }] }`. */
