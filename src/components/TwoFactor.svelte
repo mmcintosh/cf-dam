@@ -28,7 +28,8 @@
     busy = true
     const { data, error: failure } = await authClient.twoFactor.enable({ password })
     busy = false
-    if (failure || !data) {
+    // cf-dam turns on authenticator-app codes only; anything else (an emailed code) isn't a setup it can show.
+    if (failure || !data || !('totpURI' in data)) {
       error = failure?.code === 'INVALID_PASSWORD' ? t('account.wrongPassword') : t('twoFactor.startFailed')
       return
     }
