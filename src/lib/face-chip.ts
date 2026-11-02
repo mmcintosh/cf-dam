@@ -2,7 +2,7 @@
  * A face chip: a square that shows one found face, cut from a rendition with CSS backgrounds (no image is made). A box is
  * in per-mille (0–1000) of the photo (packages/api/src/catalog/faces.ts). The detector's boxes are tight, brow to chin,
  * so the chip shows a margin round each: some hair, ears and chin. The larger view on the photo page uses a wider
- * margin (head and shoulders) with the face outlined in it.
+ * margin (head and shoulders) with the chip's part outlined in it: the whole head, not just brow to chin.
  */
 export interface Box {
   x: number
@@ -38,8 +38,9 @@ export function chipStyle(src: string, face: Box, margin = MARGIN): string {
   return `background-image:url(${src});background-size:${(1000 / b.w) * 100}% ${(1000 / b.h) * 100}%;background-position:${at(b.x, b.w)}% ${at(b.y, b.h)}%`
 }
 
-/** Where the face sits in a view cut with `margin`, as a style for an outline laid over it. */
-export function outlineStyle(face: Box, margin = MARGIN): string {
+/** Where the face, with the chip's margin, sits in a view cut with `margin`: a style for an outline laid over it. */
+export function outlineStyle(face: Box, margin = WIDE): string {
   const b = withMargin(face, margin)
-  return `left:${((face.x - b.x) / b.w) * 100}%;top:${((face.y - b.y) / b.h) * 100}%;width:${(face.w / b.w) * 100}%;height:${(face.h / b.h) * 100}%`
+  const head = withMargin(face, MARGIN)
+  return `left:${((head.x - b.x) / b.w) * 100}%;top:${((head.y - b.y) / b.h) * 100}%;width:${(head.w / b.w) * 100}%;height:${(head.h / b.h) * 100}%`
 }

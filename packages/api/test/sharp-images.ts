@@ -1,7 +1,7 @@
 /**
  * An Images binding made with sharp, for tests that need what the local emulator ignores: `flip`
  * and `trim` (rotate-and-crop edits). Each transform runs as its own step, in order, as Images does.
- * `draw` is ignored, as in the emulator.
+ * `draw` is ignored, as in the emulator; so is `sharpen`, which is only noted in `steps` when given.
  */
 import sharp from 'sharp'
 
@@ -32,9 +32,13 @@ async function apply(input: Buffer, steps: Step[]): Promise<Buffer> {
 
 class Transformer {
   readonly steps: Step[] = []
-  constructor(private readonly input: ReadableStream) {}
+  constructor(
+    private readonly input: ReadableStream,
+    private readonly log?: Step[],
+  ) {}
   transform(step: Step) {
     this.steps.push(step)
+    this.log?.push(step)
     return this
   }
   draw() {
@@ -52,9 +56,10 @@ class Transformer {
   }
 }
 
-export function sharpImages(): ImagesBinding {
+/** `steps`, when given, gets every transform asked for, in order. */
+export function sharpImages(steps?: Step[]): ImagesBinding {
   return {
-    input: (stream: ReadableStream) => new Transformer(stream),
+    input: (stream: ReadableStream) => new Transformer(stream, steps),
     async info(stream: ReadableStream) {
       const buffer = await bytesOf(stream)
       const meta = await sharp(buffer).rotate().metadata()

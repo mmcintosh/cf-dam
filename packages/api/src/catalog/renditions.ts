@@ -11,11 +11,15 @@ import { renditionStore } from '../storage/connections'
 import { previewStored } from './faces'
 import { baseKey, editImage, getEdit } from './edits'
 
+/**
+ * Sizes, WebP quality and Images' `sharpen` (0–10) for each rendition. Downscaling softens: thumbnails get 1, previews
+ * 0.5 (more doubles a preview's file and brings up grain on skin and sky; tried on bird and event photos, 2026-11-02).
+ */
 export const RENDITIONS = {
-  thumb: { longEdge: 480, quality: 78 },
-  preview: { longEdge: 2048, quality: 82 },
+  thumb: { longEdge: 480, quality: 78, sharpen: 1 },
+  preview: { longEdge: 2048, quality: 82, sharpen: 0.5 },
   /** Videos only: four frames in a 2×2 grid (each up to 480 wide), shown while hovering in the library. */
-  sheet: { longEdge: 960, quality: 78 },
+  sheet: { longEdge: 960, quality: 78, sharpen: 0 },
 } as const
 export type RenditionName = keyof typeof RENDITIONS
 
@@ -75,10 +79,10 @@ async function store(
 }
 
 async function transform(images: ImagesBinding, input: ReadableStream, name: RenditionName) {
-  const { longEdge, quality } = RENDITIONS[name]
+  const { longEdge, quality, sharpen } = RENDITIONS[name]
   const result = await images
     .input(input)
-    .transform({ width: longEdge, height: longEdge, fit: 'scale-down' })
+    .transform({ width: longEdge, height: longEdge, fit: 'scale-down', ...(sharpen > 0 && { sharpen }) })
     .output({ format: 'image/webp', quality })
   const bytes = await result.response().arrayBuffer()
   const info = await images.info(new Blob([bytes]).stream())

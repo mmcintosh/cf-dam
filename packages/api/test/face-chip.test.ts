@@ -23,11 +23,12 @@ describe('face chips', () => {
     expect(chipStyle('/p', { x: 0, y: 0, w: 1000, h: 1000 })).toBe('background-image:url(/p);background-size:100% 100%;background-position:0% 0%')
   })
 
-  it('the larger view is head and shoulders, with the face outlined where it is', () => {
+  it('the larger view is head and shoulders, with what the chip shows outlined where it is', () => {
     expect(withMargin({ x: 400, y: 400, w: 100, h: 100 }, WIDE)).toEqual({ x: 300, y: 300, w: 300, h: 300 })
-    expect(outlineStyle({ x: 400, y: 400, w: 100, h: 100 }, WIDE)).toMatch(/^left:33\.3\d*%;top:33\.3\d*%;width:33\.3\d*%;height:33\.3\d*%$/)
-    // At the left edge the view is moved in, so the face sits to the left of its middle.
-    expect(outlineStyle({ x: 0, y: 400, w: 100, h: 100 }, WIDE)).toMatch(/^left:0%;top:33\.3\d*%/)
+    // The chip's part is 370–530 of the view's 300–600.
+    expect(outlineStyle({ x: 400, y: 400, w: 100, h: 100 })).toMatch(/^left:23\.3\d*%;top:23\.3\d*%;width:53\.3\d*%;height:53\.3\d*%$/)
+    // At the left edge both are moved in, so the outline starts at the view's edge.
+    expect(outlineStyle({ x: 0, y: 400, w: 100, h: 100 })).toMatch(/^left:0%;top:23\.3\d*%/)
   })
 
   it('scales and places the picture so the box with its margin fills the chip', () => {

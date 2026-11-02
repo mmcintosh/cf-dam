@@ -104,6 +104,21 @@ describe('rotate and crop', () => {
     expect(webpSize(new Uint8Array((await stored(baseKey(id, 'preview')))!))).toEqual({ width: 1200, height: 800 })
   })
 
+  it('sharpens a thumbnail more than a preview, as they are made', async () => {
+    const steps: ImageTransform[] = []
+    h = await createHarness({ IMAGES: sharpImages(steps) })
+    const admin = await setUpAdmin(h)
+    const id = await upload(admin, await halves())
+    steps.length = 0
+    const fresh = new Uint8Array(await sharp(await halves()).webp().toBuffer()).buffer
+    await storeClientRendition(h.env, id, 'preview', fresh)
+    await storeClientRendition(h.env, id, 'thumb', fresh)
+    expect(steps).toEqual([
+      { width: 2048, height: 2048, fit: 'scale-down', sharpen: 0.5 },
+      { width: 480, height: 480, fit: 'scale-down', sharpen: 1 },
+    ])
+  })
+
   it('refuses nonsense, videos and people who can only look; a do-nothing edit is no edit', async () => {
     h = await createHarness({ IMAGES: sharpImages() })
     const admin = await setUpAdmin(h)
