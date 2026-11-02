@@ -10,6 +10,7 @@ import JobStage from '../../components/JobStage.svelte'
 import JobStorage from '../../components/JobStorage.svelte'
 import JobArchive from '../../components/JobArchive.svelte'
 import FindFaces from '../../components/FindFaces.svelte'
+import FacesToName from '../../components/FacesToName.svelte'
 
 const id = Astro.params.id!
 const job = await getJob(env.DB, id)
@@ -59,6 +60,7 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
   </section>
 
   {faceCounts && (faceCounts.toLook > 0 || faceCounts.done > 0) && <FindFaces client:idle scope="job" id={job.id} initial={faceCounts} />}
+  {faceCounts && faceCounts.done > 0 && <FacesToName client:idle scope="job" id={job.id} />}
 
   <section class="card stack">
     <h2>{t('clientsPage.galleries')}</h2>

@@ -4,7 +4,7 @@ summary: "cf-dam die Gesichter auf deinen Fotos finden lassen, damit du Personen
 section: Your photos
 order: 11
 review: machine
-source: d53b0307fe7a
+source: ebbb7b10466e
 ---
 
 **Gesichter finden** zeigt auf der Seite eines Fotos unter **Personen** ein kleines Bild jedes gefundenen Gesichts. Klick eines an und gib ein, wer es ist: Das Foto wird mit der Person markiert, als hättest du den Namen von Hand hinzugefügt. Das spart Tipparbeit bei Fotos mit mehreren Personen, und so bekommt die Seite einer Person ein Bild ihres Gesichts.
@@ -37,6 +37,10 @@ Klick auf der Seite eines Fotos ein Gesicht an:
 Nimmst du unter **Personen** jemanden von einem Foto, verschwindet der Name auch von seinem Gesicht dort. Beim Zusammenführen zweier Personen wandern ihre Gesichter mit; beim Löschen einer Person werden ihre Gesichter beiseitegelegt, damit sie nicht erneut zum Benennen angeboten werden.
 
 Ein benanntes Gesicht ändert sofort, was das Paar in einer Galerie finden kann, wenn die Galerie diese Person aufführt (siehe [Personen in einer Kundengalerie](/help/people-in-galleries)).
+
+## Viele auf einmal benennen
+
+Auf der Seite eines Albums (oder eines Auftrags) zeigt **Gesichter zu benennen** die dort gefundenen Gesichter, die noch niemand benannt oder beiseitegelegt hat, die größten zuerst. Hak mehrere Gesichter derselben Person an, gib ihren Namen einmal ein oder wähl ihn aus und drück **Benennen**: Jedes angehakte Gesicht wird benannt und jedes Foto markiert. **Niemand zum Benennen** legt die angehakten Gesichter beiseite. **Foto** unter einem Gesicht öffnet sein Foto.
 
 ## Wie gut es ist
 

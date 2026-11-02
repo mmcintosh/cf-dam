@@ -481,3 +481,48 @@ export async function photoFaces(db: D1Database, assetId: string): Promise<FaceJ
     .all<{ id: number; x: number; y: number; w: number; h: number; source: string; person_id: number | null; name: string | null; set_aside: number }>()
   return results.map((r) => ({ id: r.id, x: r.x, y: r.y, w: r.w, h: r.h, source: r.source, personId: r.person_id, name: r.name, setAside: r.set_aside === 1 }))
 }
+
+// ── Faces to name (FN2c) ───────────────────────────────────────────────────────────────────────────────────────────
+
+export interface UnnamedFace {
+  id: number
+  assetId: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+const UNNAMED_PAGE = 60
+
+/**
+ * An album's or a job's faces not named and not set aside, largest first, 60 a page (keyset: area, then id), on photos
+ * not in the trash and on their current preview. With the total, capped, for the heading.
+ */
+export async function unnamedFaces(
+  db: D1Database,
+  scope: { albumId: string } | { jobId: string },
+  cursor: { area: number; id: number } | null,
+): Promise<{ faces: UnnamedFace[]; total: number; next: { area: number; id: number } | null }> {
+  const [where, bind] = scopeWhere(scope)
+  const base = `FROM faces f JOIN assets a ON a.id = f.asset_id
+     WHERE f.person_id IS NULL AND f.set_aside = 0 AND a.deleted_at IS NULL AND (f.source != 'detector' OR f.frame = a.faces_frame) AND ${where}`
+  const [page, count] = await db.batch<{ id: number; asset_id: string; x: number; y: number; w: number; h: number; area: number } | { n: number }>([
+    db
+      .prepare(
+        `SELECT f.id, f.asset_id, f.x, f.y, f.w, f.h, f.w * f.h AS area ${base}
+           ${cursor ? 'AND (f.w * f.h < ? OR (f.w * f.h = ? AND f.id > ?))' : ''}
+         ORDER BY area DESC, f.id LIMIT ?`,
+      )
+      .bind(bind, ...(cursor ? [cursor.area, cursor.area, cursor.id] : []), UNNAMED_PAGE + 1),
+    db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${base} LIMIT 10001)`).bind(bind),
+  ])
+  const rows = page!.results as { id: number; asset_id: string; x: number; y: number; w: number; h: number; area: number }[]
+  const shown = rows.slice(0, UNNAMED_PAGE)
+  const last = shown[shown.length - 1]
+  return {
+    faces: shown.map((r) => ({ id: r.id, assetId: r.asset_id, x: r.x, y: r.y, w: r.w, h: r.h })),
+    total: (count!.results[0] as { n: number }).n,
+    next: rows.length > UNNAMED_PAGE && last ? { area: last.area, id: last.id } : null,
+  }
+}

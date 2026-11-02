@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, scopeCounts, setFacesOn, storeFound, type FaceChoice } from '../catalog/faces'
+import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, scopeCounts, setFacesOn, storeFound, unnamedFaces, type FaceChoice } from '../catalog/faces'
 import { personByName } from '../catalog/people'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -100,4 +100,15 @@ faceRoutes.post('/choose', requirePermission('people:manage'), async (c) => {
   } catch (error) {
     return invalid(c, error)
   }
+})
+
+/** Faces to name in an album or a job's albums, largest first, 60 a page (`area` and `after` from the last page's `next`). */
+faceRoutes.get('/unnamed', requirePermission('people:manage'), async (c) => {
+  const album = c.req.query('album')
+  const job = c.req.query('job')
+  if (!album === !job) return c.json({ error: 'invalid_request', message: 'Give album or job.' }, 400)
+  const area = Number(c.req.query('area'))
+  const after = Number(c.req.query('after'))
+  const cursor = Number.isInteger(area) && Number.isInteger(after) && c.req.query('after') ? { area, id: after } : null
+  return c.json(await unnamedFaces(c.env.DB, album ? { albumId: album } : { jobId: job! }, cursor))
 })

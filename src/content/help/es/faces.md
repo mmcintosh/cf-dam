@@ -4,7 +4,7 @@ summary: "Dejar que cf-dam encuentre las caras de tus fotos para nombrar a las p
 section: Your photos
 order: 11
 review: machine
-source: d53b0307fe7a
+source: ebbb7b10466e
 ---
 
 **Buscar caras** muestra en la página de una foto, bajo **Personas**, una pequeña imagen de cada cara que encuentra. Haz clic en una y escribe quién es: la foto se etiqueta con esa persona, como si hubieras añadido el nombre a mano. Ahorra escribir en fotos con varias personas, y así la página de una persona tiene una imagen de su cara.
@@ -37,6 +37,10 @@ En la página de una foto, haz clic en una cara:
 Quitar a alguien de una foto en **Personas** quita también su nombre de su cara en ella. Al fusionar dos personas se mueven sus caras; al eliminar una persona sus caras se apartan, para que no se vuelvan a ofrecer.
 
 Nombrar una cara cambia al momento lo que la pareja puede encontrar en una galería, si la galería incluye a esa persona (consulta [Personas en una galería de cliente](/help/people-in-galleries)).
+
+## Nombrar muchas a la vez
+
+En la página de un álbum (o de un trabajo), **Caras por nombrar** muestra las caras encontradas allí que nadie ha nombrado ni apartado, las más grandes primero. Marca varias caras de la misma persona, escribe o elige su nombre una vez y pulsa **Nombrar**: cada cara marcada se nombra y cada foto se etiqueta. **No es alguien a nombrar** aparta las caras marcadas. **Foto** bajo una cara abre su foto.
 
 ## Qué tal funciona
 

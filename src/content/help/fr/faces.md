@@ -4,7 +4,7 @@ summary: "Laisser cf-dam trouver les visages sur vos photos pour nommer les pers
 section: Your photos
 order: 11
 review: machine
-source: d53b0307fe7a
+source: ebbb7b10466e
 ---
 
 **Trouver les visages** affiche sur la page d’une photo, sous **Personnes**, une petite image de chaque visage trouvé. Cliquez sur l’une d’elles et saisissez de qui il s’agit : la photo est identifiée avec cette personne, comme si vous aviez ajouté le nom à la main. Cela évite de taper sur les photos de plusieurs personnes, et c’est ainsi que la page d’une personne obtient une image de son visage.
@@ -37,6 +37,10 @@ Sur la page d’une photo, cliquez sur un visage :
 Retirer quelqu’un d’une photo sous **Personnes** retire aussi son nom de son visage sur cette photo. Fusionner deux personnes déplace leurs visages ; supprimer une personne met ses visages de côté, pour qu’ils ne soient plus proposés.
 
 Nommer un visage change aussitôt ce que le couple peut trouver dans une galerie, si la galerie liste cette personne (voir [Personnes dans une galerie client](/help/people-in-galleries)).
+
+## En nommer plusieurs à la fois
+
+Sur la page d’un album (ou d’un travail), **Visages à nommer** affiche les visages trouvés là que personne n’a nommés ni mis de côté, les plus grands d’abord. Cochez plusieurs visages de la même personne, saisissez ou choisissez son nom une fois et appuyez sur **Nommer** : chaque visage coché est nommé et chaque photo identifiée. **Personne à nommer** met les visages cochés de côté. **Photo** sous un visage ouvre sa photo.
 
 ## Sa fiabilité
 

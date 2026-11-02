@@ -36,6 +36,10 @@ Taking someone off a photo under **People** takes their name off their face ther
 
 Naming a face changes what a gallery's couple can find straight away, if the gallery lists that person (see [People in a client gallery](/help/people-in-galleries)).
 
+## Naming many at once
+
+On an album's page (or a job's), **Faces to name** shows the faces found there that nobody has named or set aside, largest first. Tick several faces of the same person, type or pick their name once and press **Name**: every ticked face is named and each photo tagged. **Not someone to name** sets the ticked faces aside. **Photo** under a face opens its photo.
+
 ## How good it is
 
 It finds most faces down to about 3% of a photo's width: the back rows of a group of twenty or so. It often misses faces that are partly hidden (behind another head, a hand or a phone) or turned well to the side, and now and then boxes something that isn't a face, like a patterned dress. Anyone it misses can be named on the photo by hand, as always.

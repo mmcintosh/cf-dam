@@ -4,7 +4,7 @@ summary: "Lasciare che cf-dam trovi i volti nelle tue foto per dare un nome alle
 section: Your photos
 order: 11
 review: machine
-source: d53b0307fe7a
+source: ebbb7b10466e
 ---
 
 **Trova volti** mostra nella pagina di una foto, sotto **Persone**, una piccola immagine di ogni volto trovato. Fai clic su una e scrivi chi è: la foto viene taggata con quella persona, come se avessi aggiunto il nome a mano. Fa risparmiare tempo con le foto di più persone, ed è così che la pagina di una persona ottiene un’immagine del suo volto.
@@ -37,6 +37,10 @@ Nella pagina di una foto, fai clic su un volto:
 Togliere qualcuno da una foto sotto **Persone** toglie anche il suo nome dal suo volto in quella foto. Unire due persone sposta i loro volti; eliminare una persona mette da parte i suoi volti, così non vengono più proposti.
 
 Dare un nome a un volto cambia subito ciò che la coppia può trovare in una galleria, se la galleria elenca quella persona (vedi [Persone in una galleria cliente](/help/people-in-galleries)).
+
+## Nominarne molti in una volta
+
+Nella pagina di un album (o di un lavoro), **Volti da nominare** mostra i volti trovati lì che nessuno ha nominato o messo da parte, i più grandi prima. Spunta più volti della stessa persona, scrivi o scegli il suo nome una volta e premi **Assegna**: ogni volto spuntato viene nominato e ogni foto taggata. **Nessuno da nominare** mette da parte i volti spuntati. **Foto** sotto un volto apre la sua foto.
 
 ## Quanto funziona bene
 

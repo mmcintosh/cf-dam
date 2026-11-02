@@ -7,6 +7,7 @@ import AssetGrid from '../../components/AssetGrid.astro'
 import SharePanel from '../../components/SharePanel.svelte'
 import AlbumTools from '../../components/AlbumTools.svelte'
 import FindFaces from '../../components/FindFaces.svelte'
+import FacesToName from '../../components/FacesToName.svelte'
 
 const id = Astro.params.id!
 const album = await env.DB.prepare(
@@ -44,6 +45,7 @@ const originals = canShare ? await albumStorage(env.DB, id) : null
     </div>
   )}
   {faceCounts && (faceCounts.toLook > 0 || faceCounts.done > 0) && <FindFaces client:idle scope="album" id={album.id} initial={faceCounts} />}
+  {faceCounts && faceCounts.done > 0 && <FacesToName client:idle scope="album" id={album.id} />}
   {assets.length > 0 ? (
     <AssetGrid assets={assets} />
   ) : (

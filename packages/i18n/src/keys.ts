@@ -927,6 +927,16 @@ export type MessageKey =
   | 'faces.toLookMany'
   | 'faces.turnOn'
   | 'faces.understood'
+  | 'facesToName.lead'
+  | 'facesToName.more'
+  | 'facesToName.named'
+  | 'facesToName.photo'
+  | 'facesToName.setAside'
+  | 'facesToName.tick'
+  | 'facesToName.ticked'
+  | 'facesToName.title'
+  | 'facesToName.titleMany'
+  | 'facesToName.untick'
   | 'facets.allKeywords'
   | 'facets.andUp'
   | 'facets.camera'
@@ -2340,4 +2350,4 @@ export type MessageKey =
   | 'wm.white'
 
 /** Keys with plural forms: pass `{ count }`. */
-export const PLURAL_KEYS: ReadonlySet<string> = new Set(['act.facesRemoved', 'act.namesSuggested', 'act.signedOutElsewhere', 'albumTools.links', 'albumTools.takeOutCount', 'albums.count', 'alert.deniedMore', 'alert.previewsStuck', 'alert.storageProblems', 'alert.storageUnreadable', 'archive.files', 'auth.guard.locked', 'backup.failedTries', 'checks.problems', 'clientPeople.galleries', 'clientsPage.eraseNamedPeople', 'common.days', 'common.items', 'common.photos', 'common.stars', 'conn.newFiles', 'editor.people', 'faces.found', 'faces.named', 'faces.removeConfirm', 'faces.removing', 'faces.toLook', 'findFaces.done', 'findFaces.failed', 'findFaces.running', 'findFaces.stopped', 'galleryPeople.addTicked', 'jobArchive.blocked', 'jobArchive.failed', 'jobStorage.cold', 'jobStorage.confirm', 'jobStorage.estimate', 'jobStorage.listRestore', 'jobStorage.nasOnly', 'jobStorage.needsRestore', 'jobStorage.readable', 'jobStorage.restore', 'jobStorage.restoreFailed', 'jobStorage.restoring', 'jobs.albumMade', 'jobs.albumOfThese', 'jobs.fromDay', 'jobs.fromRange', 'jobs.fromUndated', 'jobs.galleries', 'libpage.match', 'library.confirmDelete', 'mail.namesWaiting.body', 'namesToCheck.accept', 'namesToCheck.accepted', 'namesToCheck.badge', 'namesToCheck.badgeTitle', 'namesToCheck.reject', 'namesToCheck.rejected', 'namesToCheck.skipped', 'namesToCheck.together', 'namesToCheck.waiting', 'people.onTeam', 'people.passkeys', 'people.signedInOn', 'photoFaces.aside', 'sessions.signedOutOthers', 'share.opens', 'share.originalsArchived', 'share.originalsNasOnly', 'suggest.also'])
+export const PLURAL_KEYS: ReadonlySet<string> = new Set(['act.facesRemoved', 'act.namesSuggested', 'act.signedOutElsewhere', 'albumTools.links', 'albumTools.takeOutCount', 'albums.count', 'alert.deniedMore', 'alert.previewsStuck', 'alert.storageProblems', 'alert.storageUnreadable', 'archive.files', 'auth.guard.locked', 'backup.failedTries', 'checks.problems', 'clientPeople.galleries', 'clientsPage.eraseNamedPeople', 'common.days', 'common.items', 'common.photos', 'common.stars', 'conn.newFiles', 'editor.people', 'faces.found', 'faces.named', 'faces.removeConfirm', 'faces.removing', 'faces.toLook', 'facesToName.named', 'facesToName.setAside', 'facesToName.ticked', 'facesToName.title', 'findFaces.done', 'findFaces.failed', 'findFaces.running', 'findFaces.stopped', 'galleryPeople.addTicked', 'jobArchive.blocked', 'jobArchive.failed', 'jobStorage.cold', 'jobStorage.confirm', 'jobStorage.estimate', 'jobStorage.listRestore', 'jobStorage.nasOnly', 'jobStorage.needsRestore', 'jobStorage.readable', 'jobStorage.restore', 'jobStorage.restoreFailed', 'jobStorage.restoring', 'jobs.albumMade', 'jobs.albumOfThese', 'jobs.fromDay', 'jobs.fromRange', 'jobs.fromUndated', 'jobs.galleries', 'libpage.match', 'library.confirmDelete', 'mail.namesWaiting.body', 'namesToCheck.accept', 'namesToCheck.accepted', 'namesToCheck.badge', 'namesToCheck.badgeTitle', 'namesToCheck.reject', 'namesToCheck.rejected', 'namesToCheck.skipped', 'namesToCheck.together', 'namesToCheck.waiting', 'people.onTeam', 'people.passkeys', 'people.signedInOn', 'photoFaces.aside', 'sessions.signedOutOthers', 'share.opens', 'share.originalsArchived', 'share.originalsNasOnly', 'suggest.also'])

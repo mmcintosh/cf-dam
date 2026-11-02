@@ -293,3 +293,25 @@ describe('the helper', () => {
     expect((await agentFetch(nas.key, '/api/agent/faces', json({ model: MODEL, epoch: on.faces!.epoch, photos: [{ assetId: id, frame, faces: [BEN] }] }))).status).toBe(409)
   })
 })
+
+describe('faces to name', () => {
+  it('lists an album’s unnamed faces largest first, leaves out named and set-aside ones, and names several at once', async () => {
+    const [a, b] = [await upload('a.jpg'), await upload('b.jpg')]
+    const albumId = await album([a, b])
+    await turnOn()
+    const { epoch } = await queue(albumId)
+    await sendBoxes(a, [ANNA, BEN], epoch)
+    await sendBoxes(b, [{ x: 300, y: 300, w: 200, h: 220, score: 900 }, { x: 10, y: 10, w: 20, h: 25, score: 700 }], epoch)
+    const list = async () => (await (await h.fetch(`/api/faces/unnamed?album=${albumId}`, { cookie: admin })).json()) as { faces: { id: number; w: number }[]; total: number; next: unknown }
+    const first = await list()
+    expect(first.total).toBe(4)
+    expect(first.faces.map((f) => f.w)).toEqual([200, 80, 70, 20])
+    expect(first.next).toBeNull()
+    await post('/api/faces/choose', { faceIds: [first.faces[0]!.id, first.faces[1]!.id], name: 'Anna Hansen' })
+    await post('/api/faces/choose', { faceIds: [first.faces[3]!.id], setAside: true })
+    const after = await list()
+    expect(after.faces.map((f) => f.w)).toEqual([70])
+    expect(await tags(a)).toEqual([{ name: 'Anna Hansen', how: 'face' }])
+    expect(await tags(b)).toEqual([{ name: 'Anna Hansen', how: 'face' }])
+  })
+})

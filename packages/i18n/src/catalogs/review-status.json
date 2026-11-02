@@ -5852,6 +5852,110 @@
     "es": "machine",
     "it": "machine"
   },
+  "facesToName.lead": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.more": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.named.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.named.one": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.named.other": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.photo": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.setAside.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.setAside.one": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.setAside.other": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.tick": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.ticked.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.ticked.one": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.ticked.other": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.title.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.title.one": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.title.other": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.titleMany": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "facesToName.untick": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "facets.allKeywords": {
     "es": "machine",
     "de": "machine",
