@@ -1,13 +1,14 @@
 <script lang="ts">
   /**
-   * The faces found on this photo (catalog/faces.ts, plans/PLAN-FN2-v2.md): each a chip cut from the unedited preview
-   * (the boxes are on it), named or not. Click one to name it, set it aside (a passer-by, a poster) or clear it.
-   * Naming tags the photo, so the names list above changes too (the `cf-dam:people` event, both ways). Never shown to
-   * clients.
+   * The faces found on this photo (catalog/faces.ts, plans/PLAN-FN2-v2.md): each a chip (src/lib/face-chip.ts) cut from
+   * the unedited preview (the boxes are on it), named or not. Click one to name it, set it aside (a passer-by, a poster)
+   * or clear it. Naming tags the photo, so the names list above changes too (the `cf-dam:people` event, both ways).
+   * Never shown to clients.
    */
   import { t } from '@cf-dam/i18n/client'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
+  import { chipStyle } from '../lib/face-chip'
 
   interface Face {
     id: number
@@ -35,9 +36,7 @@
   const aside = $derived(faces.filter((f) => f.setAside))
   const src = `/api/assets/${assetId}/renditions/preview?base=1`
 
-  /** The box fills the chip: the picture scaled so the box is the chip's size, moved so the box is in it. */
-  const crop = (f: Face) =>
-    `background-image:url(${src});background-size:${(1000 / f.w) * 100}% ${(1000 / f.h) * 100}%;background-position:${f.w >= 1000 ? 0 : (f.x / (1000 - f.w)) * 100}% ${f.h >= 1000 ? 0 : (f.y / (1000 - f.h)) * 100}%`
+  const crop = (f: Face) => chipStyle(src, f)
 
   async function reload() {
     faces = (await api<{ faces?: Face[] }>(`/api/assets/${assetId}`)).faces ?? []

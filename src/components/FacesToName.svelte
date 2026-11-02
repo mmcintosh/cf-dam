@@ -8,6 +8,7 @@
   import { t } from '@cf-dam/i18n/client'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
+  import { chipStyle } from '../lib/face-chip'
 
   interface Face {
     id: number
@@ -31,11 +32,8 @@
   let error = $state('')
   let said = $state('')
 
-  /** A face at least 100 per-mille wide is 48 px or more in the 480 px thumb. */
-  const crop = (f: Face) => {
-    const src = `/api/assets/${f.assetId}/renditions/${f.w >= 100 ? 'thumb' : 'preview'}?base=1`
-    return `background-image:url(${src});background-size:${(1000 / f.w) * 100}% ${(1000 / f.h) * 100}%;background-position:${f.w >= 1000 ? 0 : (f.x / (1000 - f.w)) * 100}% ${f.h >= 1000 ? 0 : (f.y / (1000 - f.h)) * 100}%`
-  }
+  /** A face at least 100 per-mille wide is 48 px or more in the 480 px thumb, about 77 px with its margin. */
+  const crop = (f: Face) => chipStyle(`/api/assets/${f.assetId}/renditions/${f.w >= 100 ? 'thumb' : 'preview'}?base=1`, f)
 
   async function load(more = false) {
     const cursor = more && next ? `&area=${next.area}&after=${next.id}` : ''
