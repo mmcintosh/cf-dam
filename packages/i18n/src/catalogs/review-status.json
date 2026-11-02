@@ -885,6 +885,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.previewsRemadeAll": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "act.previewsRemakeStarted": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "act.priceListOff": {
     "es": "machine",
     "de": "machine",
@@ -5555,6 +5567,12 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "err.remakeRunning": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "err.removeAssets": {
@@ -12526,6 +12544,24 @@
     "es": "machine",
     "de": "machine",
     "fr": "machine",
+    "it": "machine"
+  },
+  "previews.remakeAll": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "previews.remakeNote": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "previews.remaking": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
     "it": "machine"
   },
   "previews.retry": {

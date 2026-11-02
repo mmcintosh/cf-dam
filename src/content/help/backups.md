@@ -49,3 +49,5 @@ After a restore:
 On **Storage**, under **Previews**, **Check every preview** asks the built-in storage about each thumbnail and preview, and makes again any that are missing. At a million photos it takes some hours and costs well under a dollar. **Try the stuck ones again** retries any that couldn't be made.
 
 You won't normally need this: cf-dam notices a missing preview the first time someone opens it. It's there for after a restore, or for peace of mind.
+
+**Make every preview again** makes every photo's thumbnail and preview again, as cf-dam makes them now: since November 2026 they're a little sharper. Photos whose originals cf-dam can read are made here, a few at a time; each costs two Cloudflare Images transformations. Photos on a NAS or computer are made again by their helper, at no cost. Photos that can't be made well right now (an original only in an archive, a RAW file uploaded through the website) keep the ones they have. Until a new preview arrives, the old one is shown. Photos are looked at for faces again afterwards, and the names you gave carry over.

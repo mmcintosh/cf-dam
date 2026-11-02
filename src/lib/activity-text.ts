@@ -277,6 +277,10 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.previewsCheckStarted', { who })
     case 'previews.checked':
       return t('act.previewsChecked', { checked: num(d.checked), missing: num(d.missing) })
+    case 'previews.remake_started':
+      return t('act.previewsRemakeStarted', { who })
+    case 'previews.remade_all':
+      return t('act.previewsRemadeAll', { queued: num(d.queued) })
     case 'alert.dismissed': {
       const message = alertText(d.text) || str(d.message)
       return message ? t('act.alertDismissedWhy', { who, message }) : t('act.alertDismissed', { who })

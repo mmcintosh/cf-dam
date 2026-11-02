@@ -4,7 +4,7 @@ summary: "Copias diarias del catálogo, cómo recuperarlo en una instalación nu
 section: Where photos are kept
 order: 4
 review: machine
-source: 85a0a0571ca4
+source: 72bcd6ac0261
 ---
 
 Los **originales** de tus fotos están protegidos por el sitio donde los guardas (consulta [Archivar y restaurar los originales](/help/archiving)). El **catálogo** (los detalles de cada foto, palabras clave, pies de foto, valoraciones, álbumes, galerías y personas) está protegido por las **copias de seguridad del catálogo**.
@@ -51,3 +51,5 @@ Después de una restauración:
 En **Almacenamiento**, en **Vistas previas**, **Comprobar cada vista previa** pregunta al almacenamiento integrado por cada miniatura y vista previa, y vuelve a crear las que falten. Con un millón de fotos tarda unas horas y cuesta mucho menos de un dólar. **Reintentar las atascadas** vuelve a intentar las que no se pudieron crear.
 
 Normalmente no lo necesitarás: cf-dam detecta que falta una vista previa la primera vez que alguien la abre. Está ahí para después de una restauración, o para quedarte tranquilo.
+
+**Volver a crear cada vista previa** vuelve a crear la miniatura y la vista previa de cada foto, tal como las crea cf-dam ahora: desde noviembre de 2026 son algo más nítidas. Las fotos cuyos originales puede leer cf-dam se crean aquí, unas pocas a la vez; cada una cuesta dos transformaciones de Cloudflare Images. Las fotos de un NAS o un ordenador las vuelve a crear su asistente, sin coste. Las fotos que ahora no se pueden crear bien (un original solo en un archivo, un RAW subido desde la web) conservan las que tienen. Hasta que llega una vista previa nueva, se muestra la antigua. Después se vuelven a buscar caras en las fotos, y los nombres que pusiste se conservan.

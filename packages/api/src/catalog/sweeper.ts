@@ -14,7 +14,7 @@
  *  9. Rebuild the whole-archive numbers (facets, timeline, keyword and duplicate counts) a slice at
  *     a time, every ten minutes (catalog/stats.ts).
  * 10. Make missing previews again: check R2 for them when asked to, and remake the Worker's share
- *     (catalog/previews.ts).
+ *     (catalog/previews.ts); when every photo's are being made again, queue a page of them first.
  * 11. Every five minutes, look for problems that need a person, and open or resolve alerts
  *     (catalog/alerts.ts). A stage that fails opens its own alert as it happens.
  *
@@ -38,7 +38,7 @@ import { ARCHIVE_CLASSES } from '../storage/types'
 import { AI_MAX_ATTEMPTS, AI_RUNNING_STALE_MS, aiAvailable, analyzeAsset } from './ai'
 import { alertsDue, checkAlerts, noteSweepFailure } from './alerts'
 import { abandonStaleArchiveUploads } from './archive'
-import { checkStep, remakeStep } from './previews'
+import { checkStep, remakeAllStep, remakeStep } from './previews'
 import { backupStep } from './backups'
 import { currentRestore, restoreStep, type RestoreStatus } from './restore'
 import { checkStorage } from './checks'
@@ -112,11 +112,11 @@ export interface SweepResult {
   statsPublished: boolean
   alerts: { opened: number; resolved: number } | null
   restore: { rows: number; status: RestoreStatus } | null
-  previews: { checking: boolean; remade: number }
+  previews: { checking: boolean; queuing: boolean; remade: number }
 }
 
 export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SLICES): Promise<SweepResult> {
-  const result: SweepResult = { indexed: 0, placed: 0, meant: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null, previews: { checking: false, remade: 0 } }
+  const result: SweepResult = { indexed: 0, placed: 0, meant: 0, analysed: 0, hashed: 0, processed: 0, restoresChecked: 0, restored: 0, recovered: 0, pruned: 0, checked: 0, checkProblems: 0, backup: { started: null, finished: null, pruned: 0 }, statsPublished: false, alerts: null, restore: null, previews: { checking: false, queuing: false, remade: 0 } }
   const budget = countQueries(bindings.DB)
   const env: DamBindings = { ...bindings, DB: budget.db }
   const db = env.DB
@@ -440,11 +440,14 @@ export async function runSweep(bindings: DamBindings, slices: typeof SLICES = SL
   const remaking = slice('previews')
   if (remaking.more()) {
     const todo = await db
-      .prepare("SELECT EXISTS (SELECT 1 FROM settings WHERE key = 'previews.check') AS checking, EXISTS (SELECT 1 FROM preview_requests WHERE route IN ('agent', 'worker')) AS waiting")
-      .first<{ checking: number; waiting: number }>()
+      .prepare(
+        "SELECT EXISTS (SELECT 1 FROM settings WHERE key = 'previews.check') AS checking, EXISTS (SELECT 1 FROM settings WHERE key = 'previews.remake') AS queuing, EXISTS (SELECT 1 FROM preview_requests WHERE route IN ('agent', 'worker')) AS waiting",
+      )
+      .first<{ checking: number; queuing: number; waiting: number }>()
     try {
       if (todo?.checking) result.previews.checking = await checkStep(env, remaking.more)
-      if (todo?.waiting && remaking.more()) result.previews.remade = await remakeStep(env, remaking.more)
+      if (todo?.queuing && remaking.more()) result.previews.queuing = await remakeAllStep(env, remaking.more)
+      if ((todo?.waiting || todo?.queuing) && remaking.more()) result.previews.remade = await remakeStep(env, remaking.more)
     } catch (error) {
       console.warn('[sweep] previews failed', error)
       await noteSweepFailure(db, 'previews', error)

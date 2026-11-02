@@ -4,7 +4,7 @@ summary: "Tägliche Kopien des Katalogs, wie du ihn in eine neue Installation zu
 section: Where photos are kept
 order: 4
 review: machine
-source: 85a0a0571ca4
+source: 72bcd6ac0261
 ---
 
 Die **Originale** deiner Fotos schützt der Ort, an dem du sie aufbewahrst (siehe [Originale archivieren und wiederherstellen](/help/archiving)). Den **Katalog** (Details, Stichwörter, Bildunterschriften und Bewertungen jedes Fotos, Alben, Galerien und Personen) schützen die **Katalogsicherungen**.
@@ -51,3 +51,5 @@ Nach einer Wiederherstellung:
 Auf **Speicher**, unter **Vorschauen**, fragt **Jede Vorschau prüfen** den eingebauten Speicher nach jedem Vorschaubild und jeder Vorschau und erstellt fehlende neu. Bei einer Million Fotos dauert das einige Stunden und kostet deutlich unter einem Dollar. **Die hängenden erneut versuchen** probiert alle noch einmal, die sich nicht erstellen ließen.
 
 Normalerweise brauchst du das nicht: cf-dam bemerkt eine fehlende Vorschau, sobald jemand sie zum ersten Mal öffnet. Es ist für die Zeit nach einer Wiederherstellung da, oder zur Beruhigung.
+
+**Jede Vorschau neu erstellen** erstellt Vorschaubild und Vorschau jedes Fotos neu, so wie cf-dam sie jetzt erstellt: seit November 2026 etwas schärfer. Fotos, deren Originale cf-dam lesen kann, werden hier erstellt, einige auf einmal; jedes kostet zwei Cloudflare-Images-Transformationen. Fotos auf einem NAS oder Computer erstellt ihr Helfer kostenlos neu. Fotos, die sich gerade nicht gut erstellen lassen (ein Original nur im Archiv, eine über die Website hochgeladene RAW-Datei), behalten ihre bisherigen. Bis eine neue Vorschau da ist, wird die alte gezeigt. Danach werden die Fotos erneut nach Gesichtern durchsucht, und die Namen, die du vergeben hast, bleiben erhalten.

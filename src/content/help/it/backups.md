@@ -4,7 +4,7 @@ summary: "Copie giornaliere del catalogo, come riportarlo in una nuova installaz
 section: Where photos are kept
 order: 4
 review: machine
-source: 85a0a0571ca4
+source: 72bcd6ac0261
 ---
 
 Gli **originali** delle tue foto sono protetti da dove li conservi (vedi [Archiviare e ripristinare gli originali](/help/archiving)). Il **catalogo** (dettagli di ogni foto, parole chiave, didascalie, valutazioni, album, gallerie e persone) è protetto dai **backup del catalogo**.
@@ -51,3 +51,5 @@ Dopo un ripristino:
 In **Archiviazione**, sotto **Anteprime**, **Controlla ogni anteprima** chiede all’archiviazione integrata di ogni miniatura e anteprima, e ricrea quelle che mancano. Con un milione di foto ci vogliono alcune ore e costa ben meno di un dollaro. **Riprova quelle bloccate** ritenta quelle che non è stato possibile creare.
 
 Di solito non ti serve: cf-dam si accorge di un’anteprima mancante la prima volta che qualcuno la apre. È lì per dopo un ripristino, o per stare tranquillo.
+
+**Ricrea ogni anteprima** ricrea la miniatura e l’anteprima di ogni foto, come cf-dam le crea ora: da novembre 2026 sono un po’ più nitide. Le foto di cui cf-dam può leggere l’originale vengono ricreate qui, poche alla volta; ognuna costa due trasformazioni di Cloudflare Images. Le foto su un NAS o un computer le ricrea il loro assistente, senza costi. Le foto che ora non si possono ricreare bene (un originale solo in archivio, un file RAW caricato dal sito) tengono quelle che hanno. Finché non arriva una nuova anteprima, si vede quella vecchia. Poi nelle foto si cercano di nuovo i volti, e i nomi che hai dato restano.

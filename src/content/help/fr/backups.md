@@ -4,7 +4,7 @@ summary: "Les copies quotidiennes du catalogue, comment le restaurer dans une no
 section: Where photos are kept
 order: 4
 review: machine
-source: 85a0a0571ca4
+source: 72bcd6ac0261
 ---
 
 Les **originaux** de vos photos sont protégés par l’endroit où vous les gardez (voir [Archiver et restaurer les originaux](/help/archiving)). Le **catalogue** (les détails, mots-clés, légendes et notes de chaque photo, les albums, galeries et personnes) est protégé par les **sauvegardes du catalogue**.
@@ -51,3 +51,5 @@ Après une restauration :
 Sur **Stockage**, sous **Aperçus**, **Vérifier chaque aperçu** interroge le stockage intégré pour chaque vignette et chaque aperçu, et recrée ceux qui manquent. Pour un million de photos, cela prend quelques heures et coûte bien moins d’un dollar. **Réessayer les bloqués** relance ceux qui n’ont pas pu être créés.
 
 Vous n’en aurez normalement pas besoin : cf-dam remarque un aperçu manquant la première fois que quelqu’un l’ouvre. C’est là pour après une restauration, ou pour avoir l’esprit tranquille.
+
+**Refaire chaque aperçu** refait la miniature et l’aperçu de chaque photo, tels que cf-dam les fait aujourd’hui : depuis novembre 2026, ils sont un peu plus nets. Les photos dont cf-dam peut lire l’original sont refaites ici, quelques-unes à la fois ; chacune coûte deux transformations Cloudflare Images. Les photos sur un NAS ou un ordinateur sont refaites par leur assistant, sans frais. Les photos qui ne peuvent pas être bien refaites pour l’instant (un original seulement en archive, un fichier RAW envoyé par le site) gardent les leurs. Tant qu’un nouvel aperçu n’est pas arrivé, l’ancien est affiché. Les visages des photos sont ensuite recherchés à nouveau, et les noms que vous avez donnés sont conservés.

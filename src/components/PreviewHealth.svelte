@@ -1,12 +1,13 @@
 <script lang="ts">
   import { format, t } from '@cf-dam/i18n/client'
-  /** Missing previews: a check of every one, and photos waiting for theirs to be made again. */
+  /** Missing previews: a check of every one, making every one again, and photos waiting for theirs to be made again. */
   import { onDestroy, onMount } from 'svelte'
   import { api } from '../lib/auth-client'
 
   type Route = 'agent' | 'worker' | 'archived' | 'unreadable'
   interface Status {
     check: { startedAt: string; checked: number; missing: number } | null
+    remake: { startedAt: string; queued: number } | null
     waiting: Record<Route, number>
     stuck: { assetId: string; filename: string; route: Route; error: string | null }[]
   }
@@ -42,7 +43,7 @@
 
   onMount(load)
   // While something is happening, keep up with it.
-  const timer = setInterval(() => (status?.check || busyMaking > 0) && load(), 15_000)
+  const timer = setInterval(() => (status?.check || status?.remake || busyMaking > 0) && load(), 15_000)
   onDestroy(() => clearInterval(timer))
 </script>
 
@@ -63,12 +64,18 @@
 
     {#if status.check}
       <p>{t('previews.checking', { checked: status.check.checked, missing: status.check.missing, date: fmt(status.check.startedAt) })}</p>
-    {:else}
+    {/if}
+    {#if status.remake}
+      <p>{t('previews.remaking', { queued: n(status.remake.queued), date: fmt(status.remake.startedAt) })}</p>
+    {/if}
+    {#if !status.check || !status.remake}
       <div class="row">
-        <button class="btn btn-sm" type="button" disabled={busy} onclick={() => act('/api/previews/check')}>{t('previews.checkAll')}</button>
+        {#if !status.check}<button class="btn btn-sm" type="button" disabled={busy} onclick={() => act('/api/previews/check')}>{t('previews.checkAll')}</button>{/if}
+        {#if !status.remake}<button class="btn btn-sm" type="button" disabled={busy} onclick={() => act('/api/previews/remake')}>{t('previews.remakeAll')}</button>{/if}
         {#if stuck > 0}<button class="btn btn-sm" type="button" disabled={busy} onclick={() => act('/api/previews/retry')}>{t('previews.retry')}</button>{/if}
       </div>
-      <p class="muted small">{t('previews.checkNote')}</p>
+      {#if !status.check}<p class="muted small">{t('previews.checkNote')}</p>{/if}
+      {#if !status.remake}<p class="muted small">{t('previews.remakeNote')}</p>{/if}
     {/if}
 
     {#if status.stuck.length > 0}

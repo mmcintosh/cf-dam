@@ -1,7 +1,7 @@
 /** Missing previews, for the Storage page (catalog/previews.ts does the work). Needs `sources:manage`. */
 import { Hono } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { previewStatus, requestPreviews, startPreviewCheck } from '../catalog/previews'
+import { previewStatus, requestPreviews, startPreviewCheck, startRemakeAll } from '../catalog/previews'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { say } from '../lib/language'
@@ -16,6 +16,13 @@ previewRoutes.get('/', async (c) => c.json(await previewStatus(c.env.DB)))
 previewRoutes.post('/check', async (c) => {
   if (!(await startPreviewCheck(c.env.DB))) return c.json({ error: 'already_running', message: say('err.checkRunning') }, 409)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'previews.check_started' })
+  return c.json(await previewStatus(c.env.DB), 202)
+})
+
+/** Make every photo's thumbnail and preview again, as they're made now (sharper since 2026-11): the sweep queues them. */
+previewRoutes.post('/remake', async (c) => {
+  if (!(await startRemakeAll(c.env.DB))) return c.json({ error: 'already_running', message: say('err.remakeRunning') }, 409)
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'previews.remake_started' })
   return c.json(await previewStatus(c.env.DB), 202)
 })
 

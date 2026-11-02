@@ -12,6 +12,10 @@
  *    archive class needs a restore first.
  *  - Making them: the Worker, a few at a time in the sweep (`remakeStep`); agents, when the heartbeat
  *    hands them their photos (`askAgent`) and they send those files again.
+ *
+ * Every photo's can also be made again on purpose, when how they're made improves (sharper, 2026-11): the Storage page
+ * starts it and the sweep queues a page of photos at a time (`remakeAllStep`), only those that can be made well now.
+ * Until a new one arrives, the old one stays.
  */
 import exifr from 'exifr'
 import type { DamBindings } from '../env'
@@ -26,6 +30,9 @@ import { generateRenditions, hasRendition, MAX_TRANSFORM_BYTES, storeEmbeddedThu
 export type PreviewRoute = 'agent' | 'worker' | 'archived' | 'unreadable'
 
 const CHECK_KEY = 'previews.check'
+const REMAKE_KEY = 'previews.remake'
+/** Photos queued per page when every preview is made again. */
+const REMAKE_PAGE = 200
 /** Renditions asked about per page, and at once. */
 const CHECK_PAGE = 500
 const HEAD_CONCURRENCY = 25
@@ -49,15 +56,26 @@ interface CheckState {
   empty: boolean | null
 }
 
+interface RemakeState {
+  startedAt: string
+  /** The last assets rowid queued. */
+  after: number
+  queued: number
+}
+
 const ARCHIVE_LIST = JSON.stringify([...ARCHIVE_CLASSES])
 
-/** Decide who makes each photo's previews, and queue it. Two round trips for any number of photos. */
-export async function requestPreviews(db: D1Database, assetIds: string[]): Promise<number> {
+/**
+ * Decide who makes each photo's previews, and queue it. Two round trips for any number of photos. With `makeable`
+ * (making them again on purpose: the photo has its previews) only photos whose previews can be made well now are
+ * queued: by their agent, or here from an original Images can read whole. The rest keep the ones they have.
+ */
+export async function requestPreviews(db: D1Database, assetIds: string[], { makeable = false } = {}): Promise<number> {
   const ids = [...new Set(assetIds)]
   if (ids.length === 0) return 0
   const { results } = await db
     .prepare(
-      `SELECT a.id,
+      `SELECT a.id, a.mime_type, a.size,
          (SELECT s.id FROM asset_locations l JOIN sources s ON s.connection_id = l.connection_id
            WHERE l.asset_id = a.id AND l.storage_class = 'NAS' AND l.state = 'present' AND s.revoked_at IS NULL LIMIT 1) AS source_id,
          EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.storage_class != 'NAS'
@@ -66,8 +84,9 @@ export async function requestPreviews(db: D1Database, assetIds: string[]): Promi
        FROM assets a WHERE a.id IN (SELECT value FROM json_each(?1)) AND a.deleted_at IS NULL`,
     )
     .bind(JSON.stringify(ids), ARCHIVE_LIST)
-    .all<{ id: string; source_id: string | null; readable: number; archived: number }>()
-  const rows = results.map((r) => {
+    .all<{ id: string; mime_type: string; size: number; source_id: string | null; readable: number; archived: number }>()
+  const well = (r: (typeof results)[number]) => Boolean(r.source_id) || (Boolean(r.readable) && RENDERABLE_TYPES.has(r.mime_type) && r.size <= MAX_TRANSFORM_BYTES)
+  const rows = results.filter((r) => !makeable || well(r)).map((r) => {
     const route: PreviewRoute = r.source_id ? 'agent' : r.readable ? 'worker' : r.archived ? 'archived' : 'unreadable'
     const error =
       route === 'archived'
@@ -96,6 +115,39 @@ export async function requestPreviews(db: D1Database, assetIds: string[]): Promi
 export async function noteMissing(db: D1Database, assetId: string, name: string): Promise<void> {
   const gone = await db.prepare('DELETE FROM renditions WHERE asset_id = ? AND name = ? RETURNING asset_id').bind(assetId, name).first()
   if (gone) await requestPreviews(db, [assetId])
+}
+
+/** Start making every photo's previews again (unless that's under way). */
+export async function startRemakeAll(db: D1Database): Promise<boolean> {
+  const state: RemakeState = { startedAt: nowIso(), after: 0, queued: 0 }
+  const result = await db
+    .prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING')
+    .bind(REMAKE_KEY, JSON.stringify(state), state.startedAt)
+    .run()
+  return result.meta.changes === 1
+}
+
+/** The sweep's part of making every preview again: queue a page of photos at a time while `more` allows. Returns whether it's still going. */
+export async function remakeAllStep(env: DamBindings, more: () => boolean): Promise<boolean> {
+  const db = env.DB
+  const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(REMAKE_KEY).first<{ value: string }>()
+  if (!row) return false
+  const state = JSON.parse(row.value) as RemakeState
+  while (more()) {
+    const { results } = await db
+      .prepare("SELECT rowid AS r, id FROM assets WHERE rowid > ? AND deleted_at IS NULL AND mime_type LIKE 'image/%' ORDER BY rowid LIMIT ?")
+      .bind(state.after, REMAKE_PAGE)
+      .all<{ r: number; id: string }>()
+    if (results.length === 0) {
+      await db.prepare('DELETE FROM settings WHERE key = ?').bind(REMAKE_KEY).run()
+      await logActivity(db, { userId: null, action: 'previews.remade_all', details: { queued: state.queued } })
+      return false
+    }
+    state.queued += await requestPreviews(db, results.map((r) => r.id), { makeable: true })
+    state.after = results.at(-1)!.r
+    await db.prepare('UPDATE settings SET value = ?, updated_at = ? WHERE key = ?').bind(JSON.stringify(state), nowIso(), REMAKE_KEY).run()
+  }
+  return true
 }
 
 /** Start a check of every rendition (unless one is running). */
@@ -213,9 +265,10 @@ export async function remakeStep(env: DamBindings, more: () => boolean): Promise
   const now = Date.now()
   await db.batch([
     db.prepare(
+      // Both arrived since its agent was asked (a photo made again on purpose had them before).
       `DELETE FROM preview_requests WHERE route = 'agent' AND asked_at IS NOT NULL
-         AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = preview_requests.asset_id AND r.name = 'thumb')
-         AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = preview_requests.asset_id AND r.name = 'preview')`,
+         AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = preview_requests.asset_id AND r.name = 'thumb' AND r.created_at >= preview_requests.asked_at)
+         AND EXISTS (SELECT 1 FROM renditions r WHERE r.asset_id = preview_requests.asset_id AND r.name = 'preview' AND r.created_at >= preview_requests.asked_at)`,
     ),
     db
       .prepare("UPDATE preview_requests SET route = 'unreadable', error = ? WHERE route = 'agent' AND attempts >= ? AND asked_at < ?")
@@ -251,14 +304,16 @@ export function askAgent(db: D1Database, sourceId: string): D1PreparedStatement 
 
 export interface PreviewStatus {
   check: CheckState | null
+  remake: RemakeState | null
   waiting: Record<PreviewRoute, number>
   /** A few that can't be made yet, with why. */
   stuck: { assetId: string; filename: string; route: PreviewRoute; error: string | null }[]
 }
 
 export async function previewStatus(db: D1Database): Promise<PreviewStatus> {
-  const [check, counts, stuck] = await db.batch([
+  const [check, remake, counts, stuck] = await db.batch([
     db.prepare('SELECT value FROM settings WHERE key = ?').bind(CHECK_KEY),
+    db.prepare('SELECT value FROM settings WHERE key = ?').bind(REMAKE_KEY),
     db.prepare('SELECT route, COUNT(*) AS n FROM preview_requests GROUP BY route'),
     db.prepare(
       `SELECT p.asset_id, a.filename, p.route, p.error FROM preview_requests p JOIN assets a ON a.id = p.asset_id
@@ -268,8 +323,10 @@ export async function previewStatus(db: D1Database): Promise<PreviewStatus> {
   const waiting: Record<PreviewRoute, number> = { agent: 0, worker: 0, archived: 0, unreadable: 0 }
   for (const r of counts!.results as { route: PreviewRoute; n: number }[]) waiting[r.route] = r.n
   const value = (check!.results[0] as { value: string } | undefined)?.value
+  const remaking = (remake!.results[0] as { value: string } | undefined)?.value
   return {
     check: value ? (JSON.parse(value) as CheckState) : null,
+    remake: remaking ? (JSON.parse(remaking) as RemakeState) : null,
     waiting,
     stuck: (stuck!.results as { asset_id: string; filename: string; route: PreviewRoute; error: string | null }[]).map((r) => ({
       assetId: r.asset_id,
