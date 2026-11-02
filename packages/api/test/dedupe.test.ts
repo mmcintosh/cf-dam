@@ -148,6 +148,20 @@ describe('duplicates', () => {
     expect(((await (await h.fetch('/api/duplicates/similar', { cookie: admin })).json()) as { total: number }).total).toBe(0)
   })
 
+  it('keeps the people named on the copies it removes', async () => {
+    const a = await upload('anna-kept.jpg', camera)
+    const b = await upload('anna-web.jpg', await variant({ width: 600 }))
+    await h.fetch('/api/assets/bulk', { ...json({ ids: [b], action: 'person', name: 'Anna Hansen' }), cookie: admin })
+    await h.env.DB.prepare("UPDATE assets SET facet_people = 'none' WHERE id = ?").bind(a).run()
+
+    await h.fetch('/api/duplicates/resolve', { ...json({ keep: a, remove: [b] }), cookie: admin })
+    const named = await h.env.DB.prepare('SELECT p.name, ap.how FROM asset_people ap JOIN people p ON p.id = ap.person_id WHERE ap.asset_id = ?').bind(a).all<{ name: string; how: string }>()
+    expect(named.results).toEqual([{ name: 'Anna Hansen', how: 'hand' }])
+    expect((await h.env.DB.prepare('SELECT facet_people FROM assets WHERE id = ?').bind(a).first<{ facet_people: string }>())?.facet_people).toBe('one')
+    const found = (await (await h.fetch('/api/assets?q=anna', { cookie: admin })).json()) as { assets: { id: string }[] }
+    expect(found.assets.map((x) => x.id)).toEqual([a])
+  })
+
   it('stops showing look-alikes someone marked as not duplicates', async () => {
     const a = await upload('burst-1.jpg', camera)
     const b = await upload('burst-2.jpg', await variant({ width: 600 }))

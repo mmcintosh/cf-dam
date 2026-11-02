@@ -186,7 +186,7 @@ export async function similarGroups(db: D1Database, limit = 50): Promise<{ group
   return { groups, total: sorted.length }
 }
 
-/** Keep one asset, fold the others' metadata into it, then soft-delete them. */
+/** Keep one asset, fold the others' metadata (tags, albums, people, rating, pick, title, caption) into it, then soft-delete them. */
 export async function keepOne(db: D1Database, keep: string, remove: string[]): Promise<number> {
   const others = remove.filter((id) => id !== keep)
   if (others.length === 0) return 0
@@ -196,6 +196,8 @@ export async function keepOne(db: D1Database, keep: string, remove: string[]): P
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, tag_id, source, ? FROM asset_tags WHERE asset_id IN (${marks})`).bind(keep, now, list),
     db.prepare(`INSERT OR IGNORE INTO album_items (album_id, asset_id, position, added_at) SELECT album_id, ?, position, ? FROM album_items WHERE asset_id IN (${marks})`).bind(keep, now, list),
+    // The people named on the others, as they were named (by hand, from the file, by the client).
+    db.prepare(`INSERT OR IGNORE INTO asset_people (asset_id, person_id, how, created_at) SELECT ?, person_id, how, ? FROM asset_people WHERE asset_id IN (${marks})`).bind(keep, now, list),
     db
       .prepare(
         `UPDATE assets SET
@@ -208,7 +210,11 @@ export async function keepOne(db: D1Database, keep: string, remove: string[]): P
       )
       .bind(list, list, list, list, now, keep),
   ])
-  await db.prepare("UPDATE assets SET rating = NULLIF(rating, 0) WHERE id = ?").bind(keep).run()
+  // As when tagging by hand: someone is in it after all, unless a person answered the count by hand.
+  await db.batch([
+    db.prepare('UPDATE assets SET rating = NULLIF(rating, 0) WHERE id = ?').bind(keep),
+    db.prepare("UPDATE assets SET facet_people = 'one' WHERE id = ? AND facet_people = 'none' AND facet_people_by IS NULL AND EXISTS (SELECT 1 FROM asset_people WHERE asset_id = ?)").bind(keep, keep),
+  ])
   await softDeleteAssets(db, others)
   await indexAsset(db, keep)
   return others.length
