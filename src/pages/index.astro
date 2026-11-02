@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers'
 import { displayLabelNames } from '../lib/label-names'
 import { createFormat, getT } from '@cf-dam/i18n'
-import { allGroups, DEFAULT_LABEL_NAMES, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
+import { allGroups, DEFAULT_LABEL_NAMES, facesInstalled, facesSetting, facets as loadFacets, getAiSettings, getAsset, getConnection, getLabelNames, getStats, listPresets, listSavedSearches, listAssets, listConnections, meaningAvailable, parseListFilters, resolveNear, timeline as loadTimeline } from '@cf-dam/api'
 import AppLayout from '../layouts/AppLayout.astro'
 import Facets from '../components/Facets.astro'
 import Library from '../components/Library.svelte'
@@ -23,6 +23,8 @@ const PAGE = 100
 
 const canRead = principal.permissions.has('assets:read')
 const canUpload = principal.permissions.has('assets:upload')
+// Offer to find faces in what was just uploaded (plans/PLAN-FN2-v2.md FN2b): with faces in this install, on, and permission.
+const offerFaces = canUpload && facesInstalled(env as { FACES?: string }) && Astro.locals.principal!.permissions.has('people:manage') && (await facesSetting(env.DB)).on
 const [{ assets, total, totalExact }, facets, months] = canRead
   ? await Promise.all([listAssets(env.DB, { ...filters, limit: PAGE, offset: 0 }), loadFacets(env.DB, filters), loadTimeline(env.DB, filters)])
   : [{ assets: [], total: 0, totalExact: true }, null, []]
@@ -69,7 +71,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
         <h2>{t('libpage.empty.title')}</h2>
         <p class="muted">{t('libpage.empty.lead')}</p>
       </div>
-      {canUpload && <Uploader client:load connections={connections} open />}
+      {canUpload && <Uploader client:load connections={connections} open faces={offerFaces} />}
     </div>
   ) : (
     <div class="library">
@@ -104,7 +106,7 @@ const bold = (text: string) => text.split('\u0000') as [string, string?]
           )}
           <span class="hint muted">{t('libpage.hint')}</span>
           <span class="spacer"></span>
-          {canUpload && <Uploader client:idle connections={connections} />}
+          {canUpload && <Uploader client:idle connections={connections} faces={offerFaces} />}
         </div>
         {assets.length > 0 ? (
           <Library

@@ -4,7 +4,7 @@ summary: "Dejar que cf-dam encuentre las caras de tus fotos para nombrar a las p
 section: Your photos
 order: 11
 review: machine
-source: ebbb7b10466e
+source: 73ecb5d3191d
 ---
 
 **Buscar caras** muestra en la página de una foto, bajo **Personas**, una pequeña imagen de cada cara que encuentra. Haz clic en una y escribe quién es: la foto se etiqueta con esa persona, como si hubieras añadido el nombre a mano. Ahorra escribir en fotos con varias personas, y así la página de una persona tiene una imagen de su cara.
@@ -22,7 +22,7 @@ Las caras se encuentran en tus propios equipos, con tu asistente (el programa de
 En **Configuración → Revisión con IA → Buscar caras**, lee lo que implica (consulta [Las caras y la ley](/help/faces-and-the-law)), marca **Lo he leído** y pulsa **Activar «Buscar caras»**. Hace falta permiso para cambiar la configuración (los administradores, por defecto). Después:
 
 - tu asistente revisa cada foto nueva al hacer su vista previa y repasa las fotos anteriores en segundo plano, unos cientos por minuto;
-- las fotos subidas por la web se revisan desde su álbum: en la página de un álbum (o de un trabajo), **Buscar caras en este álbum** repasa las fotos aún sin revisar, en esa pestaña. Deja la pestaña abierta (y delante, en un móvil) hasta que termine; cerrarla lo detiene, y el resto espera a la próxima vez. Una pestaña hace unos miles de fotos por hora.
+- las fotos subidas por la web se revisan desde su álbum: en la página de un álbum (o de un trabajo), **Buscar caras en este álbum** repasa las fotos aún sin revisar, en esa pestaña. Deja la pestaña abierta (y delante, en un móvil) hasta que termine; cerrarla lo detiene, y el resto espera a la próxima vez. Una pestaña hace unos miles de fotos por hora. Justo después de una subida, el área de subida ofrece lo mismo para las fotos recién enviadas.
 
 Tu asistente tiene que estar al día: uno más antiguo sigue como antes, sin caras.
 

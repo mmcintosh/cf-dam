@@ -6403,6 +6403,23 @@
     "es": "machine",
     "it": "machine"
   },
+  "findFaces.startUploads.many": {
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "findFaces.startUploads.one": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
+  "findFaces.startUploads.other": {
+    "de": "machine",
+    "fr": "machine",
+    "es": "machine",
+    "it": "machine"
+  },
   "findFaces.stop": {
     "de": "machine",
     "fr": "machine",

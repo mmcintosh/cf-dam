@@ -1038,6 +1038,8 @@
   "findFaces.running.other": "{count} Fotos angesehen; bisher {faces} Gesichter …",
   "findFaces.startAlbum": "Gesichter in diesem Album finden",
   "findFaces.startJob": "Gesichter in den Alben dieses Auftrags finden",
+  "findFaces.startUploads.one": "Gesichter in diesem Foto finden",
+  "findFaces.startUploads.other": "Gesichter in diesen {count} Fotos finden",
   "findFaces.stop": "Stoppen",
   "findFaces.stopped.one": "Nach {count} Foto gestoppt; der Rest wartet bis zum nächsten Mal.",
   "findFaces.stopped.other": "Nach {count} Fotos gestoppt; der Rest wartet bis zum nächsten Mal.",

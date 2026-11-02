@@ -2,6 +2,7 @@
   import { format, t } from '@cf-dam/i18n/client'
   import type { MessageKey } from '@cf-dam/i18n'
   import { uploadFile, type Progress } from '../lib/uploader'
+  import FindFaces from './FindFaces.svelte'
 
   interface ConnectionOption {
     id: string
@@ -14,8 +15,10 @@
     connections: ConnectionOption[]
     /** Open with the drop zone expanded (the empty library). */
     open?: boolean
+    /** Find faces is on and this person may run it: offer to look at what was just uploaded (FindFaces). */
+    faces?: boolean
   }
-  let { connections, open = false }: Props = $props()
+  let { connections, open = false, faces = false }: Props = $props()
 
   const CLASS_LABELS: Record<string, MessageKey> = {
     STANDARD: 'storageClass.STANDARD',
@@ -48,6 +51,7 @@
 
   const connection = $derived(connections.find((c) => c.id === connectionId))
   const finished = $derived(items.filter((i) => i.state === 'done').length)
+  const uploaded = $derived(items.filter((i) => i.state === 'done' && i.assetId).map((i) => i.assetId!).slice(0, 500))
 
   function pickConnection(id: string) {
     connectionId = id
@@ -206,6 +210,7 @@
       </ul>
       {#if !running && finished > 0}
         <div><a class="btn" href="/">{t('upload.refresh')}</a></div>
+        {#if faces && uploaded.length > 0}{#key uploaded.join()}<FindFaces scope="uploads" id="uploads" ids={uploaded} />{/key}{/if}
       {/if}
     {/if}
   </section>

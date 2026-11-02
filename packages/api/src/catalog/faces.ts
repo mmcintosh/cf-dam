@@ -349,12 +349,17 @@ export function previewStored(db: D1Database, assetId: string, frame: string): D
     .bind(frame, assetId, frame)
 }
 
-const scopeWhere = (scope: { albumId: string } | { jobId: string } | { connectionId: string }): [string, string] =>
+/** Where to look: an album, a job's albums, photos just uploaded (their ids), or a helper's own photos. */
+export type FaceScope = { albumId: string } | { jobId: string } | { assetIds: string[] }
+
+const scopeWhere = (scope: FaceScope | { connectionId: string }): [string, string] =>
   'albumId' in scope
     ? ['a.id IN (SELECT asset_id FROM album_items WHERE album_id = ?)', scope.albumId]
     : 'jobId' in scope
       ? ['a.id IN (SELECT ai.asset_id FROM album_items ai JOIN albums al ON al.id = ai.album_id WHERE al.job_id = ?)', scope.jobId]
-      : ["a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state = 'present')", scope.connectionId]
+      : 'assetIds' in scope
+        ? ['a.id IN (SELECT value FROM json_each(?))', JSON.stringify(scope.assetIds)]
+        : ["a.id IN (SELECT asset_id FROM asset_locations WHERE connection_id = ? AND state = 'present')", scope.connectionId]
 
 export interface ScopeCounts {
   /** Photos with a preview, not looked at yet. */
@@ -366,7 +371,7 @@ export interface ScopeCounts {
 }
 
 /** How far an album's or a job's photos have got, for the panel beside Find faces in this album. */
-export async function scopeCounts(db: D1Database, scope: { albumId: string } | { jobId: string }): Promise<ScopeCounts> {
+export async function scopeCounts(db: D1Database, scope: FaceScope): Promise<ScopeCounts> {
   const [where, bind] = scopeWhere(scope)
   const row = await db
     .prepare(
@@ -391,7 +396,7 @@ export interface Claimed {
  * Hand out photos to look at, marked as claimed so another tab or helper isn't given them for ten minutes: in an album
  * or a job (a browser tab), or a helper's own (`connectionId`). Photos with no preview yet are skipped until one comes.
  */
-export async function claimFaces(db: D1Database, scope: { albumId: string } | { jobId: string } | { connectionId: string }, limit = FACE_BATCH): Promise<Claimed[]> {
+export async function claimFaces(db: D1Database, scope: FaceScope | { connectionId: string }, limit = FACE_BATCH): Promise<Claimed[]> {
   const now = nowIso()
   const stale = new Date(Date.now() - CLAIM_MS).toISOString()
   const [where, bind] = scopeWhere(scope)

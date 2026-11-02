@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { requirePermission } from '../auth/principal'
-import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, scopeCounts, setFacesOn, storeFound, unnamedFaces, type FaceChoice } from '../catalog/faces'
+import { chooseFaces, claimFaces, FACE_MODEL, faceCounts, facesInstalled, facesSetting, parseFound, parseModel, removeAllFaces, scopeCounts, setFacesOn, storeFound, unnamedFaces, type FaceChoice, type FaceScope } from '../catalog/faces'
 import { personByName } from '../catalog/people'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
@@ -54,16 +54,31 @@ faceRoutes.post('/remove', requirePermission('settings:manage'), async (c) => {
 })
 
 /** Photos in an album or a job to look at in this tab (claimed for ten minutes), with the epoch to write under. */
+async function queue(c: Context<DamEnv>, scope: FaceScope, peek: boolean) {
+  const setting = await facesSetting(c.env.DB)
+  if (!setting.on) return c.json({ error: 'faces_off', message: say('err.facesOff') }, 409)
+  const photos = peek ? [] : await claimFaces(c.env.DB, scope)
+  return c.json({ model: FACE_MODEL, epoch: setting.epoch, photos, counts: await scopeCounts(c.env.DB, scope) })
+}
+
 faceRoutes.get('/queue', requirePermission('people:manage'), async (c) => {
   const album = c.req.query('album')
   const job = c.req.query('job')
   if (!album === !job) return c.json({ error: 'invalid_request', message: 'Give album or job.' }, 400)
-  const setting = await facesSetting(c.env.DB)
-  if (!setting.on) return c.json({ error: 'faces_off', message: say('err.facesOff') }, 409)
-  const scope = album ? { albumId: album } : { jobId: job! }
   // `peek=1`: only the counts, for the panel before anything is claimed.
-  const photos = c.req.query('peek') === '1' ? [] : await claimFaces(c.env.DB, scope)
-  return c.json({ model: FACE_MODEL, epoch: setting.epoch, photos, counts: await scopeCounts(c.env.DB, scope) })
+  return queue(c, album ? { albumId: album } : { jobId: job! }, c.req.query('peek') === '1')
+})
+
+/** The same for photos just uploaded (Uploader): `{ assetIds, peek? }`, up to 500 ids. */
+faceRoutes.post('/queue', requirePermission('people:manage'), async (c) => {
+  try {
+    const body = await readJsonObject(c)
+    const ids = body.assetIds
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((id) => typeof id === 'string' && id.length <= 64)) throw new BadRequest('assetIds is a list of 1 to 500 photo ids.')
+    return queue(c, { assetIds: ids as string[] }, body.peek === true)
+  } catch (error) {
+    return invalid(c, error)
+  }
 })
 
 /** What a tab found: `{ model, epoch, photos: [{ assetId, frame, faces } | { assetId, failed: true }] }`. */

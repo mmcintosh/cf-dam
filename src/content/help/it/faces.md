@@ -4,7 +4,7 @@ summary: "Lasciare che cf-dam trovi i volti nelle tue foto per dare un nome alle
 section: Your photos
 order: 11
 review: machine
-source: ebbb7b10466e
+source: 73ecb5d3191d
 ---
 
 **Trova volti** mostra nella pagina di una foto, sotto **Persone**, una piccola immagine di ogni volto trovato. Fai clic su una e scrivi chi è: la foto viene taggata con quella persona, come se avessi aggiunto il nome a mano. Fa risparmiare tempo con le foto di più persone, ed è così che la pagina di una persona ottiene un’immagine del suo volto.
@@ -22,7 +22,7 @@ I volti vengono trovati sui tuoi dispositivi, dal tuo helper (il programma sul t
 In **Configurazione → Revisione IA → Trova volti**, leggi cosa comporta (vedi [I volti e la legge](/help/faces-and-the-law)), spunta **Ho letto** e premi **Attiva «Trova volti»**. Serve il permesso di modificare le impostazioni (gli amministratori, per impostazione predefinita). Dopodiché:
 
 - il tuo helper esamina ogni nuova foto mentre ne crea l’anteprima, e lavora sulle foto più vecchie in background, qualche centinaio al minuto;
-- le foto caricate dal sito web vengono esaminate dal loro album: nella pagina di un album (o di un lavoro), **Trova i volti in questo album** esamina le foto non ancora esaminate, in quella scheda. Tieni aperta la scheda (e in primo piano, su un telefono) finché non ha finito; chiuderla la ferma, e il resto aspetta la prossima volta. Una scheda fa qualche migliaio di foto all’ora.
+- le foto caricate dal sito web vengono esaminate dal loro album: nella pagina di un album (o di un lavoro), **Trova i volti in questo album** esamina le foto non ancora esaminate, in quella scheda. Tieni aperta la scheda (e in primo piano, su un telefono) finché non ha finito; chiuderla la ferma, e il resto aspetta la prossima volta. Una scheda fa qualche migliaio di foto all’ora. Subito dopo un caricamento, l’area di caricamento offre lo stesso per le foto appena inviate.
 
 Il tuo helper deve essere aggiornato: uno più vecchio continua come prima, senza volti.
 

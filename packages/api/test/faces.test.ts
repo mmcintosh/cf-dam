@@ -103,6 +103,16 @@ describe('looking for faces in a browser tab', () => {
     expect(after.counts).toMatchObject({ toLook: 1, done: 1 })
   })
 
+  it('hands out photos just uploaded by their ids, without an album', async () => {
+    const [a, b] = [await upload('a.jpg'), await upload('b.jpg')]
+    await turnOn()
+    const peek = (await (await post('/api/faces/queue', { assetIds: [a, b], peek: true })).json()) as { photos: unknown[]; counts: Record<string, number> }
+    expect(peek).toMatchObject({ photos: [], counts: { toLook: 2, done: 0 } })
+    const claimed = (await (await post('/api/faces/queue', { assetIds: [a] })).json()) as { photos: { assetId: string }[] }
+    expect(claimed.photos.map((p) => p.assetId)).toEqual([a])
+    expect((await post('/api/faces/queue', { assetIds: [] })).status).toBe(400)
+  })
+
   it('refuses boxes for an old preview, from another epoch, while paused, and anything but boxes', async () => {
     const a = await upload('a.jpg')
     const albumId = await album([a])
