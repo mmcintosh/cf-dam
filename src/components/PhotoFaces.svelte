@@ -1,14 +1,14 @@
 <script lang="ts">
   /**
    * The faces found on this photo (catalog/faces.ts, plans/PLAN-FN2-v2.md): each a chip (src/lib/face-chip.ts) cut from
-   * the unedited preview (the boxes are on it), named or not. Click one to name it, set it aside (a passer-by, a poster)
-   * or clear it. Naming tags the photo, so the names list above changes too (the `cf-dam:people` event, both ways).
+   * the unedited preview (the boxes are on it), named or not. Click one to see it larger, head and shoulders with the face
+   * outlined, and (with rights to) to name it, set it aside (a passer-by, a poster) or clear it. Naming tags the photo, so the names list above changes too (the `cf-dam:people` event, both ways).
    * Never shown to clients.
    */
   import { t } from '@cf-dam/i18n/client'
   import { onMount } from 'svelte'
   import { api } from '../lib/auth-client'
-  import { chipStyle } from '../lib/face-chip'
+  import { chipStyle, outlineStyle, WIDE } from '../lib/face-chip'
 
   interface Face {
     id: number
@@ -37,6 +37,7 @@
   const src = `/api/assets/${assetId}/renditions/preview?base=1`
 
   const crop = (f: Face) => chipStyle(src, f)
+  const opened = $derived(faces.find((f) => f.id === open) ?? null)
 
   async function reload() {
     faces = (await api<{ faces?: Face[] }>(`/api/assets/${assetId}`)).faces ?? []
@@ -52,7 +53,6 @@
   })
 
   function choose(f: Face) {
-    if (!canManage) return
     open = open === f.id ? null : f.id
     name = f.name ?? ''
     error = ''
@@ -101,8 +101,7 @@
           class="face"
           class:open={open === f.id}
           style={crop(f)}
-          disabled={!canManage}
-          aria-expanded={canManage ? open === f.id : undefined}
+          aria-expanded={open === f.id}
           aria-label={f.name ? t('photoFaces.named', { name: f.name }) : t('photoFaces.unnamed')}
           title={f.name ?? t('photoFaces.unnamed')}
           onclick={() => choose(f)}
@@ -111,13 +110,20 @@
       </li>
     {/each}
   </ul>
-  {#if open !== null}
+  {#if opened}
+    <div class="zoom" role="img" aria-label={opened.name ? t('photoFaces.named', { name: opened.name }) : t('photoFaces.unnamed')} style={chipStyle(src, opened, WIDE)}>
+      <span class="outline" style={outlineStyle(opened, WIDE)}></span>
+    </div>
+  {/if}
+  {#if opened && !canManage}
+    <button class="btn btn-sm btn-ghost" type="button" onclick={() => (open = null)}>{t('common.close')}</button>
+  {:else if opened}
     <form class="pick" onsubmit={named} onkeydown={keys}>
       <input type="text" list={`face-people-${assetId}`} maxlength="120" placeholder={t('photoFaces.namePlaceholder')} aria-label={t('photoFaces.namePlaceholder')} bind:value={name} />
       <datalist id={`face-people-${assetId}`}>{#each everyone as p (p.id)}<option value={p.name}></option>{/each}</datalist>
       <button class="btn btn-sm btn-primary" type="submit" disabled={busy || !name.trim()}>{t('photoFaces.name')}</button>
       <button class="btn btn-sm" type="button" disabled={busy} onclick={() => send({ setAside: true })}>{t('photoFaces.setAside')}</button>
-      {#if faces.find((f) => f.id === open)?.name}<button class="btn btn-sm" type="button" disabled={busy} onclick={() => send({ clear: true })}>{t('photoFaces.clear')}</button>{/if}
+      {#if opened.name}<button class="btn btn-sm" type="button" disabled={busy} onclick={() => send({ clear: true })}>{t('photoFaces.clear')}</button>{/if}
       <button class="btn btn-sm btn-ghost" type="button" onclick={() => (open = null)}>{t('common.cancel')}</button>
     </form>
   {/if}
@@ -130,7 +136,7 @@
       <ul class="faces">
         {#each aside as f (f.id)}
           <li>
-            <button type="button" class="face dim" style={crop(f)} disabled={!canManage} aria-label={t('photoFaces.asideOne')} onclick={() => choose(f)}></button>
+            <button type="button" class="face dim" style={crop(f)} aria-label={t('photoFaces.asideOne')} aria-expanded={open === f.id} onclick={() => choose(f)}></button>
             {#if canManage && open === f.id}<button class="link small" type="button" onclick={() => send({ setAside: false })}>{t('photoFaces.putBack')}</button>{/if}
           </li>
         {/each}
@@ -170,8 +176,22 @@
     padding: 0;
     cursor: pointer;
   }
-  .face:disabled {
-    cursor: default;
+  .zoom {
+    position: relative;
+    width: min(240px, 100%);
+    aspect-ratio: 1;
+    margin: 0 0 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-strong);
+    background-color: var(--surface-2, #ddd);
+    background-repeat: no-repeat;
+  }
+  .outline {
+    position: absolute;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+    pointer-events: none;
   }
   .face.open {
     border-color: var(--accent);
