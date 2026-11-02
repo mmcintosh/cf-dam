@@ -4,12 +4,12 @@ summary: "Nommer qui figure sur vos photos, retrouver toutes les photos d’une 
 section: Your photos
 order: 10
 review: machine
-source: cee611a851a5
+source: 653dad8b48ae
 ---
 
 **Personnes** dans le menu liste toutes les personnes que vous avez nommées sur vos photos, avec une photo de chacune et le nombre de photos où elle figure. Les noms sont pour vous et votre équipe. **Les clients ne les voient que là où vous le choisissez** : une galerie peut permettre à son propre couple de retrouver des personnes sous les noms que vous lui indiquez (voir [Personnes dans une galerie client](/help/people-in-galleries)). Nulle part ailleurs, et jamais personne d’autre.
 
-Les noms s’ajoutent à la main, comme les mots-clés. cf-dam ne reconnaît pas les visages.
+Les noms s’ajoutent à la main, comme les mots-clés. cf-dam ne reconnaît pas les visages. Là où « Trouver les visages » est activé, il peut trouver les visages d’une photo pour que vous cliquiez dessus et les nommiez (voir [Trouver les visages](/help/faces)) ; il ne détermine jamais qui est qui.
 
 ## Nommer quelqu’un
 

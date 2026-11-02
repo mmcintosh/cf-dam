@@ -17,6 +17,8 @@
  *     MAIL_FROM=cf-dam@dam.example.com            production
  *     STAGING_MAIL_FROM=cf-dam@stage.example.com  staging
  *     STAGING_MAIL_ALLOW_TO=me@example.com,@example.com   staging may email only these (required with a sender)
+ *
+ *   Face finding (plans/PLAN-FN2-v2.md §14): FACES=1 in .env.deploy includes it; left out otherwise.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -69,7 +71,7 @@ const deployVars = (() => {
   } catch {
     // No file: nothing set.
   }
-  return { ...vars, ...Object.fromEntries(Object.entries(process.env).filter(([k]) => /MAIL_/.test(k))) }
+  return { ...vars, ...Object.fromEntries(Object.entries(process.env).filter(([k]) => /MAIL_|^FACES$/.test(k))) }
 })()
 const mailFrom = (staging ? deployVars.STAGING_MAIL_FROM : deployVars.MAIL_FROM) ?? ''
 const allowTo = staging ? (deployVars.STAGING_MAIL_ALLOW_TO ?? '') : ''
@@ -113,5 +115,14 @@ if (!mailFrom) {
   }
 }
 if (config.send_email.length === 0) delete config.send_email
+// Face finding (plans/PLAN-FN2-v2.md §14): left out unless FACES=1 in .env.deploy or the environment. Without it there
+// are no face routes, no switch and no chips. Until a lawyer has looked at it, installs are made without it.
+delete vars.FACES
+if (deployVars.FACES === '1') {
+  vars.FACES = '1'
+  console.log('optional bindings: face finding included (FACES=1)')
+} else {
+  console.log('optional bindings: face finding left out (set FACES=1 in .env.deploy to include it)')
+}
 config.vars = vars
 writeFileSync(CONFIG, JSON.stringify(config))

@@ -22,6 +22,7 @@ import { usageRoutes } from './routes/usage'
 import { archiveRoutes } from './routes/archive'
 import { connectionRoutes } from './routes/connections'
 import { duplicateRoutes } from './routes/duplicates'
+import { faceRoutes } from './routes/faces'
 import { galleryRoutes } from './routes/gallery'
 import { inviteRoutes } from './routes/invites'
 import { runInLanguage } from '@cf-dam/i18n'
@@ -106,6 +107,7 @@ export function createDamApi() {
   api.route('/assets', assetRoutes)
   api.route('/albums', albumRoutes)
   api.route('/people', peopleRoutes)
+  api.route('/faces', faceRoutes)
   api.route('/payments', paymentRoutes)
   api.route('/shares', shareRoutes)
   api.route('/clients', clientRoutes)
@@ -145,6 +147,7 @@ export { getMailSettings, mailReady } from './mail/outbox'
 export { assetPeople, clientNamedPeople, getPerson, listPeople, type PersonJson } from './catalog/people'
 export { allGroups, listGroups, sharePeople, type Chip, type GroupJson, type GroupMember, type SharePeopleJson } from './catalog/gallery-people'
 export { namesToCheck, waitingCount, waitingCounts, type Candidate, type NameGroup } from './catalog/name-suggestions'
+export { faceCounts, facesInstalled, facesSetting, photoFaces, type FaceCounts, type FaceJson, type FacesSetting } from './catalog/faces'
 export { listOrders } from './selling/orders'
 export { facetProblems, facetsAvailable, facetStats, type FacetProblem, type FacetStats } from './catalog/jev-facets'
 export { meaningAvailable, resolveNear } from './catalog/meaning'

@@ -12,7 +12,8 @@ import { join } from 'node:path'
 
 const ROOT = 'src/content/help'
 const hash = (path) => createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12)
-const field = (text, name) => text.match(new RegExp(`^${name}:\\s*(.+)$`, 'm'))?.[1]?.trim()
+// Quoted when the hash is all digits (YAML would read it as a number).
+const field = (text, name) => text.match(new RegExp(`^${name}:\\s*(.+)$`, 'm'))?.[1]?.trim().replace(/^"(.*)"$/, '$1')
 
 const problems = []
 const stale = []

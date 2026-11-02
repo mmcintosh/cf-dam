@@ -388,7 +388,13 @@ export async function eraseClient(db: D1Database, clientId: string, options: { n
     db.prepare('DELETE FROM jobs WHERE client_id = ?').bind(clientId),
     // Sessions, passwords, passkeys, invites, gallery memberships and the client_people rows go with the users.
     db.prepare('DELETE FROM users WHERE id IN (SELECT value FROM json_each(?))').bind(ids),
-    ...(options.namedPeople ? [db.prepare('DELETE FROM people WHERE client_id = ?').bind(clientId)] : []),
+    ...(options.namedPeople
+      ? [
+          // Their face boxes stay with the photos, set aside and nameless (as catalog/people.ts deletePerson does).
+          db.prepare('UPDATE faces SET person_id = NULL, set_aside = 1, named_by = NULL WHERE person_id IN (SELECT id FROM people WHERE client_id = ?)').bind(clientId),
+          db.prepare('DELETE FROM people WHERE client_id = ?').bind(clientId),
+        ]
+      : []),
     // Their groups go with them (ON DELETE CASCADE).
     db.prepare('DELETE FROM clients WHERE id = ?').bind(clientId),
   ])

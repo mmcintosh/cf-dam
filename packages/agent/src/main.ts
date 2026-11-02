@@ -8,7 +8,8 @@ import { Api, Paused, Unpaired } from './api.ts'
 import { archivePass, newArchiveProgress, type ArchiveSettings } from './archive.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
-import { newProgress, scanRoots, type Root } from './pipeline.ts'
+import { FACE_MODEL, hasFaceModel } from './faces.ts'
+import { findOlderFaces, newProgress, scanRoots, type Ctx, type Root } from './pipeline.ts'
 import { State } from './state.ts'
 import { serveStatus, type StatusView } from './status.ts'
 import { isSystemVolume, listVolumes, locate, toAgentPath, type Volume } from './volumes.ts'
@@ -44,6 +45,9 @@ export class Agent {
   private denied: string[] = []
   /** The config of the last scan: its folders and archive settings. */
   private lastConfig: Config | null = null
+  /** Find faces is on in cf-dam, with the epoch to send boxes under (heard with each heartbeat); null when off. */
+  private facesEpoch: number | null = null
+  private canFaces: boolean | null = null
 
   constructor(
     readonly config: AgentConfig,
@@ -107,12 +111,19 @@ export class Agent {
 
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
-    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[] }>('POST', '/api/agent/heartbeat', {
+    this.canFaces ??= await hasFaceModel()
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[] }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
       status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), denied: this.denied, archive: this.archiveProgress },
+      // Faces (PLAN-FN2-v2): only a helper with the model cf-dam expects is told whether they're on.
+      ...(this.canFaces ? { faces: FACE_MODEL } : {}),
     })
     this.paused = res.body.paused
+    const faces = res.body.faces?.epoch ?? null
+    if (faces === null && this.facesEpoch !== null) this.state.clearFaces()
+    this.facesEpoch = faces
+    if (faces !== null && res.body.findFaces?.length) this.state.askFaces(res.body.findFaces.map((f) => f.assetId))
     if (res.body.rescan) this.rescan = true
     // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
     if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
@@ -214,6 +225,7 @@ export class Agent {
           defaultExcludes: config.defaultExcludes,
           progress: this.view.progress,
           shouldStop: () => this.stopping || this.paused,
+          ...this.facesHooks(),
         },
         config.roots.map((root) => ({ root, here: locate(root, this.volumes) })),
       )
@@ -225,6 +237,37 @@ export class Agent {
     log(`Scan done: ${p.found} found, ${p.sent} sent, ${p.failed} failed, ${p.missing} missing`)
     this.view.lastScanAt = new Date().toISOString()
     this.view.phase = this.paused ? 'paused' : 'idle'
+  }
+
+  private facesHooks(): Pick<Ctx, 'faces' | 'facesOff'> {
+    return {
+      faces: () => (this.facesEpoch === null ? null : { epoch: this.facesEpoch }),
+      facesOff: () => {
+        this.facesEpoch = null
+        this.state.clearFaces()
+      },
+    }
+  }
+
+  /** Between scans, older photos cf-dam asked about for faces, for about a minute at a time. */
+  async facesAll(): Promise<void> {
+    const config = this.lastConfig
+    if (!config || this.facesEpoch === null) return
+    const ctx: Ctx = {
+      api: this.api,
+      state: this.state,
+      extractor: this.extractor,
+      workers: this.config.workers,
+      defaultExcludes: config.defaultExcludes,
+      progress: newProgress(),
+      shouldStop: () => this.stopping || this.paused,
+      ...this.facesHooks(),
+    }
+    const roots = config.roots.map((root) => ({ root, here: locate(root, this.volumes) }))
+    const until = Date.now() + 50_000
+    while (Date.now() < until && !this.stopping && !this.paused && this.facesEpoch !== null) {
+      if ((await findOlderFaces(ctx, roots, this.config.workers * 4)) === 0) return
+    }
   }
 
   /** An archiving pass, with cf-dam kept posted as during a scan. */
@@ -288,7 +331,9 @@ export class Agent {
           }
           // Between scans: archive, for at most a scan interval at a time.
           if (!this.paused && !this.stopping) await this.archiveAll()
-          await sleep(60_000)
+          // Then older photos to look at for faces, when cf-dam asked; otherwise a minute's rest.
+          if (!this.paused && !this.stopping && this.facesEpoch !== null) await this.facesAll()
+          else await sleep(60_000)
         }
       } catch (error) {
         if (error instanceof Unpaired) {

@@ -1,10 +1,11 @@
 ---
 import { env } from 'cloudflare:workers'
 import { getT } from '@cf-dam/i18n'
-import { aiStats, facetProblems, facetStats, getAiSettings, siteLanguage, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
+import { aiStats, faceCounts, facesInstalled, facesSetting, facetProblems, facetStats, getAiSettings, siteLanguage, USD_PER_1000_NEURONS, VISION_MODELS } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AiSettings from '../../components/AiSettings.svelte'
 import PeopleFacets from '../../components/PeopleFacets.svelte'
+import FacesSettings from '../../components/FacesSettings.svelte'
 
 const principal = Astro.locals.principal!
 const [settings, stats, archiveLanguage, people, peopleProblems] = await Promise.all([
@@ -14,6 +15,11 @@ const [settings, stats, archiveLanguage, people, peopleProblems] = await Promise
   facetStats(env),
   facetProblems(env.DB),
 ])
+// Find faces (plans/PLAN-FN2-v2.md): only where this install has it; otherwise the section says it isn't part of it.
+const installed = facesInstalled(env as { FACES?: string })
+const faces = installed
+  ? await Promise.all([facesSetting(env.DB), faceCounts(env.DB)]).then(([setting, counts]) => ({ on: setting.on, removing: setting.removeBefore !== null, counts }))
+  : null
 const t = getT(Astro.locals.lang)
 ---
 <AppLayout help="ai-review" title={t('ai.title')} subtitle={t('ai.subtitle')}>
@@ -28,4 +34,5 @@ const t = getT(Astro.locals.lang)
     canManage={principal.permissions.has('settings:manage')}
   />
   <PeopleFacets client:idle initial={people} initialProblems={peopleProblems} canManage={principal.permissions.has('settings:manage')} />
+  <FacesSettings client:idle installed={installed} initial={faces} canManage={principal.permissions.has('settings:manage')} />
 </AppLayout>
