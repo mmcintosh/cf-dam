@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css'
-import { currentTimeZone, direction, intlTag, PAGE_DATA_ID, pageI18n } from '@cf-dam/i18n'
+import { currentTimeZone, direction, GALLERY_TEXT_GROUPS, intlTag, PAGE_DATA_ID, pageI18n } from '@cf-dam/i18n'
 interface Props {
   title: string
   /** Client galleries: the page is the photographer's, so no product name in the title, and no indexing. */
@@ -10,8 +10,9 @@ interface Props {
 }
 const { title, bare = false, attributes = {} } = Astro.props
 const lang = Astro.locals.lang ?? 'en'
-// The page's language and its text, once, for the islands' `t` (packages/i18n/src/client.ts).
-const i18n = JSON.stringify(pageI18n(lang, currentTimeZone())).replace(/</g, '\\u003c')
+// The page's language and its text, once, for the islands' `t` (packages/i18n/src/client.ts). A client's gallery
+// gets only the text its own islands use, not the staff app's.
+const i18n = JSON.stringify(pageI18n(lang, currentTimeZone(), bare ? GALLERY_TEXT_GROUPS : undefined)).replace(/</g, '\\u003c')
 ---
 <!doctype html>
 <html lang={intlTag(lang)} dir={direction(lang)} {...attributes}>

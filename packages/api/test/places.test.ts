@@ -9,6 +9,7 @@ import { createHarness, json, setUpAdmin, type Harness } from './harness'
 const placesGz = readFileSync(new URL('../../../public/places/cities1000.tsv.gz', import.meta.url))
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url))) // GPS 62.4667 N, 6.15 E
 const iptc = new Uint8Array(readFileSync(new URL('./fixtures/iptc.jpg', import.meta.url))) // same GPS, but the file says Bergen
+const gradient = new Uint8Array(readFileSync(new URL('./fixtures/gradient.png', import.meta.url))) // no GPS
 
 /** Serves the built place list the way the static-asset binding would. */
 const ASSETS = { fetch: async () => new Response(placesGz) } as unknown as Fetcher
@@ -98,6 +99,20 @@ describe('filling in places from GPS', () => {
     const preset = (await (await h.fetch('/api/presets', { ...json({ name: 'Studio', fields: { city: 'Giske' } }), cookie: admin })).json()) as { preset: { id: string } }
     await h.fetch('/api/assets/bulk', { ...json({ ids: [b], action: 'preset', presetId: preset.preset.id }), cookie: admin })
     expect(await asset(b)).toMatchObject({ placeFromGps: ['state', 'country', 'countryCode'], iptc: expect.objectContaining({ city: 'Giske' }) })
+  })
+
+  it('doesn\'t load the place list for photos without GPS', async () => {
+    resetPlacesForTests()
+    let loads = 0
+    // Unavailable, so every photo that needs the list asks for it again (a failed load isn't kept).
+    await h.dispose()
+    h = await createHarness({ ASSETS: { fetch: async () => (loads++, new Response('', { status: 503 })) } as unknown as Fetcher })
+    admin = await setUpAdmin(h)
+    await upload('flat.png', gradient)
+    expect(loads).toBe(0)
+    await upload('a.jpg', camera)
+    expect(loads).toBeGreaterThan(0)
+    resetPlacesForTests()
   })
 
   it('looks up older photos in the sweep', async () => {

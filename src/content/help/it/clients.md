@@ -4,7 +4,7 @@ summary: "Tenere traccia delle persone e delle aziende per cui lavori: recapiti,
 section: Sharing
 order: 3
 review: machine
-source: e5abd5bf184b
+source: 5ad84cbc1b50
 ---
 
 **Clienti** tiene traccia di ogni persona o azienda per cui lavori: una coppia, una famiglia, un’impresa. Ogni cliente ha una pagina con recapiti e note, le persone che accedono per suo conto, le gallerie clienti condivise con queste persone, cosa hanno scaricato e una cronologia di ciò che è successo.
@@ -15,7 +15,7 @@ Solo gli **amministratori** vedono Clienti: sono dati personali.
 
 In **Clienti**, premi **Nuovo cliente**. Basta un nome (per esempio *Anna and Tom Hansen* o *Brücke GmbH*); nella sua pagina puoi aggiungere azienda, email, telefono, indirizzo, la lingua delle sue gallerie e note. Le note sono solo per il tuo team.
 
-L’elenco mostra i clienti attuali dalla A alla Z, con quanti accessi hanno, quante delle loro gallerie sono aperte e quando una delle loro persone ha aperto o scaricato qualcosa per l’ultima volta. Cerca per nome, azienda, email o telefono, oppure per nome o email di una delle loro persone. Gli accenti non contano: *muller* trova *Müller*.
+L’elenco mostra i clienti attuali dalla A alla Z, con quanti accessi hanno, quante delle loro gallerie sono aperte e quando una delle loro persone ha aperto o scaricato qualcosa per l’ultima volta. Cerca per nome, azienda, email o telefono, oppure per nome o email di una delle loro persone. Gli accenti non contano: *muller* trova *Müller*. **Scarica come CSV** salva tutti i clienti, anche quelli passati, in un file per un foglio di calcolo; viene annotato in **Attività**.
 
 ## Le sue persone
 

@@ -42,9 +42,18 @@ export function getT(lang: UiLanguage): Translate {
 }
 
 /** What the layout writes into the page (see client.ts). */
-export function pageI18n(lang: UiLanguage, timeZone?: string): PageI18n {
-  return { lang, catalog: lang === 'en' ? en : { ...en, ...catalogFor(lang) }, ...(timeZone ? { timeZone } : {}) }
+export function pageI18n(lang: UiLanguage, timeZone?: string, groups?: readonly string[]): PageI18n {
+  const all = lang === 'en' ? en : { ...en, ...catalogFor(lang) }
+  // Only these groups of keys (`gallery.…`): a client's gallery page shouldn't carry the whole app's text.
+  const catalog = groups ? Object.fromEntries(Object.entries(all).filter(([key]) => groups.includes(key.slice(0, key.indexOf('.'))))) : all
+  return { lang, catalog, ...(timeZone ? { timeZone } : {}) }
 }
+
+/**
+ * The groups of text a client's gallery pages need in the browser (their islands: ClientGallery, SuggestNames,
+ * LanguageSwitch, OrderView). scripts/check-page-strings.mjs fails `npm run check` if they use any other.
+ */
+export const GALLERY_TEXT_GROUPS = ['common', 'gallery', 'language', 'order', 'suggest'] as const
 
 export interface RequestLanguage {
   lang: UiLanguage

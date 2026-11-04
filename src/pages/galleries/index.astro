@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { createFormat, getT } from '@cf-dam/i18n'
+import { createFormat, currentTimeZone, getT } from '@cf-dam/i18n'
 import { getWatermark, listShares, waitingCounts } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import WatermarkSettings from '../../components/WatermarkSettings.svelte'
@@ -33,7 +33,7 @@ const matches: Record<Filter, (s: (typeof shares)[number]) => boolean> = {
 }
 const counts = Object.fromEntries(FILTERS.map((f) => [f, shares.filter(matches[f]).length])) as Record<Filter, number>
 const live = shares.filter(matches[filter])
-const fmt = (iso: string | null) => (iso ? createFormat(Astro.locals.lang).date(iso) : '—')
+const fmt = (iso: string | null) => (iso ? createFormat(Astro.locals.lang, currentTimeZone()).date(iso) : '—')
 const STATUS: Record<string, string> = { active: t('galleries.status.active'), expired: t('galleries.status.expired'), revoked: t('galleries.status.revoked') }
 ---
 <AppLayout help="client-galleries" title={t('nav.galleries')} subtitle={t('galleries.subtitle2')}>

@@ -95,6 +95,47 @@ describe('client accounts', () => {
     expect(stats.visitors).toEqual([expect.objectContaining({ name: 'Jane Smith', picks: 1 })])
   })
 
+  it('names the job each gallery is from, by its client-facing name only', async () => {
+    const link = await share()
+    const client = await join((await invite(link.id)).invite!.token)
+    const mine = async () => ((await (await h.fetch('/api/me/galleries', { cookie: client })).json()) as { galleries: { job: unknown }[] }).galleries
+    expect((await mine())[0]!.job).toBeNull()
+
+    const clientId = ((await (await h.fetch('/api/clients', { ...json({ name: 'The Smiths' }), cookie: admin })).json()) as { client: { id: string } }).client.id
+    const made = (await (await h.fetch('/api/jobs', { ...json({ clientId, title: 'Smith wedding (difficult MIL)', shootStart: '2024-06-14' }), cookie: admin })).json()) as { job: { id: string } }
+    await h.env.DB.prepare('UPDATE albums SET job_id = ? WHERE id = ?').bind(made.job.id, albumId).run()
+    // The team's own title isn't shown to clients.
+    expect((await mine())[0]!.job).toBeNull()
+    await h.fetch(`/api/jobs/${made.job.id}`, { method: 'PATCH', body: JSON.stringify({ clientTitle: 'Your wedding' }), cookie: admin })
+    expect((await mine())[0]!.job).toEqual({ id: made.job.id, title: 'Your wedding', shootStart: '2024-06-14' })
+  })
+
+  it('exports clients and jobs as CSV for administrators, logged, with formulas made harmless', async () => {
+    const made = (await (await h.fetch('/api/clients', { ...json({ name: 'Brücke GmbH', company: '=HYPERLINK("http://evil")', notes: 'Line one\nline "two"' }), cookie: admin })).json()) as { client: { id: string } }
+    await h.fetch('/api/jobs', { ...json({ clientId: made.client.id, title: 'Product shoot', kind: 'commercial', shootStart: '2024-06-14' }), cookie: admin })
+
+    const response = await h.fetch('/api/clients/export?what=clients', { cookie: admin })
+    expect(response.headers.get('Content-Type')).toBe('text/csv; charset=utf-8')
+    expect(response.headers.get('Content-Disposition')).toMatch(/^attachment; filename="cf-dam-clients-\d{4}-\d{2}-\d{2}\.csv"$/)
+    // The byte-order mark is there for Excel (decoding the text drops it, so look at the bytes).
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
+    const csv = new TextDecoder().decode(bytes)
+    expect(csv.startsWith('"name","company","email"')).toBe(true)
+    expect(csv).toContain('"Brücke GmbH","\'=HYPERLINK(""http://evil"")"')
+    expect(csv).toContain('"Line one\nline ""two"""')
+
+    const jobs = await (await h.fetch('/api/clients/export?what=jobs', { cookie: admin })).text()
+    expect(jobs.split('\r\n')[1]).toMatch(/^"Product shoot","","Brücke GmbH","commercial","2024-06-14"/)
+
+    const logged = await h.env.DB.prepare("SELECT action, details FROM activity_log WHERE action LIKE '%.exported' ORDER BY created_at").all<{ action: string; details: string }>()
+    expect(logged.results.map((r) => [r.action, JSON.parse(r.details)])).toEqual([['clients.exported', { rows: 1 }], ['jobs.exported', { rows: 1 }]])
+
+    await createUser(h, admin, { name: 'Eddie Editor', email: 'eddie@example.com', password: 'an editor password', roles: ['editor'] })
+    const editor = cookiesFrom(await signIn(h, 'eddie@example.com', 'an editor password'))
+    expect((await h.fetch('/api/clients/export?what=clients', { cookie: editor })).status).toBe(403)
+  })
+
   it('keeps clients to their own links, and taking them off closes the door', async () => {
     const theirs = await share()
     const other = await share({ name: 'For the Joneses', password: PASSWORD })
@@ -268,5 +309,18 @@ describe('clients (the Clients section)', () => {
       expect(row.details ?? '', row.action).not.toMatch(/anna|hansen/i)
     }
     expect(log.results.map((r) => r.action)).toContain('client.erased')
+  })
+
+  it('doesn’t erase a linked login that has since joined the team', async () => {
+    const smiths = await create({ name: 'The Smiths' })
+    const link = await share()
+    const { member, invite: inv } = await invite(link.id, 'sam@example.com', 'Sam Smith')
+    await h.fetch(`/api/clients/${smiths.id}/people`, { ...json({ userId: member.userId }), cookie: admin })
+    await join(inv!.token, 'sam@example.com')
+    // Hired: an editor now, still linked to the client.
+    expect((await h.fetch(`/api/users/${member.userId}`, { method: 'PATCH', body: JSON.stringify({ roles: ['editor'] }), cookie: admin })).status).toBe(200)
+    const erased = await h.fetch(`/api/clients/${smiths.id}/erase`, { ...json({ confirm: 'The Smiths' }), cookie: admin })
+    expect(await erased.json()).toEqual({ people: 0, namedPeople: 0 })
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM users WHERE id = ?').bind(member.userId).first<{ n: number }>()).toEqual({ n: 1 })
   })
 })

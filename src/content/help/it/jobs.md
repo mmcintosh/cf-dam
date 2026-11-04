@@ -4,7 +4,7 @@ summary: "Seguire ogni lavoro per un cliente dalla prenotazione alla consegna: d
 section: Sharing
 order: 4
 review: machine
-source: 8885dfc0fa09
+source: 11fbcafb70a0
 ---
 
 Un **lavoro** è un incarico per un cliente: un matrimonio, un ritratto, un servizio di prodotto. Conserva le date del servizio, il luogo, a che punto è il lavoro e i suoi album. Le sue gallerie sono le gallerie dei suoi album. **Lavori** è la prima scheda di **Lavoro per i clienti** nel menu, accanto a **Clienti** e **Gallerie clienti**; come per i clienti, lo vedono solo gli **amministratori**.
@@ -83,7 +83,7 @@ In cima a **Lavori**, **Da seguire** elenca:
 - una galleria di un lavoro che chiude entro 7 giorni;
 - una galleria di selezione senza preferite dopo 14 giorni.
 
-**In corso** mostra i lavori aperti per fase, prima il servizio più vicino; **Consegnati e chiusi** e **Tutti** mostrano il resto. Cerca per titolo, luogo o cliente; gli accenti non contano.
+**In corso** mostra i lavori aperti per fase, prima il servizio più vicino; **Consegnati e chiusi** e **Tutti** mostrano il resto. Cerca per titolo, luogo o cliente; gli accenti non contano. **Scarica come CSV** salva tutti i lavori in un file per un foglio di calcolo.
 
 ## Eliminare un lavoro
 

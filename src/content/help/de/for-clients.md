@@ -4,7 +4,7 @@ summary: "Für Kunden: anmelden, Fotos ansehen, Favoriten auswählen und herunte
 section: Sharing
 order: 2
 review: machine
-source: 8601369c0d98
+source: 3a24cb9a8b2d
 ---
 
 Dein Fotograf teilt Fotos mit dir über cf-dam. Mit deinem eigenen Konto siehst du nur die Galerien, die er mit dir geteilt hat, auf jedem Telefon, Tablet oder Computer.
@@ -19,7 +19,7 @@ Wenn du dein Passwort vergisst, drück auf der Anmeldeseite **Passwort vergessen
 
 ## Deine Galerien
 
-**Deine Galerien** zeigt alles, was mit dir geteilt wurde, das Neueste zuerst, und wie lange jede Galerie geöffnet ist. Gibt es nur eine, führt dich die Anmeldung direkt dorthin. Geschlossene Galerien bleiben blass in der Liste, damit du weißt, wo sie waren; frag deinen Fotografen, wenn du sie noch brauchst.
+**Deine Galerien** zeigt alles, was mit dir geteilt wurde, das Neueste zuerst, und wie lange jede Galerie geöffnet ist. Gibt es nur eine, führt dich die Anmeldung direkt dorthin. Geschlossene Galerien bleiben blass in der Liste, damit du weißt, wo sie waren; frag deinen Fotografen, wenn du sie noch brauchst. Galerien aus demselben Auftrag (einer Hochzeit, einem Shooting) stehen zusammen unter seinem Namen.
 
 ## Fotos ansehen
 

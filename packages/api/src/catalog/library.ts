@@ -2,7 +2,7 @@
  * Library views over the catalogue: facet counts, the timeline, map points, bulk edits and XMP
  * sidecars. Every view filters through `buildWhere`, so it agrees with the list on screen.
  */
-import { escapeXml } from '../storage/xml'
+import { escapeXml, escapeXmlAttribute } from '../storage/xml'
 import { nowIso } from '../lib/time'
 import { addTags, buildWhere, isLabel, LABELS, softDeleteAssets, type AssetRow, type Label, type ListFilters } from './assets'
 import { getPreset, iptcXmp, presetStatements } from './iptc'
@@ -155,6 +155,61 @@ export async function facets(db: D1Database, filters: ListFilters): Promise<Face
   }
   out.named = namedPeople
   return out as unknown as Facets
+}
+
+/** A client or job among the photos shown, with how many of them it has (null when too many match to count). */
+export interface WorkFacet {
+  id: string
+  name: string
+  count: number | null
+}
+
+/**
+ * Clients and jobs among the photos shown, the most photographed first (plans/PLAN-C-v2.md, C3). A photo is in a job
+ * through the job's albums. Only for those who manage clients: the names are the studio's records, not the photos'.
+ * Each list ignores its own choice, so you can switch between jobs.
+ */
+export async function workFacets(db: D1Database, filters: ListFilters, options: { liveMax?: number } = {}): Promise<{ clients: WorkFacet[]; jobs: WorkFacet[] }> {
+  const liveMax = options.liveMax ?? FACET_LIVE_MAX
+  const forJobs = buildWhere(filters, 'job')
+  const forClients = buildWhere(filters, 'client')
+  // Counted live only while at most FACET_LIVE_MAX photos match, like the other facets: counting every job album's
+  // photos in a whole archive took seconds at 1.4 million. Past that, the most recent jobs and their clients, uncounted.
+  const [sizedJobs, sizedClients] = await db.batch(
+    [forJobs, forClients].map((w) => db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM assets a WHERE ${w.clause} LIMIT ${liveMax + 1})`).bind(...w.params)),
+  )
+  const tooMany = (r: D1Result | undefined) => ((r?.results[0] as { n: number } | undefined)?.n ?? 0) > liveMax
+  if (tooMany(sizedJobs) || tooMany(sizedClients)) {
+    const [recent, theirClients] = await db.batch([
+      db.prepare(
+        `SELECT j.id, j.title AS name, NULL AS count FROM jobs j WHERE j.id = ? OR EXISTS (SELECT 1 FROM albums al WHERE al.job_id = j.id)
+         ORDER BY j.id = ? DESC, j.shoot_start DESC, j.created_at DESC LIMIT 30`,
+      ).bind(filters.job ?? '', filters.job ?? ''),
+      db.prepare(
+        `SELECT c.id, c.name, NULL AS count FROM clients c
+         WHERE c.id = ? OR (c.past_at IS NULL AND EXISTS (SELECT 1 FROM jobs j JOIN albums al ON al.job_id = j.id WHERE j.client_id = c.id))
+         ORDER BY c.id = ? DESC, c.name LIMIT 30`,
+      ).bind(filters.client ?? '', filters.client ?? ''),
+    ])
+    return { jobs: recent!.results as unknown as WorkFacet[], clients: theirClients!.results as unknown as WorkFacet[] }
+  }
+  const [jobs, clients] = await db.batch([
+    db
+      .prepare(
+        `SELECT j.id, j.title AS name, COUNT(DISTINCT a.id) AS count
+         FROM jobs j JOIN albums al ON al.job_id = j.id JOIN album_items ai ON ai.album_id = al.id JOIN assets a ON a.id = ai.asset_id
+         WHERE ${forJobs.clause} GROUP BY j.id ORDER BY count DESC, j.title LIMIT 30`,
+      )
+      .bind(...forJobs.params),
+    db
+      .prepare(
+        `SELECT c.id, c.name, COUNT(DISTINCT a.id) AS count
+         FROM clients c JOIN jobs j ON j.client_id = c.id JOIN albums al ON al.job_id = j.id JOIN album_items ai ON ai.album_id = al.id JOIN assets a ON a.id = ai.asset_id
+         WHERE ${forClients.clause} GROUP BY c.id ORDER BY count DESC, c.name LIMIT 30`,
+      )
+      .bind(...forClients.params),
+  ])
+  return { jobs: jobs!.results as unknown as WorkFacet[], clients: clients!.results as unknown as WorkFacet[] }
 }
 
 /**
@@ -364,7 +419,7 @@ export function xmpSidecar(asset: AssetRow, keywords: { subjects: string[]; hier
     '    xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/"',
     `    xmp:MetadataDate="${nowIso()}"`,
     asset.rating !== null ? `    xmp:Rating="${asset.flag === 'reject' ? -1 : asset.rating}"` : asset.flag === 'reject' ? '    xmp:Rating="-1"' : '',
-    isLabel(asset.label) ? `    xmp:Label="${escapeXml(labelNames[asset.label])}"` : '',
+    isLabel(asset.label) ? `    xmp:Label="${escapeXmlAttribute(labelNames[asset.label])}"` : '',
     xmpDate(asset.captured_at, asset.captured_offset) ? `    photoshop:DateCreated="${xmpDate(asset.captured_at, asset.captured_offset)}"` : '',
     ...iptc.attributes,
     '  >',

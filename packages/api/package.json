@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./creator": "./src/catalog/creator.ts",
     "./dhash": "./src/catalog/dhash.ts",
     "./face-detect": "./src/catalog/face-detect.ts"
   },

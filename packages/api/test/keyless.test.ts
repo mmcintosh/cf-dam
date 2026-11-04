@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRoleConnection, providerFor, getConnection } from '../src/storage/connections'
 import { activeSigningKey, clearRoleCredentialCache, publishedKeys, signToken, STS_AUDIENCE } from '../src/storage/oidc'
+import { checkAlerts } from '../src/catalog/alerts'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 let h: Harness
@@ -124,6 +125,42 @@ describe('keyless connections', () => {
     const denied = async () => new Response('<ErrorResponse><Error><Code>AccessDenied</Code><Message>Not authorized to perform sts:AssumeRoleWithWebIdentity</Message></Error></ErrorResponse>', { status: 403 })
     const provider = providerFor(h.env, (await getConnection(h.env.DB, created.id))!, denied)
     await expect(provider.test()).rejects.toThrow(/AWS refused the role: AccessDenied/)
+  })
+
+  it('opens an alert while AWS refuses the role, and resolves it once AWS accepts it again', async () => {
+    const userId = (await h.env.DB.prepare('SELECT id FROM users').first<{ id: string }>())!.id
+    const created = await createRoleConnection(h.env, { name: 'Archive', region: 'us-east-1', bucket: 'b', roleArn: ROLE, issuer: ISSUER }, userId)
+    const connection = (await getConnection(h.env.DB, created.id))!
+    const denied = async () => new Response('<ErrorResponse><Error><Code>AccessDenied</Code><Message>Not authorized</Message></Error></ErrorResponse>', { status: 403 })
+    const down = async () => new Response('busy', { status: 503 })
+    const fine = async (input: RequestInfo | URL) => {
+      if (String(input instanceof Request ? input.url : input).startsWith('https://sts.')) {
+        const expires = new Date(Date.now() + 3600_000).toISOString()
+        return new Response(`<R><AccessKeyId>ASIA</AccessKeyId><SecretAccessKey>s</SecretAccessKey><SessionToken>t</SessionToken><Expiration>${expires}</Expiration></R>`)
+      }
+      return new Response('', { status: 200, headers: { ETag: '"e"' } })
+    }
+    const open = async () => {
+      await checkAlerts(h.env)
+      return (await h.env.DB.prepare("SELECT key, message, link FROM alerts WHERE resolved_at IS NULL AND kind = 'storage.role'").all<{ key: string; message: string; link: string }>()).results
+    }
+
+    // AWS being down says nothing about the role.
+    await expect(providerFor(h.env, connection, down).put('a.jpg', 'x')).rejects.toThrow()
+    expect(await open()).toEqual([])
+
+    await expect(providerFor(h.env, connection, denied).put('a.jpg', 'x')).rejects.toThrow()
+    expect(await open()).toEqual([
+      {
+        key: `storage.role:${created.id}`,
+        message: 'AWS refused cf-dam’s role for “Archive”: AccessDenied (Not authorized). Check the role and its trust policy, then test the connection.',
+        link: `/settings/storage/${created.id}`,
+      },
+    ])
+
+    clearRoleCredentialCache()
+    await providerFor(h.env, connection, fine).put('a.jpg', 'x')
+    expect(await open()).toEqual([])
   })
 })
 

@@ -215,6 +215,10 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.clientJoined', { who })
     case 'client.removed':
       return t('act.clientRemoved', { who, whom: whom || t('act.aClient') })
+    case 'clients.exported':
+      return t('act.clientsExported', { who })
+    case 'jobs.exported':
+      return t('act.jobsExported', { who })
     case 'client.created':
       return t('act.clientCreated', { who, name: str(d.name) || t('act.aClient') })
     case 'client.updated':

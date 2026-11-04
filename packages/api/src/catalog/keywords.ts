@@ -140,8 +140,12 @@ export async function resolveKeyword(db: D1Database, input: string): Promise<str
  * resolveKeyword for many inputs at once, in two round trips however many there are: one to look up
  * plain names, one batch that creates every missing level (parents first) and reads back the ids.
  * Returns input → keyword id; inputs that hold no name are left out.
+ *
+ * With `synonyms` (keywords read from a file), a plain name that no keyword has but one keyword lists
+ * as a synonym means that keyword: Lightroom writes synonyms among a file's keywords, and reading them
+ * back mustn't make each one a keyword of its own. One more round trip, only when such names are left.
  */
-export async function resolveKeywords(db: D1Database, inputs: string[]): Promise<Map<string, string>> {
+export async function resolveKeywords(db: D1Database, inputs: string[], options: { synonyms?: boolean } = {}): Promise<Map<string, string>> {
   const parsed = new Map<string, string[]>()
   for (const input of new Set(inputs)) {
     const names = splitPath(input)
@@ -166,6 +170,17 @@ export async function resolveKeywords(db: D1Database, inputs: string[]): Promise
       .bind(JSON.stringify(plain))
       .all<{ name_key: string; id: string }>()
     for (const r of results) named.set(r.name_key, r.id)
+    const unnamed = new Set(plain.filter((key) => !named.has(key)))
+    if (options.synonyms && unnamed.size > 0) {
+      // Synonyms are kept as typed, so they're matched here in JS (SQLite's lower() folds only A–Z).
+      const { results: listed } = await db
+        .prepare("SELECT t.id, s.value AS synonym FROM tags t, json_each(t.synonyms) s WHERE t.synonyms != '[]' ORDER BY t.path")
+        .all<{ id: string; synonym: string }>()
+      for (const r of listed) {
+        const key = typeof r.synonym === 'string' ? r.synonym.toLowerCase() : ''
+        if (unnamed.has(key) && !named.has(key)) named.set(key, r.id)
+      }
+    }
   }
 
   // Everything else is a path, created as needed. One INSERT per depth, so each level's parent exists
@@ -467,10 +482,20 @@ export async function searchTerms(db: D1Database, assetIds: string[]): Promise<M
  */
 export async function exportKeywords(db: D1Database, assetId: string): Promise<{ subjects: string[]; hierarchical: string[] }> {
   const rows = await assetKeywords(db, assetId)
-  const { results: all } = rows.length
-    ? await db.prepare('SELECT full_path, include_on_export FROM tags').all<{ full_path: string; include_on_export: number }>()
+  // Only the ancestors of this photo's keywords, by key (`path` is the full path lower-cased in JS).
+  const ancestors = new Set<string>()
+  for (const k of rows) {
+    if (k.export_parents !== 1) continue
+    const levels = k.full_path.split('|')
+    for (let i = 1; i < levels.length; i++) ancestors.add(levels.slice(0, i).join('|').toLowerCase())
+  }
+  const { results: above } = ancestors.size
+    ? await db
+        .prepare('SELECT path, include_on_export FROM tags WHERE path IN (SELECT value FROM json_each(?))')
+        .bind(JSON.stringify([...ancestors]))
+        .all<{ path: string; include_on_export: number }>()
     : { results: [] }
-  const exportable = new Map(all.map((r) => [r.full_path.toLowerCase(), r.include_on_export === 1]))
+  const exportable = new Map(above.map((r) => [r.path, r.include_on_export === 1]))
   const subjects = new Set<string>()
   const hierarchical = new Set<string>()
   for (const k of rows) {

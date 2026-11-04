@@ -177,13 +177,15 @@ interface PlaceRow {
  */
 export async function fillPlacesFromGps(env: DamBindings, assetIds: string[]): Promise<string[]> {
   if (assetIds.length === 0) return []
-  const index = await placeIndex(env)
-  if (!index) return []
   const { results } = await env.DB.prepare(
     'SELECT id, gps_lat, gps_lng, city, state, country, country_code, place_gps, updated_at FROM assets WHERE id IN (SELECT value FROM json_each(?))',
   )
     .bind(JSON.stringify(assetIds))
     .all<PlaceRow>()
+  // The place list costs about 270 ms of CPU to load in a fresh isolate: not for photos with no GPS.
+  if (!results.some((r) => r.gps_lat !== null && r.gps_lng !== null)) return []
+  const index = await placeIndex(env)
+  if (!index) return []
   const filled: { id: string; city: string | null; state: string | null; country: string | null; code: string | null; bits: number; at: string }[] = []
   for (const row of results) {
     const place = row.gps_lat !== null && row.gps_lng !== null ? nearestPlace(index, row.gps_lat, row.gps_lng) : null

@@ -2,7 +2,7 @@
 /** A client's home: the galleries they were invited to (catalog/clients.ts). The team has albums instead. */
 import { env } from 'cloudflare:workers'
 import { clientGalleries, isClientOnly } from '@cf-dam/api'
-import { createFormat, getT } from '@cf-dam/i18n'
+import { createFormat, currentTimeZone, getT } from '@cf-dam/i18n'
 import AppLayout from '../layouts/AppLayout.astro'
 import GalleryEmails from '../components/GalleryEmails.svelte'
 
@@ -12,8 +12,20 @@ const galleries = await clientGalleries(env.DB, principal.userId)
 const open = galleries.filter((g) => !g.expired)
 const t = getT(Astro.locals.lang)
 // The last day it's open (expiry is the start of the next day).
-const until = (iso: string) => createFormat(Astro.locals.lang).date(new Date(iso).getTime() - 1)
+const until = (iso: string) => createFormat(Astro.locals.lang, currentTimeZone()).date(new Date(iso).getTime() - 1)
 const first = (principal.name || '').split(/\s+/)[0]
+// Grouped by job (its client-facing name), the newest first; galleries from no job after them.
+const groups: { key: string; title: string | null; date: string | null; galleries: typeof galleries }[] = []
+for (const g of galleries) {
+  const key = g.job?.id ?? ''
+  let group = groups.find((x) => x.key === key)
+  if (!group) groups.push((group = { key, title: g.job?.title ?? null, date: g.job?.shootStart ?? null, galleries: [] }))
+  group.galleries.push(g)
+}
+groups.sort((a, b) => Number(a.key === '') - Number(b.key === ''))
+const grouped = groups.some((g) => g.key !== '')
+// A calendar day (the shoot's): noon UTC is that day whatever the zone the format uses (UTC on the server).
+const day = (ymd: string) => createFormat(Astro.locals.lang).date(`${ymd}T12:00:00Z`)
 ---
 <AppLayout title={t('mine.title')} subtitle={first ? t('mine.welcome', { name: first }) : undefined}>
   {galleries.length === 0 ? (
@@ -21,9 +33,16 @@ const first = (principal.name || '').split(/\s+/)[0]
       <h2>{t('mine.empty.title')}</h2>
       <p class="muted">{t('mine.empty.lead')}</p>
     </div>
-  ) : (
+  ) : groups.map((group) => (
+    <section class="group">
+      {grouped && (
+        <h2 class="group-title">
+          {group.title ?? t('mine.otherGalleries')}
+          {group.date && <span class="muted small"> · {day(group.date)}</span>}
+        </h2>
+      )}
     <ul class="galleries">
-      {galleries.map((g) => (
+      {group.galleries.map((g) => (
         <li class:list={['gallery', { expired: g.expired }]}>
           <a href={`/s/${g.token}`}>
             <span class="cover">
@@ -40,7 +59,8 @@ const first = (principal.name || '').split(/\s+/)[0]
         </li>
       ))}
     </ul>
-  )}
+    </section>
+  ))}
   {open.length > 0 && (
     <p class="muted small hint">{t('mine.hint')}</p>
   )}
@@ -94,6 +114,13 @@ const first = (principal.name || '').split(/\s+/)[0]
   }
   .small {
     font-size: 0.875rem;
+  }
+  .group + .group {
+    margin-top: 36px;
+  }
+  .group-title {
+    font-size: 1.125rem;
+    margin: 0 0 14px;
   }
   .empty h2 {
     margin-bottom: 6px;

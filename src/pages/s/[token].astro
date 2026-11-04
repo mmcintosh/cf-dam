@@ -5,7 +5,7 @@
  */
 import { env } from 'cloudflare:workers'
 import { applyGalleryLanguage, galleryPage, openGallery, pseudoAllowed, recordEvent } from '@cf-dam/api'
-import { createFormat, getT } from '@cf-dam/i18n'
+import { createFormat, currentTimeZone, getT } from '@cf-dam/i18n'
 import Base from '../../layouts/Base.astro'
 import ClientGallery from '../../components/ClientGallery.svelte'
 import LanguageSwitch from '../../components/LanguageSwitch.svelte'
@@ -29,7 +29,7 @@ if (access.state === 'expired') Astro.response.status = 410
 const t = getT(Astro.locals.lang)
 const title = access.state === 'gone' ? t('gallery.gone.pageTitle') : access.share.title
 // The last day it was open (expiry is the start of the next day).
-const expiredOn = access.state === 'expired' && access.share.expires_at ? createFormat(Astro.locals.lang).date(new Date(access.share.expires_at).getTime() - 1) : null
+const expiredOn = access.state === 'expired' && access.share.expires_at ? createFormat(Astro.locals.lang, currentTimeZone()).date(new Date(access.share.expires_at).getTime() - 1) : null
 ---
 <Base title={title} bare>
   {access.state === 'gone' || access.state === 'expired' ? (

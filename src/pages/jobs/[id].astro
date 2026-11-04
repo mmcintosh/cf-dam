@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
+import { createFormat, currentTimeZone, getT, type MessageKey } from '@cf-dam/i18n'
 import { facesInstalled, facesSetting, getJob, jobAlbums, jobArchiveStatus, jobRestoreStatus, jobShares, jobStorage, scopeCounts } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import ActivityLog from '../../components/ActivityLog.svelte'
@@ -76,7 +76,7 @@ const subtitle = [kind, dates, job.place].filter(Boolean).join(' · ')
                 <td><a href={`/galleries/${s.id}`}>{s.name}</a>{s.finalDelivery && <span class="badge badge-ok small">{t('jobs.final')}</span>}</td>
                 <td><a href={`/albums/${s.albumId}`}>{s.albumName}</a></td>
                 <td><span class:list={['badge', { 'badge-ok': s.status === 'active' }]}>{STATUS[s.status]}</span></td>
-                <td class="muted">{s.expiresAt ? fmt.date(s.expiresAt) : t('galleries.never')}</td>
+                <td class="muted">{s.expiresAt ? createFormat(Astro.locals.lang, currentTimeZone()).date(s.expiresAt) : t('galleries.never')}</td>
                 <td>{s.stats.opens}</td>
                 <td>{s.stats.picks}</td>
                 <td>{s.stats.downloads}</td>

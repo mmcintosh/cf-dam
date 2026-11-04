@@ -10,6 +10,7 @@
 import { randomId } from '../lib/crypto'
 import { BadRequest, optionalLink, optionalString } from '../lib/http'
 import { say } from '../lib/language'
+import { toCsv } from '../lib/csv'
 import { nowIso } from '../lib/time'
 import { buildWhere, type ListFilters } from './assets'
 import { fold } from './client-records'
@@ -464,4 +465,20 @@ export async function needsAttention(db: D1Database, today = nowIso().slice(0, 1
     ...items(expiring!.results as Row[], () => 'expiring'),
     ...items(noPicks!.results as Row[], () => 'noPicks'),
   ]
+}
+
+/** Every job as CSV, with its client's name (plans/PLAN-C-v2.md, C5). Stages and kinds as their codes. */
+export async function jobsCsv(db: D1Database): Promise<{ csv: string; rows: number }> {
+  const { results } = await db
+    .prepare(
+      `SELECT j.title, j.client_title, c.name AS client, j.kind, j.kind_other, j.shoot_start, j.shoot_end, j.place, j.stage, j.due_on,
+              j.delivered_at, j.notes, j.crm_url, j.created_at, (SELECT COUNT(*) FROM albums al WHERE al.job_id = j.id) AS albums
+       FROM jobs j JOIN clients c ON c.id = j.client_id ORDER BY j.shoot_start DESC, j.created_at DESC`,
+    )
+    .all<JobRow & { client: string; albums: number }>()
+  const csv = toCsv(
+    ['title', 'client_title', 'client', 'kind', 'shoot_start', 'shoot_end', 'place', 'stage', 'due_on', 'delivered_at', 'notes', 'crm_url', 'albums', 'created_at'],
+    results.map((r) => [r.title, r.client_title, r.client, r.kind === 'other' && r.kind_other ? `other: ${r.kind_other}` : r.kind, r.shoot_start, r.shoot_end, r.place, r.stage, r.due_on, r.delivered_at, r.notes, r.crm_url, r.albums, r.created_at]),
+  )
+  return { csv, rows: results.length }
 }

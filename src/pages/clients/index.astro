@@ -1,6 +1,6 @@
 ---
 import { env } from 'cloudflare:workers'
-import { createFormat, getT } from '@cf-dam/i18n'
+import { createFormat, currentTimeZone, getT } from '@cf-dam/i18n'
 import { countPastClients, listClients } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import NewClient from '../../components/NewClient.svelte'
@@ -11,7 +11,7 @@ const q = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 200)
 const past = Astro.url.searchParams.get('past') === '1'
 const [clients, pastCount] = await Promise.all([listClients(env.DB, { q, past }), countPastClients(env.DB)])
 const t = getT(Astro.locals.lang)
-const fmt = createFormat(Astro.locals.lang)
+const fmt = createFormat(Astro.locals.lang, currentTimeZone())
 const here = (params: Record<string, string>) => {
   const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v))
   return `/clients${query.size ? `?${query}` : ''}`
@@ -26,6 +26,7 @@ const here = (params: Record<string, string>) => {
       <input type="search" name="q" value={q} aria-label={t('clientsPage.search')} placeholder={t('clientsPage.searchPlaceholder')} />
       <button class="btn" type="submit">{t('clientsPage.searchButton')}</button>
     </form>
+    <a class="btn export" href="/api/clients/export?what=clients" download>{t('clientsPage.export')}</a>
     <nav class="filters" aria-label={t('clientsPage.which')}>
       <a href={here({ q })} class:list={['chip', { on: !past }]} aria-current={!past ? 'page' : undefined}>{t('clientsPage.current')}</a>
       <a href={here({ q, past: '1' })} class:list={['chip', { on: past }]} aria-current={past ? 'page' : undefined}>

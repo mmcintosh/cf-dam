@@ -13,6 +13,12 @@ import { nowIso } from '../lib/time'
 export const meRoutes = new Hono<DamEnv>()
 
 meRoutes.use('*', requireAuth())
+// A NAS helper's key acts for its source, not as the person who approved it: none of "me" is its business (it would
+// otherwise change that person's preferences and gallery emails).
+meRoutes.use('*', async (c, next) => {
+  if (c.get('principal')!.sourceId) return c.json({ error: 'forbidden' }, 403)
+  await next()
+})
 
 meRoutes.get('/', async (c) => {
   const principal = c.get('principal')!

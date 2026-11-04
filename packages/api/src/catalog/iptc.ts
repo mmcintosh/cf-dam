@@ -2,7 +2,8 @@
  * IPTC Core: the fields photographers use for credit, rights, contact and place. One list drives
  * reading (from IPTC-IIM and XMP via exifr), editing, presets, search and the XMP sidecar.
  */
-import { escapeXml } from '../storage/xml'
+import { escapeXml, escapeXmlAttribute } from '../storage/xml'
+import { pickCreator } from './creator'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 
@@ -79,8 +80,8 @@ export function iptcFromRaw(raw: Record<string, unknown>): IptcValues {
   const contact = (raw.CreatorContactInfo ?? {}) as Record<string, unknown>
   const values: IptcValues = {
     headline: text(raw.Headline),
-    // IPTC By-line first (Lightroom writes it and XMP's creator together); the agent uses the same order.
-    creator: text(raw.Byline) ?? text(raw.creator) ?? text(raw.Artist),
+    // XMP's creator first, unless it only repeats the EXIF Artist (creator.ts); the helper uses the same rule.
+    creator: pickCreator(text(raw.creator), text(raw.Byline), text(raw.Artist)),
     creatorTitle: text(raw.AuthorsPosition) ?? text(raw.BylineTitle),
     credit: text(raw.Credit),
     source: text(raw.Source),
@@ -170,7 +171,7 @@ export function iptcSearchText(row: Record<string, unknown>): { place: string; e
 /** XMP for the IPTC fields: attributes for simple values, elements for structures and lang-alts. */
 export function iptcXmp(row: Record<string, unknown>): { attributes: string[]; elements: string[] } {
   const v = (column: string) => (typeof row[column] === 'string' && row[column] ? (row[column] as string) : null)
-  const attr = (name: string, column: string) => (v(column) ? `    ${name}="${escapeXml(v(column)!)}"` : '')
+  const attr = (name: string, column: string) => (v(column) ? `    ${name}="${escapeXmlAttribute(v(column)!)}"` : '')
   const alt = (value: string) => `<rdf:Alt><rdf:li xml:lang="x-default">${escapeXml(value)}</rdf:li></rdf:Alt>`
   const attributes = [
     attr('photoshop:Headline', 'headline'),

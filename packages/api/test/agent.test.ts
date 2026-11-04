@@ -116,6 +116,10 @@ describe('pairing', () => {
     expect((await agentFetch(key, '/api/agent/config')).status).toBe(200)
     expect((await agentFetch(key, '/api/assets')).status).toBe(403)
     expect((await agentFetch(key, '/api/users')).status).toBe(403)
+    // Nor anything of the person who approved it: their preferences, their gallery emails.
+    expect((await agentFetch(key, '/api/me/preferences')).status).toBe(403)
+    expect((await agentFetch(key, '/api/me/preferences', { method: 'PUT', body: JSON.stringify({ theme: 'dark' }) })).status).toBe(403)
+    expect((await agentFetch(key, '/api/me/galleries')).status).toBe(403)
     // People can't grant agent:sync to their own keys, and a full key still can't act as an agent.
     expect((await h.fetch('/api/me/api-keys', { ...json({ name: 'sneaky', scopes: ['agent:sync'] }), cookie: admin })).status).toBe(400)
     const created = (await (await h.fetch('/api/me/api-keys', { ...json({ name: 'script', scopes: ['assets:read', 'assets:edit'] }), cookie: admin })).json()) as { key: string }

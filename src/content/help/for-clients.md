@@ -17,7 +17,7 @@ If you forget your password, press **Forgot your password?** on the sign-in page
 
 ## Your galleries
 
-**Your galleries** shows everything shared with you, newest first, and how long each one stays open. When there's just one, signing in takes you straight to it. Closed galleries stay on the list, faded, so you know where they went; ask your photographer if you still need them.
+**Your galleries** shows everything shared with you, newest first, and how long each one stays open. When there's just one, signing in takes you straight to it. Closed galleries stay on the list, faded, so you know where they went; ask your photographer if you still need them. Galleries from the same piece of work (a wedding, a shoot) are grouped under its name.
 
 ## Looking through your photos
 

@@ -7,6 +7,9 @@ import { GPS_PLACE_BITS, iptcJson, iptcUpdate, type IptcKey, type IptcValues } f
 import { displayPath, keywordFilterSql, keywordIdFilterSql, resolveKeywords } from './keywords'
 import { indexAsset, SEARCH_MATCH, toFtsQuery } from './search'
 
+/** AI review gives a photo this many tries; after them only choosing it by hand queues it again (ai.ts). */
+export const AI_MAX_ATTEMPTS = 3
+
 export interface AssetRow {
   id: string
   owner_id: string | null
@@ -186,19 +189,22 @@ export const tagStatement = (db: D1Database, pairs: (readonly [string, string])[
 
 /**
  * Replace an asset's own tags with exactly `names`. AI suggestions are kept apart (they are accepted
- * or removed on their own), except that naming one here makes it the person's own.
+ * or removed on their own), except that naming one here makes it the person's own. A keyword that
+ * stays keeps where it came from (the file, Lightroom): saving the editor doesn't make it typed by hand.
  */
 export async function setTags(db: D1Database, assetId: string, names: string[]): Promise<void> {
-  const ids = await resolveAll(db, names)
+  const ids = JSON.stringify(await resolveAll(db, names))
   const now = nowIso()
   await db.batch([
-    db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai'").bind(assetId),
+    db
+      .prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai' AND tag_id NOT IN (SELECT value FROM json_each(?))")
+      .bind(assetId, ids),
     db
       .prepare(
         `INSERT INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, value, 'user', ? FROM json_each(?) WHERE true
-         ON CONFLICT (asset_id, tag_id) DO UPDATE SET source = 'user'`,
+         ON CONFLICT (asset_id, tag_id) DO UPDATE SET source = 'user' WHERE asset_tags.source = 'ai'`,
       )
-      .bind(assetId, now, JSON.stringify(ids)),
+      .bind(assetId, now, ids),
   ])
 }
 
@@ -364,8 +370,16 @@ export interface ListFilters {
   gps?: 'some' | 'none'
   /** Stored on this connection (a NAS agent's, R2, an S3 bucket). */
   storedOn?: string
+  /** Photos in a job (in any of its albums), or in any job for a client (plans/PLAN-C-v2.md, C3). By id. */
+  job?: string
+  client?: string
   /** A copy of the original is missing (not found in a NAS agent's last scan). */
   missing?: boolean
+  /**
+   * What the alerts link to: photos that couldn't be processed ('processing', `failed=1`), or that AI review gave
+   * up on after its tries ('ai', `failed=ai`; choosing them for AI review by hand starts their count again).
+   */
+  failed?: 'processing' | 'ai'
   orientation?: Orientation
   /** From the library facets (jev-facets.ts): 'yes' is any number of people, 'no' none, or one count. */
   people?: PeopleFilter
@@ -497,11 +511,26 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
   }
   // Location filters look up each photo's own locations (by the (asset_id, connection_id) key): an
   // IN list would be built from millions of locations first.
+  // A job's photos are its albums' (albums.job_id): through the job index, then each album's items.
+  if (use('job')) {
+    where.push('a.id IN (SELECT ai.asset_id FROM albums al JOIN album_items ai ON ai.album_id = al.id WHERE al.job_id = ?)')
+    params.push(filters.job)
+  }
+  if (use('client')) {
+    where.push('a.id IN (SELECT ai.asset_id FROM jobs j JOIN albums al ON al.job_id = j.id JOIN album_items ai ON ai.album_id = al.id WHERE j.client_id = ?)')
+    params.push(filters.client)
+  }
   if (use('storedOn')) {
     where.push(`EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.connection_id = ? AND l.state != 'gone')`)
     params.push(filters.storedOn)
   }
   if (filters.missing && omit !== 'missing') where.push(`EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state = 'missing')`)
+  if (filters.failed && omit !== 'failed') {
+    if (filters.failed === 'ai') {
+      where.push(`a.ai_status = 'failed' AND a.ai_attempts >= ?`)
+      params.push(AI_MAX_ATTEMPTS)
+    } else where.push(`a.status = 'error'`)
+  }
   if (use('gps')) where.push(filters.gps === 'none' ? 'a.gps_lat IS NULL' : 'a.gps_lat IS NOT NULL')
   if (use('label')) {
     where.push(filters.label === 'none' ? 'a.label IS NULL' : 'a.label = ?')
@@ -665,7 +694,10 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     creator: text(query.creator),
     gps: query.gps === 'none' || query.gps === 'some' ? query.gps : undefined,
     storedOn: text(query.on, 100),
+    job: text(query.job, 64),
+    client: text(query.client, 64),
     missing: query.missing === '1' ? true : undefined,
+    failed: query.failed === '1' ? 'processing' : query.failed === 'ai' ? 'ai' : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     people: (PEOPLE_FILTERS as readonly string[]).includes(query.people ?? '') ? (query.people as PeopleFilter) : undefined,
     person: query.person && /^\d{1,12}(,\d{1,12}){0,4}$/.test(query.person) ? [...new Set(query.person.split(',').map(Number))] : undefined,

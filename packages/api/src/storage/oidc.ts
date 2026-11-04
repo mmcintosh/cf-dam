@@ -144,6 +144,24 @@ export async function assumeRoleWithWebIdentity(options: {
   return { accessKeyId, secretAccessKey, sessionToken, expiration }
 }
 
+/**
+ * Where a refusal is kept: `keyless.refused:<connection id>` in settings, holding AWS's reason. The alerts look for
+ * these (catalog/alerts.ts), and the next time AWS hands over credentials the key goes. Only a refusal from AWS counts
+ * (the role, its trust policy, the issuer): a network failure says nothing about the role.
+ */
+export const ROLE_REFUSED_PREFIX = 'keyless.refused:'
+
+async function noteRole(db: D1Database, connectionId: string, error: StorageError | null): Promise<void> {
+  const key = `${ROLE_REFUSED_PREFIX}${connectionId}`
+  const statement = error
+    ? db
+        .prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+        // AWS's own words: the alert says it was a refusal.
+        .bind(key, JSON.stringify({ code: error.code, error: error.message.replace(/^AWS refused the role: /, '').slice(0, 400) }), nowIso())
+    : db.prepare('DELETE FROM settings WHERE key = ?').bind(key)
+  await statement.run().catch((e) => console.warn('[oidc] could not note the role', connectionId, e))
+}
+
 // Temporary credentials per connection and role, reused until five minutes before they expire. Keyed by the role
 // too: after the role is changed, an isolate holding the old one's credentials doesn't keep using them.
 const cache = new Map<string, TemporaryCredentials>()
@@ -161,13 +179,21 @@ export async function roleCredentials(options: {
   if (cached && Date.parse(cached.expiration) - Date.now() > 5 * 60_000) return cached
   const key = await activeSigningKey(options.env)
   const token = await signToken(key, { iss: options.issuer, sub: connectionSubject(options.connectionId), aud: STS_AUDIENCE })
-  const credentials = await assumeRoleWithWebIdentity({
-    roleArn: options.roleArn,
-    token,
-    sessionName: `cf-dam-${options.connectionId}`,
-    region: options.region,
-    fetch: options.fetch,
-  })
+  let credentials: TemporaryCredentials
+  try {
+    credentials = await assumeRoleWithWebIdentity({
+      roleArn: options.roleArn,
+      token,
+      sessionName: `cf-dam-${options.connectionId}`,
+      region: options.region,
+      fetch: options.fetch,
+    })
+  } catch (error) {
+    if (error instanceof StorageError && error.status !== undefined && error.status < 500) await noteRole(options.env.DB, options.connectionId, error)
+    throw error
+  }
+  // Fresh credentials, about once an hour per isolate: whatever AWS refused before, it accepts now.
+  await noteRole(options.env.DB, options.connectionId, null)
   cache.set(cacheKey, credentials)
   return credentials
 }

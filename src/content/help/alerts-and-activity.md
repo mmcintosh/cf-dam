@@ -19,6 +19,10 @@ cf-dam checks itself every five minutes and raises an **alert** when something n
 | Storage problems | Originals cf-dam expected weren't where it thought, or a bucket can't be read. | Open **Storage → Checks**. |
 | Backups failing or overdue | The daily catalogue backup didn't finish. | See [Backups](/help/backups); check the backup bucket. |
 | Previews stuck | Some thumbnails or previews couldn't be made. | **Storage → Previews → Try the stuck ones again**. |
+| Photos couldn't be processed, or are waiting | A file couldn't be read (damaged, or a kind cf-dam can't open), or photos have waited over a day because background work isn't getting through. | **Go to** shows the ones that couldn't be processed in the library: upload them again, or remove them. For photos that are waiting, see *Background work* below. |
+| AI review gave up | The AI model failed three times on some photos; the alert gives its last error. | **Go to** shows them in the library. Once the cause is put right, select them and choose **AI… → Analyse again**. |
+| Archiving has stalled | Originals are waiting to be copied to the archive, and none has been copied for over a day. | Check the archive's storage connection: open it from **Storage** and press **Test**. |
+| AWS refused the role | Amazon refused cf-dam's keyless role for a storage connection: the role or its trust policy was changed or removed. | **Go to** opens the connection. Put the role right in AWS (see [Amazon S3](/help/amazon-s3)), then press **Test**. |
 | Background work failing or stopped | The work cf-dam does every minute (processing, AI, checks, backups) has an error or hasn't run. | The alert says which part. If it's stopped altogether, look for errors in the Worker's logs in the Cloudflare dashboard, or deploy again. |
 
 Each alert says since when, and **Go to** the page that fixes it. When the problem is put right, the alert closes by itself and moves to **Put right in the last two weeks**.

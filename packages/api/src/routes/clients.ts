@@ -8,6 +8,7 @@ import {
   addPerson,
   clientDownloads,
   clientPeople,
+  clientsCsv,
   createClient,
   eraseClient,
   getClient,
@@ -19,11 +20,13 @@ import {
   unlinkPerson,
   updateClient,
 } from '../catalog/client-records'
+import { jobsCsv } from '../catalog/jobs'
 import { clientShares } from '../catalog/shares'
 import type { DamEnv } from '../env'
 import { logActivity } from '../lib/activity'
 import { BadRequest, readJsonObject, requiredEmail, requiredString } from '../lib/http'
 import { say } from '../lib/language'
+import { nowIso } from '../lib/time'
 import { emailInvite } from '../mail/invite-mail'
 
 export const clientRoutes = new Hono<DamEnv>()
@@ -48,6 +51,20 @@ clientRoutes.post('/', async (c) => {
   } catch (error) {
     return c.json(invalid(error), 400)
   }
+})
+
+/** Every client, or every job, as a CSV file to keep or move elsewhere. Personal data leaving: it goes in the log. */
+clientRoutes.get('/export', async (c) => {
+  const what = c.req.query('what') === 'jobs' ? 'jobs' : 'clients'
+  const { csv, rows } = what === 'jobs' ? await jobsCsv(c.env.DB) : await clientsCsv(c.env.DB)
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: `${what}.exported`, details: { rows }, ipAddress: c.req.header('cf-connecting-ip') })
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="cf-dam-${what}-${nowIso().slice(0, 10)}.csv"`,
+      'Cache-Control': 'no-store',
+    },
+  })
 })
 
 /** Everything on a client's page: details, people, galleries and downloads. */

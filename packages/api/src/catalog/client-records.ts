@@ -12,6 +12,7 @@ import { randomId } from '../lib/crypto'
 import { BadRequest, optionalLink, optionalString } from '../lib/http'
 import { fold } from '../lib/fold'
 import { say } from '../lib/language'
+import { toCsv } from '../lib/csv'
 import { nowIso } from '../lib/time'
 import { clientAccount, isClientOnly, newInvite } from './clients'
 import { markUnindexed } from './search'
@@ -345,7 +346,12 @@ export async function eraseClient(db: D1Database, clientId: string, options: { n
     : { results: [] as { asset_id: string }[] }
   const namedCount = options.namedPeople ? ((await db.prepare('SELECT COUNT(*) AS n FROM people WHERE client_id = ?').bind(clientId).first<{ n: number }>())?.n ?? 0) : 0
   const { results: people } = await db
-    .prepare('SELECT u.id, lower(u.email) AS email FROM client_people p JOIN users u ON u.id = p.user_id WHERE p.client_id = ?')
+    // Only logins that are still clients alone: one given a team role since it was linked is a colleague now, and
+    // isn't erased with the client (DELETE /users has its own guards for that: yourself, the last administrator).
+    .prepare(
+      `SELECT u.id, lower(u.email) AS email FROM client_people p JOIN users u ON u.id = p.user_id WHERE p.client_id = ?
+         AND NOT EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.name != 'client')`,
+    )
     .bind(clientId)
     .all<{ id: string; email: string }>()
   const ids = JSON.stringify(people.map((p) => p.id))
@@ -400,4 +406,23 @@ export async function eraseClient(db: D1Database, clientId: string, options: { n
   ])
   await markUnindexed(db, tagged.map((r) => r.asset_id))
   return { people: people.length, namedPeople: options.namedPeople ? namedCount : 0 }
+}
+
+/**
+ * Every client, past ones too, as CSV (plans/PLAN-C-v2.md, C5: the data can leave). With the emails of the logins
+ * that belong to each. Column names stay English: they're for spreadsheets and scripts, not for reading on a page.
+ */
+export async function clientsCsv(db: D1Database): Promise<{ csv: string; rows: number }> {
+  const { results } = await db
+    .prepare(
+      `SELECT c.name, c.company, c.email, c.phone, c.address, c.language, c.notes, c.crm_url, c.past_at, c.created_at,
+              (SELECT GROUP_CONCAT(u.email, '; ') FROM client_people p JOIN users u ON u.id = p.user_id WHERE p.client_id = c.id) AS logins
+       FROM clients c ORDER BY c.name COLLATE NOCASE`,
+    )
+    .all<{ name: string; company: string; email: string; phone: string; address: string; language: string | null; notes: string; crm_url: string; past_at: string | null; created_at: string; logins: string | null }>()
+  const csv = toCsv(
+    ['name', 'company', 'email', 'phone', 'address', 'language', 'notes', 'crm_url', 'logins', 'past_client_since', 'created_at'],
+    results.map((r) => [r.name, r.company, r.email, r.phone, r.address, r.language, r.notes, r.crm_url, r.logins, r.past_at, r.created_at]),
+  )
+  return { csv, rows: results.length }
 }

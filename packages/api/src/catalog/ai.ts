@@ -6,8 +6,8 @@
  */
 import type { DamBindings } from '../env'
 import { nowIso } from '../lib/time'
-import { addTags, getAsset, getTags } from './assets'
-import { matchKeywords } from './keywords'
+import { addTags, AI_MAX_ATTEMPTS, getAsset, getTags } from './assets'
+import { cleanKeywordName, matchKeywords } from './keywords'
 import { indexAsset, indexAssets } from './search'
 import { analyzeImage, DEFAULT_VISION_MODEL, modelImage, USD_PER_1000_NEURONS, VISION_MODELS } from './vision'
 import { asLanguage, type Language } from '@cf-dam/i18n'
@@ -69,7 +69,7 @@ export async function saveAiSettings(db: D1Database, patch: Partial<AiSettings>)
 }
 
 /** Tries per photo before a backfill leaves it alone (each one is billed). */
-export const AI_MAX_ATTEMPTS = 3
+export { AI_MAX_ATTEMPTS }
 /** A photo 'running' for longer than this was left by a run that died. */
 export const AI_RUNNING_STALE_MS = 10 * 60_000
 
@@ -163,7 +163,9 @@ export async function analyzeAsset(env: DamBindings, assetId: string): Promise<'
       .run()
     // Replace the previous run's AI tags; people's own tags are untouched.
     await db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source = 'ai'").bind(assetId).run()
-    const fresh = result.tags.filter((t) => !userTags.some((u) => u.toLowerCase() === t))
+    // An AI tag is one keyword: '|', '>' or '›' inside it would make it a path (a new branch of the tree).
+    const own = new Set(userTags.map((u) => u.toLowerCase()))
+    const fresh = [...new Set(result.tags.map(cleanKeywordName).filter((t): t is string => t !== null && !own.has(t.toLowerCase())))]
     await addTags(db, assetId, fresh, 'ai')
     await indexAsset(db, assetId)
     return 'done'

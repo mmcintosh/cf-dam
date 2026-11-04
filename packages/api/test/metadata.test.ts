@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { pickCreator } from '../src/catalog/creator'
+import { escapeXml, escapeXmlAttribute } from '../src/storage/xml'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
 const iptc = new Uint8Array(readFileSync(new URL('./fixtures/iptc.jpg', import.meta.url)))
+const priv = new Uint8Array(readFileSync(new URL('./fixtures/private.jpg', import.meta.url))) // keyword "smith family"
 
 let h: Harness
 let admin: string
@@ -85,6 +88,52 @@ describe('IPTC Core', () => {
     expect(xmp).toContain('<dc:creator><rdf:Seq><rdf:li>Test Photographer</rdf:li></rdf:Seq></dc:creator>')
     expect(xmp).toContain('<xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang="x-default">All rights reserved</rdf:li></rdf:Alt></xmpRights:UsageTerms>')
     expect(xmp).toContain('<Iptc4xmpCore:CiEmailWork>a@b.no</Iptc4xmpCore:CiEmailWork>')
+  })
+})
+
+describe('reading and writing files', () => {
+  it('believes XMP for the creator, unless it only repeats the EXIF Artist', () => {
+    expect(pickCreator('Ann', 'Bob', 'Cy')).toBe('Ann')
+    expect(pickCreator('Cy', 'Bob', 'Cy')).toBe('Bob') // XMP copied from Artist; the By-line was typed
+    expect(pickCreator('cy', 'Cy', 'Cy')).toBe('cy')
+    expect(pickCreator(null, 'Bob', 'Cy')).toBe('Bob')
+    expect(pickCreator(null, null, 'Cy')).toBe('Cy')
+    expect(pickCreator(null, null, null)).toBeNull()
+  })
+
+  it('writes XML any reader accepts: illegal characters dropped, line breaks kept in attributes', () => {
+    expect(escapeXml('a\u0000b\u0007c\u001Fd & <e>')).toBe('abcd &amp; &lt;e&gt;')
+    expect(escapeXml('tab\tline\n')).toBe('tab\tline\n')
+    expect(escapeXml('lone \uD800 surrogate, pair 😀')).toBe('lone  surrogate, pair 😀')
+    expect(escapeXmlAttribute('No crop\nCall first')).toBe('No crop&#xA;Call first')
+  })
+
+  it('keeps two-line instructions as two lines in the XMP', async () => {
+    const id = await upload('a.jpg', iptc)
+    await patch(id, { iptc: { instructions: 'No crop\nCall first "please"' } })
+    const xmp = await (await h.fetch(`/api/assets/${id}/xmp`, { cookie: admin })).text()
+    expect(xmp).toContain('photoshop:Instructions="No crop&#xA;Call first &quot;please&quot;"')
+  })
+
+  it('keeps where a keyword came from when the photo is saved', async () => {
+    const id = await upload('bergen.jpg', iptc)
+    const before = (await asset(id)).tags.find((t) => t.path === 'Places › Norway › Bergen')!.source
+    expect(before).not.toBe('user')
+    await patch(id, { tags: ['Places > Norway > Bergen', 'harbour'] })
+    const tags = (await asset(id)).tags
+    expect(tags.find((t) => t.path === 'Places › Norway › Bergen')?.source).toBe(before)
+    expect(tags.find((t) => t.path === 'harbour')?.source).toBe('user')
+  })
+
+  it('reads a synonym in a file back as its keyword, not a new one', async () => {
+    const other = await upload('other.jpg', iptc)
+    await patch(other, { tags: ['Clients > Smith Wedding'] })
+    const tree = async () => ((await (await h.fetch('/api/tags', { cookie: admin })).json()) as { keywords: { id: string; name: string; path: string }[] }).keywords
+    const wedding = (await tree()).find((k) => k.name === 'Smith Wedding')!
+    await h.fetch(`/api/tags/${wedding.id}`, { method: 'PATCH', body: JSON.stringify({ synonyms: ['Smith Family'] }), cookie: admin })
+    const id = await upload('lily.jpg', priv)
+    expect((await asset(id)).tags.map((t) => t.path)).toEqual(['Clients › Smith Wedding'])
+    expect((await tree()).some((k) => k.name.toLowerCase() === 'smith family')).toBe(false)
   })
 })
 

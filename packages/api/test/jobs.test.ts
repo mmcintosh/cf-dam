@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { needsAttention, sweepShot } from '../src/catalog/jobs'
+import { workFacets } from '../src/catalog/library'
+import { parseListFilters } from '../src/catalog/assets'
 import { cookiesFrom, createHarness, createUser, json, setUpAdmin, signIn, type Harness } from './harness'
 
 const camera = new Uint8Array(readFileSync(new URL('./fixtures/camera.jpg', import.meta.url)))
@@ -139,6 +141,33 @@ describe('jobs', () => {
     const client = (await (await h.fetch(`/api/clients/${clientId}`, { cookie: admin })).json()) as { client: { openGalleries: number }; galleries: { name: string }[] }
     expect(client.galleries.map((g) => g.name)).toEqual(['Your wedding'])
     expect(client.client.openGalleries).toBe(1)
+  })
+
+  it('filters the Library by job or client, and counts each among the photos shown', async () => {
+    const wedding = await create({ title: 'Hansen wedding', photos: { query: 'from=2024-06-14&to=2024-06-14' } })
+    const other = ((await (await h.fetch('/api/clients', { ...json({ name: 'Brücke GmbH' }), cookie: admin })).json()) as { client: { id: string } }).client.id
+    const shoot = await (await h.fetch('/api/jobs', { ...json({ clientId: other, title: 'Product shoot', photos: { query: 'from=2024-06-14&to=2024-06-15' } }), cookie: admin })).json() as { job: Job }
+    const total = async (query: string) => ((await (await h.fetch(`/api/assets?${query}`, { cookie: admin })).json()) as { total: number }).total
+
+    expect(await total(`job=${wedding.job.id}`)).toBe(2)
+    expect(await total(`job=${shoot.job.id}`)).toBe(3)
+    expect(await total(`client=${clientId}`)).toBe(2)
+    expect(await total(`client=${other}&from=2024-06-15`)).toBe(1)
+    expect(await total('job=nothing')).toBe(0)
+
+    // Each list ignores its own choice, so another job is a click away; a photo in two jobs counts in each.
+    const work = await workFacets(h.env.DB, parseListFilters({ job: wedding.job.id }))
+    expect(work.jobs).toEqual([{ id: shoot.job.id, name: 'Product shoot', count: 3 }, { id: wedding.job.id, name: 'Hansen wedding', count: 2 }])
+    // Clients among the wedding's photos: the same two photos are in the product shoot too.
+    expect(work.clients).toEqual([{ id: clientId, name: 'Anna and Tom Hansen', count: 2 }, { id: other, name: 'Brücke GmbH', count: 2 }])
+    const later = await workFacets(h.env.DB, parseListFilters({ from: '2024-09-01' }))
+    expect(later).toEqual({ jobs: [], clients: [] })
+
+    // Past FACET_LIVE_MAX matching photos the lists aren't counted (seconds at 1.4 million): the jobs with albums,
+    // the chosen one first, and their clients, without counts.
+    const many = await workFacets(h.env.DB, parseListFilters({ job: wedding.job.id }), { liveMax: 1 })
+    expect(many.jobs.map((j) => [j.name, j.count])).toEqual([['Hansen wedding', null], ['Product shoot', null]])
+    expect(many.clients.map((c) => c.count)).toEqual([null, null])
   })
 
   it('keeps albums when a job is deleted or its client erased', async () => {

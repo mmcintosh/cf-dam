@@ -43,6 +43,7 @@ const here = (params: Record<string, string>) => {
       <input type="search" name="q" value={q} aria-label={t('jobs.search')} placeholder={t('jobs.searchPlaceholder')} />
       <button class="btn" type="submit">{t('clientsPage.searchButton')}</button>
     </form>
+    <a class="btn export" href="/api/clients/export?what=jobs" download>{t('clientsPage.export')}</a>
     <nav class="filters" aria-label={t('jobs.which')}>
       {(['open', 'done', 'all'] as const).map((s) => (
         <a href={here({ q, show: s === 'open' ? '' : s })} class:list={['chip', { on: show === s }]} aria-current={show === s ? 'page' : undefined}>{t(`jobs.show.${s}` as MessageKey)}</a>

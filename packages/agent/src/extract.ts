@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { extname, join } from 'node:path'
 import { promisify } from 'node:util'
 import sharp from 'sharp'
+import { pickCreator } from '@cf-dam/api/creator'
 import { isVideo } from './scan.ts'
 
 const run = promisify(execFile)
@@ -147,8 +148,8 @@ export function mapTags(t: T): AgentMetadata {
     people: peopleInFile(t),
     iptc: {
       headline: str(t.Headline),
-      // IPTC By-line first, as the Worker does: ExifTool can report an XMP Creator echoing the EXIF Artist.
-      creator: str(t['By-line']) ?? str(list(t.Creator)[0]) ?? str(t.Artist),
+      // The Worker's rule (catalog/creator.ts): XMP's Creator first, unless it only repeats the EXIF Artist.
+      creator: pickCreator(str(list(t.Creator)[0]), str(t['By-line']), str(t.Artist)),
       creatorTitle: str(t.AuthorsPosition) ?? str(t['By-lineTitle']),
       credit: str(t.Credit),
       source: str(t.Source),

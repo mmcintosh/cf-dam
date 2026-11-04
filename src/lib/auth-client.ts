@@ -9,11 +9,7 @@ export const authClient = createAuthClient({
   plugins: [twoFactorClient(), passkeyClient()],
 })
 
-/** A safe post-login destination: a same-origin path, never an absolute or protocol-relative URL. */
-export function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/'
-  return raw
-}
+export { safeNext } from './safe-next'
 
 /** JSON request to our API, throwing the server's message on failure. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

@@ -12,6 +12,8 @@ import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { getT, type MessageKey, type Params, type Translate } from '@cf-dam/i18n'
+import { ROLE_REFUSED_PREFIX } from '../storage/oidc'
+import { AI_MAX_ATTEMPTS } from './assets'
 import { parseConfig } from './backups'
 
 /** How often the sweep looks for problems. */
@@ -24,6 +26,10 @@ export const BACKUP_OVERDUE_MS = 50 * 3_600_000
 export const SWEEP_RECOVERED_MS = 15 * 60_000
 /** Alerts not checked for this long mean the sweep itself has stopped. */
 export const SWEEP_STALLED_MS = 20 * 60_000
+/** Photos still waiting to be processed after this long: the background work isn't getting through. */
+export const PROCESSING_STUCK_MS = 24 * 3_600_000
+/** Originals waiting to be archived, with nothing copied for this long. */
+export const ARCHIVE_STALLED_MS = 24 * 3_600_000
 const CHECKED_KEY = 'alerts.checked_at'
 
 /** A sentence to show in the reader's language: a translation key and its values. */
@@ -85,7 +91,8 @@ const json = <T>(text: string | null | undefined, fallback: T): T => {
 
 /** What's wrong now, from what the catalog holds. */
 export async function findProblems(db: D1Database, now = new Date()): Promise<{ findings: Finding[]; open: OpenRow[] }> {
-  const [sources, checks, backup, install, open, previews] = await db.batch([
+  const day = (ms: number) => new Date(now.getTime() - ms).toISOString()
+  const [sources, checks, backup, install, open, previews, work, roles] = await db.batch([
     db.prepare('SELECT id, name, platform, last_seen_at, created_at, status, archive FROM sources WHERE revoked_at IS NULL'),
     // The problem results only, through their index: fast however many originals are fine.
     db.prepare("SELECT check_result AS result, COUNT(*) AS n FROM asset_locations WHERE check_result IN ('missing', 'changed', 'unreadable') GROUP BY check_result"),
@@ -98,6 +105,28 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
     db.prepare('SELECT MIN(created_at) AS at FROM users'),
     db.prepare('SELECT id, key, message FROM alerts WHERE resolved_at IS NULL'),
     db.prepare("SELECT COUNT(*) AS n FROM preview_requests WHERE route IN ('archived', 'unreadable')"),
+    // Processing, AI review and archive copies, each through its own index: photos that couldn't be processed, or have
+    // waited a day (untouched: a run that dies part-way puts the photo back, which touches it); AI review given up after
+    // its tries; originals waiting to be archived, the oldest a day old, and nothing copied for a day.
+    db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM assets WHERE status = 'error' AND deleted_at IS NULL) AS failed,
+                (SELECT COUNT(*) FROM assets WHERE status IN ('queued', 'processing') AND updated_at < ? AND deleted_at IS NULL) AS stuck,
+                (SELECT COUNT(*) FROM assets WHERE ai_status = 'failed' AND ai_attempts >= ? AND deleted_at IS NULL) AS ai_failed,
+                (SELECT ai_error FROM assets WHERE ai_status = 'failed' AND ai_attempts >= ? AND deleted_at IS NULL AND ai_error IS NOT NULL LIMIT 1) AS ai_error,
+                (SELECT COUNT(*) FROM archive_items WHERE state IN ('waiting', 'copying')) AS archive_waiting,
+                (SELECT MIN(updated_at) FROM archive_items WHERE state IN ('waiting', 'copying')) AS archive_oldest,
+                (SELECT MAX(updated_at) FROM archive_items WHERE state = 'done') AS archive_last`,
+      )
+      .bind(day(PROCESSING_STUCK_MS), AI_MAX_ATTEMPTS, AI_MAX_ATTEMPTS),
+    // Keyless AWS connections whose role AWS refused last time it was asked (storage/oidc.ts).
+    db
+      .prepare(
+        `SELECT c.id, c.name, s.value FROM settings s JOIN storage_connections c ON c.id = substr(s.key, ?)
+         WHERE s.key >= ? AND s.key < ?`,
+      )
+      // The prefix ends in ':', and ';' is the next character: every key that starts with it, through the index.
+      .bind(ROLE_REFUSED_PREFIX.length + 1, ROLE_REFUSED_PREFIX, `${ROLE_REFUSED_PREFIX.slice(0, -1)};`),
   ])
   const findings: Finding[] = []
 
@@ -149,6 +178,25 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
   const noPreview = (previews!.results[0] as { n: number }).n
   if (noPreview > 0) {
     findings.push({ key: 'previews.stuck', kind: 'previews.stuck', text: { key: 'alert.previewsStuck', params: { count: noPreview } }, link: '/settings/storage' })
+  }
+
+  const w = work!.results[0] as { failed: number; stuck: number; ai_failed: number; ai_error: string | null; archive_waiting: number; archive_oldest: string | null; archive_last: string | null }
+  if (w.failed > 0) {
+    findings.push({ key: 'processing.failed', kind: 'processing.failed', text: { key: 'alert.processingFailed', params: { count: w.failed } }, link: '/?failed=1' })
+  }
+  if (w.stuck > 0) {
+    findings.push({ key: 'processing.stuck', kind: 'processing.stuck', text: { key: 'alert.processingStuck', params: { count: w.stuck } }, link: null })
+  }
+  if (w.ai_failed > 0) {
+    findings.push({ key: 'ai.failed', kind: 'ai.failed', text: { key: 'alert.aiFailed', params: { count: w.ai_failed, error: clip(w.ai_error ?? '?') } }, link: '/?failed=ai' })
+  }
+  const stalledSince = day(ARCHIVE_STALLED_MS)
+  if (w.archive_waiting > 0 && w.archive_oldest && w.archive_oldest < stalledSince && (!w.archive_last || w.archive_last < stalledSince)) {
+    findings.push({ key: 'archive.stalled', kind: 'archive.stalled', text: { key: 'alert.archiveStalled', params: { count: w.archive_waiting } }, link: '/jobs' })
+  }
+  for (const r of roles!.results as { id: string; name: string; value: string }[]) {
+    const refused = json<{ error?: string }>(r.value, {})
+    findings.push({ key: `storage.role:${r.id}`, kind: 'storage.role', text: { key: 'alert.keylessRefused', params: { name: r.name, error: clip(refused.error ?? '?') } }, link: `/settings/storage/${r.id}` })
   }
 
   // Originals that couldn't be copied to the archive after three tries (archive-jobs.ts).

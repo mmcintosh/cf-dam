@@ -4,7 +4,7 @@ summary: "Per i clienti: accedere, sfogliare le foto, scegliere le preferite e s
 section: Sharing
 order: 2
 review: machine
-source: 8601369c0d98
+source: 3a24cb9a8b2d
 ---
 
 Il tuo fotografo usa cf-dam per condividere foto con te. Con il tuo account vedi solo le gallerie che ha condiviso con te, da qualsiasi telefono, tablet o computer.
@@ -19,7 +19,7 @@ Se dimentichi la password, premi **Password dimenticata?** nella pagina di acces
 
 ## Le tue gallerie
 
-**Le tue gallerie** mostra tutto ciò che è stato condiviso con te, dal più recente, e fino a quando resta aperta ogni galleria. Se ce n’è una sola, l’accesso ti porta direttamente lì. Le gallerie chiuse restano nell’elenco, attenuate, così sai dove sono finite; chiedi al fotografo se ti servono ancora.
+**Le tue gallerie** mostra tutto ciò che è stato condiviso con te, dal più recente, e fino a quando resta aperta ogni galleria. Se ce n’è una sola, l’accesso ti porta direttamente lì. Le gallerie chiuse restano nell’elenco, attenuate, così sai dove sono finite; chiedi al fotografo se ti servono ancora. Le gallerie dello stesso lavoro (un matrimonio, un servizio) sono raggruppate sotto il suo nome.
 
 ## Sfogliare le foto
 

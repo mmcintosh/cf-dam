@@ -515,6 +515,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "act.clientsExported": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "act.connectionChanged": {
     "es": "machine",
     "de": "machine",
@@ -661,6 +667,12 @@
   "act.jobUpdated": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "act.jobsExported": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },
@@ -1637,6 +1649,23 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.aiFailed.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.aiFailed.one": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.aiFailed.other": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.archiveCopyFailed": {
     "es": "machine",
     "de": "machine",
@@ -1646,6 +1675,23 @@
   "alert.archiveFailed": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.archiveStalled.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.archiveStalled.one": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.archiveStalled.other": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },
@@ -1702,6 +1748,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.keylessRefused": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.mailFailing": {
     "es": "machine",
     "de": "machine",
@@ -1752,6 +1804,40 @@
   "alert.previewsStuck.other": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingFailed.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingFailed.one": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingFailed.other": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingStuck.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingStuck.one": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.processingStuck.other": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },
@@ -3328,6 +3414,12 @@
   "clientsPage.eraseType": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "clientsPage.export": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },
@@ -5974,6 +6066,12 @@
     "es": "machine",
     "it": "machine"
   },
+  "facets.aiFailed": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "facets.allKeywords": {
     "es": "machine",
     "de": "machine",
@@ -6010,6 +6108,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "facets.client": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "facets.country": {
     "es": "machine",
     "de": "machine",
@@ -6019,6 +6123,12 @@
   "facets.creator": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.failed": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },
@@ -6092,6 +6202,12 @@
     "fr": "machine",
     "de": "machine",
     "es": "machine",
+    "it": "machine"
+  },
+  "facets.job": {
+    "de": "machine",
+    "es": "machine",
+    "fr": "machine",
     "it": "machine"
   },
   "facets.keyword": {
@@ -10450,6 +10566,12 @@
   "mine.noPhotos": {
     "es": "machine",
     "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "mine.otherGalleries": {
+    "de": "machine",
+    "es": "machine",
     "fr": "machine",
     "it": "machine"
   },

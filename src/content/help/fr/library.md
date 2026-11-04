@@ -4,14 +4,14 @@ summary: "Parcourir vos photos, affiner la sélection, les noter et leur attribu
 section: Your photos
 order: 1
 review: machine
-source: 117881a2ecdb
+source: d2c045af1f21
 ---
 
 La **Photothèque** affiche toutes les photos et vidéos, des plus récentes aux plus anciennes, en rangées qui respectent la forme de chaque photo. Faites défiler vers le bas et appuyez sur **Charger plus** pour remonter dans le temps.
 
 ## Affiner la sélection
 
-- **Les filtres** à gauche : mots-clés, note, libellé de couleur, retenue ou rejetée, année, appareil, objectif, lieu, créateur, type de fichier, emplacement de l’original, paysage ou portrait, avec ou sans GPS, et plus encore. Chacun indique combien de photos correspondent. Choisissez-en autant que vous voulez ; **Tout effacer** permet de recommencer.
+- **Les filtres** à gauche : mots-clés, note, libellé de couleur, retenue ou rejetée, année, appareil, objectif, lieu, créateur, type de fichier, emplacement de l’original, paysage ou portrait, avec ou sans GPS, et plus encore. Chacun indique combien de photos correspondent. Choisissez-en autant que vous voulez ; **Tout effacer** permet de recommencer. Les administrateurs voient aussi **Clients** et **Travaux** : les photos d’un travail sont celles de ses albums.
 - **Personnes :** **Avec des personnes**, ou combien (une, 2 à 5, 6 ou plus), ou **Sans personne**. Toute personne visible compte, même au loin, dans une foule ou un paysage. Voir [Personnes sur les photos](/help/ai-review). Erreur ? Corrigez-la sur la page de la photo, ou sélectionnez des photos et choisissez **Personnes…**.
 - **Mots-clés :** tapez dans **Trouver un mot-clé** pour en trouver un dans une longue liste. Les plus utilisés viennent d’abord ; **Tout afficher** montre le reste.
 - **La chronologie** en haut montre combien de photos vous avez par mois. Cliquez sur un mois pour n’afficher que celles-là.

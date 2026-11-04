@@ -135,6 +135,19 @@ describe('AI review', () => {
     expect((await asset(admin, id)).alt).toBe(REPLY.alt)
   })
 
+  it('keeps each AI tag one keyword, even with a separator in it', async () => {
+    const reply = { ...REPLY, tags: ['black|white', 'sea > shore', 'Lighthouse'] }
+    const { ai } = fakeAi(() => ({ response: reply, usage: { neurons: 30 } }))
+    h = await createHarness({ AI: ai })
+    const admin = await setUpAdmin(h)
+    const id = await upload(admin)
+    await h.fetch(`/api/assets/${id}/ai/analyze`, { method: 'POST', cookie: admin })
+    const tags = (await asset(admin, id)).tags.filter((t) => t.source === 'ai').map((t) => t.name)
+    expect(tags.sort()).toEqual(['black/white', 'lighthouse', 'sea / shore'])
+    const tree = (await (await h.fetch('/api/tags', { cookie: admin })).json()) as { keywords: { parentId: string | null }[] }
+    expect(tree.keywords.every((k) => k.parentId === null)).toBe(true)
+  })
+
   it('records failures, and backfill and bulk queue them again', async () => {
     let fail = true
     const { ai } = fakeAi(() => (fail ? { response: 'I cannot help with that.' } : { response: REPLY, usage: { neurons: 30 } }))

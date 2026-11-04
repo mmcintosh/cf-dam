@@ -157,6 +157,8 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
   progress.lastError = null
   const awake = stayAwake()
   const keepGoing = () => !ctx.shouldStop() && inWindow(ctx.settings, now()) && now().getTime() - startedMs < ctx.budgetMs
+  // The speed limit is an average over the whole pass, in real time.
+  const passStarted = Date.now()
   try {
     let after: { rootId: string; path: string } | null = null
     while (keepGoing()) {
@@ -169,7 +171,7 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
         if (!here) continue
         progress.current = file.path
         try {
-          const sent = await archiveFile(ctx, file, join(here, file.path), keepGoing)
+          const sent = await archiveFile(ctx, file, join(here, file.path), keepGoing, passStarted)
           if (sent === 'stopped') break
           if (sent === 'done') {
             progress.filesDone++
@@ -192,7 +194,7 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
 }
 
 /** One file: done, skipped (changed since indexed: the next scan sees to it), or stopped mid-way. */
-async function archiveFile(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, keepGoing: () => boolean): Promise<'done' | 'skipped' | 'stopped'> {
+async function archiveFile(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, keepGoing: () => boolean, passStarted: number): Promise<'done' | 'skipped' | 'stopped'> {
   const { api, state } = ctx
   const info = await stat(path).catch(() => null)
   if (!info || info.size !== file.size || Math.floor(info.mtimeMs) !== file.mtime_ms) return 'skipped'
@@ -241,16 +243,15 @@ async function archiveFile(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
     })
     upload = state.upload(file.asset_id)!
   }
-  return sendParts(ctx, file, path, upload, keepGoing)
+  return sendParts(ctx, file, path, upload, keepGoing, passStarted)
 }
 
-async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, upload: ArchiveUpload, keepGoing: () => boolean): Promise<'done' | 'stopped'> {
+async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, upload: ArchiveUpload, keepGoing: () => boolean, passStarted: number): Promise<'done' | 'stopped'> {
   const { api, state, progress } = ctx
   const fetchImpl = ctx.fetchImpl ?? fetch
   const sent = new Map(upload.parts.map((p) => [p.partNumber, p]))
   const whole = createHash('sha256')
   const handle = await open(path, 'r')
-  const passStarted = Date.now()
   const rate = ctx.settings.maxMbps > 0 ? ctx.settings.maxMbps * 125_000 : 0
   try {
     for (let n = 1; n <= upload.part_count; n++) {
@@ -283,6 +284,7 @@ async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, 
       progress.speed = Math.round(progress.bytesSent / Math.max(1, (Date.now() - Date.parse(progress.startedAt ?? new Date().toISOString())) / 1000))
       // The speed limit: wait until this pass's average is back under it.
       if (rate > 0) {
+        // Against the whole pass: bytesSent counts every file in it, so a per-file start would wait again for all of them.
         const due = (progress.bytesSent / rate) * 1000 - (Date.now() - passStarted)
         for (let waited = 0; waited < due && keepGoing(); waited += 1000) await sleep(Math.min(1000, due - waited))
       }

@@ -4,7 +4,7 @@ summary: "Die Personen und Firmen festhalten, für die du arbeitest: Kontaktdate
 section: Sharing
 order: 3
 review: machine
-source: e5abd5bf184b
+source: 5ad84cbc1b50
 ---
 
 **Kunden** hält jede Person oder Firma fest, für die du arbeitest: ein Paar, eine Familie, ein Unternehmen. Jeder Kunde hat eine Seite mit Kontaktdaten und Notizen, den Personen, die sich für ihn anmelden, den Kundengalerien, die mit diesen Personen geteilt sind, dem, was heruntergeladen wurde, und einem Verlauf dessen, was passiert ist.
@@ -15,7 +15,7 @@ Nur **Administratoren** sehen Kunden: Es geht um persönliche Daten.
 
 Drücke unter **Kunden** auf **Neuer Kunde**. Ein Name genügt (zum Beispiel *Anna and Tom Hansen* oder *Brücke GmbH*); auf der Seite des Kunden kannst du Firma, E-Mail, Telefon, Adresse, die Sprache für seine Galerien und Notizen ergänzen. Notizen sind nur für dein Team.
 
-Die Liste zeigt die aktuellen Kunden von A bis Z, mit der Zahl ihrer Anmeldungen, wie viele ihrer Galerien offen sind und wann zuletzt jemand von ihnen etwas geöffnet oder heruntergeladen hat. Such nach Name, Firma, E-Mail oder Telefon, oder nach Name oder E-Mail einer ihrer Personen. Akzente spielen keine Rolle: *muller* findet *Müller*.
+Die Liste zeigt die aktuellen Kunden von A bis Z, mit der Zahl ihrer Anmeldungen, wie viele ihrer Galerien offen sind und wann zuletzt jemand von ihnen etwas geöffnet oder heruntergeladen hat. Such nach Name, Firma, E-Mail oder Telefon, oder nach Name oder E-Mail einer ihrer Personen. Akzente spielen keine Rolle: *muller* findet *Müller*. **Als CSV herunterladen** speichert alle Kunden, auch frühere, als Datei für eine Tabellenkalkulation; das wird unter **Aktivität** vermerkt.
 
 ## Ihre Personen
 

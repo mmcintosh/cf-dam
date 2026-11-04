@@ -1,6 +1,6 @@
 ---
 /** The filter sidebar: every facet with counts, as plain links, so each view has its own URL. */
-import { COUNT_CAP, normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch } from '@cf-dam/api'
+import { COUNT_CAP, normalizeQuery, type Facets, type FacetValue, type LabelNames, type SavedSearch, type WorkFacet } from '@cf-dam/api'
 import KeywordTree from './KeywordTree.astro'
 import SaveSearch from './SaveSearch.svelte'
 import { createFormat, getT, type MessageKey } from '@cf-dam/i18n'
@@ -15,8 +15,10 @@ interface Props {
   storedOnName?: string | null
   /** Clients' groups of people (catalog/gallery-people.ts), for those who manage people; their names say who's related. */
   groups?: { id: number; name: string; clientName: string }[] | null
+  /** Clients and jobs among the photos shown, for those who manage clients (catalog/library.ts workFacets). */
+  work?: { clients: WorkFacet[]; jobs: WorkFacet[] } | null
 }
-const { facets, params, labelNames, savedSearches, canSave, storedOnName, groups = null } = Astro.props
+const { facets, params, labelNames, savedSearches, canSave, storedOnName, groups = null, work = null } = Astro.props
 const current = normalizeQuery(params.toString())
 const alreadySaved = savedSearches.some((s) => s.query === current)
 
@@ -38,6 +40,7 @@ const LABELS: Record<string, Record<string, string>> = {
   year: { undated: t('facets.undated') },
   label: { ...labelNames, none: t('facets.noLabel') },
   missing: { '1': t('facets.missing') },
+  failed: { '1': t('facets.failed'), ai: t('facets.aiFailed') },
   on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
   kw: Object.fromEntries(facets.tag.map((k) => [k.id, k.path])),
   gps: { some: t('facets.gps.some'), none: t('facets.gps.none') },
@@ -63,12 +66,18 @@ const ratingCounts = (() => {
 const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
 const active: { key: string; text: string; remove?: Record<string, null> }[] = []
-const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
+const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['failed', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
 for (const [key, prefix] of CHIPS) {
   const value = params.get(key)
   if (!value) continue
   const shown = key === 'rating' ? t('facets.andUp', { stars: '★'.repeat(Number(value)) }) : label(key, value)
   active.push({ key, text: prefix ? t('facets.chip', { name: t(prefix), value: shown }) : shown })
+}
+
+// A client or a job (by id): named for those who see them, and only then.
+for (const [key, prefix, list] of [['client', 'facets.client', work?.clients], ['job', 'facets.job', work?.jobs]] as const) {
+  const value = params.get(key)
+  if (value) active.push({ key, text: t('facets.chip', { name: t(prefix), value: list?.find((w) => w.id === value)?.name ?? '…' }) })
 }
 
 // People named in photos (catalog/people.ts): ?person=1,2 is photos with all of them.
@@ -175,6 +184,17 @@ const rootKeywords = facets.tag
       </ul>
     </details>
   )}
+
+  {work && ([['client', t('nav.clients'), work.clients], ['job', t('nav.jobs'), work.jobs]] as const).map(([key, title, list]) => list.length > 0 && (
+    <details open={Boolean(params.get(key)) || list.length <= 8}>
+      <summary>{title}</summary>
+      <ul class="values">
+        {list.map((w) => (
+          <li><a href={link({ [key]: params.get(key) === w.id ? null : w.id })} class:list={{ on: params.get(key) === w.id }}><span>{w.name}</span><span class="count">{w.count}</span></a></li>
+        ))}
+      </ul>
+    </details>
+  ))}
 
   {groups && groups.length > 0 && (
     <details open={Boolean(groupId)}>

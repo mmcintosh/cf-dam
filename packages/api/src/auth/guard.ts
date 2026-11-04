@@ -89,7 +89,7 @@ interface PolicyRow {
   two_factor_enabled: number
   passkeys: number
   scope: string | null
-  is_admin: number
+  role_names: string | null
 }
 
 /**
@@ -103,13 +103,14 @@ async function passkeyRequired(db: D1Database, userId: string): Promise<boolean>
       `SELECT u.two_factor_enabled,
               (SELECT COUNT(*) FROM passkey p WHERE p.user_id = u.id) AS passkeys,
               (SELECT value FROM settings WHERE key = '${REQUIRE_2FA_KEY}') AS scope,
-              EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.name = 'admin') AS is_admin
+              (SELECT GROUP_CONCAT(r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id) AS role_names
        FROM users u WHERE u.id = ?`,
     )
     .bind(userId)
     .first<PolicyRow>()
   if (!row || row.two_factor_enabled === 1 || row.passkeys === 0) return false
-  return twoFactorRequired(row.scope, row.is_admin === 1 ? ['admin'] : [])
+  // The account's real roles: a client alone is never made to use a second factor (principal.ts).
+  return twoFactorRequired(row.scope, row.role_names ? row.role_names.split(',') : [])
 }
 
 async function passwordSignIn(c: Context<DamEnv>, auth: ReturnType<typeof createAuth>): Promise<Response> {

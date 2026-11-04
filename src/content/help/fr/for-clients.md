@@ -4,7 +4,7 @@ summary: "Pour les clients : se connecter, parcourir vos photos, choisir vos fav
 section: Sharing
 order: 2
 review: machine
-source: 8601369c0d98
+source: 3a24cb9a8b2d
 ---
 
 Votre photographe utilise cf-dam pour partager des photos avec vous. Avec votre propre compte, vous ne voyez que les galeries qu’il a partagées avec vous, depuis n’importe quel téléphone, tablette ou ordinateur.
@@ -19,7 +19,7 @@ Si vous oubliez votre mot de passe, appuyez sur **Mot de passe oublié ?** sur l
 
 ## Vos galeries
 
-**Vos galeries** affiche tout ce qui a été partagé avec vous, du plus récent au plus ancien, et la date de fermeture de chaque galerie. S’il n’y en a qu’une, la connexion vous y mène directement. Les galeries fermées restent dans la liste, estompées, pour que vous sachiez où elles sont passées ; demandez à votre photographe si vous en avez encore besoin.
+**Vos galeries** affiche tout ce qui a été partagé avec vous, du plus récent au plus ancien, et la date de fermeture de chaque galerie. S’il n’y en a qu’une, la connexion vous y mène directement. Les galeries fermées restent dans la liste, estompées, pour que vous sachiez où elles sont passées ; demandez à votre photographe si vous en avez encore besoin. Les galeries d’un même travail (un mariage, une séance) sont regroupées sous son nom.
 
 ## Parcourir vos photos
 

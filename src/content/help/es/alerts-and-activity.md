@@ -4,7 +4,7 @@ summary: "Problemas que necesitan a alguien y el registro de quién hizo qué."
 section: People and security
 order: 3
 review: machine
-source: bf3a2942f6b3
+source: 8c052952756a
 ---
 
 Las dos páginas son para administradores.
@@ -21,6 +21,10 @@ cf-dam se revisa a sí mismo cada cinco minutos y crea un **aviso** cuando algo 
 | Problemas de almacenamiento | Hay originales que cf-dam esperaba y no estaban donde creía, o no se puede leer un bucket. | Abre **Almacenamiento → Comprobaciones**. |
 | Copias de seguridad que fallan o se retrasan | La copia de seguridad diaria del catálogo no terminó. | Consulta [Copias de seguridad](/help/backups); revisa el bucket de las copias. |
 | Vistas previas atascadas | No se pudieron crear algunas miniaturas o vistas previas. | **Almacenamiento → Vistas previas → Reintentar las atascadas**. |
+| Fotos que no se pudieron procesar o que esperan | No se pudo leer un archivo (dañado, o de un tipo que cf-dam no sabe abrir), o hay fotos que llevan más de un día esperando porque el trabajo en segundo plano no avanza. | **Ir a** muestra en la biblioteca las que no se pudieron procesar: súbelas de nuevo o quítalas. Para las fotos que esperan, consulta *Trabajo en segundo plano* más abajo. |
+| La revisión con IA se rindió | El modelo de IA falló tres veces con algunas fotos; el aviso da su último error. | **Ir a** las muestra en la biblioteca. Cuando la causa esté resuelta, selecciónalas y elige **IA… → Volver a analizar**. |
+| El archivado se ha detenido | Hay originales esperando a copiarse al archivo y no se ha copiado ninguno en más de un día. | Revisa la conexión de almacenamiento del archivo: ábrela desde **Almacenamiento** y pulsa **Probar**. |
+| AWS rechazó el rol | Amazon rechazó el rol sin claves de cf-dam para una conexión de almacenamiento: el rol o su política de confianza se cambió o se eliminó. | **Ir a** abre la conexión. Corrige el rol en AWS (consulta [Amazon S3](/help/amazon-s3)) y luego pulsa **Probar**. |
 | Trabajo en segundo plano que falla o se ha detenido | El trabajo que cf-dam hace cada minuto (procesamiento, IA, comprobaciones, copias de seguridad) tiene un error o no se ha ejecutado. | El aviso dice qué parte. Si se ha detenido por completo, busca errores en los registros del Worker en el panel de Cloudflare, o vuelve a desplegar. |
 
 Cada aviso indica desde cuándo existe e incluye **Ir a** la página donde se arregla. Cuando el problema se soluciona, el aviso se cierra solo y pasa a **Arreglados en las dos últimas semanas**.

@@ -4,7 +4,7 @@ summary: "Para clientes: iniciar sesión, ver tus fotos, elegir favoritas y desc
 section: Sharing
 order: 2
 review: machine
-source: 8601369c0d98
+source: 3a24cb9a8b2d
 ---
 
 Tu fotógrafo usa cf-dam para compartir fotos contigo. Con tu propia cuenta solo ves las galerías que ha compartido contigo, desde cualquier teléfono, tableta u ordenador.
@@ -19,7 +19,7 @@ Si olvidas tu contraseña, pulsa **¿Olvidaste tu contraseña?** en la página d
 
 ## Tus galerías
 
-**Tus galerías** muestra todo lo que se ha compartido contigo, lo más reciente primero, y hasta cuándo está abierta cada galería. Si solo hay una, al iniciar sesión vas directamente a ella. Las galerías cerradas siguen en la lista, atenuadas, para que sepas dónde estaban; pide a tu fotógrafo las que todavía necesites.
+**Tus galerías** muestra todo lo que se ha compartido contigo, lo más reciente primero, y hasta cuándo está abierta cada galería. Si solo hay una, al iniciar sesión vas directamente a ella. Las galerías cerradas siguen en la lista, atenuadas, para que sepas dónde estaban; pide a tu fotógrafo las que todavía necesites. Las galerías de un mismo trabajo (una boda, una sesión) aparecen juntas bajo su nombre.
 
 ## Ver tus fotos
 

@@ -4,7 +4,7 @@ summary: "Seguir cada trabajo para un cliente desde la reserva hasta la entrega:
 section: Sharing
 order: 4
 review: machine
-source: 8885dfc0fa09
+source: 11fbcafb70a0
 ---
 
 Un **trabajo** es un encargo para un cliente: una boda, una sesión de retrato, una sesión de producto. Guarda las fechas de la sesión, el lugar, en qué punto está el trabajo y sus álbumes. Sus galerías son las galerías de sus álbumes. **Trabajos** es la primera pestaña de **Trabajo con clientes** en el menú, junto a **Clientes** y **Galerías de clientes**; como los clientes, solo lo ven los **administradores**.
@@ -83,7 +83,7 @@ Arriba de **Trabajos**, **Requiere atención** muestra:
 - una galería de un trabajo que se cierra en los próximos 7 días;
 - una galería de selección sin favoritas después de 14 días.
 
-**En curso** muestra los trabajos abiertos por etapa, primero la sesión más próxima; **Entregados y cerrados** y **Todos** muestran el resto. Busca por título, lugar o cliente; los acentos no importan.
+**En curso** muestra los trabajos abiertos por etapa, primero la sesión más próxima; **Entregados y cerrados** y **Todos** muestran el resto. Busca por título, lugar o cliente; los acentos no importan. **Descargar como CSV** guarda todos los trabajos en un archivo para una hoja de cálculo.
 
 ## Borrar un trabajo
 

@@ -179,21 +179,26 @@ export interface ClientGalleryJson {
   coverId: string | null
   /** They turned this gallery's emails off. */
   emailsOff: boolean
+  /**
+   * The job it's from, by the name the client sees (jobs.client_title), so their galleries group by job. Null when the
+   * album isn't a job's, or the job has no client-facing name: the team's own title may not be for clients.
+   */
+  job: { id: string; title: string; shootStart: string | null } | null
 }
 
 /** The galleries a client was invited to that still exist: open ones first, then expired ones. */
 export async function clientGalleries(db: D1Database, userId: string): Promise<ClientGalleryJson[]> {
   const { results } = await db
     .prepare(
-      `SELECT s.token, s.title, s.message, s.expires_at, s.revoked_at, m.emails_off_at,
+      `SELECT s.token, s.title, s.message, s.expires_at, s.revoked_at, m.emails_off_at, j.id AS job_id, j.client_title AS job_title, j.shoot_start,
          (SELECT COUNT(*) FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL WHERE ai.album_id = s.album_id) AS photos,
          COALESCE(al.cover_asset_id, (SELECT ai.asset_id FROM album_items ai JOIN assets a ON a.id = ai.asset_id AND a.deleted_at IS NULL
                                       WHERE ai.album_id = s.album_id ORDER BY ai.position, ai.added_at LIMIT 1)) AS cover
-       FROM share_members m JOIN shares s ON s.id = m.share_id JOIN albums al ON al.id = s.album_id
+       FROM share_members m JOIN shares s ON s.id = m.share_id JOIN albums al ON al.id = s.album_id LEFT JOIN jobs j ON j.id = al.job_id
        WHERE m.user_id = ? AND s.revoked_at IS NULL ORDER BY s.created_at DESC`,
     )
     .bind(userId)
-    .all<{ token: string; title: string; message: string; expires_at: string | null; revoked_at: string | null; emails_off_at: string | null; photos: number; cover: string | null }>()
+    .all<{ token: string; title: string; message: string; expires_at: string | null; revoked_at: string | null; emails_off_at: string | null; photos: number; cover: string | null; job_id: string | null; job_title: string | null; shoot_start: string | null }>()
   return results
     .map((r) => ({
       token: r.token,
@@ -204,6 +209,7 @@ export async function clientGalleries(db: D1Database, userId: string): Promise<C
       photos: r.photos,
       coverId: r.cover,
       emailsOff: r.emails_off_at !== null,
+      job: r.job_id && r.job_title?.trim() ? { id: r.job_id, title: r.job_title.trim(), shootStart: r.shoot_start } : null,
     }))
     .sort((a, b) => Number(a.expired) - Number(b.expired))
 }

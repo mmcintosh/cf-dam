@@ -15,8 +15,24 @@ export function decodeEntities(text: string): string {
   })
 }
 
+/**
+ * Characters XML 1.0 can't carry at all, not even escaped: control characters other than tab, line
+ * feed and carriage return, lone surrogates, U+FFFE and U+FFFF. A reader refuses the whole document
+ * over one of them, so they're dropped (they come from pasted text and old files, never on purpose).
+ */
+const NOT_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
 export function escapeXml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+  return text.replace(NOT_XML, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+}
+
+/**
+ * For an attribute's value. A reader turns a raw tab or line break inside an attribute into a space
+ * (XML's attribute-value normalisation), so they're written as character references: a two-line
+ * instruction comes back as two lines.
+ */
+export function escapeXmlAttribute(text: string): string {
+  return escapeXml(text).replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
 }
 
 /** Text of every `<tag>…</tag>` in `xml`, decoded. */

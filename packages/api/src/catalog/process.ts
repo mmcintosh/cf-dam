@@ -39,7 +39,7 @@ export interface MetadataLookups {
 export async function metadataLookups(db: D1Database, metas: NormalizedMetadata[]): Promise<MetadataLookups> {
   return {
     labels: metas.some((m) => m.label) ? await getLabelNames(db) : null,
-    keywords: await resolveKeywords(db, metas.flatMap((m) => m.keywords.slice(0, 200))),
+    keywords: await resolveKeywords(db, metas.flatMap((m) => m.keywords.slice(0, 200)), { synonyms: true }),
     people: await resolvePeople(db, metas.flatMap((m) => (m.people ?? []).slice(0, 50))),
   }
 }

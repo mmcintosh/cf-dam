@@ -4,7 +4,7 @@ summary: "Probleme, um die sich jemand kümmern muss, und das Protokoll, wer was
 section: People and security
 order: 3
 review: machine
-source: bf3a2942f6b3
+source: 8c052952756a
 ---
 
 Beide Seiten sind für Administratoren.
@@ -21,6 +21,10 @@ cf-dam prüft sich alle fünf Minuten selbst und gibt eine **Warnung** aus, wenn
 | Probleme mit dem Speicher | Originale lagen nicht dort, wo cf-dam sie erwartet hat, oder ein Bucket lässt sich nicht lesen. | Öffne **Speicher → Prüfungen**. |
 | Sicherungen schlagen fehl oder sind überfällig | Die tägliche Sicherung des Katalogs wurde nicht fertig. | Siehe [Sicherungen](/help/backups); prüfe den Sicherungs-Bucket. |
 | Vorschauen hängen | Einige Vorschaubilder oder Vorschauen konnten nicht erstellt werden. | **Speicher → Vorschauen → Die hängenden erneut versuchen**. |
+| Fotos konnten nicht verarbeitet werden oder warten | Eine Datei ließ sich nicht lesen (beschädigt oder eine Art, die cf-dam nicht öffnen kann), oder Fotos warten seit über einem Tag, weil die Hintergrundarbeit nicht durchkommt. | **Zu …** zeigt die nicht verarbeiteten in der Bibliothek: lade sie erneut hoch oder entferne sie. Zu wartenden Fotos siehe *Hintergrundarbeit* unten. |
+| KI-Prüfung aufgegeben | Das KI-Modell ist bei einigen Fotos dreimal gescheitert; die Warnung nennt seinen letzten Fehler. | **Zu …** zeigt sie in der Bibliothek. Ist die Ursache behoben, wähle sie aus und nimm **KI… → Erneut analysieren**. |
+| Archivierung stockt | Originale warten darauf, ins Archiv kopiert zu werden, und seit über einem Tag wurde keins kopiert. | Prüfe die Speicherverbindung des Archivs: öffne sie unter **Speicher** und drück **Testen**. |
+| AWS hat die Rolle abgelehnt | Amazon hat die schlüssellose Rolle von cf-dam für eine Speicherverbindung abgelehnt: Die Rolle oder ihre Vertrauensrichtlinie wurde geändert oder entfernt. | **Zu …** öffnet die Verbindung. Bring die Rolle in AWS in Ordnung (siehe [Amazon S3](/help/amazon-s3)) und drück dann **Testen**. |
 | Hintergrundarbeit schlägt fehl oder steht | Die Arbeit, die cf-dam jede Minute erledigt (Verarbeitung, KI, Prüfungen, Sicherungen), hat einen Fehler oder ist nicht gelaufen. | Die Warnung sagt, welcher Teil. Steht alles still, such im Cloudflare-Dashboard in den Logs des Workers nach Fehlern oder stelle neu bereit. |
 
 Jede Warnung sagt, seit wann sie besteht, und **Zu …** führt dich zur Seite, auf der du das Problem behebst. Ist es behoben, schließt sich die Warnung von selbst und wandert nach **In den letzten zwei Wochen behoben**.

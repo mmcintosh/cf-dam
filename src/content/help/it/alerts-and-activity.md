@@ -4,7 +4,7 @@ summary: "I problemi che richiedono qualcuno e il registro di chi ha fatto cosa.
 section: People and security
 order: 3
 review: machine
-source: bf3a2942f6b3
+source: 8c052952756a
 ---
 
 Entrambe le pagine sono per gli amministratori.
@@ -21,6 +21,10 @@ cf-dam si controlla da solo ogni cinque minuti e genera un **avviso** quando qua
 | Problemi di archiviazione | Gli originali che cf-dam si aspettava non erano dove pensava, oppure un bucket non si può leggere. | Apri **Archiviazione → Controlli**. |
 | Backup non riusciti o in ritardo | Il backup giornaliero del catalogo non è stato completato. | Vedi [Backup](/help/backups); controlla il bucket dei backup. |
 | Anteprime bloccate | Alcune miniature o anteprime non sono state create. | **Archiviazione → Anteprime → Riprova quelle bloccate**. |
+| Foto che non è stato possibile elaborare, o in attesa | Un file non si è potuto leggere (danneggiato, o di un tipo che cf-dam non sa aprire), oppure alcune foto aspettano da più di un giorno perché il lavoro in background non va avanti. | **Vai a** mostra nella libreria quelle non elaborate: caricale di nuovo o rimuovile. Per le foto in attesa, vedi *Lavoro in background* più sotto. |
+| La revisione IA ha rinunciato | Il modello di IA ha fallito tre volte su alcune foto; l’avviso riporta il suo ultimo errore. | **Vai a** le mostra nella libreria. Risolta la causa, selezionale e scegli **IA… → Analizza di nuovo**. |
+| L’archiviazione si è fermata | Ci sono originali in attesa di essere copiati nell’archivio, e da più di un giorno non ne è stato copiato nessuno. | Controlla la connessione di archiviazione dell’archivio: aprila da **Archiviazione** e premi **Prova**. |
+| AWS ha rifiutato il ruolo | Amazon ha rifiutato il ruolo senza chiavi di cf-dam per una connessione di archiviazione: il ruolo o la sua relazione di attendibilità è stato modificato o rimosso. | **Vai a** apre la connessione. Sistema il ruolo in AWS (vedi [Amazon S3](/help/amazon-s3)), poi premi **Prova**. |
 | Lavoro in background che non riesce o è fermo | Il lavoro che cf-dam fa ogni minuto (elaborazione, IA, controlli, backup) ha un errore o non è partito. | L’avviso dice quale parte. Se si è fermato del tutto, cerca errori nei log del Worker nella dashboard di Cloudflare, oppure ripubblica. |
 
 Ogni avviso dice da quando è attivo, e **Vai a** porta alla pagina che lo risolve. Quando il problema è sistemato, l’avviso si chiude da solo e passa in **Risolti nelle ultime due settimane**.

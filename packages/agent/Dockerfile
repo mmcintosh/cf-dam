@@ -7,9 +7,9 @@ COPY package.json package-lock.json ./
 COPY packages/api/package.json packages/api/
 COPY packages/agent/package.json packages/agent/
 RUN npm ci --workspace @cf-dam/agent --include-workspace-root=false --ignore-scripts --no-audit --no-fund
-# The agent shares two files with the Worker, neither with imports of its own: the look-alike hash and the face
-# detector (cf-dam-docs plans/PLAN-FN2-v2.md).
-COPY packages/api/src/catalog/dhash.ts packages/api/src/catalog/face-detect.ts packages/api/src/catalog/
+# The agent shares three files with the Worker, none with imports of its own: the look-alike hash, the face
+# detector (cf-dam-docs plans/PLAN-FN2-v2.md) and the rule for which creator field to believe.
+COPY packages/api/src/catalog/dhash.ts packages/api/src/catalog/face-detect.ts packages/api/src/catalog/creator.ts packages/api/src/catalog/
 COPY packages/agent/src packages/agent/src
 # onnxruntime-node stays outside the bundle (it's installed below); onnxruntime-web, bundled, is the fallback. The
 # banner's createRequire is renamed: onnxruntime imports one of its own.

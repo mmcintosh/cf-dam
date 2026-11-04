@@ -106,6 +106,48 @@ describe('alerts', () => {
     expect(await kinds()).toEqual([])
   })
 
+  it('counts photos that couldn’t be processed or have waited a day, and AI review that gave up', async () => {
+    const photo = (id: string, status: string, updated: string, ai: [string | null, number, string | null] = [null, 0, null]) =>
+      h.env.DB.prepare("INSERT INTO assets (id, filename, mime_type, size, status, created_at, updated_at, ai_status, ai_attempts, ai_error) VALUES (?, 'x.jpg', 'image/jpeg', 1, ?, ?, ?, ?, ?, ?)")
+        .bind(id, status, updated, updated, ...ai)
+    await h.env.DB.batch([
+      photo('e1', 'error', ago(HOUR)),
+      photo('e2', 'error', ago(HOUR)),
+      photo('q1', 'queued', ago(25 * HOUR)),
+      photo('q2', 'queued', ago(HOUR)), // queued an hour ago: not stuck yet
+      photo('a1', 'ready', ago(HOUR), ['failed', 3, 'Model timed out']),
+      photo('a2', 'ready', ago(HOUR), ['failed', 1, 'Will try again']),
+    ])
+    await checkAlerts(h.env, NOW)
+    const { open } = await list()
+    expect(open.map((a) => [a.kind, a.message, a.link]).sort()).toEqual([
+      ['ai.failed', 'AI review gave up on 1 photo after three tries: Model timed out', '/?failed=ai'],
+      ['processing.failed', '2 photos couldn’t be processed: their details or previews may be incomplete.', '/?failed=1'],
+      ['processing.stuck', '1 photo has waited over a day to be processed. Is background work running?', null],
+    ])
+    // The alert's link shows them in the library.
+    expect(((await (await h.fetch('/api/assets?failed=1', { cookie: admin })).json()) as { total: number }).total).toBe(2)
+    expect(((await (await h.fetch('/api/assets?failed=ai', { cookie: admin })).json()) as { total: number }).total).toBe(1)
+
+    await h.env.DB.prepare("UPDATE assets SET status = 'ready', ai_status = 'done'").run()
+    await checkAlerts(h.env, NOW)
+    expect(await kinds()).toEqual([])
+  })
+
+  it('opens when originals have waited a day to be archived and nothing has been copied for a day', async () => {
+    const item = (id: string, state: string, updated: string) => [
+      h.env.DB.prepare("INSERT OR IGNORE INTO assets (id, filename, mime_type, size, status, created_at, updated_at) VALUES (?, 'x.jpg', 'image/jpeg', 1, 'ready', 'x', 'x')").bind(id),
+      h.env.DB.prepare("INSERT INTO archive_items (asset_id, connection_id, storage_class, state, updated_at) VALUES (?, 'aws', 'DEEP_ARCHIVE', ?, ?)").bind(id, state, updated),
+    ]
+    await h.env.DB.batch([...item('w1', 'waiting', ago(2 * DAY)), ...item('w2', 'waiting', ago(HOUR)), ...item('d1', 'done', ago(30 * HOUR))])
+    await checkAlerts(h.env, NOW)
+    expect((await list()).open.map((a) => a.message)).toEqual(['2 originals are waiting to be archived, and nothing has been copied for over a day.'])
+    // One copied an hour ago: it's moving, slowly.
+    await h.env.DB.prepare("UPDATE archive_items SET updated_at = ? WHERE asset_id = 'd1'").bind(ago(HOUR)).run()
+    await checkAlerts(h.env, NOW)
+    expect(await kinds()).toEqual([])
+  })
+
   it('opens when a backup fails or none has finished in two days, unless backups are off', async () => {
     await h.env.DB.prepare("INSERT INTO backups (id, connection_id, status, started_at, finished_at, error) VALUES ('b1', 'r2', 'failed', ?, ?, 'R2 said no')").bind(ago(HOUR), ago(HOUR)).run()
     await checkAlerts(h.env, NOW)

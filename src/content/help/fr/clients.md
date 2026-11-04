@@ -4,7 +4,7 @@ summary: "Garder une trace des personnes et des entreprises pour qui vous travai
 section: Sharing
 order: 3
 review: machine
-source: e5abd5bf184b
+source: 5ad84cbc1b50
 ---
 
 **Clients** garde une trace de chaque personne ou entreprise pour qui vous travaillez : un couple, une famille, une société. Chaque client a une page avec ses coordonnées et des notes, les personnes qui se connectent pour lui, les galeries clients partagées avec ces personnes, ce qu’elles ont téléchargé, et l’historique de ce qui s’est passé.
@@ -15,7 +15,7 @@ Seuls les **administrateurs** voient Clients : ce sont des données personnelles
 
 Sur **Clients**, appuyez sur **Nouveau client**. Un nom suffit (par exemple *Anna and Tom Hansen* ou *Brücke GmbH*) ; sur sa page, vous pouvez ajouter la société, l’e-mail, le téléphone, l’adresse, la langue de ses galeries et des notes. Les notes sont réservées à votre équipe.
 
-La liste montre les clients actuels de A à Z, avec leur nombre de comptes, combien de leurs galeries sont ouvertes, et quand l’une de leurs personnes a ouvert ou téléchargé quelque chose pour la dernière fois. Recherchez par nom, société, e-mail ou téléphone, ou par le nom ou l’e-mail d’une de leurs personnes. Les accents ne comptent pas : *muller* trouve *Müller*.
+La liste montre les clients actuels de A à Z, avec leur nombre de comptes, combien de leurs galeries sont ouvertes, et quand l’une de leurs personnes a ouvert ou téléchargé quelque chose pour la dernière fois. Recherchez par nom, société, e-mail ou téléphone, ou par le nom ou l’e-mail d’une de leurs personnes. Les accents ne comptent pas : *muller* trouve *Müller*. **Télécharger en CSV** enregistre tous les clients, anciens compris, dans un fichier pour un tableur ; c’est noté dans **Activité**.
 
 ## Leurs personnes
 

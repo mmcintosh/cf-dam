@@ -4,7 +4,7 @@ summary: "Llevar un registro de las personas y empresas para las que trabajas: d
 section: Sharing
 order: 3
 review: machine
-source: e5abd5bf184b
+source: 5ad84cbc1b50
 ---
 
 **Clientes** guarda un registro de cada persona o empresa para la que trabajas: una pareja, una familia, un negocio. Cada cliente tiene una página con sus datos de contacto y notas, las personas que inician sesión en su nombre, las galerías de cliente compartidas con esas personas, lo que descargaron y un historial de lo que ha pasado.
@@ -15,7 +15,7 @@ Solo los **administradores** ven Clientes: son datos personales.
 
 En **Clientes**, pulsa **Nuevo cliente**. Basta con un nombre (por ejemplo *Anna and Tom Hansen* o *Brücke GmbH*); en su página puedes añadir la empresa, el correo electrónico, el teléfono, la dirección, el idioma de sus galerías y notas. Las notas son solo para tu equipo.
 
-La lista muestra los clientes actuales de la A a la Z, con cuántos accesos tienen, cuántas de sus galerías están abiertas y cuándo alguno de ellos abrió o descargó algo por última vez. Busca por nombre, empresa, correo electrónico o teléfono, o por el nombre o el correo de una de sus personas. Los acentos no importan: *muller* encuentra *Müller*.
+La lista muestra los clientes actuales de la A a la Z, con cuántos accesos tienen, cuántas de sus galerías están abiertas y cuándo alguno de ellos abrió o descargó algo por última vez. Busca por nombre, empresa, correo electrónico o teléfono, o por el nombre o el correo de una de sus personas. Los acentos no importan: *muller* encuentra *Müller*. **Descargar como CSV** guarda todos los clientes, también los antiguos, en un archivo para una hoja de cálculo; queda anotado en **Actividad**.
 
 ## Sus personas
 

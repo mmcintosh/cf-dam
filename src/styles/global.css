@@ -22,15 +22,16 @@
   --border-strong: light-dark(rgb(15 20 35 / 0.18), rgb(255 255 255 / 0.16));
   --text: light-dark(#10131a, #eceef3);
   --text-muted: light-dark(#5a6273, #9aa2b1);
-  --text-faint: light-dark(#8a92a3, #6b7385);
+  --text-faint: light-dark(#676f80, #6b7385);
 
   --accent: light-dark(#4a68f0, #8aa4ff);
   --accent-strong: light-dark(#3554e0, #6d8bff);
   --accent-glow: light-dark(rgb(74 104 240 / 0.25), rgb(109 139 255 / 0.35));
   --accent-2: #c08cff;
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --danger: #ff6b7a;
+  /* Status colours are text as often as fills: dark enough on the light page for 4.5:1, bright on the dark one. */
+  --success: light-dark(#15803d, #4ade80);
+  --warning: light-dark(#a35a00, #fbbf24);
+  --danger: light-dark(#c2283b, #ff6b7a);
 
   /* Colour labels (Lightroom's five). */
   --label-red: #f05252;

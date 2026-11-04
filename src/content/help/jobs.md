@@ -81,7 +81,7 @@ At the top of **Jobs**, **Needs attention** lists:
 - a job's gallery closing within 7 days;
 - a proofing gallery with no favourites after 14 days.
 
-**In progress** shows open jobs by stage, soonest shoot first; **Delivered and closed** and **All** show the rest. Search by title, place or client; accents don't matter.
+**In progress** shows open jobs by stage, soonest shoot first; **Delivered and closed** and **All** show the rest. Search by title, place or client; accents don't matter. **Download as CSV** saves every job as a file for a spreadsheet.
 
 ## Deleting a job
 

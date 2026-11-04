@@ -157,7 +157,7 @@ const facts: [string, string][] = [
         <dl class="facts">
           {facts.map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
           {principal.permissions.has('assets:edit') && (
-            <><dt>{asset.gps ? '' : t('photo.location')}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? t('photo.moveOnMap') : t('photo.setOnMap')}</a></dd></>
+            <><dt>{asset.gps ? <span class="sr-only">{t('photo.location')}</span> : t('photo.location')}</dt><dd><a href={`/map?place=${id}`}>{asset.gps ? t('photo.moveOnMap') : t('photo.setOnMap')}</a></dd></>
           )}
           <dt>{t('photo.metadata')}</dt><dd><a href={`/api/assets/${id}/xmp`} download title={t('photo.xmpTitle')}>{t('photo.xmpDownload')}</a></dd>
         </dl>

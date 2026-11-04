@@ -13,7 +13,7 @@ Only **administrators** see Clients: these are people's personal details.
 
 On **Clients**, press **New client**. A name is enough (for example *Anna and Tom Hansen* or *Brücke GmbH*); you can add the company, email, phone, address, the language for their galleries and notes on their page. Notes are for your team only.
 
-The list shows current clients A to Z, with how many logins they have, how many of their galleries are open, and when one of them last opened or downloaded something. Search by name, company, email or phone, or by the name or email of one of their people. Accents don't matter: *muller* finds *Müller*.
+The list shows current clients A to Z, with how many logins they have, how many of their galleries are open, and when one of them last opened or downloaded something. Search by name, company, email or phone, or by the name or email of one of their people. Accents don't matter: *muller* finds *Müller*. **Download as CSV** saves every client, past ones too, as a file for a spreadsheet; it's noted under **Activity**.
 
 ## Their people
 

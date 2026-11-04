@@ -4,7 +4,7 @@ summary: "Les problèmes qui demandent quelqu’un, et l’historique de qui a f
 section: People and security
 order: 3
 review: machine
-source: bf3a2942f6b3
+source: 8c052952756a
 ---
 
 Ces deux pages sont réservées aux administrateurs.
@@ -21,6 +21,10 @@ cf-dam se vérifie lui-même toutes les cinq minutes et lève une **alerte** qua
 | Problèmes de stockage | Des originaux attendus par cf-dam n’étaient pas là où il le pensait, ou un bucket ne peut pas être lu. | Ouvrez **Stockage → Vérifications**. |
 | Sauvegardes en échec ou en retard | La sauvegarde quotidienne du catalogue ne s’est pas terminée. | Voir [Sauvegardes](/help/backups) ; vérifiez le bucket de sauvegarde. |
 | Aperçus bloqués | Certaines vignettes ou certains aperçus n’ont pas pu être créés. | **Stockage → Aperçus → Réessayer les bloqués**. |
+| Photos qui n’ont pas pu être traitées, ou en attente | Un fichier n’a pas pu être lu (abîmé, ou d’un type que cf-dam ne sait pas ouvrir), ou des photos attendent depuis plus d’un jour parce que les tâches de fond n’avancent pas. | **Aller à** montre dans la photothèque celles qui n’ont pas pu être traitées : importez-les à nouveau ou retirez-les. Pour les photos en attente, voir *Tâches de fond* plus bas. |
+| L’analyse par IA a abandonné | Le modèle d’IA a échoué trois fois sur certaines photos ; l’alerte donne sa dernière erreur. | **Aller à** les montre dans la photothèque. Une fois la cause corrigée, sélectionnez-les et choisissez **IA… → Analyser à nouveau**. |
+| L’archivage est bloqué | Des originaux attendent d’être copiés dans l’archive, et aucun n’a été copié depuis plus d’un jour. | Vérifiez la connexion de stockage de l’archive : ouvrez-la depuis **Stockage** et cliquez sur **Tester**. |
+| AWS a refusé le rôle | Amazon a refusé le rôle sans clé de cf-dam pour une connexion de stockage : le rôle ou sa relation d’approbation a été modifié ou supprimé. | **Aller à** ouvre la connexion. Corrigez le rôle dans AWS (voir [Amazon S3](/help/amazon-s3)), puis cliquez sur **Tester**. |
 | Tâches de fond en échec ou arrêtées | Le travail que cf-dam fait chaque minute (traitement, IA, vérifications, sauvegardes) rencontre une erreur ou ne s’est pas exécuté. | L’alerte dit quelle partie. Si tout est arrêté, cherchez des erreurs dans les journaux du Worker dans le tableau de bord Cloudflare, ou redéployez. |
 
 Chaque alerte indique depuis quand, et propose **Aller à** la page qui permet de régler le problème. Quand le problème est résolu, l’alerte se ferme toute seule et passe dans **Résolues ces deux dernières semaines**.

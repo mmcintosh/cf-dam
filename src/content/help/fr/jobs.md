@@ -4,7 +4,7 @@ summary: "Suivre chaque travail pour un client, de la réservation à la livrais
 section: Sharing
 order: 4
 review: machine
-source: 8885dfc0fa09
+source: 11fbcafb70a0
 ---
 
 Un **travail** est une prestation pour un client : un mariage, une séance portrait, une séance produit. Il garde les dates de la séance, le lieu, l’avancement du travail et ses albums. Ses galeries sont celles de ses albums. **Travaux** est le premier onglet de **Travail client** dans le menu, à côté de **Clients** et **Galeries clients** ; comme les clients, seuls les **administrateurs** le voient.
@@ -83,7 +83,7 @@ En haut de **Travaux**, **À traiter** liste :
 - une galerie d’un travail qui ferme dans les 7 jours ;
 - une galerie de sélection sans favoris après 14 jours.
 
-**En cours** montre les travaux ouverts par étape, la séance la plus proche d’abord ; **Livrés et terminés** et **Tous** montrent le reste. Recherchez par titre, lieu ou client ; les accents ne comptent pas.
+**En cours** montre les travaux ouverts par étape, la séance la plus proche d’abord ; **Livrés et terminés** et **Tous** montrent le reste. Recherchez par titre, lieu ou client ; les accents ne comptent pas. **Télécharger en CSV** enregistre tous les travaux dans un fichier pour un tableur.
 
 ## Supprimer un travail
 

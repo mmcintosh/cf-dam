@@ -4,7 +4,7 @@ summary: "Jede Arbeit für einen Kunden von der Buchung bis zur Lieferung verfol
 section: Sharing
 order: 4
 review: machine
-source: 8885dfc0fa09
+source: 11fbcafb70a0
 ---
 
 Ein **Auftrag** ist eine Arbeit für einen Kunden: eine Hochzeit, ein Porträtshooting, ein Produktshooting. Er hält die Shooting-Termine fest, den Ort, wie weit die Arbeit ist, und seine Alben. Seine Galerien sind die Galerien seiner Alben. **Aufträge** ist der erste Reiter von **Kundenarbeit** im Menü, neben **Kunden** und **Kundengalerien**; wie Kunden sehen das nur **Administratoren**.
@@ -83,7 +83,7 @@ Oben unter **Aufträge** listet **Braucht Aufmerksamkeit**:
 - eine Galerie eines Auftrags, die in den nächsten 7 Tagen schließt;
 - eine Auswahlgalerie ohne Favoriten nach 14 Tagen.
 
-**Laufend** zeigt offene Aufträge nach Phase, das nächste Shooting zuerst; **Geliefert und abgeschlossen** und **Alle** zeigen den Rest. Such nach Titel, Ort oder Kunde; Akzente spielen keine Rolle.
+**Laufend** zeigt offene Aufträge nach Phase, das nächste Shooting zuerst; **Geliefert und abgeschlossen** und **Alle** zeigen den Rest. Such nach Titel, Ort oder Kunde; Akzente spielen keine Rolle. **Als CSV herunterladen** speichert alle Aufträge als Datei für eine Tabellenkalkulation.
 
 ## Einen Auftrag löschen
 

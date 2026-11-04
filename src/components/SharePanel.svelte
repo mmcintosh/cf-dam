@@ -4,6 +4,7 @@
   import { onMount } from 'svelte'
   import type { ShareJson } from '@cf-dam/api'
   import { api } from '../lib/auth-client'
+  import { closesAt, lastDay } from '../lib/gallery-days'
   import ShareClients from './ShareClients.svelte'
   import GallerySelling from './GallerySelling.svelte'
   import { LANGUAGES } from '@cf-dam/i18n/languages'
@@ -90,7 +91,7 @@
       password: '',
       removePassword: false,
       // A date input shows the last day the link works.
-      expires: share.expiresAt ? new Date(new Date(share.expiresAt).getTime() - 1).toISOString().slice(0, 10) : '',
+      expires: share.expiresAt ? lastDay(share.expiresAt) : '',
       downloadSizes: [...share.downloadSizes],
       watermark: share.watermark,
       proofing: share.proofing,
@@ -107,7 +108,7 @@
     busy = true
     try {
       // The link works through the whole of the chosen day, in this browser's time zone.
-      const expiresAt = draft.expires ? new Date(new Date(`${draft.expires}T00:00`).getTime() + 86_400_000).toISOString() : null
+      const expiresAt = draft.expires ? closesAt(draft.expires) : null
       const body: Record<string, unknown> = {
         name: draft.name,
         title: draft.title,
