@@ -117,6 +117,9 @@ export class State {
     const columns = (this.db.prepare('PRAGMA table_info(files)').all() as { name: string }[]).map((c) => c.name)
     if (!columns.includes('archived_hash')) this.db.exec('ALTER TABLE files ADD COLUMN archived_hash TEXT')
     if (!columns.includes('archive_attempts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_attempts INTEGER NOT NULL DEFAULT 0')
+    // Why the last try failed, and how many times the bucket ended an upload of it before it finished.
+    if (!columns.includes('archive_error')) this.db.exec('ALTER TABLE files ADD COLUMN archive_error TEXT')
+    if (!columns.includes('archive_restarts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_restarts INTEGER NOT NULL DEFAULT 0')
     if (!columns.includes('preview_later')) this.db.exec('ALTER TABLE files ADD COLUMN preview_later INTEGER NOT NULL DEFAULT 0')
     this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
     // What's left to archive, without reading every file's row (a million, for a big archive).
@@ -283,11 +286,37 @@ export class State {
   }
 
   archived(rootId: string, path: string, quickHash: string): void {
-    this.db.prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0 WHERE root_id = ? AND path = ?').run(quickHash, rootId, path)
+    this.db
+      .prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0, archive_error = NULL, archive_restarts = 0 WHERE root_id = ? AND path = ?')
+      .run(quickHash, rootId, path)
   }
 
-  archiveFailed(rootId: string, path: string): void {
-    this.db.prepare('UPDATE files SET archive_attempts = archive_attempts + 1 WHERE root_id = ? AND path = ?').run(rootId, path)
+  /** One failed try, and why. */
+  archiveFailed(rootId: string, path: string, reason: string): void {
+    this.db
+      .prepare('UPDATE files SET archive_attempts = archive_attempts + 1, archive_error = ? WHERE root_id = ? AND path = ?')
+      .run(reason.slice(0, 500), rootId, path)
+  }
+
+  /** Given up on at once (no more tries), and why. */
+  archiveGiveUp(rootId: string, path: string, reason: string): void {
+    this.db.prepare('UPDATE files SET archive_attempts = ?, archive_error = ? WHERE root_id = ? AND path = ?').run(MAX_ARCHIVE_ATTEMPTS, reason.slice(0, 500), rootId, path)
+  }
+
+  /** The bucket ended an upload of this file before it finished: how many times now. */
+  archiveRestarted(rootId: string, path: string): number {
+    const row = this.db
+      .prepare('UPDATE files SET archive_restarts = archive_restarts + 1 WHERE root_id = ? AND path = ? RETURNING archive_restarts')
+      .get(rootId, path) as { archive_restarts: number } | undefined
+    return row?.archive_restarts ?? 0
+  }
+
+  /** Why a file's last try failed (tests, and the panel later). */
+  archiveError(rootId: string, path: string): { attempts: number; error: string | null; restarts: number } | null {
+    const row = this.db.prepare('SELECT archive_attempts AS attempts, archive_error AS error, archive_restarts AS restarts FROM files WHERE root_id = ? AND path = ?').get(rootId, path) as
+      | { attempts: number; error: string | null; restarts: number }
+      | undefined
+    return row ?? null
   }
 
   upload(assetId: string): ArchiveUpload | null {

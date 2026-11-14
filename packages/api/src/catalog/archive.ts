@@ -15,7 +15,7 @@ import type { DamBindings } from '../env'
 import { randomId } from '../lib/crypto'
 import { nowIso } from '../lib/time'
 import { connectionKey, getConnection, providerFor, type Connection } from '../storage/connections'
-import { isStorageClass, type StorageClass } from '../storage/types'
+import { isStorageClass, StorageError, type StorageClass } from '../storage/types'
 import { AgentError, type SourceRow } from './agents'
 import { safeFilename } from './uploads'
 
@@ -35,6 +35,11 @@ export const PART_SIZE = 64 * 1024 * 1024
 const MAX_PARTS = 10_000
 /** A part's signed URL lasts an hour: the agent asks for each one just before sending it. */
 const PART_URL_SECONDS = 60 * 60
+/**
+ * Keyless credentials must still have this long to live when a part is signed: the URL dies with them. Not the whole
+ * hour, which would ask AWS for new ones on every part; a part that takes longer is signed again by the helper.
+ */
+const PART_CREDENTIAL_LIFE_MS = 20 * 60_000
 /** Uploads not completed in this long are given up (the bucket's lifecycle rule cleans up too). */
 export const ARCHIVE_UPLOAD_DAYS = 7
 
@@ -46,6 +51,17 @@ export function parseArchiveSettings(value: string | null | undefined): ArchiveS
     return {}
   }
 }
+
+/**
+ * Whether the bucket refuses everything (its credentials, its policy, the bucket itself, or no answer at all), or only
+ * this one file. The helper stops and waits on the first; on the second it goes on to the next file.
+ */
+const BUCKET_CODES = new Set([
+  'AccessDenied', 'InvalidAccessKeyId', 'SignatureDoesNotMatch', 'ExpiredToken', 'InvalidToken', 'TokenRefreshRequired',
+  'NoSuchBucket', 'AllAccessDisabled', 'AccountProblem', 'SlowDown', 'ServiceUnavailable', 'InternalError',
+  'NetworkError', 'NoCredentials', 'InvalidIdentityToken', 'IDPCommunicationError', 'IDPRejectedClaim',
+])
+export const storageScope = (code: string): 'bucket' | 'file' => (BUCKET_CODES.has(code) || code.startsWith('KMS.') || /^HTTP5\d\d$/.test(code) ? 'bucket' : 'file')
 
 /** What the agent is told in its config: null when it isn't archiving. */
 export function archiveConfig(source: SourceRow & { archive?: string }) {
@@ -79,9 +95,9 @@ export async function validArchiveSettings(db: D1Database, input: unknown): Prom
 
 async function target(env: DamBindings, source: SourceRow & { archive?: string }): Promise<{ settings: ArchiveSettings; connection: Connection }> {
   const settings = parseArchiveSettings(source.archive)
-  if (!settings.connectionId) throw new AgentError('This agent isn\'t archiving: choose a bucket for it in cf-dam.', 409)
+  if (!settings.connectionId) throw new AgentError('This agent isn\'t archiving: choose a bucket for it in cf-dam.', 409, 'not_archiving')
   const connection = await getConnection(env.DB, settings.connectionId)
-  if (!connection || connection.provider !== 's3') throw new AgentError('The archive bucket no longer exists in cf-dam.', 409)
+  if (!connection || connection.provider !== 's3') throw new AgentError('The archive bucket no longer exists in cf-dam.', 409, 'not_archiving')
   return { settings, connection }
 }
 
@@ -101,7 +117,7 @@ async function nasLocation(db: D1Database, source: SourceRow, assetId: string): 
     )
     .bind(assetId, source.connection_id)
     .first<NasLocation>()
-  if (!row) throw new AgentError('No such photo on this agent.', 404)
+  if (!row) throw new AgentError('No such photo on this agent.', 404, 'no_photo')
   return row
 }
 
@@ -133,7 +149,7 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
   if (typeof quickHash !== 'string' || !/^[0-9a-f]{16,64}$/.test(quickHash)) throw new AgentError('quickHash must be the file\'s fingerprint.')
   const { settings, connection } = await target(env, source)
   const nas = await nasLocation(db, source, assetId)
-  if (nas.size !== size || nas.quick_hash !== quickHash) throw new AgentError('The file changed since it was indexed; it is archived after the next scan.', 409)
+  if (nas.size !== size || nas.quick_hash !== quickHash) throw new AgentError('The file changed since it was indexed; it is archived after the next scan.', 409, 'changed')
 
   // Already archived, as this very file.
   const mine = await db
@@ -193,21 +209,28 @@ interface UploadRow {
 
 async function upload(db: D1Database, source: SourceRow, id: unknown): Promise<UploadRow> {
   const row = await db.prepare('SELECT * FROM archive_uploads WHERE id = ? AND source_id = ?').bind(String(id ?? ''), source.id).first<UploadRow>()
-  if (!row) throw new AgentError('No such upload: it finished, or was given up. Start the file again.', 404)
+  if (!row) throw new AgentError('No such upload: it finished, or was given up. Start the file again.', 404, 'no_upload')
   return row
 }
 
 /** A signed URL for one part, carrying the part's SHA-256 (base64): the bucket refuses other bytes. */
-export async function signArchivePart(env: DamBindings, source: SourceRow, body: Record<string, unknown>) {
+export async function signArchivePart(env: DamBindings, source: SourceRow & { archive?: string }, body: Record<string, unknown>) {
   const row = await upload(env.DB, source, body.uploadId)
+  // Archiving turned off (or moved to another bucket) since this upload began: no more parts for it.
+  if (parseArchiveSettings(source.archive).connectionId !== row.connection_id) {
+    throw new AgentError('This agent no longer archives to that bucket.', 409, 'not_archiving')
+  }
   const partNumber = body.partNumber
   if (!Number.isInteger(partNumber) || (partNumber as number) < 1 || (partNumber as number) > row.part_count) {
     throw new AgentError(`partNumber must be 1 to ${row.part_count}.`)
   }
   const checksum = base64Sha(body.checksum, 'checksum')
   const connection = await getConnection(env.DB, row.connection_id)
-  if (!connection) throw new AgentError('The archive bucket no longer exists in cf-dam.', 409)
-  const signed = await providerFor(env, connection).presignPart!(row.key, row.multipart_id, partNumber as number, PART_URL_SECONDS, { checksumSha256: checksum })
+  if (!connection) throw new AgentError('The archive bucket no longer exists in cf-dam.', 409, 'not_archiving')
+  const provider = providerFor(env, connection, undefined, { minCredentialLifeMs: PART_CREDENTIAL_LIFE_MS })
+  const signed = await provider.presignPart!(row.key, row.multipart_id, partNumber as number, PART_URL_SECONDS, { checksumSha256: checksum })
+  // The week an upload is given after is counted from its last part, however long ago it began.
+  await env.DB.prepare('UPDATE archive_uploads SET last_part_at = ? WHERE id = ?').bind(nowIso(), row.id).run()
   return { url: signed.url, headers: signed.headers }
 }
 
@@ -230,12 +253,28 @@ export async function completeArchive(env: DamBindings, source: SourceRow, body:
     throw new AgentError('Each part number must appear once, with its ETag.')
   }
   const connection = await getConnection(db, row.connection_id)
-  if (!connection) throw new AgentError('The archive bucket no longer exists in cf-dam.', 409)
+  if (!connection) throw new AgentError('The archive bucket no longer exists in cf-dam.', 409, 'not_archiving')
   const provider = providerFor(env, connection)
-  const { etag } = await provider.completeMultipart(row.key, row.multipart_id, completed)
-  const head = await provider.head(row.key)
+  let etag: string
+  let head
+  try {
+    etag = (await provider.completeMultipart(row.key, row.multipart_id, completed)).etag
+    head = await provider.head(row.key)
+  } catch (error) {
+    if (!(error instanceof StorageError) || !UPLOAD_ENDED.has(error.code)) throw error
+    // S3 no longer knows the upload. Either an earlier complete worked and its answer was lost, or the upload was
+    // ended (the bucket's lifecycle rule, a hand): the object says which.
+    head = error.code === 'NoSuchUpload' ? await provider.head(row.key) : null
+    if (!head || !(await isThisUpload(head, completed, row.size))) {
+      await abandonUploads(env, db.prepare('SELECT * FROM archive_uploads WHERE id = ?').bind(row.id))
+      throw new AgentError(`The bucket ended this upload before it was finished (${error.code}). Start the file again.`, 404, 'no_upload')
+    }
+    etag = head.etag
+  }
   if (!head || head.size !== row.size) {
-    throw new AgentError(`The bucket holds ${head?.size ?? 0} bytes, not the file's ${row.size}. Start the file again.`, 409)
+    // Completed, but not as the file: the upload is over either way, and the file starts again.
+    await db.prepare('DELETE FROM archive_uploads WHERE id = ?').bind(row.id).run()
+    throw new AgentError(`The bucket holds ${head?.size ?? 0} bytes, not the file's ${row.size}. Start the file again.`, 404, 'no_upload')
   }
   const now = nowIso()
   await db.batch([
@@ -255,6 +294,36 @@ export async function completeArchive(env: DamBindings, source: SourceRow, body:
   return { archived: true, key: row.key }
 }
 
+/** S3's answers at complete that mean the upload is over: start the file again. */
+const UPLOAD_ENDED = new Set(['NoSuchUpload', 'InvalidPart', 'InvalidPartOrder', 'EntityTooSmall'])
+
+const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+const concat = (chunks: Uint8Array[]) => {
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0))
+  let at = 0
+  for (const c of chunks) {
+    out.set(c, at)
+    at += c.byteLength
+  }
+  return out
+}
+
+/**
+ * Whether the object in the bucket is what these parts complete to: its composite checksum (the SHA-256 of the parts'
+ * SHA-256s, which the bucket keeps because every upload is begun with checksums) says so. A store that keeps none is
+ * believed on size.
+ */
+export async function isThisUpload(head: { size: number; checksumSha256?: string | null }, parts: { partNumber: number; checksumSha256: string }[], size: number): Promise<boolean> {
+  if (head.size !== size) return false
+  if (!head.checksumSha256) return true
+  const sorted = [...parts].sort((a, b) => a.partNumber - b.partNumber)
+  const composite = new Uint8Array(await crypto.subtle.digest('SHA-256', concat(sorted.map((p) => fromBase64(p.checksumSha256)))))
+  const expected = btoa(String.fromCharCode(...composite))
+  // AWS and RustFS write it with "-N" on the end, or without; a store may give a single part's own.
+  const got = head.checksumSha256.replace(/-\d+$/, '')
+  return got === expected || (sorted.length === 1 && got === sorted[0]!.checksumSha256)
+}
+
 /** A duplicate: point this photo at the copy of an identical file, which the agent proved by its SHA-256. */
 export async function linkArchive(env: DamBindings, source: SourceRow & { archive?: string }, body: Record<string, unknown>) {
   const db = env.DB
@@ -269,7 +338,7 @@ export async function linkArchive(env: DamBindings, source: SourceRow & { archiv
     )
     .bind(String(body.fromAssetId ?? ''), connection.id, sha256)
     .first<{ key: string; storage_class: string; size: number; etag: string | null; quick_hash: string | null }>()
-  if (!twin || twin.size !== nas.size || twin.quick_hash !== nas.quick_hash) throw new AgentError('That copy doesn\'t match this file: upload it instead.', 409)
+  if (!twin || twin.size !== nas.size || twin.quick_hash !== nas.quick_hash) throw new AgentError('That copy doesn\'t match this file: upload it instead.', 409, 'twin_mismatch')
   const now = nowIso()
   await db.batch([
     db
@@ -302,8 +371,8 @@ export async function abortArchive(env: DamBindings, source: SourceRow, body: Re
   return { aborted: true }
 }
 
-/** For the sweep: uploads left for a week are given up. */
+/** For the sweep: uploads no part has gone to for a week are given up. */
 export async function abandonStaleArchiveUploads(env: DamBindings): Promise<number> {
   const cutoff = new Date(Date.now() - ARCHIVE_UPLOAD_DAYS * 86_400_000).toISOString()
-  return abandonUploads(env, env.DB.prepare('SELECT * FROM archive_uploads WHERE created_at < ? LIMIT 20').bind(cutoff))
+  return abandonUploads(env, env.DB.prepare('SELECT * FROM archive_uploads WHERE COALESCE(last_part_at, created_at) < ? LIMIT 20').bind(cutoff))
 }

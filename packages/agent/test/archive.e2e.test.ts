@@ -40,6 +40,8 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
   let data: string
   let bucket: string
   const calls: string[] = []
+  /** Stands in for cf-dam's answer to a call, when it returns one (tests put faults here). */
+  let cfDam: ((path: string, init?: RequestInit) => Promise<Response | undefined>) | null = null
   const client = new AwsClient({ ...s3Credentials, service: 's3', region: 'us-east-1' })
 
   beforeEach(async () => {
@@ -48,6 +50,7 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     photos = mkdtempSync(join(tmpdir(), 'nas-photos-'))
     data = mkdtempSync(join(tmpdir(), 'nas-data-'))
     calls.length = 0
+    cfDam = null
     bucket = `cfdam-agent-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6)}`
     expect((await client.fetch(`${s3Endpoint}/${bucket}`, { method: 'PUT' })).ok).toBe(true)
   })
@@ -61,7 +64,8 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     const fetchImpl = async (url: string, init?: RequestInit) => {
       const path = url.slice(BASE.length)
       calls.push(`${init?.method ?? 'GET'} ${path}`)
-      return h.fetch(path, init as RequestInit & { cookie?: string })
+      const faked = cfDam ? await cfDam(path, init) : undefined
+      return faked ?? h.fetch(path, init as RequestInit & { cookie?: string })
     }
     return new Agent({ url: BASE, dataDir: data, photosDir: photos, port: 0, host: '127.0.0.1', workers: 2, name: 'Studio Mac', extraFolders: [] }, new Api(BASE, null, fetchImpl, 1), async () => [])
   }
@@ -187,4 +191,255 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(calls.filter((c) => c === 'POST /api/agent/archive/complete')).toHaveLength(1)
     expect(calls.filter((c) => c === 'POST /api/agent/archive/link')).toHaveLength(1)
   }, 180_000)
+
+  // ── When things go wrong (PLAN-HELPER-ARCHIVE-v2 A.9) ──────────────────────
+
+  const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  const s3Url = (key: string, query = '') => `${s3Endpoint}/${bucket}/${key.split('/').map(encodeURIComponent).join('/')}${query}`
+  const serverUpload = async () => (await h.env.DB.prepare('SELECT key, multipart_id FROM archive_uploads').first<{ key: string; multipart_id: string }>())!
+  /** The bucket ends the upload under way, as its lifecycle rule does. */
+  const endAtBucket = async () => {
+    const u = await serverUpload()
+    expect((await client.fetch(s3Url(u.key, `?uploadId=${encodeURIComponent(u.multipart_id)}`), { method: 'DELETE' })).ok).toBe(true)
+  }
+  const fileState = (agent: Agent, rel: string) => agent.state.archiveError(agent.state.archiveCandidates(null, Date.now(), 100).find((f) => f.path === rel)?.root_id ?? rootOf(agent), rel)
+  const rootOf = (agent: Agent) => (agent as unknown as { lastConfig: { roots: { id: string }[] } }).lastConfig.roots[0]!.id
+  const progressOf = (agent: Agent) => (agent as unknown as { archiveProgress: { bucket: { refusing: string | null }; lastError: string | null } }).archiveProgress
+  /** The parts' PUTs to the bucket, with a fault in the way while `fault` answers. */
+  const faultyBucket = (agent: Agent, fault: (n: number) => Response | undefined) => {
+    let n = 0
+    agent.archiveFetch = async (url, init) => fault(++n) ?? fetch(url, init)
+  }
+  const s3Error = (status: number, code: string, msg = '') => new Response(`<?xml version="1.0"?><Error><Code>${code}</Code><Message>${msg}</Message></Error>`, { status })
+
+  it('starts again at once when cf-dam has forgotten an upload the helper was part-way through, without counting a try', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
+    await agent.archiveAll()
+    clearInterval(stopper)
+    // Swept, or a catalogue restored from before it began.
+    await h.env.DB.prepare('DELETE FROM archive_uploads').run()
+    calls.length = 0
+    const resumed = newAgent()
+    await resumed.pair()
+    await resumed.scanAll()
+    await resumed.archiveAll()
+    expect(await archived(connectionId)).toHaveLength(1)
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(1)
+    expect(fileState(resumed, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0, restarts: 0 })
+  }, 180_000)
+
+  it('records the copy when an earlier complete worked but its answer was lost', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    cfDam = async (path, init) => {
+      if (path !== '/api/agent/archive/complete') return undefined
+      // The bucket completes it; the answer never reaches cf-dam, which is asked again.
+      const u = await serverUpload()
+      const parts = (JSON.parse(String(init!.body)) as { parts: { partNumber: number; etag: string; checksum: string }[] }).parts
+      const xml = `<CompleteMultipartUpload>${parts.map((p) => `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${p.etag}</ETag><ChecksumSHA256>${p.checksum}</ChecksumSHA256></Part>`).join('')}</CompleteMultipartUpload>`
+      expect((await client.fetch(s3Url(u.key, `?uploadId=${encodeURIComponent(u.multipart_id)}`), { method: 'POST', body: xml })).ok).toBe(true)
+      cfDam = null
+      return undefined
+    }
+    await agent.archiveAll()
+    const copies = await archived(connectionId)
+    expect(copies).toHaveLength(1)
+    expect(await objectSha(copies[0]!.key)).toBe(fileSha(join(photos, '2020', 'DSC_0003.jpg')))
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(1)
+  }, 180_000)
+
+  it('starts a file again when the bucket ended its upload, without holding up the next file, and gives it up after three times', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    await photo('2021/DSC_0004.jpg', 4)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    // Ended once: started again in the same pass, and archived.
+    let ends = 1
+    cfDam = async (path) => {
+      if (path === '/api/agent/archive/complete' && ends > 0 && (await serverUpload())) {
+        ends--
+        await endAtBucket()
+      }
+      return undefined
+    }
+    await agent.archiveAll()
+    expect((await archived(connectionId)).map((c) => c.filename).sort()).toEqual(['DSC_0003.jpg', 'DSC_0004.jpg'])
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(3)
+  }, 180_000)
+
+  it('gives a file up, saying why, when the bucket ends every upload of it', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    cfDam = async (path) => {
+      if (path === '/api/agent/archive/complete') await endAtBucket()
+      return undefined
+    }
+    // Once a pass, a fresh start: three ends over two passes give it up.
+    await agent.archiveAll()
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0, restarts: 2 })
+    await agent.archiveAll()
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 3, restarts: 3 })
+    expect(fileState(agent, '2020/DSC_0003.jpg')?.error).toMatch(/lifecycle/)
+    expect(await archived(connectionId)).toEqual([])
+    calls.length = 0
+    await agent.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
+  }, 180_000)
+
+  it('waits out a bucket that is busy or timed out, without starting the upload again', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    faultyBucket(agent, (n) => (n === 2 ? s3Error(400, 'RequestTimeout') : n === 4 ? s3Error(429, 'SlowDown') : undefined))
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toHaveLength(1)
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/abort')).toEqual([])
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(1)
+  }, 180_000)
+
+  it('signs a part again when its URL has expired, keeping the parts already sent', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    faultyBucket(agent, (n) => (n === 2 ? s3Error(400, 'ExpiredToken') : n === 3 ? s3Error(403, 'AccessDenied', 'Request has expired') : undefined))
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toHaveLength(1)
+    const parts = Math.ceil(readFileSync(join(photos, '2020', 'DSC_0003.jpg')).byteLength / PART)
+    // Each part signed once, and the one that expired twice more.
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/part')).toHaveLength(parts + 2)
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(1)
+  }, 180_000)
+
+  it('counts one try when the bucket refuses a part, keeps the upload, and carries on from that part next time', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    let refusing = true
+    faultyBucket(agent, (n) => (refusing && n >= 2 ? s3Error(403, 'AccessDenied', 'Access Denied') : undefined))
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toEqual([])
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 1 })
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/abort')).toEqual([])
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    expect(agent.state.upload(asset!.id)?.parts).toHaveLength(1)
+    refusing = false
+    calls.length = 0
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toHaveLength(1)
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toEqual([])
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('gives no file up while the bucket refuses everything, and waits longer between tries', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    const { agent } = await setUp()
+    await agent.scanAll()
+    cfDam = async (path) =>
+      path === '/api/agent/archive/start' ? answer(502, { error: 'storage', code: 'AccessDenied', scope: 'bucket', message: 'Creating the upload failed: AccessDenied' }) : undefined
+    for (let i = 0; i < 5; i++) await agent.archiveAll()
+    // One try, then waiting: the other four passes asked nothing.
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(1)
+    expect(progressOf(agent).bucket.refusing).toBe('AccessDenied')
+    const backoff = (agent as unknown as { bucketBackoff: { until: number; waitMs: number } }).bucketBackoff
+    expect(backoff.waitMs).toBe(15 * 60_000)
+    // The wait over, refused again: twice as long.
+    backoff.until = 0
+    await agent.archiveAll()
+    expect(backoff.waitMs).toBe(30 * 60_000)
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+    // Answering again: archived, and the refusal forgotten.
+    cfDam = null
+    backoff.until = 0
+    await agent.archiveAll()
+    expect(progressOf(agent).bucket.refusing).toBeNull()
+    expect(backoff.waitMs).toBe(0)
+  }, 180_000)
+
+  it('blames a file cf-dam fails on only when the files after it get through', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const bad = (await h.env.DB.prepare("SELECT id FROM assets WHERE filename = 'DSC_0001.jpg'").first<{ id: string }>())!.id
+    cfDam = async (path, init) =>
+      path === '/api/agent/archive/start' && String(init?.body).includes(bad) ? answer(500, { error: 'internal_error' }) : undefined
+    await agent.archiveAll()
+    expect((await archived(connectionId)).map((c) => c.filename)).toEqual(['DSC_0002.jpg'])
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 1 })
+    // Alone in a pass, nothing shows whether cf-dam or the file is at fault: no try.
+    await agent.archiveAll()
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 1 })
+    // With new photos getting through after it, each pass counts one.
+    for (const seed of [5, 6]) {
+      await photo(`2019/DSC_000${seed}.jpg`, seed)
+      await agent.scanAll()
+      await agent.archiveAll()
+    }
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 3 })
+    expect(await archived(connectionId)).toHaveLength(3)
+  }, 180_000)
+
+  it('stops after two files cf-dam fails on, blaming neither', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    await photo('2019/DSC_0003.jpg', 3)
+    const { agent } = await setUp()
+    await agent.scanAll()
+    cfDam = async (path) => (path === '/api/agent/archive/start' ? answer(500, { error: 'internal_error' }) : undefined)
+    await agent.archiveAll()
+    // Each start is asked twice (one retry), for two files; the third isn't tried.
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/start')).toHaveLength(4)
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg', '2019/DSC_0003.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('stops archiving when it is turned off, even part-way through a file', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    await photo('2021/DSC_0004.jpg', 4)
+    const { agent, sourceId, connectionId } = await setUp()
+    await agent.scanAll()
+    const [asset] = (await h.env.DB.prepare("SELECT id FROM assets WHERE filename = 'DSC_0003.jpg'").all<{ id: string }>()).results
+    const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
+    await agent.archiveAll()
+    clearInterval(stopper)
+    expect((await h.fetch(`/api/sources/${sourceId}`, { method: 'PATCH', body: JSON.stringify({ archive: null }), cookie: admin })).status).toBe(200)
+    calls.length = 0
+    ;(agent as unknown as { stopping: boolean }).stopping = false
+    await agent.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual(['POST /api/agent/archive/part'])
+    expect(await archived(connectionId)).toEqual([])
+    // Off until the next config says otherwise.
+    calls.length = 0
+    await agent.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('archives as before against a cf-dam that gives no codes', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const changed = (await h.env.DB.prepare("SELECT id FROM assets WHERE filename = 'DSC_0001.jpg'").first<{ id: string }>())!.id
+    // An older cf-dam: no capabilities, and a plain refusal for a file it thinks has changed.
+    cfDam = async (path, init) => {
+      if (path === '/api/agent/config') {
+        const config = (await (await h.fetch(path, init as RequestInit & { cookie?: string })).json()) as Record<string, unknown>
+        delete config.capabilities
+        return answer(200, config)
+      }
+      return path === '/api/agent/archive/start' && String(init?.body).includes(changed) ? answer(409, { error: 'invalid_request', message: 'The file changed since it was indexed.' }) : undefined
+    }
+    await agent.scanAll()
+    await agent.archiveAll()
+    expect((await archived(connectionId)).map((c) => c.filename)).toEqual(['DSC_0002.jpg'])
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
 })
+

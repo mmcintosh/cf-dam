@@ -409,7 +409,7 @@ export function underPrefix(provider: StorageProvider, prefix: string): StorageP
 }
 
 /** A provider for a connection. Credentials are unsealed lazily, on the first request that needs them. */
-export function providerFor(env: DamBindings, connection: Connection, fetchImpl?: typeof fetch): StorageProvider {
+export function providerFor(env: DamBindings, connection: Connection, fetchImpl?: typeof fetch, options: { minCredentialLifeMs?: number } = {}): StorageProvider {
   if (connection.provider === 'nas') {
     throw new StorageError(`The original is on ${connection.name}; only its agent can read it.`, 'OnNas', 409)
   }
@@ -434,6 +434,7 @@ export function providerFor(env: DamBindings, connection: Connection, fetchImpl?
           roleArn: connection.roleArn,
           region: connection.region ?? undefined,
           fetch: fetchImpl,
+          minLifeMs: options.minCredentialLifeMs,
         })
       },
     })

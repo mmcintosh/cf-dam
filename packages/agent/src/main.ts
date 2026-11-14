@@ -4,8 +4,8 @@
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { Api, Paused, Unpaired } from './api.ts'
-import { archivePass, newArchiveProgress, type ArchiveSettings } from './archive.ts'
+import { Api, Paused, Unpaired, type FetchLike } from './api.ts'
+import { archivePass, newArchiveProgress, NotArchiving, type ArchiveSettings, type BucketBackoff } from './archive.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
 import { FACE_MODEL, hasFaceModel } from './faces.ts'
@@ -41,6 +41,10 @@ export class Agent {
   /** cf-dam's refusals of the key in a row; only a few in a row mean it is really gone. */
   private refusals = 0
   private archiveProgress = newArchiveProgress()
+  /** How long to leave a bucket that refused everything (kept across passes). */
+  private bucketBackoff: BucketBackoff = { until: 0, waitMs: 0 }
+  /** The parts' PUTs to the bucket go through this; tests put faults in its way. */
+  archiveFetch: FetchLike | undefined
   /** Folders the last whole scan couldn't read: kept between scans, so cf-dam's alert doesn't flicker. */
   private denied: string[] = []
   /** The config of the last scan: its folders and archive settings. */
@@ -298,8 +302,16 @@ export class Agent {
         progress: this.archiveProgress,
         shouldStop: () => this.stopping || this.paused,
         budgetMs: this.scanIntervalMs,
+        backoff: this.bucketBackoff,
+        fetchImpl: this.archiveFetch,
         log,
       })
+    } catch (error) {
+      // cf-dam says this helper doesn't archive (to that bucket) any more: off until the next config says otherwise.
+      if (!(error instanceof NotArchiving)) throw error
+      log('Archiving stopped:', error.message)
+      if (this.lastConfig) this.lastConfig = { ...this.lastConfig, archive: null }
+      this.archiveProgress = newArchiveProgress()
     } finally {
       clearInterval(beat)
     }

@@ -117,7 +117,12 @@ export class S3Provider implements StorageProvider {
   private async send(method: string, url: URL, init: { headers?: Record<string, string>; body?: BodyInit | null } = {}): Promise<Response> {
     const client = await this.client()
     const signed = await client.sign(url.toString(), { method, headers: init.headers, body: init.body ?? null })
-    return this.fetchImpl(signed)
+    try {
+      return await this.fetchImpl(signed)
+    } catch (error) {
+      // No answer from the bucket at all: a StorageError like any refusal, so callers can say which it was.
+      throw new StorageError(`No answer from the bucket: ${error instanceof Error ? error.message : String(error)}`, 'NetworkError')
+    }
   }
 
   /**
@@ -185,6 +190,7 @@ export class S3Provider implements StorageProvider {
       lastModified: modified ? new Date(modified).toISOString() : null,
       restore: parseRestoreHeader(response.headers.get('x-amz-restore')),
       sha256: whole ? toHex(Uint8Array.from(atob(checksum), (c) => c.charCodeAt(0))) : null,
+      checksumSha256: checksum,
     }
   }
 

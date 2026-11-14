@@ -21,10 +21,17 @@ import { archiveConfig } from './archive'
 import { askAgent } from './previews'
 import { mimeTypeFor, safeFilename } from './uploads'
 
+/**
+ * What the helper can act on, beyond the status: archiving's refusals each say which one they are
+ * (PLAN-HELPER-ARCHIVE-v2 A.1), so a helper can tell "the file changed" from "that upload is gone".
+ */
+export type AgentErrorCode = 'not_archiving' | 'changed' | 'twin_mismatch' | 'no_upload' | 'no_photo' | 'bad_request'
+
 export class AgentError extends Error {
   constructor(
     message: string,
     readonly status: 400 | 403 | 404 | 409 | 410 = 400,
+    readonly code?: AgentErrorCode,
   ) {
     super(message)
   }
@@ -420,6 +427,8 @@ export async function agentConfig(db: D1Database, source: SourceRow) {
     scanIntervalMinutes: SCAN_INTERVAL_MINUTES,
     defaultExcludes: DEFAULT_EXCLUDES,
     archive: archiveConfig(source),
+    // What this Worker understands, so a newer helper uses each new behaviour only where it's offered (PLAN-HELPER-ARCHIVE-v2 B.4).
+    capabilities: { archiveCodes: 1 },
   }
 }
 

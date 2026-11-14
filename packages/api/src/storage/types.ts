@@ -45,6 +45,8 @@ export interface ObjectHead {
   restore: RestoreStatus | null
   /** The whole object's SHA-256 (hex), where the store keeps one (given at upload). */
   sha256?: string | null
+  /** The SHA-256 checksum as the store reports it (base64; for a multipart object, of its parts' checksums). */
+  checksumSha256?: string | null
 }
 
 export interface ObjectBody {
