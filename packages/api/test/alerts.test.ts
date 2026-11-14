@@ -87,6 +87,24 @@ describe('alerts', () => {
     ])
   })
 
+  it('keeps archiving’s alerts open while files are given up, unreadable or refused, not only after a failed pass', async () => {
+    const clean = { gaveUp: { files: 0, bytes: 0 }, cantRead: { new: 0, archived: 0 }, notReadYet: 0, bucket: { refusing: null, until: null }, lastGaveUp: null, lastError: null }
+    const mac = await agent('Mac', 'darwin/arm64', NOW.toISOString(), { archive: { ...clean, gaveUp: { files: 2, bytes: 10 }, lastGaveUp: { path: 'a.jpg', error: 'refused', at: null }, cantRead: { new: 5, archived: 1 }, bucket: { refusing: 'AccessDenied', until: null } } }, { connectionId: 'aws' })
+    await checkAlerts(h.env, NOW)
+    expect((await list()).open.map((a) => a.message).sort()).toEqual([
+      '1 file “Mac” has archived can no longer be read. Its archived copy is kept; check the file.',
+      'The archive bucket refuses “Mac”: AccessDenied. Archiving waits and tries again; check the bucket and its role or keys.',
+      '“Mac” couldn’t archive 2 files, even after trying again. The last: a.jpg: refused',
+    ])
+    // A clean pass doesn't close them: only the counts going to nothing does.
+    await h.env.DB.prepare('UPDATE sources SET status = ? WHERE id = ?').bind(JSON.stringify({ archive: { ...clean, gaveUp: { files: 2, bytes: 10 } } }), mac).run()
+    await checkAlerts(h.env, NOW)
+    expect(await kinds()).toEqual(['agent.archiveGaveUp'])
+    await h.env.DB.prepare('UPDATE sources SET status = ? WHERE id = ?').bind(JSON.stringify({ archive: clean }), mac).run()
+    await checkAlerts(h.env, NOW)
+    expect(await kinds()).toEqual([])
+  })
+
   it('counts originals missing, changed or unreadable in storage', async () => {
     const row = (id: string, result: string) => [
       h.env.DB.prepare("INSERT INTO assets (id, filename, mime_type, size, status, created_at, updated_at) VALUES (?, 'x.jpg', 'image/jpeg', 1, 'ready', 'x', 'x')").bind(id),

@@ -203,6 +203,8 @@ export interface SourceRow {
   created_at: string
   /** Archive settings, JSON (catalog/archive.ts). */
   archive: string
+  /** "Try them again" asked, not yet passed to the helper. */
+  archive_retry_at?: string | null
 }
 
 export interface RootRow {
@@ -380,17 +382,34 @@ export async function revokeSource(db: D1Database, id: string): Promise<boolean>
 }
 
 /** The heartbeat: what the agent is doing. The reply tells it to pause or rescan. */
+export const MAX_STATUS_CHARS = 8000
+
 export async function heartbeat(db: D1Database, source: SourceRow, input: { version?: unknown; platform?: unknown; status?: unknown }) {
-  const status = typeof input.status === 'object' && input.status !== null ? JSON.stringify(input.status).slice(0, 8000) : source.status
+  let status = source.status
+  if (typeof input.status === 'object' && input.status !== null) {
+    const sent = JSON.stringify(input.status)
+    // Cut, it would no longer be JSON (and read back as nothing): keep the last one that fitted.
+    if (sent.length <= MAX_STATUS_CHARS) status = sent
+    else console.warn('[agent] status too long to keep', source.id, sent.length)
+  }
+  const retry = !!source.archive_retry_at
   const [, asked] = await db.batch([
     db
-      .prepare('UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0 WHERE id = ?')
-      .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status.startsWith('{') ? status : '{}', source.id),
+      .prepare(
+        `UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0,
+           archive_retry_at = CASE WHEN archive_retry_at IS ? THEN NULL ELSE archive_retry_at END WHERE id = ?`,
+      )
+      .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status?.startsWith('{') ? status : '{}', source.archive_retry_at ?? null, source.id),
     // Photos whose previews went missing (catalog/previews.ts): the agent sends those files again.
     askAgent(db, source.id),
   ])
   const resend = (asked!.results as { asset_id: string }[]).map((r) => r.asset_id)
-  return { paused: source.paused === 1, rescan: source.rescan === 1 || resend.length > 0, ...(resend.length > 0 ? { resend } : {}) }
+  return {
+    paused: source.paused === 1,
+    rescan: source.rescan === 1 || resend.length > 0,
+    ...(resend.length > 0 ? { resend } : {}),
+    ...(retry ? { archiveRetry: true } : {}),
+  }
 }
 
 export async function reportFolders(db: D1Database, source: SourceRow, folders: unknown, volumes: unknown = []): Promise<number> {

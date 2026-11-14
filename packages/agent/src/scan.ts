@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto'
 import { open, opendir, stat } from 'node:fs/promises'
 import { extname, join, relative, sep } from 'node:path'
-import type { FileRow } from './state.ts'
+import { MAX_SCAN_ATTEMPTS, type FileRow } from './state.ts'
 
 export const PHOTO_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.heic', '.heif', '.webp', '.avif', '.gif',
@@ -113,7 +113,7 @@ export function plan(found: Map<string, Found>, known: Map<string, FileRow>, unr
     const row = known.get(file.path)
     const same = row && row.size === file.size && row.mtime_ms === file.mtimeMs
     if (same && row.status === 'done') continue
-    if (same && row.status === 'error' && row.attempts >= 3) continue
+    if (same && row.status === 'error' && row.attempts >= MAX_SCAN_ATTEMPTS) continue
     work.push({ file, known: row })
   }
   const shaded = (path: string) => unreadable.some((d) => d === '' || path === d || path.startsWith(`${d}/`))

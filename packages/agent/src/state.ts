@@ -26,6 +26,12 @@ export const STOPPED_READING = 'The agent stopped while reading this file (out o
 
 /** Archiving gives up on a file after this many failed tries (until the next agent version). */
 export const MAX_ARCHIVE_ATTEMPTS = 3
+/** A file the scan couldn't read is left alone after this many tries (until a new helper version). */
+export const MAX_SCAN_ATTEMPTS = 3
+/** A file given up on is tried again after this long (and again a week after each time it's given up). */
+export const ARCHIVE_RETRY_MS = 7 * 24 * 60 * 60_000
+/** Clipped before they go in the status cf-dam keeps (8,000 characters for all of it). */
+const clip = (text: string | null, n = 200) => (text && text.length > n ? `${text.slice(0, n - 1)}…` : text)
 
 export interface ArchiveCandidate {
   root_id: string
@@ -40,6 +46,13 @@ export interface ArchivePart {
   partNumber: number
   etag: string
   checksum: string
+}
+
+export interface ArchiveCounts {
+  gaveUp: { files: number; bytes: number }
+  cantRead: { new: number; archived: number }
+  notReadYet: number
+  lastGaveUp: { path: string; error: string | null; at: string | null } | null
 }
 
 export interface ArchiveUpload {
@@ -120,6 +133,9 @@ export class State {
     // Why the last try failed, and how many times the bucket ended an upload of it before it finished.
     if (!columns.includes('archive_error')) this.db.exec('ALTER TABLE files ADD COLUMN archive_error TEXT')
     if (!columns.includes('archive_restarts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_restarts INTEGER NOT NULL DEFAULT 0')
+    // When a file given up on is tried again by itself (ms; set each time it's given up).
+    if (!columns.includes('archive_retry_at')) this.db.exec('ALTER TABLE files ADD COLUMN archive_retry_at INTEGER')
+    this.db.exec(`CREATE INDEX IF NOT EXISTS files_archive_gave_up ON files (root_id, path) WHERE archive_attempts >= ${MAX_ARCHIVE_ATTEMPTS}`)
     if (!columns.includes('preview_later')) this.db.exec('ALTER TABLE files ADD COLUMN preview_later INTEGER NOT NULL DEFAULT 0')
     this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
     // What's left to archive, without reading every file's row (a million, for a big archive).
@@ -145,7 +161,12 @@ export class State {
         `INSERT INTO files (root_id, path, size, mtime_ms, quick_hash, asset_id, status, error, attempts, preview_later, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 'done', NULL, 0, ?, ?)
          ON CONFLICT (root_id, path) DO UPDATE SET size = excluded.size, mtime_ms = excluded.mtime_ms, quick_hash = excluded.quick_hash,
-           asset_id = excluded.asset_id, status = 'done', error = NULL, attempts = 0, preview_later = excluded.preview_later, updated_at = excluded.updated_at`,
+           asset_id = excluded.asset_id, status = 'done', error = NULL, attempts = 0, preview_later = excluded.preview_later, updated_at = excluded.updated_at,
+           -- A file that changed is a new file to archive: whatever went wrong with the old one is history.
+           archive_attempts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_attempts ELSE 0 END,
+           archive_restarts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_restarts ELSE 0 END,
+           archive_error = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_error ELSE NULL END,
+           archive_retry_at = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_retry_at ELSE NULL END`,
       )
       .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, f.previewLater ? 1 : 0, new Date().toISOString())
   }
@@ -267,10 +288,10 @@ export class State {
       .prepare(
         `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
-           AND archive_attempts < ? AND mtime_ms < ? AND (root_id, path) > (?, ?)
+           AND (archive_attempts < ? OR archive_retry_at <= ?) AND mtime_ms < ? AND (root_id, path) > (?, ?)
          ORDER BY root_id, path LIMIT ?`,
       )
-      .all(MAX_ARCHIVE_ATTEMPTS, stableBefore, after?.rootId ?? '', after?.path ?? '', limit) as unknown as ArchiveCandidate[]
+      .all(MAX_ARCHIVE_ATTEMPTS, Date.now(), stableBefore, after?.rootId ?? '', after?.path ?? '', limit) as unknown as ArchiveCandidate[]
   }
 
   /** How much is left to archive (for progress and the estimated finish). */
@@ -279,28 +300,73 @@ export class State {
       .prepare(
         `SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
-           AND archive_attempts < ? AND mtime_ms < ?`,
+           AND (archive_attempts < ? OR archive_retry_at <= ?) AND mtime_ms < ?`,
       )
-      .get(MAX_ARCHIVE_ATTEMPTS, stableBefore) as { files: number; bytes: number }
+      .get(MAX_ARCHIVE_ATTEMPTS, Date.now(), stableBefore) as { files: number; bytes: number }
     return { files: row.files, bytes: Number(row.bytes) }
   }
 
   archived(rootId: string, path: string, quickHash: string): void {
     this.db
-      .prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0, archive_error = NULL, archive_restarts = 0 WHERE root_id = ? AND path = ?')
+      .prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0, archive_error = NULL, archive_restarts = 0, archive_retry_at = NULL WHERE root_id = ? AND path = ?')
       .run(quickHash, rootId, path)
   }
 
   /** One failed try, and why. */
   archiveFailed(rootId: string, path: string, reason: string): void {
+    // Given up on with this try (or tried again after a week and failed): tried again a week from now.
     this.db
-      .prepare('UPDATE files SET archive_attempts = archive_attempts + 1, archive_error = ? WHERE root_id = ? AND path = ?')
-      .run(reason.slice(0, 500), rootId, path)
+      .prepare(
+        `UPDATE files SET archive_attempts = archive_attempts + 1, archive_error = ?,
+           archive_retry_at = CASE WHEN archive_attempts + 1 >= ? THEN ? ELSE NULL END
+         WHERE root_id = ? AND path = ?`,
+      )
+      .run(reason.slice(0, 500), MAX_ARCHIVE_ATTEMPTS, Date.now() + ARCHIVE_RETRY_MS, rootId, path)
   }
 
   /** Given up on at once (no more tries), and why. */
   archiveGiveUp(rootId: string, path: string, reason: string): void {
-    this.db.prepare('UPDATE files SET archive_attempts = ?, archive_error = ? WHERE root_id = ? AND path = ?').run(MAX_ARCHIVE_ATTEMPTS, reason.slice(0, 500), rootId, path)
+    this.db
+      .prepare('UPDATE files SET archive_attempts = MAX(archive_attempts, ?), archive_error = ?, archive_retry_at = ? WHERE root_id = ? AND path = ?')
+      .run(MAX_ARCHIVE_ATTEMPTS, reason.slice(0, 500), Date.now() + ARCHIVE_RETRY_MS, rootId, path)
+  }
+
+  /** "Try them again": every file given up on gets its tries back. */
+  archiveRetryAll(): number {
+    return Number(
+      this.db.prepare('UPDATE files SET archive_attempts = 0, archive_restarts = 0, archive_retry_at = NULL WHERE archive_attempts >= ?').run(MAX_ARCHIVE_ATTEMPTS).changes,
+    )
+  }
+
+  /**
+   * What archiving can't do, for the panel and the alerts: files given up on (until their weekly retry), files that
+   * couldn't be read and so have no photo to archive, archived files that can no longer be read, and files still
+   * within the scan's tries.
+   */
+  archiveCounts(now = Date.now()): ArchiveCounts {
+    const row = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'done' AND archive_attempts >= ? AND (archive_retry_at IS NULL OR archive_retry_at > ?)) AS gave_up,
+           COALESCE(SUM(size) FILTER (WHERE status = 'done' AND archive_attempts >= ? AND (archive_retry_at IS NULL OR archive_retry_at > ?)), 0) AS gave_up_bytes,
+           COUNT(*) FILTER (WHERE status = 'error' AND attempts >= ? AND archived_hash IS NULL) AS cant_read_new,
+           COUNT(*) FILTER (WHERE status = 'error' AND attempts >= ? AND archived_hash IS NOT NULL) AS cant_read_archived,
+           COUNT(*) FILTER (WHERE (status = 'error' AND attempts < ?) OR status = 'resend') AS not_read_yet
+         FROM files`,
+      )
+      .get(MAX_ARCHIVE_ATTEMPTS, now, MAX_ARCHIVE_ATTEMPTS, now, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS) as Record<string, number>
+    const last = this.db
+      .prepare(`SELECT path, archive_error, archive_retry_at FROM files WHERE archive_attempts >= ? AND status = 'done' ORDER BY archive_retry_at DESC LIMIT 1`)
+      .get(MAX_ARCHIVE_ATTEMPTS) as { path: string; archive_error: string | null; archive_retry_at: number | null } | undefined
+    return {
+      gaveUp: { files: row.gave_up ?? 0, bytes: Number(row.gave_up_bytes ?? 0) },
+      cantRead: { new: row.cant_read_new ?? 0, archived: row.cant_read_archived ?? 0 },
+      notReadYet: row.not_read_yet ?? 0,
+      lastGaveUp:
+        last && row.gave_up
+          ? { path: clip(last.path)!, error: clip(last.archive_error), at: last.archive_retry_at ? new Date(last.archive_retry_at - ARCHIVE_RETRY_MS).toISOString() : null }
+          : null,
+    }
   }
 
   /** The bucket ended an upload of this file before it finished: how many times now. */
@@ -387,7 +453,8 @@ export class State {
    */
   saveCredentials(c: Credentials): void {
     const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'source_id'").get() as { value: string } | undefined)?.value
-    if (was !== c.sourceId) this.db.exec('DELETE FROM files')
+    // A new source: its uploads (made for the old one's photos) go with the file list.
+    if (was !== c.sourceId) this.db.exec('DELETE FROM files; DELETE FROM archive_uploads')
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('source_id', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(c.sourceId)
     writeFileSync(this.credentialsPath, JSON.stringify(c), { mode: 0o600 })
     chmodSync(this.credentialsPath, 0o600)

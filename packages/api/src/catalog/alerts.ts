@@ -28,6 +28,15 @@ export const SWEEP_RECOVERED_MS = 15 * 60_000
 export const SWEEP_STALLED_MS = 20 * 60_000
 /** Photos still waiting to be processed after this long: the background work isn't getting through. */
 export const PROCESSING_STUCK_MS = 24 * 3_600_000
+/** What a helper says about its archiving in its status (the parts the alerts read). */
+interface ArchiveStatus {
+  lastError?: string | null
+  gaveUp?: { files: number; bytes: number }
+  cantRead?: { new: number; archived: number }
+  bucket?: { refusing: string | null; until: string | null }
+  lastGaveUp?: { path: string; error: string | null; at: string | null } | null
+}
+
 /** Originals waiting to be archived, with nothing copied for this long. */
 export const ARCHIVE_STALLED_MS = 24 * 3_600_000
 const CHECKED_KEY = 'alerts.checked_at'
@@ -144,13 +153,28 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
       // Whatever it said last is out of date.
       continue
     }
-    const status = json<{ denied?: string[]; archive?: { lastError?: string | null } }>(s.status, {})
+    const status = json<{ denied?: string[]; archive?: ArchiveStatus }>(s.status, {})
     if (status.denied?.length) {
       findings.push({ key: `agent.denied:${s.id}`, kind: 'agent.denied', text: status.denied.length > 1 ? { key: 'alert.deniedMore', params: { name: s.name, folder: status.denied[0]!, count: status.denied.length - 1 } } : { key: 'alert.denied', params: { name: s.name, folder: status.denied[0]! } }, link: '/sources' })
     }
     const archiving = json<{ connectionId?: string | null }>(s.archive, {}).connectionId
-    if (archiving && status.archive?.lastError) {
-      findings.push({ key: `agent.archive:${s.id}`, kind: 'agent.archive', text: { key: 'alert.archiveFailed', params: { name: s.name, error: clip(status.archive.lastError) } }, link: '/sources' })
+    const a = status.archive
+    if (archiving && a?.gaveUp) {
+      // A helper that counts (PLAN-HELPER-ARCHIVE-v2 A.5): alerts that stay open while anything is left undone, not
+      // the last pass's error, which the next pass clears.
+      if (a.gaveUp.files > 0) {
+        const last = a.lastGaveUp ? `${a.lastGaveUp.path}: ${a.lastGaveUp.error ?? ''}` : ''
+        findings.push({ key: `agent.archiveGaveUp:${s.id}`, kind: 'agent.archiveGaveUp', text: { key: 'alert.archiveGaveUp', params: { name: s.name, count: a.gaveUp.files, last: clip(last) } }, link: '/sources' })
+      }
+      if ((a.cantRead?.archived ?? 0) > 0) {
+        findings.push({ key: `agent.cantRead:${s.id}`, kind: 'agent.cantRead', text: { key: 'alert.archivedUnreadable', params: { name: s.name, count: a.cantRead!.archived } }, link: '/sources' })
+      }
+      if (a.bucket?.refusing) {
+        findings.push({ key: `agent.bucketRefusing:${s.id}`, kind: 'agent.bucketRefusing', text: { key: 'alert.bucketRefusing', params: { name: s.name, code: clip(a.bucket.refusing) } }, link: '/sources' })
+      }
+    } else if (archiving && a?.lastError) {
+      // An older helper: only the last pass's error to go on.
+      findings.push({ key: `agent.archive:${s.id}`, kind: 'agent.archive', text: { key: 'alert.archiveFailed', params: { name: s.name, error: clip(a.lastError) } }, link: '/sources' })
     }
   }
 

@@ -20,6 +20,7 @@ import { logActivity } from '../lib/activity'
 import { parseArchiveSettings, validArchiveSettings } from '../catalog/archive'
 import { BadRequest, readJsonObject } from '../lib/http'
 import { say } from '../lib/language'
+import { nowIso } from '../lib/time'
 
 export const sourceRoutes = new Hono<DamEnv>()
 sourceRoutes.use('*', requirePermission('sources:manage'))
@@ -141,6 +142,14 @@ sourceRoutes.post('/:id/rescan', async (c) => {
   const source = await loadSource(c)
   if (!source) return c.json({ error: 'not_found' }, 404)
   await c.env.DB.prepare('UPDATE sources SET rescan = 1 WHERE id = ?').bind(source.id).run()
+  return c.json({ ok: true })
+})
+
+/** "Try them again": the helper gives every file it gave up archiving its tries back, at its next heartbeat. */
+sourceRoutes.post('/:id/archive/retry', async (c) => {
+  const source = await loadSource(c)
+  if (!source) return c.json({ error: 'not_found' }, 404)
+  await c.env.DB.prepare('UPDATE sources SET archive_retry_at = ? WHERE id = ?').bind(nowIso(), source.id).run()
   return c.json({ ok: true })
 })
 
