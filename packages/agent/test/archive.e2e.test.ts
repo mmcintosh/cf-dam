@@ -450,6 +450,9 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
     await agent.archiveAll()
     clearInterval(stopper)
+    // A slow machine may finish a second part before the stop lands; whatever was sent must be kept.
+    const sent = agent.state.upload(asset!.id)!.parts.length
+    expect(sent).toBeGreaterThanOrEqual(1)
     // Part 1's bytes change in place (past the fingerprint's first MiB), and the date is put back: a disk going bad.
     const path = join(photos, '2020', 'DSC_0003.jpg')
     const { mtime } = statSync(path)
@@ -466,7 +469,7 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(await archived(connectionId)).toEqual([])
     expect(calls).not.toContain('POST /api/agent/archive/complete')
     expect(calls).not.toContain('POST /api/agent/archive/abort')
-    expect(resumed.state.upload(asset!.id)?.parts).toHaveLength(1)
+    expect(resumed.state.upload(asset!.id)?.parts).toHaveLength(sent)
     expect(resumed.state.archiveCounts().held).toMatchObject({ files: 1, first: { path: '2020/DSC_0003.jpg', reason: 'changed without its date moving (part 1)' } })
     expect(fileState(resumed, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
     // Held: the next pass leaves it alone.
