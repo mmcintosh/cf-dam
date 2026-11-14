@@ -13,7 +13,8 @@ beforeEach(async () => {
 })
 afterEach(async () => h.dispose())
 
-const NOW = new Date('2026-10-21T12:00:00Z')
+// Today, on the hour: the alerts page lists alerts resolved in the last 14 days by the real clock.
+const NOW = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000)
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString()
 const MIN = 60_000
 const HOUR = 60 * MIN
