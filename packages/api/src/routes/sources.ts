@@ -20,6 +20,7 @@ import { logActivity } from '../lib/activity'
 import { parseArchiveSettings, validArchiveSettings } from '../catalog/archive'
 import { BadRequest, readJsonObject } from '../lib/http'
 import { say } from '../lib/language'
+import { nowIso } from '../lib/time'
 
 export const sourceRoutes = new Hono<DamEnv>()
 sourceRoutes.use('*', requirePermission('sources:manage'))
@@ -141,6 +142,29 @@ sourceRoutes.post('/:id/rescan', async (c) => {
   const source = await loadSource(c)
   if (!source) return c.json({ error: 'not_found' }, 404)
   await c.env.DB.prepare('UPDATE sources SET rescan = 1 WHERE id = ?').bind(source.id).run()
+  return c.json({ ok: true })
+})
+
+/** "Try them again": the helper gives every file it gave up archiving its tries back, at its next heartbeat. */
+sourceRoutes.post('/:id/archive/retry', async (c) => {
+  const source = await loadSource(c)
+  if (!source) return c.json({ error: 'not_found' }, 404)
+  await c.env.DB.prepare('UPDATE sources SET archive_retry_at = ? WHERE id = ?').bind(nowIso(), source.id).run()
+  return c.json({ ok: true })
+})
+
+/**
+ * Files the helper held because their bytes changed without their date moving: archive them as they are now, or keep
+ * the copy already in the bucket. Passed to the helper at its next heartbeat; logged, since it decides which copy
+ * is kept.
+ */
+sourceRoutes.post('/:id/archive/held', async (c) => {
+  const source = await loadSource(c)
+  if (!source) return c.json({ error: 'not_found' }, 404)
+  const { choice } = await readJsonObject(c)
+  if (choice !== 'archive' && choice !== 'keep') return c.json({ error: 'invalid_request', message: 'choice is "archive" or "keep".' }, 400)
+  await c.env.DB.prepare('UPDATE sources SET archive_held_choice = ? WHERE id = ?').bind(choice, source.id).run()
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: choice === 'archive' ? 'archive.held_archived' : 'archive.held_kept', targetType: 'source', targetId: source.id, details: { name: source.name } })
   return c.json({ ok: true })
 })
 

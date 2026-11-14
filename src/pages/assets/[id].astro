@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:workers'
 import { displayLabelNames } from '../../lib/label-names'
 import { createFormat, getT, intlTag } from '@cf-dam/i18n'
-import { ARCHIVE_CLASSES, assetJson, facesInstalled, facetsAvailable, folderOf, photoFaces, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
+import { ARCHIVE_CLASSES, assetJson, earlierCopies, facesInstalled, facetsAvailable, folderOf, photoFaces, getAiSettings, getAsset, getConnection, getLabelNames, getLocations, getTags, IPTC_FIELDS, listPresets, meaningAvailable } from '@cf-dam/api'
 import AppLayout from '../../layouts/AppLayout.astro'
 import AssetEditor from '../../components/AssetEditor.svelte'
 import ImageTools from '../../components/ImageTools.svelte'
@@ -19,11 +19,12 @@ const id = Astro.params.id!
 const row = await getAsset(env.DB, id)
 if (!row) return new Response('Not found', { status: 404 })
 
-const [locations, tags, renditionRows, aiSettings] = await Promise.all([
+const [locations, tags, renditionRows, aiSettings, earlier] = await Promise.all([
   getLocations(env.DB, id),
   getTags(env.DB, id),
   env.DB.prepare('SELECT name FROM renditions WHERE asset_id = ?').bind(id).all<{ name: string }>(),
   getAiSettings(env.DB),
+  earlierCopies(env.DB, id),
 ])
 const [labelNames, presets, inAlbums] = await Promise.all([
   getLabelNames(env.DB),
@@ -88,6 +89,10 @@ const facts: [string, string][] = [
   ...(asset.camera.lens ? [[t('common.lens'), asset.camera.lens] as [string, string]] : []),
   ...(exposure.length ? [[t('common.exposure'), exposure.join('  ·  ')] as [string, string]] : []),
   ...(asset.gps ? [[t('photo.location'), `${asset.gps.lat.toFixed(4)}, ${asset.gps.lng.toFixed(4)}`] as [string, string]] : []),
+  // Archived again after the file changed: the copies made before are still in the bucket, and listed here.
+  ...(earlier.length
+    ? [[t('photo.earlierCopies'), t('photo.earlierCopiesList', { count: earlier.length, dates: earlier.map((e) => createFormat(Astro.locals.lang).date(e.archived_at)).join(', ') })] as [string, string]]
+    : []),
 ]
 ---
 <AppLayout help="photo-page" wide title={asset.title ?? asset.filename} subtitle={taken ?? undefined}>

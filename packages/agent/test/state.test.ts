@@ -127,3 +127,70 @@ describe('the image tag', () => {
     expect(example).toContain(`image: ghcr.io/mmcintosh/cf-dam-agent:${AGENT_IMAGE_TAG}\n`)
   })
 })
+
+describe('files archiving couldn’t do (PLAN-HELPER-ARCHIVE-v2 A.5)', () => {
+  const old = Date.now() - 2 * 86_400_000
+  const settled = (state: State, path: string, quickHash = `qh-${path}`) =>
+    state.done('r1', path, { size: 1000, mtimeMs: old, quickHash, assetId: `asset-${path}` })
+  const candidates = (state: State) => state.archiveCandidates(null, Date.now(), 100).map((f) => f.path)
+
+  it('counts files given up on, tries them again a week later, and waits another week if they fail again', () => {
+    const state = new State(dataDir())
+    settled(state, 'a.jpg')
+    settled(state, 'b.jpg')
+    for (let i = 0; i < 3; i++) state.archiveFailed('r1', 'a.jpg', 'The bucket refused a part: AccessDenied')
+    expect(candidates(state)).toEqual(['b.jpg'])
+    expect(state.archiveLeft(Date.now())).toMatchObject({ files: 1 })
+    expect(state.archiveCounts()).toMatchObject({ gaveUp: { files: 1, bytes: 1000 }, lastGaveUp: { path: 'a.jpg', error: 'The bucket refused a part: AccessDenied' } })
+
+    // Eight days on: tried again, and no longer counted as given up.
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 8 * 86_400_000)
+    expect(candidates(state)).toEqual(['a.jpg', 'b.jpg'])
+    expect(state.archiveCounts().gaveUp.files).toBe(0)
+    // Failed again: another week.
+    state.archiveFailed('r1', 'a.jpg', 'still refused')
+    expect(candidates(state)).toEqual(['b.jpg'])
+    expect(state.archiveCounts().gaveUp.files).toBe(1)
+  })
+
+  it('gives a file that changed its tries back, and "Try them again" gives every one back', () => {
+    const state = new State(dataDir())
+    settled(state, 'a.jpg')
+    settled(state, 'b.jpg')
+    for (const path of ['a.jpg', 'b.jpg']) for (let i = 0; i < 3; i++) state.archiveFailed('r1', path, 'no')
+    expect(candidates(state)).toEqual([])
+    // Seen unchanged by a scan: still given up. Edited: a new file to archive.
+    settled(state, 'a.jpg')
+    expect(candidates(state)).toEqual([])
+    settled(state, 'a.jpg', 'qh-edited')
+    expect(candidates(state)).toEqual(['a.jpg'])
+    expect(state.archiveError('r1', 'a.jpg')).toMatchObject({ attempts: 0, error: null })
+    expect(state.archiveRetryAll()).toBe(1)
+    expect(candidates(state)).toEqual(['a.jpg', 'b.jpg'])
+    expect(state.archiveCounts().gaveUp.files).toBe(0)
+  })
+
+  it('counts files it couldn’t read, telling archived ones from new ones', () => {
+    const state = new State(dataDir())
+    settled(state, 'archived.jpg')
+    state.archived('r1', 'archived.jpg', 'qh-archived.jpg')
+    for (let i = 0; i < 3; i++) {
+      // Encrypted in place, say: it can't be read any more.
+      state.failed('r1', 'archived.jpg', { size: 1000, mtimeMs: Date.now(), quickHash: 'qh-garbled' }, 'Not an image')
+      state.failed('r1', 'new.jpg', { size: 10, mtimeMs: Date.now(), quickHash: null }, 'Not an image')
+    }
+    state.failed('r1', 'trying.jpg', { size: 10, mtimeMs: Date.now(), quickHash: null }, 'Not an image')
+    expect(state.archiveCounts()).toMatchObject({ cantRead: { new: 1, archived: 1 }, notReadYet: 1 })
+  })
+
+  it('forgets uploads made for another source when paired as a new one', () => {
+    const state = new State(dataDir())
+    state.saveCredentials({ url: 'http://x', apiKey: 'k', sourceId: 's1' })
+    settled(state, 'a.jpg')
+    state.saveUpload({ asset_id: 'asset-a.jpg', root_id: 'r1', path: 'a.jpg', upload_id: 'u1', size: 1000, quick_hash: 'qh-a.jpg', part_size: 100, part_count: 10, started_at: 'x' })
+    state.saveCredentials({ url: 'http://x', apiKey: 'k2', sourceId: 's1' })
+    expect(state.upload('asset-a.jpg')).not.toBeNull()
+    state.saveCredentials({ url: 'http://x', apiKey: 'k3', sourceId: 's2' })
+    expect(state.upload('asset-a.jpg')).toBeNull()
+  })
+})

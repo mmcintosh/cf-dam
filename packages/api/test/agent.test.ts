@@ -332,6 +332,19 @@ describe('folders and files', () => {
     expect((await agentFetch(key, '/api/agent/config')).status).toBe(401)
   })
 
+  it('keeps the last status that fitted, and passes "Try them again" to the helper once', async () => {
+    const { key, sourceId } = await pair()
+    const status = async () => ((await (await h.fetch('/api/sources', { cookie: admin })).json()) as { sources: { status: Record<string, unknown> }[] }).sources[0]!.status
+    await agentFetch(key, '/api/agent/heartbeat', json({ status: { archive: { gaveUp: { files: 2, bytes: 9 } }, phase: 'idle' } }))
+    // Too long to keep whole (cut, it wouldn't be JSON): the one before stays.
+    await agentFetch(key, '/api/agent/heartbeat', json({ status: { archive: { gaveUp: { files: 3, bytes: 9 } }, denied: ['x'.repeat(9000)] } }))
+    expect(await status()).toMatchObject({ archive: { gaveUp: { files: 2 } }, phase: 'idle' })
+
+    expect((await h.fetch(`/api/sources/${sourceId}/archive/retry`, { method: 'POST', cookie: admin })).status).toBe(200)
+    expect(await (await agentFetch(key, '/api/agent/heartbeat', json({}))).json()).toMatchObject({ archiveRetry: true })
+    expect(await (await agentFetch(key, '/api/agent/heartbeat', json({}))).json()).not.toHaveProperty('archiveRetry')
+  })
+
   it('indexes videos: length, codec and frame rate, a poster, and a contact sheet', async () => {
     const { key, sourceId } = await pair()
     const root = await addRoot(sourceId)

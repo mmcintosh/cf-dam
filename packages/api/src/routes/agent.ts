@@ -20,16 +20,17 @@ import {
   setRootOnline,
   startPairing,
 } from '../catalog/agents'
-import { abortArchive, completeArchive, linkArchive, signArchivePart, startArchive } from '../catalog/archive'
+import { abortArchive, completeArchive, linkArchive, signArchivePart, startArchive, storageScope } from '../catalog/archive'
 import { claimFaces, FACE_MODEL, facesInstalled, facesSetting, parseFound, parseModel, storeFound } from '../catalog/faces'
 import { isRenditionName, MAX_CLIENT_RENDITION_BYTES, RenditionRejected, storeAgentRendition } from '../catalog/renditions'
 import type { DamEnv } from '../env'
 import { BadRequest, readJsonObject } from '../lib/http'
+import { StorageError } from '../storage/types'
 
 export const agentRoutes = new Hono<DamEnv>()
 
 function failure(c: Context<DamEnv>, error: unknown) {
-  if (error instanceof AgentError) return c.json({ error: 'invalid_request', message: error.message }, error.status)
+  if (error instanceof AgentError) return c.json({ error: error.code ?? 'invalid_request', message: error.message }, error.status)
   if (error instanceof BadRequest || error instanceof RenditionRejected) return c.json({ error: 'invalid_request', message: error.message }, 400)
   throw error
 }
@@ -200,6 +201,8 @@ const archiveRoute = (path: string, run: typeof startArchive | typeof signArchiv
     try {
       return c.json(await run(c.env, c.get('source')!, await readJsonObject(c)))
     } catch (error) {
+      // The bucket's answer, with its code: whether it refuses everything or only this file is the helper's to act on.
+      if (error instanceof StorageError) return c.json({ error: 'storage', code: error.code, scope: storageScope(error.code), message: error.message }, 502)
       return failure(c, error)
     }
   })

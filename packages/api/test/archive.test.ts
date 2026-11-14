@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { AwsClient } from 'aws4fetch'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { abandonStaleArchiveUploads } from '../src/catalog/archive'
+import { abandonStaleArchiveUploads, isThisUpload, keepEarlierCopy, storageScope } from '../src/catalog/archive'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const s3Endpoint = process.env.S3_TEST_ENDPOINT
@@ -183,11 +183,83 @@ describe.skipIf(!s3Endpoint)('archiving to a bucket (against a real S3-compatibl
     const id = await index(agent, 'DSC_0005.NEF', bytes)
     const start = await call<Start>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
     expect((await call(agent.key, '/api/agent/archive/abort', { uploadId: start.body.uploadId })).body).toEqual({ aborted: true })
-    expect((await call(agent.key, '/api/agent/archive/part', { uploadId: start.body.uploadId, partNumber: 1, checksum: 'A'.repeat(43) + '=' })).status).toBe(404)
+    const gone = await call<{ error: string }>(agent.key, '/api/agent/archive/part', { uploadId: start.body.uploadId, partNumber: 1, checksum: 'A'.repeat(43) + '=' })
+    expect(gone.status).toBe(404)
+    expect(gone.body.error).toBe('no_upload')
 
-    await call<Start>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
+    const again = await call<Start>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
+    // Begun long ago, but a part went today: still moving, so kept.
     await h.env.DB.prepare("UPDATE archive_uploads SET created_at = '2020-01-01T00:00:00Z'").run()
+    expect((await call(agent.key, '/api/agent/archive/part', { uploadId: again.body.uploadId, partNumber: 1, checksum: 'A'.repeat(43) + '=' })).status).toBe(200)
+    expect(await abandonStaleArchiveUploads(h.env)).toBe(0)
+    await h.env.DB.prepare("UPDATE archive_uploads SET last_part_at = '2020-01-08T00:00:00Z'").run()
     expect(await abandonStaleArchiveUploads(h.env)).toBe(1)
     expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM archive_uploads').first('n')).toBe(0)
+  })
+
+  it('says which refusal each one is, and stops signing parts once archiving is turned off', async () => {
+    const agent = await archiving()
+    const bytes = randomBytes(1000)
+    const id = await index(agent, 'DSC_0006.NEF', bytes)
+    const changed = await call<{ error: string }>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1001, quickHash: fingerprint(bytes) })
+    expect([changed.status, changed.body.error]).toEqual([409, 'changed'])
+    const nophoto = await call<{ error: string }>(agent.key, '/api/agent/archive/start', { assetId: 'nope', size: 1000, quickHash: fingerprint(bytes) })
+    expect([nophoto.status, nophoto.body.error]).toEqual([404, 'no_photo'])
+    const start = await call<Start>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
+    await h.fetch(`/api/sources/${agent.sourceId}`, { method: 'PATCH', body: JSON.stringify({ archive: null }), cookie: admin })
+    const off = await call<{ error: string }>(agent.key, '/api/agent/archive/part', { uploadId: start.body.uploadId, partNumber: 1, checksum: 'A'.repeat(43) + '=' })
+    expect([off.status, off.body.error]).toEqual([409, 'not_archiving'])
+  })
+
+  it('passes on the bucket’s refusal with its code, and whether it refuses everything', async () => {
+    const agent = await archiving()
+    const bytes = randomBytes(1000)
+    const id = await index(agent, 'DSC_0007.NEF', bytes)
+    // The bucket is gone from the S3 server: every request is refused.
+    await h.env.DB.prepare("UPDATE storage_connections SET bucket = 'no-such-bucket-cfdam' WHERE id = ?").bind(agent.connectionId).run()
+    const refused = await call<{ error: string; code: string; scope: string }>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
+    expect(refused.status).toBe(502)
+    expect(refused.body).toMatchObject({ error: 'storage', code: 'NoSuchBucket', scope: 'bucket' })
+  })
+})
+
+describe('the bucket’s answers', () => {
+  it('tell a bucket refusing everything from one file refused', () => {
+    for (const code of ['AccessDenied', 'ExpiredToken', 'NoSuchBucket', 'NetworkError', 'KMS.DisabledException', 'HTTP503']) expect(storageScope(code), code).toBe('bucket')
+    for (const code of ['NoSuchUpload', 'InvalidPart', 'EntityTooLarge', 'Whatever']) expect(storageScope(code), code).toBe('file')
+  })
+
+  it('keep the copy there before as an earlier one, but not the same key again or a copy that’s gone', async () => {
+    const db = h.env.DB
+    await db.batch([
+      db.prepare("INSERT INTO assets (id, filename, mime_type, size, sha256, status, created_at, updated_at) VALUES ('p1', 'a.jpg', 'image/jpeg', 5, 'aa', 'ready', 'x', 'x')"),
+      db.prepare("INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, quick_hash, updated_at) VALUES ('p1', 'r2', 'old/a.jpg', 'STANDARD', 'present', 5, 'qh', '2026-01-02T00:00:00Z')"),
+    ])
+    await keepEarlierCopy(db, 'p1', 'r2', 'old/a.jpg').run()
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first('n')).toBe(0)
+    await keepEarlierCopy(db, 'p1', 'r2', 'new/a.jpg', null, '2026-03-04T00:00:00Z').run()
+    expect(await db.prepare('SELECT asset_id, key, size, quick_hash, sha256, storage_class, archived_at, replaced_at FROM asset_location_versions').first()).toEqual({
+      asset_id: 'p1', key: 'old/a.jpg', size: 5, quick_hash: 'qh', sha256: 'aa', storage_class: 'STANDARD', archived_at: '2026-01-02T00:00:00Z', replaced_at: '2026-03-04T00:00:00Z',
+    })
+    await db.prepare("UPDATE asset_locations SET state = 'gone'").run()
+    await keepEarlierCopy(db, 'p1', 'r2', 'newer/a.jpg').run()
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first('n')).toBe(1)
+  })
+
+  it('recognise the object an earlier complete made from these very parts', async () => {
+    const a = createHash('sha256').update('part one').digest()
+    const b = createHash('sha256').update('part two').digest()
+    const parts = [
+      { partNumber: 2, checksumSha256: b.toString('base64') },
+      { partNumber: 1, checksumSha256: a.toString('base64') },
+    ]
+    const composite = createHash('sha256').update(Buffer.concat([a, b])).digest('base64')
+    // As AWS and RustFS write it ("…-2"), and without the count.
+    expect(await isThisUpload({ size: 16, checksumSha256: `${composite}-2` }, parts, 16)).toBe(true)
+    expect(await isThisUpload({ size: 16, checksumSha256: composite }, parts, 16)).toBe(true)
+    expect(await isThisUpload({ size: 16, checksumSha256: b.toString('base64') }, parts, 16)).toBe(false)
+    // No checksum kept: the size alone.
+    expect(await isThisUpload({ size: 16 }, parts, 16)).toBe(true)
+    expect(await isThisUpload({ size: 15 }, parts, 16)).toBe(false)
   })
 })

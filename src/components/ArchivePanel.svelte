@@ -19,6 +19,13 @@
     filesLeft?: number
     bytesLeft?: number
     lastError?: string | null
+    /** From helpers that count what archiving couldn't do (older ones send none of these). */
+    held?: { files: number; first: { path: string; reason: string } | null }
+    gaveUp?: { files: number; bytes: number }
+    cantRead?: { new: number; archived: number }
+    notReadYet?: number
+    bucket?: { refusing: string | null; until: string | null }
+    lastGaveUp?: { path: string; error: string | null; at: string | null } | null
   }
   interface Connection {
     id: string
@@ -54,6 +61,40 @@
   let error = $state('')
   let busy = $state(false)
   let confirmingStop = $state(false)
+  /** "Try them again" pressed, until the count goes down. */
+  let retryAsked = $state<number | null>(null)
+  const gaveUp = $derived(progress?.gaveUp?.files ?? 0)
+  const held = $derived(progress?.held?.files ?? 0)
+  /** A choice for the held files sent, until they're no longer held. */
+  let heldAsked = $state(false)
+  $effect(() => {
+    if (retryAsked !== null && gaveUp < retryAsked) retryAsked = null
+    if (heldAsked && held === 0) heldAsked = false
+  })
+  /** Nothing archiving couldn't do: only a helper that counts can say so. */
+  const allClear = $derived(
+    !progress?.gaveUp || (gaveUp === 0 && held === 0 && (progress.cantRead?.new ?? 0) === 0 && (progress.cantRead?.archived ?? 0) === 0 && !progress.bucket?.refusing),
+  )
+
+  async function chooseHeld(choice: 'archive' | 'keep') {
+    error = ''
+    try {
+      await api(`/api/sources/${sourceId}/archive/held`, { method: 'POST', body: JSON.stringify({ choice }) })
+      heldAsked = true
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
+    }
+  }
+
+  async function retry() {
+    error = ''
+    try {
+      await api(`/api/sources/${sourceId}/archive/retry`, { method: 'POST' })
+      retryAsked = gaveUp
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
+    }
+  }
 
   const hour = (h: number) => `${String(h).padStart(2, '0')}:00`
   const hours = (s: ArchiveSettings) => (s.fromHour ?? 0) === (s.toHour ?? 0) ? t('archive.anyTime') : `${hour(s.fromHour ?? 0)}–${hour(s.toHour ?? 0)}`
@@ -124,12 +165,38 @@
         </p>
       {:else if progress?.phase === 'waiting'}
         <p class="state">{t('archive.waiting', { files: files(progress.filesLeft), size: size(progress.bytesLeft) })}</p>
-      {:else if progress && (progress.filesLeft ?? 0) === 0}
+      {:else if progress && (progress.filesLeft ?? 0) === 0 && allClear}
         <p class="state">{t('archive.settled')}</p>
       {:else if progress}
         <p class="state">{t('archive.carriesOn', { files: files(progress.filesLeft), size: size(progress.bytesLeft) })}</p>
       {/if}
-      {#if progress?.lastError}<p class="muted small">{t('sources.lastProblem', { error: progress.lastError })}</p>{/if}
+      {#if progress?.bucket?.refusing}
+        <p class="problem" role="status">{t('archive.bucketRefusing', { code: progress.bucket.refusing, time: progress.bucket.until ? format().time(progress.bucket.until) : '' })}</p>
+      {/if}
+      {#if held > 0}
+        <p class="problem">
+          {t('archive.held', { count: held, path: progress?.held?.first?.path ?? '', reason: progress?.held?.first?.reason ?? '' })}
+          {#if heldAsked}
+            <span class="muted">{t('archive.heldAsked')}</span>
+          {:else}
+            <button class="btn btn-sm" type="button" onclick={() => chooseHeld('archive')}>{t('archive.heldArchive')}</button>
+            <button class="btn btn-sm" type="button" onclick={() => chooseHeld('keep')}>{t('archive.heldKeep')}</button>
+          {/if}
+        </p>
+      {/if}
+      {#if gaveUp > 0}
+        <p class="problem">
+          {t('archive.gaveUp', { count: gaveUp, last: progress?.lastGaveUp ? `${progress.lastGaveUp.path}${progress.lastGaveUp.error ? `, ${progress.lastGaveUp.error}` : ''}` : '' })}
+          {#if retryAsked !== null}
+            <span class="muted">{t('archive.tryAgainAsked')}</span>
+          {:else}
+            <button class="btn btn-sm" type="button" onclick={retry}>{t('archive.tryAgain')}</button>
+          {/if}
+        </p>
+      {/if}
+      {#if (progress?.cantRead?.archived ?? 0) > 0}<p class="problem">{t('archive.cantReadArchived', { count: progress!.cantRead!.archived })}</p>{/if}
+      {#if (progress?.cantRead?.new ?? 0) > 0}<p class="muted small">{t('archive.cantReadNew', { count: progress!.cantRead!.new })}</p>{/if}
+      {#if progress?.lastError && !progress.bucket?.refusing}<p class="muted small">{t('sources.lastProblem', { error: progress.lastError })}</p>{/if}
       <div class="row">
         <button class="btn btn-sm" type="button" onclick={edit}>{t('archive.change')}</button>
         <button class="btn btn-sm btn-danger" type="button" disabled={busy} onclick={stop} onblur={() => (confirmingStop = false)}>
@@ -195,6 +262,9 @@
   }
   .state {
     font-variant-numeric: tabular-nums;
+  }
+  .problem {
+    color: var(--warning, var(--text));
   }
   .settings {
     display: flex;

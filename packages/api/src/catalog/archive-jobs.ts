@@ -19,6 +19,7 @@ import { connectionKey, getConnection, providerFor, type Connection } from '../s
 import { ARCHIVE_CLASSES, type CompletedPart, type StorageClass, type StorageProvider } from '../storage/types'
 import type { DamBindings } from '../env'
 import { logActivity } from '../lib/activity'
+import { keepEarlierCopy } from './archive'
 
 export const ARCHIVE_JOBS_KEY = 'archive.jobs'
 export const ARCHIVE_JOB_CLASSES = ['DEEP_ARCHIVE', 'GLACIER', 'GLACIER_IR'] as const
@@ -376,15 +377,19 @@ async function copyItem(env: DamBindings, s3: StorageProvider, connection: Conne
   }
   const copied = await s3.head(key)
   if (!copied || copied.size !== head.size) throw new CopyFailed(`S3 has ${copied?.size ?? 0} bytes; the original has ${head.size}.`)
-  await db
-    .prepare(
-      `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, updated_at)
-       VALUES (?, ?, ?, ?, 'present', ?, ?, ?)
-       ON CONFLICT (asset_id, connection_id) DO UPDATE SET key = excluded.key, storage_class = excluded.storage_class,
-         state = 'present', size = excluded.size, etag = excluded.etag, restore_expires_at = NULL, updated_at = excluded.updated_at`,
-    )
-    .bind(item.asset_id, item.connection_id, key, copied.storageClass, copied.size, copied.etag, nowIso())
-    .run()
+  // The copy there before (an earlier version of the photo) is kept track of, not forgotten.
+  const now = nowIso()
+  await db.batch([
+    keepEarlierCopy(db, item.asset_id, item.connection_id, key, null, now),
+    db
+      .prepare(
+        `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, updated_at)
+         VALUES (?, ?, ?, ?, 'present', ?, ?, ?)
+         ON CONFLICT (asset_id, connection_id) DO UPDATE SET key = excluded.key, storage_class = excluded.storage_class,
+           state = 'present', size = excluded.size, etag = excluded.etag, restore_expires_at = NULL, updated_at = excluded.updated_at`,
+      )
+      .bind(item.asset_id, item.connection_id, key, copied.storageClass, copied.size, copied.etag, now),
+  ])
   return 'done'
 }
 

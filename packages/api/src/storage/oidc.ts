@@ -128,6 +128,8 @@ export async function assumeRoleWithWebIdentity(options: {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
+  }).catch((error: unknown) => {
+    throw new StorageError(`No answer from AWS STS: ${error instanceof Error ? error.message : String(error)}`, 'NetworkError')
   })
   const xml = await response.text()
   if (!response.ok) {
@@ -173,10 +175,12 @@ export async function roleCredentials(options: {
   roleArn: string
   region?: string
   fetch?: typeof fetch
+  /** How long the credentials must still live: a URL signed with them dies when they do. Default five minutes. */
+  minLifeMs?: number
 }): Promise<TemporaryCredentials> {
   const cacheKey = `${options.connectionId} ${options.roleArn}`
   const cached = cache.get(cacheKey)
-  if (cached && Date.parse(cached.expiration) - Date.now() > 5 * 60_000) return cached
+  if (cached && Date.parse(cached.expiration) - Date.now() > (options.minLifeMs ?? 5 * 60_000)) return cached
   const key = await activeSigningKey(options.env)
   const token = await signToken(key, { iss: options.issuer, sub: connectionSubject(options.connectionId), aud: STS_AUDIENCE })
   let credentials: TemporaryCredentials

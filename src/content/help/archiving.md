@@ -23,6 +23,22 @@ The helper copies each original once it has been left alone for a day (so it doe
 
 You can **Change** the settings or **Stop archiving** at any time. What's already in the bucket stays there.
 
+### When something can't be archived
+
+The panel says "Everything settled is archived" only when that's true. Otherwise it tells you what's wrong:
+
+- **The bucket is refusing.** The bucket turned the helper away (its role or keys stopped working, the bucket was removed, or AWS was busy). The helper waits 15 minutes and tries again, waiting longer each time, up to two hours. No file is held against it. An alert stays open until the bucket answers again.
+- **Files couldn't be archived.** A file failed three times for a reason of its own. The panel names the last one and why. The helper tries them again by itself once a week, or straight away when you press **Try them again**. A file you edit gets a fresh start.
+- **Files couldn't be read.** The helper couldn't open them, so cf-dam has no photo for them and they aren't archived.
+- **Archived files can no longer be read.** A file that was archived can't be opened any more: a failing disk, or something that changed it. Its archived copy is kept. Check the file before anything else happens to it.
+- **Files changed without their date moving.** Part of a file came back different from what was already sent, though its date and size are the same. That's how a failing disk, or a program writing into files, looks. The helper stops sending that file and asks you: **Archive them as they are now**, or **Keep the copies in the bucket**. Either choice is recorded in **Activity**.
+
+### Earlier copies
+
+When a file you've edited is archived again, the copy made before stays in the bucket, and cf-dam keeps track of it: the photo page lists its **Earlier copies** with their dates, and the bucket can't be removed from cf-dam while it holds them. If many archived files change or can no longer be read in one day (ransomware, a sync gone wrong, a failing disk), an alert says so, so you can check before the changed files are archived again.
+
+A big file is sent in parts over several nights if it needs to. If the bucket ends an unfinished upload (an "abort incomplete uploads" rule shorter than a week can), the helper starts that file again; after three times it gives the file up and says so. Set that rule to 7 days or more.
+
 ## Originals already in a bucket
 
 For a photo whose original is in S3, its page shows where it is and lets you **Move** it to another storage class, for example from Standard to Deep Archive.

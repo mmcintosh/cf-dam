@@ -7,6 +7,10 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** cf-dam's code for the refusal (`no_upload`, `storage`, `internal_error`…); none from an older cf-dam or a proxy. */
+    readonly code: string | null = null,
+    /** For `storage`: whether the bucket refuses everything or only this file, and S3's own code. */
+    readonly detail: { scope?: 'bucket' | 'file'; s3Code?: string } = {},
   ) {
     super(message)
   }
@@ -64,7 +68,9 @@ export class Api {
         delay = Math.min(delay * 2, 60_000)
         continue
       }
-      if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+      // The bucket's refusal, passed on by cf-dam, is an answer, not cf-dam failing: asking again changes nothing.
+      const bucketAnswer = res.status === 502 && (res.headers.get('Content-Type') ?? '').includes('application/json')
+      if ((res.status === 429 || (res.status >= 500 && !bucketAnswer)) && attempt < retries) {
         const after = Number(res.headers.get('Retry-After'))
         await sleep(after > 0 ? after * 1000 : delay)
         delay = Math.min(delay * 2, 60_000)
@@ -82,8 +88,11 @@ export class Api {
       // proxy can also say 401/403, in HTML: that's the link, not the key.
       if ((res.status === 401 || res.status === 403) && this.apiKey && fromCfDam(res, parsed)) throw new Unpaired('cf-dam no longer accepts this agent’s key.')
       if (res.status >= 400 && res.status !== 202 && res.status !== 410) {
-        const message = (parsed as { message?: string; error?: string } | null)?.message ?? (parsed as { error?: string } | null)?.error ?? `HTTP ${res.status}`
-        throw new ApiError(`${method} ${path}: ${message}`, res.status)
+        const answer = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as { message?: unknown; error?: unknown; code?: unknown; scope?: unknown }
+        const message = typeof answer.message === 'string' ? answer.message : typeof answer.error === 'string' ? answer.error : `HTTP ${res.status}`
+        const code = typeof answer.error === 'string' ? answer.error : null
+        const detail = code === 'storage' ? { scope: answer.scope === 'bucket' ? ('bucket' as const) : ('file' as const), s3Code: typeof answer.code === 'string' ? answer.code : undefined } : {}
+        throw new ApiError(`${method} ${path}: ${message}`, res.status, code, detail)
       }
       return { status: res.status, body: parsed as T }
     }

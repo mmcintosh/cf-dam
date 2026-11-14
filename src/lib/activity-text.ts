@@ -195,6 +195,10 @@ export function describeActivity(e: ActivityEntry): string {
       return t('act.sourcePaired', { who })
     case 'source.revoked':
       return t('act.sourceRevoked', { who })
+    case 'archive.held_archived':
+      return t('act.archiveHeldArchived', { who, name: str(d.name) })
+    case 'archive.held_kept':
+      return t('act.archiveHeldKept', { who, name: str(d.name) })
     case 'album.renamed':
       return t('act.albumRenamed', { who, from: str(d.from), to: str(d.to) })
     case 'album.deleted':

@@ -4,8 +4,8 @@
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { Api, Paused, Unpaired } from './api.ts'
-import { archivePass, newArchiveProgress, type ArchiveSettings } from './archive.ts'
+import { Api, Paused, Unpaired, type FetchLike } from './api.ts'
+import { archivePass, newArchiveProgress, NotArchiving, type ArchiveSettings, type BucketBackoff } from './archive.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
 import { FACE_MODEL, hasFaceModel } from './faces.ts'
@@ -29,6 +29,8 @@ interface Config {
   archive?: ArchiveSettings | null
 }
 
+const clipText = <T extends string | null>(text: T, n: number): T => (text && text.length > n ? (`${text.slice(0, n - 1)}…` as T) : text)
+
 export class Agent {
   readonly state: State
   readonly api: Api
@@ -41,6 +43,10 @@ export class Agent {
   /** cf-dam's refusals of the key in a row; only a few in a row mean it is really gone. */
   private refusals = 0
   private archiveProgress = newArchiveProgress()
+  /** How long to leave a bucket that refused everything (kept across passes). */
+  private bucketBackoff: BucketBackoff = { until: 0, waitMs: 0 }
+  /** The parts' PUTs to the bucket go through this; tests put faults in its way. */
+  archiveFetch: FetchLike | undefined
   /** Folders the last whole scan couldn't read: kept between scans, so cf-dam's alert doesn't flicker. */
   private denied: string[] = []
   /** The config of the last scan: its folders and archive settings. */
@@ -112,10 +118,17 @@ export class Agent {
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
     this.canFaces ??= await hasFaceModel()
-    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[] }>('POST', '/api/agent/heartbeat', {
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep' }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
-      status: { phase: this.view.phase, ...this.view.progress, ...this.state.counts(), denied: this.denied, archive: this.archiveProgress },
+      // Archiving first: cf-dam keeps 8,000 characters of this, and what archiving couldn't do mustn't be what's cut.
+      status: {
+        archive: { ...this.archiveProgress, lastError: clipText(this.archiveProgress.lastError, 300), ...this.state.archiveCounts() },
+        phase: this.view.phase,
+        ...this.view.progress,
+        ...this.state.counts(),
+        denied: this.denied.slice(0, 20).map((d) => clipText(d, 200)),
+      },
       // Faces (PLAN-FN2-v2): only a helper with the model cf-dam expects is told whether they're on.
       ...(this.canFaces ? { faces: FACE_MODEL } : {}),
     })
@@ -125,6 +138,17 @@ export class Agent {
     this.facesEpoch = faces
     if (faces !== null && res.body.findFaces?.length) this.state.askFaces(res.body.findFaces.map((f) => f.assetId))
     if (res.body.rescan) this.rescan = true
+    // "Try them again" on the Computers and NAS page: every file given up on gets its tries back.
+    if (res.body.archiveRetry) log(`Trying ${this.state.archiveRetryAll()} files that couldn't be archived again.`)
+    // Files held because their bytes changed without their date moving: a person chose. Either way the unfinished
+    // uploads go; "archive" sends the files as they are now, "keep" leaves the copy already in the bucket.
+    if (res.body.archiveHeld === 'archive' || res.body.archiveHeld === 'keep') {
+      for (const assetId of this.state.archiveHeldChoice(res.body.archiveHeld)) {
+        const upload = this.state.upload(assetId)
+        if (upload) await this.api.call('POST', '/api/agent/archive/abort', { uploadId: upload.upload_id }).catch(() => {})
+        this.state.dropUpload(assetId)
+      }
+    }
     // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
     if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
     this.refusals = 0
@@ -298,8 +322,16 @@ export class Agent {
         progress: this.archiveProgress,
         shouldStop: () => this.stopping || this.paused,
         budgetMs: this.scanIntervalMs,
+        backoff: this.bucketBackoff,
+        fetchImpl: this.archiveFetch,
         log,
       })
+    } catch (error) {
+      // cf-dam says this helper doesn't archive (to that bucket) any more: off until the next config says otherwise.
+      if (!(error instanceof NotArchiving)) throw error
+      log('Archiving stopped:', error.message)
+      if (this.lastConfig) this.lastConfig = { ...this.lastConfig, archive: null }
+      this.archiveProgress = newArchiveProgress()
     } finally {
       clearInterval(beat)
     }

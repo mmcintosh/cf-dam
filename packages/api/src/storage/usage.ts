@@ -15,6 +15,8 @@ export interface ConnectionUses {
   archiveFailed: number
   /** A NAS or Mac helper's archive uploads under way here. */
   agentUploads: number
+  /** Earlier copies of photos kept here (archived again after they changed): removing the connection would lose them. */
+  earlierCopies: number
   /** Restores asked of this bucket that haven't been asked yet. */
   restores: number
   /** Catalog backups kept here: removing the connection would lose them. */
@@ -35,6 +37,7 @@ export function inUse(uses: ConnectionUses): boolean {
     uses.originals > 0 ||
     uses.archiveWaiting > 0 ||
     uses.agentUploads > 0 ||
+    uses.earlierCopies > 0 ||
     uses.restores > 0 ||
     uses.backups > 0 ||
     uses.jobArchive ||
@@ -60,6 +63,7 @@ export async function connectionUses(db: D1Database, id: string): Promise<Connec
                 (SELECT COUNT(*) FROM archive_items WHERE connection_id = ?1 AND state NOT IN ('done', 'failed')) AS archiveWaiting,
                 (SELECT COUNT(*) FROM archive_items WHERE connection_id = ?1 AND state = 'failed') AS archiveFailed,
                 (SELECT COUNT(*) FROM archive_uploads WHERE connection_id = ?1) AS agentUploads,
+                (SELECT COUNT(*) FROM asset_location_versions WHERE connection_id = ?1) AS earlierCopies,
                 (SELECT COUNT(*) FROM restore_items WHERE connection_id = ?1 AND state IN ('waiting', 'asking')) AS restores,
                 (SELECT COUNT(*) FROM backups WHERE connection_id = ?1) AS backups,
                 (SELECT value FROM settings WHERE key = 'archive.jobs') AS jobs,
@@ -76,6 +80,7 @@ export async function connectionUses(db: D1Database, id: string): Promise<Connec
     archiveWaiting: Number(row.archiveWaiting ?? 0),
     archiveFailed: Number(row.archiveFailed ?? 0),
     agentUploads: Number(row.agentUploads ?? 0),
+    earlierCopies: Number(row.earlierCopies ?? 0),
     restores: Number(row.restores ?? 0),
     backups: Number(row.backups ?? 0),
     jobArchive: jobs.enabled === true && jobs.connectionId === id,
