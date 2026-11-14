@@ -3,8 +3,10 @@
  *
  * Offered only on the setup page, before anyone has an account, and behind the setup token. The person
  * restoring says where the backups are (this install's built-in R2, or an S3 bucket), picks one, and the
- * sweep loads it a part at a time: every table in the backup, in the order the backup wrote them,
- * replacing rows with the same rowid, so a part done twice does no harm. Then what backups leave out is
+ * sweep loads it a part at a time: every table in the backup, each after the tables it points at (in this
+ * install's schema), as catalog/restore-load.ts puts rows back. Each group of rows goes in together with
+ * the progress that says so, under the run's lease, so a part is never loaded twice, and rows that came
+ * without what they belong to (written while the backup ran) are left out and counted. Then what backups leave out is
  * rebuilt: the look-alike bands (from the hashes), the search index (every photo is marked for the
  * sweep to reindex), and the roles and permissions this version of cf-dam adds. Nobody comes back with a
  * password, a second-factor secret or a session; the person restoring chooses their own sign-in
@@ -22,7 +24,21 @@ import { R2Provider } from '../storage/r2'
 import { S3Provider } from '../storage/s3'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import type { StorageProvider } from '../storage/types'
-import { BACKUP_PREFIX, insertRows, INSERT_ROWS, readChunk, readManifest, type BackupManifest } from './backups'
+import { BACKUP_PREFIX, readChunk, readManifest, type BackupManifest } from './backups'
+import {
+  emptiedCounts,
+  emptiedStatement,
+  groupColumns,
+  loadStatement,
+  nextGroup,
+  orderTables,
+  parentsFirst,
+  readKeys,
+  selfKey,
+  SEED_TABLES,
+  withTimeout,
+  type ForeignKey,
+} from './restore-load'
 import { bands, bitsSet, MIN_DETAIL_BITS } from './dhash'
 import { say } from '../lib/language'
 
@@ -36,16 +52,40 @@ type StoredSource =
 
 export type RestoreStatus = 'running' | 'restored' | 'finished' | 'failed'
 
+/** What came back and what didn't, for the person restoring. */
+export interface RestoreReport {
+  /** Rows read from the backup, by table. */
+  read: Record<string, number>
+  /** Rows that went in, by table. */
+  loaded: Record<string, number>
+  /** Links emptied because what they pointed at wasn't in the backup, by "table.column". */
+  emptied: Record<string, number>
+  /** Worked out when the rows are in: rows left out, by table (read minus loaded). */
+  left?: Record<string, number>
+  /** Tables whose backup holds fewer rows than its manifest says (a damaged backup). */
+  short?: Record<string, { expected: number; read: number }>
+  /** Photos with no location at all: no original anywhere cf-dam knows. */
+  noLocation?: number
+  /** A restore the version before started: counted only from this table on (its earlier rows weren't counted). */
+  since?: number
+}
+
 interface Progress {
-  phase: 'tables' | 'bands' | 'reseed'
-  /** Tables to load, in the backup's order, with the columns this schema has. */
-  tables: { name: string; chunks: number; columns: string[] }[]
+  /** Moves on with every save: a save is only taken if the step it follows is still the one stored. */
+  step: number
+  phase: 'tables' | 'bands' | 'report' | 'reseed'
+  /** Tables to load, each after the ones it points at, with the columns this schema has and the rows the manifest lists. */
+  tables: { name: string; chunks: number; columns: string[]; rows?: number; files?: string[]; chunkRows?: number[] }[]
   table: number
   seq: number
   /** Rows of the current chunk already in. */
   offset: number
+  /** For a table that points at itself: which pass over it, and how many rows it had when the pass began. */
+  pass: number
+  passFrom: number
   /** Bands: the last asset rowid done. */
   after: number
+  report: RestoreReport
 }
 
 interface JobRow {
@@ -71,19 +111,20 @@ export interface RestoreView {
   totalRows: number
   error: string | null
   startedAt: string
+  /** Once the rows are in: what didn't come back. */
+  report: RestoreReport | null
 }
 
-/** Columns given a value of their own rather than the backed-up one. */
-const OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  // The search tables aren't backed up: every photo goes back in the sweep's queue to be indexed.
-  assets: { indexed_at: 'NULL' },
-  // Second-factor secrets aren't backed up, so nobody comes back with codes turned on.
-  users: { two_factor_enabled: '0' },
-}
-/** Seed rows later versions add (permissions for new pages, and the like), put back after the load. */
-const SEED_TABLES = ['roles', 'permissions', 'role_permissions', 'storage_connections', 'settings']
+/**
+ * Settings a migration adds that mark one-off work in progress, not a default: a restore takes the backup's
+ * (it has one only if the work hadn't finished), never this install's fresh one.
+ */
+export const ONE_OFF_SETTINGS = ['quick_hash.fill'] as const
+/** Failed runs in a row before a restore stops. */
 const MAX_FAILURES = 5
 const LEASE_MS = 2 * 60_000
+/** Reading one chunk gives up after this, well inside the lease. */
+const READ_TIMEOUT_MS = 60_000
 const BANDS_PER_PAGE = 500
 /** Backups listed to choose from, newest first. */
 const LIST_LIMIT = 20
@@ -172,16 +213,20 @@ export async function listBackups(provider: StorageProvider): Promise<BackupList
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
 }
 
-const view = (row: JobRow): RestoreView => ({
-  id: row.id,
-  backupId: row.backup_id,
-  status: row.status,
-  phase: (JSON.parse(row.progress) as Progress).phase,
-  rows: row.rows,
-  totalRows: row.total_rows,
-  error: row.error,
-  startedAt: row.started_at,
-})
+const view = (row: JobRow): RestoreView => {
+  const progress = JSON.parse(row.progress) as Partial<Progress>
+  return {
+    id: row.id,
+    backupId: row.backup_id,
+    status: row.status,
+    phase: progress.phase ?? 'tables',
+    rows: row.rows,
+    totalRows: row.total_rows,
+    error: row.error,
+    startedAt: row.started_at,
+    report: row.status === 'restored' || row.status === 'finished' ? (progress.report ?? null) : null,
+  }
+}
 
 /** The restore under way, waiting for a sign-in, or failed; null if there is none (or it finished). */
 export async function currentRestore(db: D1Database): Promise<RestoreView | null> {
@@ -215,29 +260,90 @@ export async function startRestore(env: DamBindings, source: RestoreSource, back
 
   const now = nowIso()
   if (job) {
-    await db.prepare("UPDATE restore_jobs SET status = 'running', error = NULL, failures = 0, lease_until = NULL, source = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(await storeSource(env, source)), now, job.id).run()
+    await db
+      .prepare("UPDATE restore_jobs SET status = 'running', error = NULL, failures = 0, lease_until = NULL, lease_token = NULL, source = ?, updated_at = ? WHERE id = ?")
+      .bind(JSON.stringify(await storeSource(env, source)), now, job.id)
+      .run()
     return view((await db.prepare('SELECT * FROM restore_jobs WHERE id = ?').bind(job.id).first<JobRow>())!)
   }
 
-  // The columns each table has now: a column a later version dropped is left out.
-  const present = manifest.tables.map((t) => t.name)
-  const columns = await db.batch(present.map((name) => db.prepare('SELECT name FROM pragma_table_info(?)').bind(name)))
-  const tables = manifest.tables
-    .map((t, i) => ({ name: t.name, chunks: t.chunks, columns: (columns[i]!.results as { name: string }[]).map((c) => c.name) }))
-    .filter((t) => t.columns.length > 0)
-  const progress: Progress = { phase: 'tables', tables, table: 0, seq: 0, offset: 0, after: 0 }
+  const progress: Progress = {
+    step: 0,
+    phase: 'tables',
+    tables: await tablesToLoad(db, manifest),
+    table: 0,
+    seq: 0,
+    offset: 0,
+    pass: 0,
+    passFrom: 0,
+    after: 0,
+    report: { read: {}, loaded: {}, emptied: {} },
+  }
   const id = randomId()
-  await db
-    .prepare('INSERT INTO restore_jobs (id, backup_id, source, status, progress, total_rows, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, backupId, JSON.stringify(await storeSource(env, source)), 'running', JSON.stringify(progress), manifest.tables.reduce((n, t) => n + t.rows, 0), now, now)
-    .run()
+  await db.batch([
+    // One-off work this install's migrations started belongs to this install, not the catalog coming back.
+    db.prepare(`DELETE FROM settings WHERE key IN (${ONE_OFF_SETTINGS.map(() => '?').join(', ')})`).bind(...ONE_OFF_SETTINGS),
+    db
+      .prepare('INSERT INTO restore_jobs (id, backup_id, source, status, progress, total_rows, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, backupId, JSON.stringify(await storeSource(env, source)), 'running', JSON.stringify(progress), manifest.tables.reduce((n, t) => n + t.rows, 0), now, now),
+  ])
   return view((await db.prepare('SELECT * FROM restore_jobs WHERE id = ?').bind(id).first<JobRow>())!)
+}
+
+/**
+ * The backup's tables with the columns each has in this install (a column a later version dropped is left
+ * out), each after the tables it points at in this install's schema: a key a later version added between
+ * two tables must not leave rows out only because their parents come later in the backup.
+ */
+async function tablesToLoad(db: D1Database, manifest: Pick<BackupManifest, 'tables'>): Promise<Progress['tables']> {
+  const names = manifest.tables.map((t) => t.name)
+  const [columns, keys] = await Promise.all([db.batch(names.map((name) => db.prepare('SELECT name FROM pragma_table_info(?)').bind(name))), readKeys(db, names)])
+  const byName = new Map(
+    manifest.tables.map((t, i) => [
+      t.name,
+      {
+        name: t.name,
+        chunks: t.chunks,
+        rows: t.rows,
+        columns: (columns[i]!.results as { name: string }[]).map((c) => c.name),
+        ...(t.files ? { files: t.files } : {}),
+        ...(t.chunkRows ? { chunkRows: t.chunkRows } : {}),
+      },
+    ]),
+  )
+  let order: string[]
+  try {
+    order = orderTables(names, (n) => keys.get(n)!.map((k) => k.parent))
+  } catch (error) {
+    throw new BadRequest(error instanceof Error ? error.message : String(error))
+  }
+  return order.map((n) => byName.get(n)!).filter((t) => t.columns.length > 0)
 }
 
 async function storeSource(env: DamBindings, source: RestoreSource): Promise<StoredSource> {
   if (source.kind === 'r2') return source
   const { secretAccessKey, ...rest } = source
   return { ...rest, secretSealed: await seal(await deriveKey(storageSecret(env)), secretAccessKey) }
+}
+
+/** The restore was taken over by another run (this one's lease ran out): this run stops writing. */
+class LeaseLost extends Error {}
+
+/** A progress saved by a version from before 2026-11-04: given what it lacks, the tables not started put in order again. */
+async function upgradeProgress(db: D1Database, progress: Partial<Progress> & Pick<Progress, 'tables' | 'table'>): Promise<Progress> {
+  const done = progress.tables.slice(0, progress.table + 1)
+  const rest = progress.tables.slice(progress.table + 1)
+  let tables = progress.tables
+  if (rest.length > 0) {
+    const keys = await readKeys(db, rest.map((t) => t.name))
+    const byName = new Map(rest.map((t) => [t.name, t]))
+    tables = [...done, ...orderTables(rest.map((t) => t.name), (n) => keys.get(n)!.map((k) => k.parent)).map((n) => byName.get(n)!)]
+  }
+  return { seq: 0, offset: 0, after: 0, phase: 'tables', ...progress, tables, step: 0, pass: 0, passFrom: 0, report: progress.report ?? { read: {}, loaded: {}, emptied: {}, since: progress.table + 1 } }
+}
+
+const add = (into: Record<string, number>, key: string, n: number) => {
+  if (n) into[key] = (into[key] ?? 0) + n
 }
 
 /**
@@ -247,60 +353,176 @@ async function storeSource(env: DamBindings, source: RestoreSource): Promise<Sto
 export async function restoreStep(env: DamBindings, more: () => boolean): Promise<{ rows: number; status: RestoreStatus } | null> {
   const db = env.DB
   const now = Date.now()
+  const token = randomId()
   const job = await db
-    .prepare("UPDATE restore_jobs SET lease_until = ? WHERE id = (SELECT id FROM restore_jobs WHERE status = 'running' AND (lease_until IS NULL OR lease_until < ?) LIMIT 1) RETURNING *")
-    .bind(new Date(now + LEASE_MS).toISOString(), new Date(now).toISOString())
+    .prepare(
+      `UPDATE restore_jobs SET lease_until = ?, lease_token = ?
+       WHERE id = (SELECT id FROM restore_jobs WHERE status = 'running' AND (lease_until IS NULL OR lease_until < ?) LIMIT 1) RETURNING *`,
+    )
+    .bind(new Date(now + LEASE_MS).toISOString(), token, new Date(now).toISOString())
     .first<JobRow>()
   if (!job) return null
-  const progress = JSON.parse(job.progress) as Progress
+  const stored = JSON.parse(job.progress) as Partial<Progress> & Pick<Progress, 'tables' | 'table'>
+  // The step the stored progress is at (none, for a progress from before steps).
+  let storedStep: number | null = typeof stored.step === 'number' ? stored.step : null
+  let progress: Progress
   let loaded = 0
   let status: RestoreStatus = 'running'
-  const save = (extra = '', ...binds: unknown[]) =>
-    db.prepare(`UPDATE restore_jobs SET progress = ?, rows = rows + ?, updated_at = ?${extra} WHERE id = ?`).bind(JSON.stringify(progress), loaded, nowIso(), ...binds, job.id)
+
+  /**
+   * Save `next` (and run `with`, gated on the save) only if this run still holds the job and the stored
+   * progress is the one this run last saw. Returns the batch's results after the save's own.
+   */
+  const save = async (next: Progress, rowsRead: number, extra: { status?: RestoreStatus; release?: boolean } = {}, withStatements: (step: number) => D1PreparedStatement[] = () => []) => {
+    next.step = (storedStep ?? -1) + 1
+    const results = await db.batch([
+      db
+        .prepare(
+          `UPDATE restore_jobs SET progress = ?, rows = rows + ?, failures = 0, error = NULL, updated_at = ?, lease_until = ?${extra.status ? ', status = ?' : ''}
+           WHERE id = ? AND lease_token = ? AND json_extract(progress, '$.step') IS ?`,
+        )
+        .bind(
+          JSON.stringify(next),
+          rowsRead,
+          nowIso(),
+          extra.release ? null : new Date(Date.now() + LEASE_MS).toISOString(),
+          ...(extra.status ? [extra.status] : []),
+          job.id,
+          token,
+          storedStep,
+        ),
+      ...withStatements(next.step),
+    ])
+    if (results[0]!.meta.changes !== 1) throw new LeaseLost()
+    storedStep = next.step
+    return results.slice(1)
+  }
+  /** Each row goes in only if the save before it in the same batch was taken. */
+  const guard = (step: number) => ({
+    sql: `EXISTS (SELECT 1 FROM restore_jobs WHERE id = ? AND lease_token = ? AND json_extract(progress, '$.step') = ?)`,
+    binds: [job.id, token, step],
+  })
+  const copy = (p: Progress): Progress => structuredClone(p)
 
   try {
+    progress = storedStep === null ? await upgradeProgress(db, stored) : (stored as Progress)
+    if (storedStep === null) {
+      await save(progress, 0)
+    }
     const provider = await storedProvider(env, JSON.parse(job.source) as StoredSource)
+    const keys = await readKeys(db, progress.tables.map((t) => t.name))
+    let chunk: { table: number; seq: number; pass: number; rows: Record<string, unknown>[] } | null = null
+
     while (more() && status === 'running') {
       if (progress.phase === 'tables') {
         const table = progress.tables[progress.table]
         if (!table) {
-          progress.phase = 'bands'
+          const next = copy(progress)
+          next.phase = 'bands'
+          next.after = 0
+          await save(next, 0)
+          progress = next
           continue
         }
+        const tableKeys: ForeignKey[] = keys.get(table.name) ?? []
+        const self = selfKey(table.name, tableKeys)
         if (progress.seq >= table.chunks) {
-          Object.assign(progress, { table: progress.table + 1, seq: 0, offset: 0 })
+          const next = copy(progress)
+          // A table that points at itself: another pass while the last one added rows and some are still waiting.
+          const count = self ? (await db.prepare(`SELECT COUNT(*) AS n FROM "${table.name.replace(/"/g, '""')}"`).first<{ n: number }>())!.n : 0
+          if (self && count > progress.passFrom && count < (progress.report.read[table.name] ?? 0)) {
+            Object.assign(next, { seq: 0, offset: 0, pass: progress.pass + 1, passFrom: count })
+          } else {
+            Object.assign(next, { table: progress.table + 1, seq: 0, offset: 0, pass: 0, passFrom: 0 })
+          }
+          await save(next, 0)
+          progress = next
           continue
         }
-        const rows = await readChunk(provider, job.backup_id, table.name, progress.seq)
+        if (!chunk || chunk.table !== progress.table || chunk.seq !== progress.seq || chunk.pass !== progress.pass) {
+          let rows = await withTimeout(readChunk(provider, job.backup_id, table.name, progress.seq, table.files?.[progress.seq]), READ_TIMEOUT_MS, 'Reading a backup chunk')
+          if (self) rows = parentsFirst(rows, self)
+          chunk = { table: progress.table, seq: progress.seq, pass: progress.pass, rows }
+        }
+        const rows = chunk.rows
         while (progress.offset < rows.length && more()) {
-          const group = rows.slice(progress.offset, progress.offset + INSERT_ROWS)
-          await insertRows(db, table.name, group, { columns: table.columns, overrides: OVERRIDES[table.name] }).run()
-          progress.offset += group.length
-          loaded += group.length
+          const group = nextGroup(rows, progress.offset)
+          const load = { name: table.name, columns: table.columns }
+          const emptying = progress.pass === 0 ? emptiedStatement(db, load, tableKeys, group) : null
+          const emptied = emptying ? await emptying.first<Record<string, number>>() : null
+          const next = copy(progress)
+          next.offset += group.length
+          const first = progress.pass === 0
+          if (first) add(next.report.read, table.name, group.length)
+          for (const [key, n] of Object.entries(emptiedCounts(table.name, tableKeys, groupColumns(load, group), emptied))) add(next.report.emptied, key, n)
+          const [inserted] = await save(next, first ? group.length : 0, {}, (step) => [loadStatement(db, load, tableKeys, group, guard(step))])
+          // Counted into the next save (lost only if the run dies before it, which makes "left out" a little high).
+          add(next.report.loaded, table.name, inserted!.meta.changes)
+          progress = next
+          if (first) loaded += group.length
         }
-        if (progress.offset >= rows.length) Object.assign(progress, { seq: progress.seq + 1, offset: 0 })
-        await save().run()
-        loaded = 0
+        if (progress.offset >= rows.length) {
+          const next = copy(progress)
+          Object.assign(next, { seq: progress.seq + 1, offset: 0 })
+          // A table's last chunk read in full: the chunk counts the manifest lists, against what was read.
+          await save(next, 0)
+          progress = next
+        }
       } else if (progress.phase === 'bands') {
-        progress.after = await rebuildBands(db, progress.after)
-        if (progress.after < 0) {
-          progress.phase = 'reseed'
-          progress.after = 0
+        const next = copy(progress)
+        next.after = await rebuildBands(db, progress.after)
+        if (next.after < 0) {
+          next.phase = 'report'
+          next.after = 0
         }
+        await save(next, 0)
+        progress = next
+      } else if (progress.phase === 'report') {
+        const next = copy(progress)
+        next.report = await reportOn(db, progress)
+        next.phase = 'reseed'
+        await save(next, 0)
+        progress = next
       } else {
-        await db.batch(seedStatements(db))
+        await save(copy(progress), 0, { status: 'restored', release: true }, () => seedStatements(db))
         status = 'restored'
       }
     }
-    await save(', status = ?, lease_until = NULL', status).run()
+    if (status === 'running') await save(copy(progress), 0, { release: true })
   } catch (error) {
+    if (error instanceof LeaseLost) return { rows: loaded, status }
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 500)
-    const failed = job.failures + 1 >= MAX_FAILURES
-    if (failed) status = 'failed'
-    await save(', failures = failures + 1, error = ?, status = ?, lease_until = NULL', message, status).run()
+    // Only the count and the reason: the progress stays as last saved, with the rows it says are in.
+    const row = await db
+      .prepare(
+        `UPDATE restore_jobs SET failures = failures + 1, error = ?, updated_at = ?, lease_until = NULL,
+           status = CASE WHEN failures + 1 >= ? THEN 'failed' ELSE status END
+         WHERE id = ? AND lease_token = ? RETURNING status`,
+      )
+      .bind(message, nowIso(), MAX_FAILURES, job.id, token)
+      .first<{ status: RestoreStatus }>()
+      .catch(() => null)
+    status = row?.status ?? status
     console.warn('[restore] run failed', job.id, message)
   }
   return { rows: loaded, status }
+}
+
+/** Once every row is in: what didn't come back, table by table. */
+async function reportOn(db: D1Database, progress: Progress): Promise<RestoreReport> {
+  const report: RestoreReport = { ...progress.report, left: {}, short: {} }
+  for (const [i, table] of progress.tables.entries()) {
+    if ((SEED_TABLES as readonly string[]).includes(table.name) || i < (report.since ?? 0)) continue
+    const read = report.read[table.name] ?? 0
+    const left = read - (report.loaded[table.name] ?? 0)
+    if (left > 0) report.left![table.name] = left
+    if (table.rows !== undefined && read < table.rows) report.short![table.name] = { expected: table.rows, read }
+  }
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM assets a WHERE a.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id)')
+    .first<{ n: number }>()
+  report.noLocation = row?.n ?? 0
+  return report
 }
 
 /** Look-alike bands for the next page of photos with a hash; the last rowid done, or -1 when none are left. */
@@ -323,7 +545,7 @@ async function rebuildBands(db: D1Database, after: number): Promise<number> {
 function seedStatements(db: D1Database): D1PreparedStatement[] {
   const pattern = new RegExp(`^INSERT OR IGNORE INTO (${SEED_TABLES.join('|')})\\b`, 'i')
   return MIGRATIONS.flatMap((m) => splitStatements(m.sql ?? ''))
-    .filter((s) => pattern.test(s.trim()))
+    .filter((s) => pattern.test(s.trim()) && !ONE_OFF_SETTINGS.some((key) => s.includes(`'${key}'`)))
     .map((s) => db.prepare(s))
 }
 
@@ -343,9 +565,13 @@ export async function finishRestore(db: D1Database, hash: (password: string) => 
   const user = await db.prepare('SELECT id FROM users WHERE email = ?').bind(signIn.email.toLowerCase()).first<{ id: string }>()
   const now = nowIso()
   const finished = db.prepare("UPDATE restore_jobs SET status = 'finished', finished_at = ?, updated_at = ? WHERE id = ?").bind(now, now, job.id)
+  // The backup's "alerts last looked at" is hours old: without this, "background work has stopped" would greet them.
+  const checked = db
+    .prepare("INSERT INTO settings (key, value, updated_at) VALUES ('alerts.checked_at', ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+    .bind(now, now)
   if (!user) {
     // A new administrator: signed up through Better Auth by the caller, once this is marked finished.
-    await finished.run()
+    await db.batch([finished, checked])
     return { userId: null, existing: false }
   }
   await db.batch([
@@ -356,6 +582,7 @@ export async function finishRestore(db: D1Database, hash: (password: string) => 
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id, created_at) VALUES (?, 'role-admin', ?)").bind(user.id, now),
     db.prepare('UPDATE users SET must_change_password = 0, failed_sign_ins = 0, locked_until = NULL, updated_at = ? WHERE id = ?').bind(now, user.id),
     finished,
+    checked,
   ])
   return { userId: user.id, existing: true }
 }

@@ -4,7 +4,7 @@ summary: "Tägliche Kopien des Katalogs, wie du ihn in eine neue Installation zu
 section: Where photos are kept
 order: 4
 review: machine
-source: 72bcd6ac0261
+source: 144f5352577b
 ---
 
 Die **Originale** deiner Fotos schützt der Ort, an dem du sie aufbewahrst (siehe [Originale archivieren und wiederherstellen](/help/archiving)). Den **Katalog** (Details, Stichwörter, Bildunterschriften und Bewertungen jedes Fotos, Alben, Galerien und Personen) schützen die **Katalogsicherungen**.
@@ -45,6 +45,15 @@ Nach einer Wiederherstellung:
 
 - **Helfer** auf deinen NAS und Computern koppeln sich neu und bekommen ihre eigenen Einträge zurück, damit sie nicht alles doppelt schicken. Siehe [Computer und NAS](/help/computers-and-nas).
 - **Vorschaubilder und Vorschauen** werden neu erstellt: aus den Originalen, wo cf-dam sie lesen kann, und von den Helfern für Originale auf einem NAS.
+
+### Was eine Wiederherstellung nicht zurückholen kann
+
+Eine Sicherung kopiert eine Tabelle nach der anderen, bei einem großen Katalog über Stunden, während weitergearbeitet wird. Sie ist also kein einzelner Augenblick: Ein paar Zeilen können darin sein ohne das, wozu sie gehören, etwa ein Stichwort, das die KI-Prüfung vorgeschlagen hat, nachdem die Stichwörter schon kopiert waren, oder ein Foto, das ein Helfer in dieser Zeit gefunden hat. Eine Wiederherstellung lässt solche Zeilen aus oder leert einen Verweis auf etwas, das neuer ist als die Sicherung, und sagt am Ende, wie viele es waren:
+
+- **Ausgelassene Zeilen**, Tabelle für Tabelle.
+- **Geleerte Verweise**: Ein Album, dessen Auftrag neuer ist als die Sicherung, kommt zum Beispiel ohne seinen Auftrag zurück.
+- **Fotos ohne Original**: Ihre Speicherorte waren neuer als die Sicherung. Ein Helfer, der eingerichtet wurde, während die Sicherung lief, fügt seine Dateien als neue Fotos wieder hinzu; die alten Kopien findest du dann mit dem Filter **Original nirgends vorhanden** in der Bibliothek und kannst sie löschen.
+- **Eine unvollständige Sicherung**: Enthält eine Sicherung weniger Zeilen, als sie angibt, ist sie vielleicht beschädigt. Wenn etwas fehlt, stell eine ältere wieder her.
 
 ## Die Vorschauprüfung
 

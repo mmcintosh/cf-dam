@@ -40,6 +40,7 @@ const LABELS: Record<string, Record<string, string>> = {
   year: { undated: t('facets.undated') },
   label: { ...labelNames, none: t('facets.noLabel') },
   missing: { '1': t('facets.missing') },
+  nowhere: { '1': t('facets.nowhere') },
   failed: { '1': t('facets.failed'), ai: t('facets.aiFailed') },
   on: storedOnName && params.get('on') ? { [params.get('on')!]: storedOnName } : {},
   kw: Object.fromEntries(facets.tag.map((k) => [k.id, k.path])),
@@ -66,7 +67,7 @@ const ratingCounts = (() => {
 const uncounted = Object.values(facets).some((values) => (values as { count: number | null }[]).some((v) => v.count === null))
 
 const active: { key: string; text: string; remove?: Record<string, null> }[] = []
-const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['failed', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
+const CHIPS: [string, MessageKey | null][] = [['q', 'facets.search'], ['tag', 'facets.tag'], ['kw', 'facets.keyword'], ['camera', 'facets.camera'], ['lens', 'facets.lens'], ['year', 'facets.year'], ['month', 'facets.month'], ['rating', 'facets.rating'], ['flag', null], ['label', 'facets.label'], ['country', 'facets.country'], ['city', 'facets.city'], ['creator', 'facets.creator'], ['missing', null], ['nowhere', null], ['failed', null], ['on', 'facets.storedOn'], ['gps', null], ['orientation', null], ['people', null], ['type', null], ['tier', null]]
 for (const [key, prefix] of CHIPS) {
   const value = params.get(key)
   if (!value) continue

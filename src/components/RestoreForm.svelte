@@ -8,11 +8,18 @@
     id: string
     backupId: string
     status: 'running' | 'restored' | 'finished' | 'failed'
-    phase: 'tables' | 'bands' | 'reseed'
+    phase: 'tables' | 'bands' | 'report' | 'reseed'
     rows: number
     totalRows: number
     error: string | null
     startedAt: string
+    /** Once the rows are in: what didn't come back. */
+    report: {
+      left?: Record<string, number>
+      emptied: Record<string, number>
+      short?: Record<string, { expected: number; read: number }>
+      noLocation?: number
+    } | null
   }
   interface Backup {
     id: string
@@ -49,8 +56,16 @@
   const PHASES: Record<RestoreView['phase'], MessageKey> = {
     tables: 'restore.phase.tables',
     bands: 'restore.phase.bands',
+    report: 'restore.phase.report',
     reseed: 'restore.phase.reseed',
   }
+  const sum = (counts: Record<string, number> | undefined) => Object.values(counts ?? {}).reduce((n, c) => n + c, 0)
+  /** "assets 3, asset_tags 12": the tables (or table.column) and their counts. */
+  const listed = (counts: Record<string, number> | undefined) =>
+    Object.entries(counts ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, n]) => `${name} ${format().number(n)}`)
+      .join(', ')
   const when = (iso: string) => format().dateTime(iso)
   /** A backup's id is when it started, with : and . made safe for keys. */
   const backupTime = (id: string) => id.replace(/T(\d\d)-(\d\d)-(\d\d)-(\d+)Z$/, 'T$1:$2:$3.$4Z')
@@ -173,6 +188,15 @@
   {:else if restore?.status === 'restored'}
     <form class="stack" onsubmit={finish}>
       <p>{t('restore.back', { rows: restore.rows })}</p>
+      {#if restore.report}
+        {@const report = restore.report}
+        {#if Object.keys(report.short ?? {}).length > 0}
+          <div class="alert alert-error" role="alert">{t('restore.short', { tables: Object.entries(report.short ?? {}).map(([name, s]) => `${name} ${format().number(s.read)}/${format().number(s.expected)}`).join(', ') })}</div>
+        {/if}
+        {#if sum(report.left) > 0}<p class="small">{t('restore.leftOut', { count: sum(report.left), tables: listed(report.left) })}</p>{/if}
+        {#if sum(report.emptied) > 0}<p class="small">{t('restore.emptied', { count: sum(report.emptied), list: listed(report.emptied) })}</p>{/if}
+        {#if (report.noLocation ?? 0) > 0}<p class="small">{t('restore.noLocation', { count: report.noLocation ?? 0 })}</p>{/if}
+      {/if}
       <p class="muted small">{t('restore.backLead')}</p>
       <div class="field"><label for="r-name">{t('setup.yourName')}</label><input id="r-name" type="text" autocomplete="name" required bind:value={name} /></div>
       <div class="field"><label for="r-email">{t('common.email')}</label><input id="r-email" type="email" autocomplete="email" required bind:value={email} /></div>

@@ -375,6 +375,8 @@ export interface ListFilters {
   client?: string
   /** A copy of the original is missing (not found in a NAS agent's last scan). */
   missing?: boolean
+  /** No copy of the original anywhere cf-dam knows (after a restore: photos whose locations were newer than the backup). */
+  nowhere?: boolean
   /**
    * What the alerts link to: photos that couldn't be processed ('processing', `failed=1`), or that AI review gave
    * up on after its tries ('ai', `failed=ai`; choosing them for AI review by hand starts their count again).
@@ -525,6 +527,7 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
     params.push(filters.storedOn)
   }
   if (filters.missing && omit !== 'missing') where.push(`EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id AND l.state = 'missing')`)
+  if (filters.nowhere && omit !== 'nowhere') where.push('NOT EXISTS (SELECT 1 FROM asset_locations l WHERE l.asset_id = a.id)')
   if (filters.failed && omit !== 'failed') {
     if (filters.failed === 'ai') {
       where.push(`a.ai_status = 'failed' AND a.ai_attempts >= ?`)
@@ -697,6 +700,7 @@ export function parseListFilters(query: Record<string, string | undefined>): Lis
     job: text(query.job, 64),
     client: text(query.client, 64),
     missing: query.missing === '1' ? true : undefined,
+    nowhere: query.nowhere === '1' ? true : undefined,
     failed: query.failed === '1' ? 'processing' : query.failed === 'ai' ? 'ai' : undefined,
     orientation: query.orientation && ORIENTATIONS.has(query.orientation) ? (query.orientation as Orientation) : undefined,
     people: (PEOPLE_FILTERS as readonly string[]).includes(query.people ?? '') ? (query.people as PeopleFilter) : undefined,

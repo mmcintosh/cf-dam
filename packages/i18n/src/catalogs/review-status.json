@@ -1841,6 +1841,12 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.stage.ai": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.stage.alerts": {
     "es": "machine",
     "de": "machine",
@@ -1877,6 +1883,18 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.stage.hash": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.index": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.stage.jobs": {
     "es": "machine",
     "de": "machine",
@@ -1895,7 +1913,25 @@
     "fr": "machine",
     "it": "machine"
   },
+  "alert.stage.orders": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.places": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "alert.stage.previews": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "alert.stage.process": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -6259,6 +6295,12 @@
     "it": "machine"
   },
   "facets.noLabel": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "facets.nowhere": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -12794,6 +12836,23 @@
     "fr": "machine",
     "it": "machine"
   },
+  "restore.emptied.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.emptied.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.emptied.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "restore.failedStatus": {
     "es": "machine",
     "de": "machine",
@@ -12812,6 +12871,23 @@
     "fr": "machine",
     "it": "machine"
   },
+  "restore.leftOut.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.leftOut.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.leftOut.other": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
   "restore.look": {
     "es": "machine",
     "de": "machine",
@@ -12819,6 +12895,23 @@
     "it": "machine"
   },
   "restore.looking": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.noLocation.many": {
+    "es": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.noLocation.one": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.noLocation.other": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -12837,6 +12930,12 @@
     "it": "machine"
   },
   "restore.phase.bands": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.phase.report": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",
@@ -12891,6 +12990,12 @@
     "it": "machine"
   },
   "restore.s3": {
+    "es": "machine",
+    "de": "machine",
+    "fr": "machine",
+    "it": "machine"
+  },
+  "restore.short": {
     "es": "machine",
     "de": "machine",
     "fr": "machine",

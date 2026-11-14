@@ -4,7 +4,7 @@ summary: "Les copies quotidiennes du catalogue, comment le restaurer dans une no
 section: Where photos are kept
 order: 4
 review: machine
-source: 72bcd6ac0261
+source: 144f5352577b
 ---
 
 Les **originaux** de vos photos sont protégés par l’endroit où vous les gardez (voir [Archiver et restaurer les originaux](/help/archiving)). Le **catalogue** (les détails, mots-clés, légendes et notes de chaque photo, les albums, galeries et personnes) est protégé par les **sauvegardes du catalogue**.
@@ -45,6 +45,15 @@ Après une restauration :
 
 - **Les assistants** sur votre NAS et vos ordinateurs se réappairent et retrouvent leurs propres entrées, pour ne pas tout renvoyer une deuxième fois. Voir [Ordinateurs et NAS](/help/computers-and-nas).
 - **Les vignettes et aperçus** sont recréés : à partir des originaux là où cf-dam peut les lire, et par les assistants pour les originaux sur un NAS.
+
+### Ce qu'une restauration ne peut pas ramener
+
+Une sauvegarde copie une table après l'autre, pendant des heures pour un grand catalogue, alors que le travail continue. Ce n'est donc pas un instant unique : elle peut contenir quelques lignes sans ce à quoi elles appartiennent, comme un mot-clé proposé par l'analyse par IA après la copie des mots-clés, ou une photo trouvée par un assistant pendant ce temps. Une restauration laisse ces lignes de côté, ou vide un lien vers quelque chose de plus récent que la sauvegarde, et indique combien à la fin :
+
+- **Lignes laissées de côté**, table par table.
+- **Liens vidés** : par exemple, un album dont le travail est plus récent que la sauvegarde revient sans son travail.
+- **Photos sans original** : leurs emplacements étaient plus récents que la sauvegarde. Un assistant installé pendant la sauvegarde ajoute de nouveau ses fichiers comme nouvelles photos ; vous retrouvez ensuite les anciennes copies avec le filtre **Original introuvable partout** de la photothèque, et vous pouvez les supprimer.
+- **Une sauvegarde incomplète** : une sauvegarde qui contient moins de lignes qu'elle n'en annonce est peut-être abîmée. S'il manque quelque chose, restaurez-en une plus ancienne.
 
 ## La vérification des aperçus
 

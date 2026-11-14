@@ -4,7 +4,7 @@ summary: "Copie giornaliere del catalogo, come riportarlo in una nuova installaz
 section: Where photos are kept
 order: 4
 review: machine
-source: 72bcd6ac0261
+source: 144f5352577b
 ---
 
 Gli **originali** delle tue foto sono protetti da dove li conservi (vedi [Archiviare e ripristinare gli originali](/help/archiving)). Il **catalogo** (dettagli di ogni foto, parole chiave, didascalie, valutazioni, album, gallerie e persone) è protetto dai **backup del catalogo**.
@@ -45,6 +45,15 @@ Dopo un ripristino:
 
 - Gli **assistenti** sul tuo NAS e sui tuoi computer si collegano di nuovo e ritrovano le loro voci, così non inviano tutto due volte. Vedi [Computer e NAS](/help/computers-and-nas).
 - **Miniature e anteprime** vengono ricreate: dagli originali dove cf-dam può leggerli, e dagli assistenti per gli originali su un NAS.
+
+### Ciò che un ripristino non può riportare
+
+Un backup copia una tabella dopo l'altra, per ore se il catalogo è grande, mentre si continua a lavorare. Quindi non è un singolo istante: può contenere alcune righe senza ciò a cui appartengono, come una parola chiave suggerita dalla revisione IA dopo che le parole chiave erano già state copiate, o una foto trovata da un helper in quel tempo. Un ripristino lascia fuori queste righe, o svuota un collegamento a qualcosa di più recente del backup, e alla fine dice quante sono:
+
+- **Righe lasciate fuori**, tabella per tabella.
+- **Collegamenti svuotati**: per esempio, un album il cui lavoro è più recente del backup torna senza il suo lavoro.
+- **Foto senza originale**: le loro posizioni erano più recenti del backup. Un helper configurato mentre si faceva il backup aggiunge di nuovo i suoi file come foto nuove; poi trovi le vecchie copie con il filtro **Originale da nessuna parte** della libreria e puoi eliminarle.
+- **Un backup incompleto**: un backup che contiene meno righe di quante ne indichi potrebbe essere danneggiato. Se manca qualcosa, ripristinane uno precedente.
 
 ## Il controllo delle anteprime
 
