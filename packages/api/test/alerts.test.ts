@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { alertCount, alertsDue, checkAlerts, noteSweepFailure, sweepStalledSince } from '../src/catalog/alerts'
+import { alertCount, alertsDue, checkAlerts, manyChangedThreshold, noteSweepFailure, sweepStalledSince } from '../src/catalog/alerts'
 import { DEFAULT_BACKUP_CONFIG, setBackupConfig } from '../src/catalog/backups'
 import { runSweep } from '../src/catalog/sweeper'
 import { createHarness, createUser, json, setUpAdmin, signIn, cookiesFrom, type Harness } from './harness'
@@ -103,6 +103,20 @@ describe('alerts', () => {
     await h.env.DB.prepare('UPDATE sources SET status = ? WHERE id = ?').bind(JSON.stringify({ archive: clean }), mac).run()
     await checkAlerts(h.env, NOW)
     expect(await kinds()).toEqual([])
+  })
+
+  it('opens when many archived files change or turn unreadable in a day', async () => {
+    const counts = (changed: number, unreadable: number) => ({ archive: { gaveUp: { files: 0, bytes: 0 }, cantRead: { new: 0, archived: 0 }, bucket: { refusing: null, until: null }, archivedFiles: 200_000, changedArchived24h: changed, cantReadArchived24h: unreadable } })
+    const nas = await agent('Studio NAS', 'linux/x64', NOW.toISOString(), counts(49, 0), { connectionId: 'aws' })
+    await checkAlerts(h.env, NOW)
+    expect(await kinds()).toEqual([])
+    await h.env.DB.prepare('UPDATE sources SET status = ? WHERE id = ?').bind(JSON.stringify(counts(50, 3)), nas).run()
+    await checkAlerts(h.env, NOW)
+    expect((await list()).open.map((a) => a.message)).toEqual([
+      'In the last day 50 archived originals on “Studio NAS” changed and 3 can no longer be read. That can be ransomware, a sync gone wrong or a failing disk. The earlier copies are kept; check the files before they’re archived again.',
+    ])
+    // A small archive: 1%, but never under 10.
+    expect([manyChangedThreshold(300), manyChangedThreshold(2_000), manyChangedThreshold(1_000_000)]).toEqual([10, 20, 50])
   })
 
   it('counts originals missing, changed or unreadable in storage', async () => {

@@ -272,12 +272,26 @@ export async function completeArchive(env: DamBindings, source: SourceRow, body:
     etag = head.etag
   }
   if (!head || head.size !== row.size) {
-    // Completed, but not as the file: the upload is over either way, and the file starts again.
-    await db.prepare('DELETE FROM archive_uploads WHERE id = ?').bind(row.id).run()
+    // Completed, but not as the file: the upload is over either way, and the file starts again. The object is kept
+    // track of (as a 'bad' earlier copy), not lost in the bucket.
+    await db.batch([
+      ...(head
+        ? [
+            db
+              .prepare(
+                `INSERT INTO asset_location_versions (asset_id, connection_id, source_id, key, size, storage_class, archived_at, replaced_at)
+                 VALUES (?, ?, ?, ?, ?, 'bad', ?, ?)`,
+              )
+              .bind(row.asset_id, row.connection_id, source.id, row.key, head.size, nowIso(), nowIso()),
+          ]
+        : []),
+      db.prepare('DELETE FROM archive_uploads WHERE id = ?').bind(row.id),
+    ])
     throw new AgentError(`The bucket holds ${head?.size ?? 0} bytes, not the file's ${row.size}. Start the file again.`, 404, 'no_upload')
   }
   const now = nowIso()
   await db.batch([
+    keepEarlierCopy(db, row.asset_id, row.connection_id, row.key, source.id, now),
     db
       .prepare(
         `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, quick_hash, updated_at)
@@ -292,6 +306,21 @@ export async function completeArchive(env: DamBindings, source: SourceRow, body:
     db.prepare('DELETE FROM archive_uploads WHERE id = ?').bind(row.id),
   ])
   return { archived: true, key: row.key }
+}
+
+/**
+ * Before a photo's copy in a bucket is replaced by another key: keep the one there now as an earlier copy, with the
+ * photo's SHA-256 as it is (the batch updates it after). Nothing when the key stays the same or the copy is gone.
+ */
+export function keepEarlierCopy(db: D1Database, assetId: string, connectionId: string, newKey: string, sourceId: string | null = null, now = nowIso()): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO asset_location_versions (asset_id, connection_id, source_id, key, size, quick_hash, sha256, storage_class, archived_at, replaced_at)
+       SELECT l.asset_id, l.connection_id, ?, l.key, l.size, l.quick_hash, a.sha256, l.storage_class, l.updated_at, ?
+       FROM asset_locations l JOIN assets a ON a.id = l.asset_id
+       WHERE l.asset_id = ? AND l.connection_id = ? AND l.key != ? AND l.state != 'gone'`,
+    )
+    .bind(sourceId, now, assetId, connectionId, newKey)
 }
 
 /** S3's answers at complete that mean the upload is over: start the file again. */
@@ -341,6 +370,7 @@ export async function linkArchive(env: DamBindings, source: SourceRow & { archiv
   if (!twin || twin.size !== nas.size || twin.quick_hash !== nas.quick_hash) throw new AgentError('That copy doesn\'t match this file: upload it instead.', 409, 'twin_mismatch')
   const now = nowIso()
   await db.batch([
+    keepEarlierCopy(db, assetId, connection.id, twin.key, source.id, now),
     db
       .prepare(
         `INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, quick_hash, updated_at)

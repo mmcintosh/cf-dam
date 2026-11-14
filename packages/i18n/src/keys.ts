@@ -48,6 +48,8 @@ export type MessageKey =
   | 'act.anotherClass'
   | 'act.apiKeyCreated'
   | 'act.apiKeyRevoked'
+  | 'act.archiveHeldArchived'
+  | 'act.archiveHeldKept'
   | 'act.archiveSettings'
   | 'act.assetDeleted'
   | 'act.assetUploaded'
@@ -283,6 +285,7 @@ export type MessageKey =
   | 'alert.mailFailing'
   | 'alert.mailQuota'
   | 'alert.mailStopped'
+  | 'alert.manyChanged'
   | 'alert.neverCheckedIn'
   | 'alert.offlineDesktop'
   | 'alert.offlineServer'
@@ -369,6 +372,10 @@ export type MessageKey =
   | 'archive.files'
   | 'archive.from'
   | 'archive.gaveUp'
+  | 'archive.held'
+  | 'archive.heldArchive'
+  | 'archive.heldAsked'
+  | 'archive.heldKeep'
   | 'archive.hint'
   | 'archive.lead'
   | 'archive.removedBucket'
@@ -705,6 +712,7 @@ export type MessageKey =
   | 'connPage.blockArchive'
   | 'connPage.blockBackupDestination'
   | 'connPage.blockBackups'
+  | 'connPage.blockEarlierCopies'
   | 'connPage.blockJobArchive'
   | 'connPage.blockOriginals'
   | 'connPage.blockRestores'
@@ -1910,6 +1918,8 @@ export type MessageKey =
   | 'peoplePage.subtitle'
   | 'photo.credit'
   | 'photo.details'
+  | 'photo.earlierCopies'
+  | 'photo.earlierCopiesList'
   | 'photo.file'
   | 'photo.location'
   | 'photo.metadata'
@@ -2391,4 +2401,4 @@ export type MessageKey =
   | 'wm.white'
 
 /** Keys with plural forms: pass `{ count }`. */
-export const PLURAL_KEYS: ReadonlySet<string> = new Set(['act.facesRemoved', 'act.namesSuggested', 'act.signedOutElsewhere', 'albumTools.links', 'albumTools.takeOutCount', 'albums.count', 'alert.aiFailed', 'alert.archiveGaveUp', 'alert.archiveStalled', 'alert.archivedUnreadable', 'alert.deniedMore', 'alert.previewsStuck', 'alert.processingFailed', 'alert.processingStuck', 'alert.storageProblems', 'alert.storageUnreadable', 'archive.cantReadArchived', 'archive.cantReadNew', 'archive.files', 'archive.gaveUp', 'auth.guard.locked', 'backup.failedTries', 'checks.problems', 'clientPeople.galleries', 'clientsPage.eraseNamedPeople', 'common.days', 'common.items', 'common.photos', 'common.stars', 'conn.newFiles', 'editor.people', 'faces.found', 'faces.named', 'faces.removeConfirm', 'faces.removing', 'faces.toLook', 'facesToName.named', 'facesToName.setAside', 'facesToName.ticked', 'facesToName.title', 'findFaces.done', 'findFaces.failed', 'findFaces.running', 'findFaces.startUploads', 'findFaces.stopped', 'galleryPeople.addTicked', 'jobArchive.blocked', 'jobArchive.failed', 'jobStorage.cold', 'jobStorage.confirm', 'jobStorage.estimate', 'jobStorage.listRestore', 'jobStorage.nasOnly', 'jobStorage.needsRestore', 'jobStorage.readable', 'jobStorage.restore', 'jobStorage.restoreFailed', 'jobStorage.restoring', 'jobs.albumMade', 'jobs.albumOfThese', 'jobs.fromDay', 'jobs.fromRange', 'jobs.fromUndated', 'jobs.galleries', 'libpage.match', 'library.confirmDelete', 'mail.namesWaiting.body', 'namesToCheck.accept', 'namesToCheck.accepted', 'namesToCheck.badge', 'namesToCheck.badgeTitle', 'namesToCheck.reject', 'namesToCheck.rejected', 'namesToCheck.skipped', 'namesToCheck.together', 'namesToCheck.waiting', 'people.onTeam', 'people.passkeys', 'people.signedInOn', 'photoFaces.aside', 'restore.emptied', 'restore.leftOut', 'restore.noLocation', 'sessions.signedOutOthers', 'share.opens', 'share.originalsArchived', 'share.originalsNasOnly', 'suggest.also'])
+export const PLURAL_KEYS: ReadonlySet<string> = new Set(['act.facesRemoved', 'act.namesSuggested', 'act.signedOutElsewhere', 'albumTools.links', 'albumTools.takeOutCount', 'albums.count', 'alert.aiFailed', 'alert.archiveGaveUp', 'alert.archiveStalled', 'alert.archivedUnreadable', 'alert.deniedMore', 'alert.previewsStuck', 'alert.processingFailed', 'alert.processingStuck', 'alert.storageProblems', 'alert.storageUnreadable', 'archive.cantReadArchived', 'archive.cantReadNew', 'archive.files', 'archive.gaveUp', 'archive.held', 'auth.guard.locked', 'backup.failedTries', 'checks.problems', 'clientPeople.galleries', 'clientsPage.eraseNamedPeople', 'common.days', 'common.items', 'common.photos', 'common.stars', 'conn.newFiles', 'editor.people', 'faces.found', 'faces.named', 'faces.removeConfirm', 'faces.removing', 'faces.toLook', 'facesToName.named', 'facesToName.setAside', 'facesToName.ticked', 'facesToName.title', 'findFaces.done', 'findFaces.failed', 'findFaces.running', 'findFaces.startUploads', 'findFaces.stopped', 'galleryPeople.addTicked', 'jobArchive.blocked', 'jobArchive.failed', 'jobStorage.cold', 'jobStorage.confirm', 'jobStorage.estimate', 'jobStorage.listRestore', 'jobStorage.nasOnly', 'jobStorage.needsRestore', 'jobStorage.readable', 'jobStorage.restore', 'jobStorage.restoreFailed', 'jobStorage.restoring', 'jobs.albumMade', 'jobs.albumOfThese', 'jobs.fromDay', 'jobs.fromRange', 'jobs.fromUndated', 'jobs.galleries', 'libpage.match', 'library.confirmDelete', 'mail.namesWaiting.body', 'namesToCheck.accept', 'namesToCheck.accepted', 'namesToCheck.badge', 'namesToCheck.badgeTitle', 'namesToCheck.reject', 'namesToCheck.rejected', 'namesToCheck.skipped', 'namesToCheck.together', 'namesToCheck.waiting', 'people.onTeam', 'people.passkeys', 'people.signedInOn', 'photo.earlierCopiesList', 'photoFaces.aside', 'restore.emptied', 'restore.leftOut', 'restore.noLocation', 'sessions.signedOutOthers', 'share.opens', 'share.originalsArchived', 'share.originalsNasOnly', 'suggest.also'])

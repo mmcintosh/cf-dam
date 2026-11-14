@@ -394,6 +394,16 @@ async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, 
   const whole = createHash('sha256')
   const handle = await open(path, 'r')
   const rate = ctx.settings.maxMbps > 0 ? ctx.settings.maxMbps * 125_000 : 0
+  /** The file as it was indexed: edited since, it starts again later, and nothing counts against it. */
+  const moved = async () => {
+    const now = await handle.stat()
+    return now.size !== file.size || Math.floor(now.mtimeMs) !== file.mtime_ms
+  }
+  const startOver = async (why: string): Promise<never> => {
+    await api.call('POST', '/api/agent/archive/abort', { uploadId: upload.upload_id }).catch(() => {})
+    state.dropUpload(file.asset_id)
+    throw new SkipFile(why)
+  }
   try {
     for (let n = 1; n <= upload.part_count; n++) {
       const offset = (n - 1) * upload.part_size
@@ -405,9 +415,19 @@ async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, 
         return buffer
       }
       const buffer = await readPart()
-      // Parts already in the bucket are read again only for the whole file's SHA-256.
+      // Parts already in the bucket are read again for the whole file's SHA-256, and must still be what was sent.
       whole.update(buffer)
-      if (sent.has(n)) continue
+      const before = sent.get(n)
+      if (before) {
+        if (createHash('sha256').update(buffer).digest('base64') !== before.checksum) {
+          if (await moved()) await startOver('The file was edited while it was being archived; it starts again after the next scan.')
+          // The same date and size, different bytes: a failing disk, or something writing in place. The parts in the
+          // bucket may be the only good copy, so they stay, and a person decides.
+          state.archiveHold(file.root_id, file.path, `changed without its date moving (part ${n})`)
+          throw new SkipFile(`Its bytes changed without its date moving (part ${n}): held for you to decide.`)
+        }
+        continue
+      }
       if (!keepGoing()) return 'stopped'
       const checksum = createHash('sha256').update(buffer).digest('base64')
       const sign = async () =>
@@ -435,6 +455,8 @@ async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, 
         for (let waited = 0; waited < due && keepGoing(); waited += 1000) await sleep(Math.min(1000, due - waited))
       }
     }
+    // Edited while its parts were going: the SHA-256 would be of bytes the bucket doesn't hold.
+    if (await moved()) await startOver('The file was edited while it was being archived; it starts again after the next scan.')
   } finally {
     await handle.close()
   }

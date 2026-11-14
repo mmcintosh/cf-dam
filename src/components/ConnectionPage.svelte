@@ -36,6 +36,7 @@
       archiveWaiting: number
       archiveFailed: number
       agentUploads: number
+      earlierCopies?: number
       restores: number
       backups: number
       jobArchive: boolean
@@ -255,6 +256,7 @@
     if (u.originals > 0) out.push(t('connPage.blockOriginals', { count: n(u.originals) }))
     if (u.archiveWaiting > 0) out.push(t('connPage.blockArchive', { count: n(u.archiveWaiting) }))
     if (u.agentUploads > 0) out.push(t('connPage.blockAgentUploads', { count: n(u.agentUploads) }))
+    if ((u.earlierCopies ?? 0) > 0) out.push(t('connPage.blockEarlierCopies', { count: n(u.earlierCopies!) }))
     if (u.restores > 0) out.push(t('connPage.blockRestores', { count: n(u.restores) }))
     if (u.backups > 0) out.push(t('connPage.blockBackups', { count: n(u.backups) }))
     if (u.jobArchive) out.push(t('connPage.blockJobArchive'))

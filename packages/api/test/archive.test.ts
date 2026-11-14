@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { AwsClient } from 'aws4fetch'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { abandonStaleArchiveUploads, isThisUpload, storageScope } from '../src/catalog/archive'
+import { abandonStaleArchiveUploads, isThisUpload, keepEarlierCopy, storageScope } from '../src/catalog/archive'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const s3Endpoint = process.env.S3_TEST_ENDPOINT
@@ -227,6 +227,23 @@ describe('the bucket’s answers', () => {
   it('tell a bucket refusing everything from one file refused', () => {
     for (const code of ['AccessDenied', 'ExpiredToken', 'NoSuchBucket', 'NetworkError', 'KMS.DisabledException', 'HTTP503']) expect(storageScope(code), code).toBe('bucket')
     for (const code of ['NoSuchUpload', 'InvalidPart', 'EntityTooLarge', 'Whatever']) expect(storageScope(code), code).toBe('file')
+  })
+
+  it('keep the copy there before as an earlier one, but not the same key again or a copy that’s gone', async () => {
+    const db = h.env.DB
+    await db.batch([
+      db.prepare("INSERT INTO assets (id, filename, mime_type, size, sha256, status, created_at, updated_at) VALUES ('p1', 'a.jpg', 'image/jpeg', 5, 'aa', 'ready', 'x', 'x')"),
+      db.prepare("INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, quick_hash, updated_at) VALUES ('p1', 'r2', 'old/a.jpg', 'STANDARD', 'present', 5, 'qh', '2026-01-02T00:00:00Z')"),
+    ])
+    await keepEarlierCopy(db, 'p1', 'r2', 'old/a.jpg').run()
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first('n')).toBe(0)
+    await keepEarlierCopy(db, 'p1', 'r2', 'new/a.jpg', null, '2026-03-04T00:00:00Z').run()
+    expect(await db.prepare('SELECT asset_id, key, size, quick_hash, sha256, storage_class, archived_at, replaced_at FROM asset_location_versions').first()).toEqual({
+      asset_id: 'p1', key: 'old/a.jpg', size: 5, quick_hash: 'qh', sha256: 'aa', storage_class: 'STANDARD', archived_at: '2026-01-02T00:00:00Z', replaced_at: '2026-03-04T00:00:00Z',
+    })
+    await db.prepare("UPDATE asset_locations SET state = 'gone'").run()
+    await keepEarlierCopy(db, 'p1', 'r2', 'newer/a.jpg').run()
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first('n')).toBe(1)
   })
 
   it('recognise the object an earlier complete made from these very parts', async () => {

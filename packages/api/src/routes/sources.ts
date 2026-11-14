@@ -153,6 +153,21 @@ sourceRoutes.post('/:id/archive/retry', async (c) => {
   return c.json({ ok: true })
 })
 
+/**
+ * Files the helper held because their bytes changed without their date moving: archive them as they are now, or keep
+ * the copy already in the bucket. Passed to the helper at its next heartbeat; logged, since it decides which copy
+ * is kept.
+ */
+sourceRoutes.post('/:id/archive/held', async (c) => {
+  const source = await loadSource(c)
+  if (!source) return c.json({ error: 'not_found' }, 404)
+  const { choice } = await readJsonObject(c)
+  if (choice !== 'archive' && choice !== 'keep') return c.json({ error: 'invalid_request', message: 'choice is "archive" or "keep".' }, 400)
+  await c.env.DB.prepare('UPDATE sources SET archive_held_choice = ? WHERE id = ?').bind(choice, source.id).run()
+  await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: choice === 'archive' ? 'archive.held_archived' : 'archive.held_kept', targetType: 'source', targetId: source.id, details: { name: source.name } })
+  return c.json({ ok: true })
+})
+
 sourceRoutes.delete('/:id', async (c) => {
   if (!(await revokeSource(c.env.DB, c.req.param('id')))) return c.json({ error: 'not_found' }, 404)
   await logActivity(c.env.DB, { userId: c.get('principal')!.userId, action: 'source.revoked', targetType: 'source', targetId: c.req.param('id') })

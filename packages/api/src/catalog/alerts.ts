@@ -35,6 +35,18 @@ interface ArchiveStatus {
   cantRead?: { new: number; archived: number }
   bucket?: { refusing: string | null; until: string | null }
   lastGaveUp?: { path: string; error: string | null; at: string | null } | null
+  archivedFiles?: number
+  changedArchived24h?: number
+  cantReadArchived24h?: number
+}
+
+/**
+ * Archived files changing or becoming unreadable in a day, enough to look like ransomware, a bad sync or a failing
+ * disk: 50, or 1% of what the helper has archived if that's less, but never under 10 (a photographer re-editing a few
+ * old photos isn't news). An alert, not a hold: the earlier copies are kept either way.
+ */
+export function manyChangedThreshold(archived: number): number {
+  return Math.min(50, Math.max(10, Math.ceil(archived * 0.01)))
 }
 
 /** Originals waiting to be archived, with nothing copied for this long. */
@@ -168,6 +180,12 @@ export async function findProblems(db: D1Database, now = new Date()): Promise<{ 
       }
       if ((a.cantRead?.archived ?? 0) > 0) {
         findings.push({ key: `agent.cantRead:${s.id}`, kind: 'agent.cantRead', text: { key: 'alert.archivedUnreadable', params: { name: s.name, count: a.cantRead!.archived } }, link: '/sources' })
+      }
+      const changed = a.changedArchived24h ?? 0
+      const unreadable = a.cantReadArchived24h ?? 0
+      const threshold = manyChangedThreshold(a.archivedFiles ?? 0)
+      if (changed >= threshold || unreadable >= threshold) {
+        findings.push({ key: `agent.manyChanged:${s.id}`, kind: 'agent.manyChanged', text: { key: 'alert.manyChanged', params: { name: s.name, changed, unreadable } }, link: '/sources' })
       }
       if (a.bucket?.refusing) {
         findings.push({ key: `agent.bucketRefusing:${s.id}`, kind: 'agent.bucketRefusing', text: { key: 'alert.bucketRefusing', params: { name: s.name, code: clip(a.bucket.refusing) } }, link: '/sources' })

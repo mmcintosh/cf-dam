@@ -3,7 +3,7 @@
  * S3-compatible server. Runs when S3_TEST_ENDPOINT is set (as in CI), like the API's S3 tests.
  */
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync } from 'node:fs'
+import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -440,6 +440,97 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     await agent.archiveAll()
     expect((await archived(connectionId)).map((c) => c.filename)).toEqual(['DSC_0002.jpg'])
     expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('holds a file whose bytes changed without its date moving, keeping its parts, until a person chooses', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, sourceId, connectionId } = await setUp()
+    await agent.scanAll()
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
+    await agent.archiveAll()
+    clearInterval(stopper)
+    // Part 1's bytes change in place (past the fingerprint's first MiB), and the date is put back: a disk going bad.
+    const path = join(photos, '2020', 'DSC_0003.jpg')
+    const { mtime } = statSync(path)
+    const fd = openSync(path, 'r+')
+    writeSync(fd, Buffer.alloc(4096, 0xab), 0, 4096, 2 * 1024 * 1024)
+    closeSync(fd)
+    utimesSync(path, mtime, mtime)
+
+    calls.length = 0
+    const resumed = newAgent()
+    await resumed.pair()
+    await resumed.scanAll()
+    await resumed.archiveAll()
+    expect(await archived(connectionId)).toEqual([])
+    expect(calls).not.toContain('POST /api/agent/archive/complete')
+    expect(calls).not.toContain('POST /api/agent/archive/abort')
+    expect(resumed.state.upload(asset!.id)?.parts).toHaveLength(1)
+    expect(resumed.state.archiveCounts().held).toMatchObject({ files: 1, first: { path: '2020/DSC_0003.jpg', reason: 'changed without its date moving (part 1)' } })
+    expect(fileState(resumed, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+    // Held: the next pass leaves it alone.
+    calls.length = 0
+    await resumed.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
+
+    // "Archive them as they are now": the old upload goes, and the file as it is now is archived.
+    expect((await h.fetch(`/api/sources/${sourceId}/archive/held`, { ...json({ choice: 'archive' }), cookie: admin })).status).toBe(200)
+    await resumed.heartbeat()
+    await resumed.archiveAll()
+    const copies = await archived(connectionId)
+    expect(copies).toHaveLength(1)
+    expect(await objectSha(copies[0]!.key)).toBe(fileSha(path))
+    expect(resumed.state.archiveCounts().held.files).toBe(0)
+    const logged = await h.env.DB.prepare("SELECT action FROM activity_log WHERE action LIKE 'archive.held%'").all<{ action: string }>()
+    expect(logged.results.map((r) => r.action)).toEqual(['archive.held_archived'])
+  }, 180_000)
+
+  it('starts a file again later when it is edited while its parts are going, without counting a try', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const path = join(photos, '2020', 'DSC_0003.jpg')
+    // While part 2 goes, someone saves the file (its date moves).
+    faultyBucket(agent, (n) => {
+      if (n === 2) {
+        const fd = openSync(path, 'r+')
+        writeSync(fd, Buffer.alloc(4096, 0xcd), 0, 4096, 8 * 1024 * 1024)
+        closeSync(fd)
+      }
+      return undefined
+    })
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toEqual([])
+    expect(calls).not.toContain('POST /api/agent/archive/complete')
+    expect(calls).toContain('POST /api/agent/archive/abort')
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    expect(agent.state.upload(asset!.id)).toBeNull()
+    expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('keeps the earlier copy when a changed file is archived again, and counts the change', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+    const [first] = await archived(connectionId)
+    const before = fileSha(join(photos, '2019', 'DSC_0001.jpg'))
+    // Overwritten with other bytes (say, encrypted), and left alone for a day.
+    await photo('2019/DSC_0001.jpg', 9)
+    await agent.scanAll()
+    expect(agent.state.archiveCounts()).toMatchObject({ archivedFiles: 1, changedArchived24h: 1 })
+    await agent.archiveAll()
+    const [now] = await archived(connectionId)
+    expect(now!.key).not.toBe(first!.key)
+    expect(await objectSha(now!.key)).toBe(fileSha(join(photos, '2019', 'DSC_0001.jpg')))
+    const versions = await h.env.DB.prepare('SELECT key, sha256, source_id FROM asset_location_versions').all<{ key: string; sha256: string; source_id: string }>()
+    expect(versions.results).toEqual([{ key: first!.key, sha256: before, source_id: expect.any(String) }])
+    // Still in the bucket, as it was.
+    expect(await objectSha(first!.key)).toBe(before)
+    // The bucket can't be removed while it holds it.
+    const details = (await (await h.fetch(`/api/connections/${connectionId}/details`, { cookie: admin })).json()) as { uses: { earlierCopies: number } }
+    expect(details.uses.earlierCopies).toBe(1)
   }, 180_000)
 })
 

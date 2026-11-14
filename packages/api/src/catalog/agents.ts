@@ -205,6 +205,8 @@ export interface SourceRow {
   archive: string
   /** "Try them again" asked, not yet passed to the helper. */
   archive_retry_at?: string | null
+  /** A person's choice for held files ('archive' or 'keep'), not yet passed to the helper. */
+  archive_held_choice?: string | null
 }
 
 export interface RootRow {
@@ -393,13 +395,15 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
     else console.warn('[agent] status too long to keep', source.id, sent.length)
   }
   const retry = !!source.archive_retry_at
+  const held = source.archive_held_choice === 'archive' || source.archive_held_choice === 'keep' ? source.archive_held_choice : null
   const [, asked] = await db.batch([
     db
       .prepare(
         `UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0,
-           archive_retry_at = CASE WHEN archive_retry_at IS ? THEN NULL ELSE archive_retry_at END WHERE id = ?`,
+           archive_retry_at = CASE WHEN archive_retry_at IS ? THEN NULL ELSE archive_retry_at END,
+           archive_held_choice = CASE WHEN archive_held_choice IS ? THEN NULL ELSE archive_held_choice END WHERE id = ?`,
       )
-      .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status?.startsWith('{') ? status : '{}', source.archive_retry_at ?? null, source.id),
+      .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status?.startsWith('{') ? status : '{}', source.archive_retry_at ?? null, source.archive_held_choice ?? null, source.id),
     // Photos whose previews went missing (catalog/previews.ts): the agent sends those files again.
     askAgent(db, source.id),
   ])
@@ -409,6 +413,7 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
     rescan: source.rescan === 1 || resend.length > 0,
     ...(resend.length > 0 ? { resend } : {}),
     ...(retry ? { archiveRetry: true } : {}),
+    ...(held ? { archiveHeld: held } : {}),
   }
 }
 

@@ -49,9 +49,15 @@ export interface ArchivePart {
 }
 
 export interface ArchiveCounts {
+  /** Files whose bytes changed without their date moving, waiting for a person to decide. */
+  held: { files: number; first: { path: string; reason: string } | null }
   gaveUp: { files: number; bytes: number }
   cantRead: { new: number; archived: number }
   notReadYet: number
+  /** Files archived, and how many of them changed or became unreadable in the last day. */
+  archivedFiles: number
+  changedArchived24h: number
+  cantReadArchived24h: number
   lastGaveUp: { path: string; error: string | null; at: string | null } | null
 }
 
@@ -135,6 +141,9 @@ export class State {
     if (!columns.includes('archive_restarts')) this.db.exec('ALTER TABLE files ADD COLUMN archive_restarts INTEGER NOT NULL DEFAULT 0')
     // When a file given up on is tried again by itself (ms; set each time it's given up).
     if (!columns.includes('archive_retry_at')) this.db.exec('ALTER TABLE files ADD COLUMN archive_retry_at INTEGER')
+    // Held for a person to decide: its bytes changed without its date moving (A.6). "kept: …" once they chose the copy
+    // already in the bucket.
+    if (!columns.includes('archive_held')) this.db.exec('ALTER TABLE files ADD COLUMN archive_held TEXT')
     this.db.exec(`CREATE INDEX IF NOT EXISTS files_archive_gave_up ON files (root_id, path) WHERE archive_attempts >= ${MAX_ARCHIVE_ATTEMPTS}`)
     if (!columns.includes('preview_later')) this.db.exec('ALTER TABLE files ADD COLUMN preview_later INTEGER NOT NULL DEFAULT 0')
     this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
@@ -166,7 +175,8 @@ export class State {
            archive_attempts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_attempts ELSE 0 END,
            archive_restarts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_restarts ELSE 0 END,
            archive_error = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_error ELSE NULL END,
-           archive_retry_at = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_retry_at ELSE NULL END`,
+           archive_retry_at = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_retry_at ELSE NULL END,
+           archive_held = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_held ELSE NULL END`,
       )
       .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, f.previewLater ? 1 : 0, new Date().toISOString())
   }
@@ -288,7 +298,7 @@ export class State {
       .prepare(
         `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
-           AND (archive_attempts < ? OR archive_retry_at <= ?) AND mtime_ms < ? AND (root_id, path) > (?, ?)
+           AND (archive_attempts < ? OR archive_retry_at <= ?) AND archive_held IS NULL AND mtime_ms < ? AND (root_id, path) > (?, ?)
          ORDER BY root_id, path LIMIT ?`,
       )
       .all(MAX_ARCHIVE_ATTEMPTS, Date.now(), stableBefore, after?.rootId ?? '', after?.path ?? '', limit) as unknown as ArchiveCandidate[]
@@ -300,7 +310,7 @@ export class State {
       .prepare(
         `SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
-           AND (archive_attempts < ? OR archive_retry_at <= ?) AND mtime_ms < ?`,
+           AND (archive_attempts < ? OR archive_retry_at <= ?) AND archive_held IS NULL AND mtime_ms < ?`,
       )
       .get(MAX_ARCHIVE_ATTEMPTS, Date.now(), stableBefore) as { files: number; bytes: number }
     return { files: row.files, bytes: Number(row.bytes) }
@@ -308,7 +318,7 @@ export class State {
 
   archived(rootId: string, path: string, quickHash: string): void {
     this.db
-      .prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0, archive_error = NULL, archive_restarts = 0, archive_retry_at = NULL WHERE root_id = ? AND path = ?')
+      .prepare('UPDATE files SET archived_hash = ?, archive_attempts = 0, archive_error = NULL, archive_restarts = 0, archive_retry_at = NULL, archive_held = NULL WHERE root_id = ? AND path = ?')
       .run(quickHash, rootId, path)
   }
 
@@ -331,6 +341,22 @@ export class State {
       .run(MAX_ARCHIVE_ATTEMPTS, reason.slice(0, 500), Date.now() + ARCHIVE_RETRY_MS, rootId, path)
   }
 
+  /** Hold a file for a person to decide (no try counted): its bytes changed without its date moving. */
+  archiveHold(rootId: string, path: string, reason: string): void {
+    this.db.prepare('UPDATE files SET archive_held = ? WHERE root_id = ? AND path = ?').run(reason.slice(0, 200), rootId, path)
+  }
+
+  /**
+   * A person's choice for the files held: archive them as they are now, or keep the copy already in the bucket.
+   * Returns the photos whose unfinished uploads to give up.
+   */
+  archiveHeldChoice(choice: 'archive' | 'keep'): string[] {
+    const held = this.db.prepare("SELECT asset_id FROM files WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%' AND asset_id IS NOT NULL").all() as { asset_id: string }[]
+    if (choice === 'archive') this.db.exec("UPDATE files SET archive_held = NULL WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
+    else this.db.exec("UPDATE files SET archive_held = 'kept: ' || archive_held WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
+    return held.map((h) => h.asset_id)
+  }
+
   /** "Try them again": every file given up on gets its tries back. */
   archiveRetryAll(): number {
     return Number(
@@ -351,17 +377,33 @@ export class State {
            COALESCE(SUM(size) FILTER (WHERE status = 'done' AND archive_attempts >= ? AND (archive_retry_at IS NULL OR archive_retry_at > ?)), 0) AS gave_up_bytes,
            COUNT(*) FILTER (WHERE status = 'error' AND attempts >= ? AND archived_hash IS NULL) AS cant_read_new,
            COUNT(*) FILTER (WHERE status = 'error' AND attempts >= ? AND archived_hash IS NOT NULL) AS cant_read_archived,
-           COUNT(*) FILTER (WHERE (status = 'error' AND attempts < ?) OR status = 'resend') AS not_read_yet
+           COUNT(*) FILTER (WHERE (status = 'error' AND attempts < ?) OR status = 'resend') AS not_read_yet,
+           COUNT(*) FILTER (WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%') AS held,
+           -- Many archived files changing (or turning unreadable) in a day is how ransomware, a bad sync or a failing
+           -- disk looks: counted for cf-dam's alert. A scan touches a file's row only when the file changed.
+           COUNT(*) FILTER (WHERE archived_hash IS NOT NULL) AS archived,
+           COUNT(*) FILTER (WHERE status = 'done' AND archived_hash IS NOT NULL AND archived_hash IS NOT quick_hash AND updated_at > ?) AS changed_24h,
+           COUNT(*) FILTER (WHERE status = 'error' AND archived_hash IS NOT NULL AND updated_at > ?) AS cant_read_24h
          FROM files`,
       )
-      .get(MAX_ARCHIVE_ATTEMPTS, now, MAX_ARCHIVE_ATTEMPTS, now, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS) as Record<string, number>
+      .get(
+        MAX_ARCHIVE_ATTEMPTS, now, MAX_ARCHIVE_ATTEMPTS, now, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS, MAX_SCAN_ATTEMPTS,
+        new Date(now - 86_400_000).toISOString(), new Date(now - 86_400_000).toISOString(),
+      ) as Record<string, number>
     const last = this.db
       .prepare(`SELECT path, archive_error, archive_retry_at FROM files WHERE archive_attempts >= ? AND status = 'done' ORDER BY archive_retry_at DESC LIMIT 1`)
       .get(MAX_ARCHIVE_ATTEMPTS) as { path: string; archive_error: string | null; archive_retry_at: number | null } | undefined
+    const firstHeld = row.held
+      ? (this.db.prepare("SELECT path, archive_held FROM files WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%' ORDER BY path LIMIT 1").get() as { path: string; archive_held: string })
+      : null
     return {
+      held: { files: row.held ?? 0, first: firstHeld ? { path: clip(firstHeld.path)!, reason: firstHeld.archive_held } : null },
       gaveUp: { files: row.gave_up ?? 0, bytes: Number(row.gave_up_bytes ?? 0) },
       cantRead: { new: row.cant_read_new ?? 0, archived: row.cant_read_archived ?? 0 },
       notReadYet: row.not_read_yet ?? 0,
+      archivedFiles: row.archived ?? 0,
+      changedArchived24h: row.changed_24h ?? 0,
+      cantReadArchived24h: row.cant_read_24h ?? 0,
       lastGaveUp:
         last && row.gave_up
           ? { path: clip(last.path)!, error: clip(last.archive_error), at: last.archive_retry_at ? new Date(last.archive_retry_at - ARCHIVE_RETRY_MS).toISOString() : null }

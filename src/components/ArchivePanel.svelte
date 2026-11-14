@@ -20,6 +20,7 @@
     bytesLeft?: number
     lastError?: string | null
     /** From helpers that count what archiving couldn't do (older ones send none of these). */
+    held?: { files: number; first: { path: string; reason: string } | null }
     gaveUp?: { files: number; bytes: number }
     cantRead?: { new: number; archived: number }
     notReadYet?: number
@@ -63,13 +64,27 @@
   /** "Try them again" pressed, until the count goes down. */
   let retryAsked = $state<number | null>(null)
   const gaveUp = $derived(progress?.gaveUp?.files ?? 0)
+  const held = $derived(progress?.held?.files ?? 0)
+  /** A choice for the held files sent, until they're no longer held. */
+  let heldAsked = $state(false)
   $effect(() => {
     if (retryAsked !== null && gaveUp < retryAsked) retryAsked = null
+    if (heldAsked && held === 0) heldAsked = false
   })
   /** Nothing archiving couldn't do: only a helper that counts can say so. */
   const allClear = $derived(
-    !progress?.gaveUp || (gaveUp === 0 && (progress.cantRead?.new ?? 0) === 0 && (progress.cantRead?.archived ?? 0) === 0 && !progress.bucket?.refusing),
+    !progress?.gaveUp || (gaveUp === 0 && held === 0 && (progress.cantRead?.new ?? 0) === 0 && (progress.cantRead?.archived ?? 0) === 0 && !progress.bucket?.refusing),
   )
+
+  async function chooseHeld(choice: 'archive' | 'keep') {
+    error = ''
+    try {
+      await api(`/api/sources/${sourceId}/archive/held`, { method: 'POST', body: JSON.stringify({ choice }) })
+      heldAsked = true
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('common.couldNotSave')
+    }
+  }
 
   async function retry() {
     error = ''
@@ -157,6 +172,17 @@
       {/if}
       {#if progress?.bucket?.refusing}
         <p class="problem" role="status">{t('archive.bucketRefusing', { code: progress.bucket.refusing, time: progress.bucket.until ? format().time(progress.bucket.until) : '' })}</p>
+      {/if}
+      {#if held > 0}
+        <p class="problem">
+          {t('archive.held', { count: held, path: progress?.held?.first?.path ?? '', reason: progress?.held?.first?.reason ?? '' })}
+          {#if heldAsked}
+            <span class="muted">{t('archive.heldAsked')}</span>
+          {:else}
+            <button class="btn btn-sm" type="button" onclick={() => chooseHeld('archive')}>{t('archive.heldArchive')}</button>
+            <button class="btn btn-sm" type="button" onclick={() => chooseHeld('keep')}>{t('archive.heldKeep')}</button>
+          {/if}
+        </p>
       {/if}
       {#if gaveUp > 0}
         <p class="problem">

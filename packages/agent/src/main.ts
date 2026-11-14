@@ -118,7 +118,7 @@ export class Agent {
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
     this.canFaces ??= await hasFaceModel()
-    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean }>('POST', '/api/agent/heartbeat', {
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep' }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
       // Archiving first: cf-dam keeps 8,000 characters of this, and what archiving couldn't do mustn't be what's cut.
@@ -140,6 +140,15 @@ export class Agent {
     if (res.body.rescan) this.rescan = true
     // "Try them again" on the Computers and NAS page: every file given up on gets its tries back.
     if (res.body.archiveRetry) log(`Trying ${this.state.archiveRetryAll()} files that couldn't be archived again.`)
+    // Files held because their bytes changed without their date moving: a person chose. Either way the unfinished
+    // uploads go; "archive" sends the files as they are now, "keep" leaves the copy already in the bucket.
+    if (res.body.archiveHeld === 'archive' || res.body.archiveHeld === 'keep') {
+      for (const assetId of this.state.archiveHeldChoice(res.body.archiveHeld)) {
+        const upload = this.state.upload(assetId)
+        if (upload) await this.api.call('POST', '/api/agent/archive/abort', { uploadId: upload.upload_id }).catch(() => {})
+        this.state.dropUpload(assetId)
+      }
+    }
     // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
     if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
     this.refusals = 0

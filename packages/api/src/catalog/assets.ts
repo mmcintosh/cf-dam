@@ -110,6 +110,15 @@ export async function getLocations(db: D1Database, assetId: string): Promise<Loc
   return results
 }
 
+/** Earlier archived copies of a photo (archived again after it changed), oldest first. */
+export async function earlierCopies(db: D1Database, assetId: string): Promise<{ connection_id: string; key: string; storage_class: string | null; archived_at: string; replaced_at: string }[]> {
+  const { results } = await db
+    .prepare('SELECT connection_id, key, storage_class, archived_at, replaced_at FROM asset_location_versions WHERE asset_id = ? ORDER BY archived_at')
+    .bind(assetId)
+    .all<{ connection_id: string; key: string; storage_class: string | null; archived_at: string; replaced_at: string }>()
+  return results
+}
+
 /** The locations of many assets, in one query. */
 export async function locationsOf(db: D1Database, assetIds: string[]): Promise<Map<string, LocationRow[]>> {
   const map = new Map<string, LocationRow[]>()

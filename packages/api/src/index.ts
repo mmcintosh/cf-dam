@@ -134,7 +134,7 @@ export function createDamApi() {
 }
 
 // Server-side reads for the Astro pages (permissions are checked by the page middleware).
-export { assetJson, COUNT_CAP, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
+export { assetJson, COUNT_CAP, earlierCopies, getAsset, getLocations, getTags, listAssets, parseListFilters, type AssetJson, type ListFilters } from './catalog/assets'
 export { DEFAULT_LABEL_NAMES, facets, geoPoints, getLabelNames, timeline, workFacets, type Facets, type FacetValue, type KeywordFacet, type LabelNames, type WorkFacet } from './catalog/library'
 export { keywordTree, type KeywordNode } from './catalog/keywords'
 export { IPTC_FIELDS, listPresets, type IptcField, type IptcKey, type Preset } from './catalog/iptc'
