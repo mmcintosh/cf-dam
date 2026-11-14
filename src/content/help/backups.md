@@ -44,6 +44,15 @@ After a restore:
 - **Helpers** on your NAS and computers pair again and get their own entries back, so they don't send everything twice. See [Computers and NAS](/help/computers-and-nas).
 - **Thumbnails and previews** are made again: from the originals where cf-dam can read them, and by the helpers for originals on a NAS.
 
+### What a restore can't bring back
+
+A backup copies one table after another, over hours for a large catalogue, while people go on working. So it isn't a single moment: a few rows can be in it without what they belong to, such as a keyword AI review suggested after the keywords were copied, or a photo a helper found then. A restore leaves those rows out, or empties a link to something newer than the backup, and says how many when it finishes:
+
+- **Rows left out**, table by table.
+- **Links emptied**: for example, an album whose job is newer than the backup comes back without its job.
+- **Photos with no original**: their locations were newer than the backup. A helper that was set up while the backup was being made adds its files again as new photos; you can then find the old copies with the Library filter **No original anywhere** and delete them.
+- **A short backup**: a backup that holds fewer rows than it lists may be damaged. If anything is missing, restore an older one.
+
 ## The preview check
 
 On **Storage**, under **Previews**, **Check every preview** asks the built-in storage about each thumbnail and preview, and makes again any that are missing. At a million photos it takes some hours and costs well under a dollar. **Try the stuck ones again** retries any that couldn't be made.

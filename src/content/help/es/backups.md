@@ -4,7 +4,7 @@ summary: "Copias diarias del catálogo, cómo recuperarlo en una instalación nu
 section: Where photos are kept
 order: 4
 review: machine
-source: 72bcd6ac0261
+source: 144f5352577b
 ---
 
 Los **originales** de tus fotos están protegidos por el sitio donde los guardas (consulta [Archivar y restaurar los originales](/help/archiving)). El **catálogo** (los detalles de cada foto, palabras clave, pies de foto, valoraciones, álbumes, galerías y personas) está protegido por las **copias de seguridad del catálogo**.
@@ -45,6 +45,15 @@ Después de una restauración:
 
 - Los **asistentes** de tu NAS y tus ordenadores se vuelven a emparejar y recuperan sus propias entradas, así que no envían todo dos veces. Consulta [Ordenadores y NAS](/help/computers-and-nas).
 - Las **miniaturas y vistas previas** se vuelven a crear: a partir de los originales donde cf-dam puede leerlos, y mediante los asistentes para los originales que están en un NAS.
+
+### Lo que una restauración no puede recuperar
+
+Una copia de seguridad copia una tabla tras otra, durante horas si el catálogo es grande, mientras se sigue trabajando. Así que no es un único instante: puede contener algunas filas sin aquello a lo que pertenecen, como una palabra clave que la revisión con IA sugirió después de copiarse las palabras clave, o una foto que un asistente encontró en ese tiempo. Una restauración deja fuera esas filas, o vacía un enlace a algo más reciente que la copia, y al terminar dice cuántas fueron:
+
+- **Filas dejadas fuera**, tabla por tabla.
+- **Enlaces vaciados**: por ejemplo, un álbum cuyo trabajo es más reciente que la copia vuelve sin su trabajo.
+- **Fotos sin original**: sus ubicaciones eran más recientes que la copia. Un asistente configurado mientras se hacía la copia vuelve a añadir sus archivos como fotos nuevas; después puedes encontrar las copias antiguas con el filtro **Sin original en ningún sitio** de la biblioteca y borrarlas.
+- **Una copia incompleta**: si una copia contiene menos filas de las que indica, puede estar dañada. Si falta algo, restaura una anterior.
 
 ## La comprobación de vistas previas
 

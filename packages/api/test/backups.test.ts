@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   backupDue,
   backupStep,
@@ -157,7 +157,7 @@ describe('a catalog backup', () => {
     const log = manifest.tables.find((t) => t.name === 'activity_log')!
     expect(log.rows).toBeGreaterThan(CHUNK_ROWS + 1200)
     expect(log.chunks).toBeGreaterThan(1)
-    expect(await (await r2()).head(chunkKey(state.id, 'activity_log', 0))).not.toBeNull()
+    expect(await (await r2()).head(chunkKey(state.id, 'activity_log', 0, log.files![0]))).not.toBeNull()
   }, 120_000)
 
   it('runs in the sweep once a day, and deletes old backups but never the newest', async () => {
@@ -223,3 +223,162 @@ describe('a catalog backup', () => {
     expect(editor).toBeTruthy()
   })
 })
+
+describe('backups and overlapping sweeps', () => {
+  it('copies each chunk once when two sweeps run at once, and hands the backup back after each step', async () => {
+    await fillCatalog()
+    expect((await Promise.all([startBackup(h.env, 'r2'), startBackup(h.env, 'r2')])).filter(Boolean)).toHaveLength(1)
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM backups').first('n')).toBe(1)
+    const twoPages = () => {
+      let n = 0
+      return () => n++ < 2
+    }
+    // A step that stops part-way leaves the backup for whichever run comes next.
+    await backupStep(h.env, twoPages())
+    expect((await getBackupState(h.env.DB))?.leaseUntil ?? null).toBeNull()
+    let finished: string | null = null
+    for (let i = 0; i < 200 && !finished; i++) {
+      const [a, b] = await Promise.all([backupStep(h.env, twoPages()), backupStep(h.env, twoPages())])
+      finished = a.finished ?? b.finished
+    }
+    expect(finished).toBeTruthy()
+    await expectWhole(finished!)
+  }, 120_000)
+
+  it('ignores a run that outlived its lease: its late chunk overwrites nothing and its progress is refused', async () => {
+    await fillCatalog()
+    await startBackup(h.env, 'r2')
+    // Run A's first upload hangs until let go.
+    let letGo!: () => void
+    const gate = new Promise<void>((resolve) => (letGo = resolve))
+    let hanging = false
+    const bucket = new Proxy(h.env.MEDIA_BUCKET!, {
+      get(target, prop) {
+        if (prop === 'put') {
+          return async (...args: Parameters<R2Bucket['put']>) => {
+            if (!hanging) {
+              hanging = true
+              await gate
+            }
+            return target.put(...args)
+          }
+        }
+        const value = Reflect.get(target, prop)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    const slow = backupStep({ ...h.env, MEDIA_BUCKET: bucket }, () => true)
+    await vi.waitFor(() => expect(hanging).toBe(true))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // Three minutes on, its lease has passed: run B takes the backup and finishes it.
+      vi.setSystemTime(Date.now() + 3 * 60_000)
+      let finished: string | null = null
+      for (let i = 0; i < 50 && !finished; i++) finished = (await backupStep(h.env, () => true)).finished
+      expect(finished).toBeTruthy()
+      letGo()
+      expect((await slow).finished).toBeNull()
+      expect(await getBackupState(h.env.DB)).toBeNull()
+      await expectWhole(finished!)
+      expect(await h.env.DB.prepare("SELECT status, COUNT(*) AS n FROM backups GROUP BY status").all()).toMatchObject({ results: [{ status: 'done', n: 1 }] })
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 120_000)
+
+  it('counts failures only while they come in a row', async () => {
+    await fillCatalog()
+    await startBackup(h.env, 'r2')
+    let failing = true
+    const bucket = new Proxy(h.env.MEDIA_BUCKET!, {
+      get(target, prop) {
+        if (prop === 'put') {
+          return async (...args: Parameters<R2Bucket['put']>) => {
+            if (failing) throw new Error('storage is down')
+            return target.put(...args)
+          }
+        }
+        const value = Reflect.get(target, prop)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    const env = { ...h.env, MEDIA_BUCKET: bucket }
+    const twoPages = () => {
+      let n = 0
+      return () => n++ < 2
+    }
+    // Two failures, a chunk written, two more: never three in a row, so it carries on.
+    for (const fail of [true, true, false, true, true]) {
+      failing = fail
+      await backupStep(env, twoPages())
+    }
+    expect((await getBackupState(h.env.DB))?.failures).toBe(2)
+    failing = false
+    let finished: string | null = null
+    for (let i = 0; i < 100 && !finished; i++) finished = (await backupStep(env, () => true)).finished
+    await expectWhole(finished!)
+  }, 120_000)
+
+  it('finishes a backup the version before began part-way through a table, and it loads back whole', async () => {
+    await fillCatalog()
+    await h.env.DB.prepare("INSERT INTO activity_log (id, action, created_at) SELECT 'a' || value, 'asset.uploaded', ? FROM json_each(?)")
+      .bind(new Date().toISOString(), JSON.stringify(Array.from({ length: 3000 }, (_, i) => i)))
+      .run()
+    const { id } = (await startBackup(h.env, 'r2'))!
+    const twoPages = () => {
+      let n = 0
+      return () => n++ < 2
+    }
+    // Step until the activity log has a chunk written and more to come.
+    const inLog = (s: Awaited<ReturnType<typeof getBackupState>>) => s && s.tables[s.table] === 'activity_log' && (s.counts.activity_log?.chunks ?? 0) > 0
+    for (let i = 0; i < 200 && !inLog(await getBackupState(h.env.DB)); i++) await backupStep(h.env, twoPages())
+    const state = (await getBackupState(h.env.DB))!
+    expect(inLog(state)).toBe(true)
+    // Make it what the version before left: chunks under the plain names, no per-chunk lists.
+    const provider = await r2()
+    for (const [table, count] of Object.entries(state.counts)) {
+      for (let seq = 0; seq < count.chunks; seq++) {
+        const named = chunkKey(id, table, seq, count.files![seq])
+        const body = await new Response((await provider.get(named))!.body).arrayBuffer()
+        await provider.put(chunkKey(id, table, seq), body, { contentType: 'application/gzip' })
+        await provider.delete(named)
+      }
+      delete count.files
+      delete count.chunkRows
+    }
+    await h.env.DB.prepare("UPDATE settings SET value = ? WHERE key = 'backup.state'").bind(JSON.stringify(state)).run()
+    // This version carries on from there.
+    let finished: string | null = null
+    for (let i = 0; i < 100 && !finished; i++) finished = (await backupStep(h.env, () => true)).finished
+    expect(finished).toBe(id)
+    const log = (await readManifest(provider, id))!.tables.find((t) => t.name === 'activity_log')!
+    expect(log.files![0]).toBe('00000.ndjson.gz')
+    expect(log.files!.at(-1)).not.toMatch(/^\d+\.ndjson\.gz$/)
+    await expectWhole(id, Object.keys(state.counts).filter((t) => state.counts[t]!.chunks > 0))
+  }, 120_000)
+})
+
+/** A finished backup holds every row: its chunks add up to its counts, and it loads back row for row. Tables in `uncounted` were begun without per-chunk counts. */
+async function expectWhole(id: string, uncounted: string[] = []): Promise<void> {
+  const provider = await r2()
+  const manifest = (await readManifest(provider, id))!
+  for (const table of manifest.tables) {
+    if (uncounted.includes(table.name)) expect(table.chunkRows, table.name).toBeUndefined()
+    else expect(table.chunkRows?.reduce((n, c) => n + c, 0) ?? 0, table.name).toBe(table.rows)
+    // A table the version before finished keeps the plain names (no list).
+    if (table.files || !uncounted.includes(table.name)) expect(table.files ?? [], table.name).toHaveLength(table.chunks)
+  }
+  const fresh = await createHarness()
+  try {
+    await importBackup(fresh.env.DB, provider, id)
+    for (const table of manifest.tables) {
+      const omit = [...table.omittedColumns]
+      const original = (await rowsOf(h.env.DB, table.name, omit)).filter(
+        (r) => !(table.name === 'settings' && r.key === 'backup.state') && !(table.name === 'activity_log' && r.action === 'backup.done'),
+      )
+      expect(await rowsOf(fresh.env.DB, table.name, omit), table.name).toEqual(original)
+    }
+  } finally {
+    await fresh.dispose()
+  }
+}

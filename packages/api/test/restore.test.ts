@@ -149,7 +149,7 @@ describe('restoring a backup into a fresh install', () => {
     const r2 = providerFor(h.env, (await getConnection(h.env.DB, 'r2'))!)
     // A chunk goes missing part-way.
     const manifest = (await readManifest(r2, id))!
-    const assets = `cf-dam-backups/${id}/assets/00000.ndjson.gz`
+    const assets = `cf-dam-backups/${id}/assets/${manifest.tables.find((t) => t.name === 'assets')!.files![0]}`
     const saved = await (await h.env.MEDIA_BUCKET!.get(assets))!.arrayBuffer()
     await h.env.MEDIA_BUCKET!.delete(assets)
     await h.fetch('/api/setup/restore', json({ source: R2, backupId: id }))
