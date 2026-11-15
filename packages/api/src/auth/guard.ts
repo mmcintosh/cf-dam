@@ -76,6 +76,7 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
   // Who it is, before the handler: changing a password can end the very session that asked.
   const before = change ? await resolvePrincipal(c.env, c.req.raw) : null
   const response = await auth.handler(c.req.raw)
+  if (sub === '/get-session' && response.ok) return withoutSessionToken(response)
   if (change && before?.via === 'session' && response.ok) {
     if (sub === '/change-password') {
       await c.env.DB.prepare('UPDATE users SET must_change_password = 0 WHERE id = ?').bind(before.userId).run()
@@ -83,6 +84,19 @@ export async function handleAuthRequest(c: Context<DamEnv>): Promise<Response> {
     await logActivity(c.env.DB, { userId: before.userId, action: change, targetType: 'user', targetId: before.userId, ipAddress: c.req.header('cf-connecting-ip') })
   }
   return response
+}
+
+/**
+ * The session as Better Auth answers it, without its token: page JavaScript has no use for it, and it is the
+ * cookie's value, kept out of script's reach (HttpOnly). Cookies the answer sets (a refreshed session) stay.
+ */
+async function withoutSessionToken(response: Response): Promise<Response> {
+  const body = (await response.clone().json().catch(() => null)) as { session?: Record<string, unknown> } | null
+  if (!body?.session || !('token' in body.session)) return response
+  delete body.session.token
+  const headers = new Headers(response.headers)
+  headers.delete('content-length')
+  return new Response(JSON.stringify(body), { status: response.status, headers })
 }
 
 interface PolicyRow {
