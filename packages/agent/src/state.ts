@@ -40,6 +40,8 @@ export interface ArchiveCandidate {
   mtime_ms: number
   quick_hash: string
   asset_id: string
+  /** What was archived: the fingerprint, or "check:" and it when the file's date moved but its fingerprint didn't. */
+  archived_hash: string | null
 }
 
 export interface ArchivePart {
@@ -176,7 +178,11 @@ export class State {
            archive_restarts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_restarts ELSE 0 END,
            archive_error = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_error ELSE NULL END,
            archive_retry_at = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_retry_at ELSE NULL END,
-           archive_held = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_held ELSE NULL END`,
+           archive_held = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_held ELSE NULL END,
+           -- Archived, and its date moved but its size and fingerprint (the first and last MiB) didn't: the middle may
+           -- have changed. Archiving reads it whole and lets cf-dam compare (archived again only if the bytes differ).
+           archived_hash = CASE WHEN files.archived_hash = excluded.quick_hash AND files.quick_hash IS excluded.quick_hash
+             AND files.size = excluded.size AND files.mtime_ms != excluded.mtime_ms THEN 'check:' || files.archived_hash ELSE files.archived_hash END`,
       )
       .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, f.previewLater ? 1 : 0, new Date().toISOString())
   }
@@ -296,7 +302,7 @@ export class State {
   archiveCandidates(after: { rootId: string; path: string } | null, stableBefore: number, limit: number): ArchiveCandidate[] {
     return this.db
       .prepare(
-        `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id FROM files
+        `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id, archived_hash FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
            AND (archive_attempts < ? OR archive_retry_at <= ?) AND archive_held IS NULL AND mtime_ms < ? AND (root_id, path) > (?, ?)
          ORDER BY root_id, path LIMIT ?`,
@@ -384,7 +390,7 @@ export class State {
            -- Many archived files changing (or turning unreadable) in a day is how ransomware, a bad sync or a failing
            -- disk looks: counted for cf-dam's alert. A scan touches a file's row only when the file changed.
            COUNT(*) FILTER (WHERE archived_hash IS NOT NULL) AS archived,
-           COUNT(*) FILTER (WHERE status = 'done' AND archived_hash IS NOT NULL AND archived_hash IS NOT quick_hash AND updated_at > ?) AS changed_24h,
+           COUNT(*) FILTER (WHERE status = 'done' AND archived_hash IS NOT NULL AND archived_hash IS NOT quick_hash AND archived_hash NOT LIKE 'check:%' AND updated_at > ?) AS changed_24h,
            COUNT(*) FILTER (WHERE status = 'error' AND archived_hash IS NOT NULL AND updated_at > ?) AS cant_read_24h
          FROM files`,
       )

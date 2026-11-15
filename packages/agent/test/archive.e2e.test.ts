@@ -538,6 +538,42 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
   }, 180_000)
 
+  it('archives again a file edited in the middle, its size and fingerprint unchanged, and not one only touched', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const path = join(photos, '2020', 'DSC_0003.jpg')
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+    const [first] = await archived(connectionId)
+    const before = fileSha(path)
+    expect(await objectSha(first!.key)).toBe(before)
+
+    // Only touched: the date moves, the bytes don't. Read whole, found the same, nothing sent.
+    const later = new Date(Date.now() - 1.5 * 86_400_000)
+    utimesSync(path, later, later)
+    await agent.scanAll()
+    calls.length = 0
+    await agent.archiveAll()
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/part')).toEqual([])
+    expect((await archived(connectionId))[0]!.key).toBe(first!.key)
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+
+    // Edited between the first and last MiB, same size: archived again, the earlier copy kept.
+    const fd = openSync(path, 'r+')
+    writeSync(fd, Buffer.alloc(4096, 0xee), 0, 4096, 2 * 1024 * 1024)
+    closeSync(fd)
+    settle(path)
+    await agent.scanAll()
+    expect(agent.state.archiveCounts().changedArchived24h).toBe(0)
+    await agent.archiveAll()
+    const [now] = await archived(connectionId)
+    expect(now!.key).not.toBe(first!.key)
+    expect(await objectSha(now!.key)).toBe(fileSha(path))
+    const versions = await h.env.DB.prepare('SELECT key, sha256 FROM asset_location_versions').all<{ key: string; sha256: string }>()
+    expect(versions.results).toEqual([{ key: first!.key, sha256: before }])
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+  }, 180_000)
+
   it('keeps the earlier copy when a changed file is archived again, and counts the change', async () => {
     await photo('2019/DSC_0001.jpg', 1)
     const { agent, connectionId } = await setUp()

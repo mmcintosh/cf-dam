@@ -147,16 +147,20 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
   const quickHash = body.quickHash
   if (!Number.isInteger(size) || (size as number) < 0) throw new AgentError('size must be the file\'s size in bytes.')
   if (typeof quickHash !== 'string' || !/^[0-9a-f]{16,64}$/.test(quickHash)) throw new AgentError('quickHash must be the file\'s fingerprint.')
+  // The whole file's SHA-256, sent when the fingerprint can't tell: its date moved, its size and fingerprint didn't.
+  const fileSha = body.sha256 === undefined ? null : hex64(body.sha256, 'sha256')
   const { settings, connection } = await target(env, source)
   const nas = await nasLocation(db, source, assetId)
   if (nas.size !== size || nas.quick_hash !== quickHash) throw new AgentError('The file changed since it was indexed; it is archived after the next scan.', 409, 'changed')
 
-  // Already archived, as this very file.
+  // Already archived, as this very file. The fingerprint reads only the first and last MiB: when the agent sends the
+  // whole file's SHA-256, it's the archived bytes that must match (an edit in the middle keeps size and fingerprint).
   const mine = await db
-    .prepare("SELECT size, quick_hash FROM asset_locations WHERE asset_id = ? AND connection_id = ? AND state != 'gone'")
+    .prepare("SELECT l.size, l.quick_hash, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id WHERE l.asset_id = ? AND l.connection_id = ? AND l.state != 'gone'")
     .bind(assetId, connection.id)
-    .first<{ size: number | null; quick_hash: string | null }>()
-  if (mine && mine.size === size && mine.quick_hash === quickHash) return { result: 'archived' }
+    .first<{ size: number | null; quick_hash: string | null; sha256: string | null }>()
+  const sameBytes = !fileSha || !mine?.sha256 || mine.sha256 === fileSha
+  if (mine && mine.size === size && mine.quick_hash === quickHash && sameBytes) return { result: 'archived' }
 
   // The same file archived for another photo: the agent proves it with the whole SHA-256. After a
   // proof that failed (same size and fingerprint, different bytes), it says skipTwin.

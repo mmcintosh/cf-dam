@@ -373,12 +373,14 @@ async function archiveOnce(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
   }
 
   if (!upload) {
+    // Its date moved but not its fingerprint: the whole file's SHA-256 tells cf-dam whether the archived bytes still match.
+    const whole = file.archived_hash?.startsWith('check:') ? await sha256File(path) : undefined
     const start = async (skipTwin: boolean) =>
       (
         await api.call<{ result: 'archived' | 'verify' | 'upload'; sha256?: string; fromAssetId?: string; uploadId?: string; partSize?: number; partCount?: number }>(
           'POST',
           '/api/agent/archive/start',
-          { assetId: file.asset_id, size: file.size, quickHash: file.quick_hash, skipTwin },
+          { assetId: file.asset_id, size: file.size, quickHash: file.quick_hash, skipTwin, ...(whole ? { sha256: whole } : {}) },
         )
       ).body
     let plan = await start(false)
