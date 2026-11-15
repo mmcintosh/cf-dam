@@ -160,6 +160,7 @@ export class S3Provider implements StorageProvider {
     }
     if (options?.checksumSha256) headers['x-amz-checksum-algorithm'] = 'SHA256'
     if (options?.sha256) headers['x-amz-checksum-sha256'] = options.sha256
+    for (const [name, value] of Object.entries(options?.metadata ?? {})) headers[`x-amz-meta-${name}`] = value
     return headers
   }
 

@@ -21,6 +21,8 @@ The helper on your NAS or computer can copy each original to an S3 bucket by its
 
 The helper copies each original once it has been left alone for a day (so it doesn't archive a file you're still editing), and checks each part as it lands. It only ever **reads** your files: it never changes or deletes them. The panel shows what's been sent, what's left and roughly how long it will take.
 
+Each copy in the bucket is stored under the photo's catalog number, and labelled with where the file was: its full path, the helper's name and the file's date, in the copy's own metadata (`cf-dam-path`, `cf-dam-helper` and `cf-dam-modified`, with spaces and accents written as `%20`-style codes). So even without cf-dam, the bucket says where each file belongs. Identical files share one copy, labelled with the first one found. A path too long for the label (over about 2,000 characters) is left off, and the file is still archived.
+
 You can **Change** the settings or **Stop archiving** at any time. What's already in the bucket stays there.
 
 ### When something can't be archived

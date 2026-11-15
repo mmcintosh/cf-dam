@@ -103,6 +103,7 @@ async function target(env: DamBindings, source: SourceRow & { archive?: string }
 
 interface NasLocation {
   key: string
+  mtime: string | null
   size: number | null
   quick_hash: string | null
   filename: string
@@ -112,13 +113,36 @@ interface NasLocation {
 async function nasLocation(db: D1Database, source: SourceRow, assetId: string): Promise<NasLocation> {
   const row = await db
     .prepare(
-      `SELECT l.key, l.size, l.quick_hash, a.filename, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id
+      `SELECT l.key, l.mtime, l.size, l.quick_hash, a.filename, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id
        WHERE l.asset_id = ? AND l.connection_id = ? AND l.state = 'present' AND a.deleted_at IS NULL`,
     )
     .bind(assetId, source.connection_id)
     .first<NasLocation>()
   if (!row) throw new AgentError('No such photo on this agent.', 404, 'no_photo')
   return row
+}
+
+/** S3 keeps at most 2 KB of an object's own metadata, names included. */
+const LABELS_MAX = 2000
+
+/**
+ * Where a file was, kept on its copy in the bucket, so the bucket makes sense without cf-dam (the key is the
+ * photo's catalog id): the full path on the NAS or computer, the helper's name and the file's date. Percent-encoded,
+ * since S3 metadata is ASCII (decodeURIComponent reads it back). A label that won't fit is left off rather than
+ * have the bucket refuse the file.
+ */
+export function whereItWas(path: string, helper: string, modified: string | null): Record<string, string> {
+  const encode = (value: string) => encodeURIComponent(value).replace(/%2F/g, '/').replace(/%3A/g, ':')
+  const labels: Record<string, string> = {}
+  let used = 0
+  for (const [name, value] of [['cf-dam-path', path], ['cf-dam-modified', modified], ['cf-dam-helper', helper]] as const) {
+    if (!value) continue
+    const encoded = encode(value)
+    if (used + name.length + encoded.length > LABELS_MAX) continue
+    labels[name] = encoded
+    used += name.length + encoded.length
+  }
+  return labels
 }
 
 /** A copy the storage check found missing, or not matching what was uploaded, counts as no copy: archived again. */
@@ -204,7 +228,11 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
   // Under the connection's prefix: a keyless role may only write there.
   const key = connectionKey(connection, `originals/${assetId}/${startedAt.replace(/[:.]/g, '-')}-${safeFilename(nas.filename)}`)
   const storageClass = settings.storageClass ?? connection.defaultClass
-  const multipartId = await providerFor(env, connection).createMultipart(key, { storageClass: storageClass as StorageClass, checksumSha256: true })
+  const multipartId = await providerFor(env, connection).createMultipart(key, {
+    storageClass: storageClass as StorageClass,
+    checksumSha256: true,
+    metadata: whereItWas(nas.key, source.name, nas.mtime),
+  })
   const id = randomId()
   await db
     .prepare(

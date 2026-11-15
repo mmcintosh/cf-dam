@@ -151,6 +151,20 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
   }, 180_000)
 
+  it('labels each copy in the bucket with where the file was, so the bucket makes sense without cf-dam', async () => {
+    await photo('Mariage Été/IMG 01.jpg', 4)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+
+    const [copy] = await archived(connectionId)
+    const head = await client.fetch(`${s3Endpoint}/${bucket}/${copy!.key.split('/').map(encodeURIComponent).join('/')}`, { method: 'HEAD' })
+    expect(head.ok).toBe(true)
+    expect(decodeURIComponent(head.headers.get('x-amz-meta-cf-dam-path')!)).toBe(join(photos, 'Mariage Été', 'IMG 01.jpg'))
+    expect(decodeURIComponent(head.headers.get('x-amz-meta-cf-dam-helper')!)).toBe('Studio Mac')
+    expect(head.headers.get('x-amz-meta-cf-dam-modified')).toBe(new Date(statSync(join(photos, 'Mariage Été', 'IMG 01.jpg')).mtimeMs).toISOString())
+  }, 120_000)
+
   it('carries on from the next part after being stopped mid-file', async () => {
     await photo('2020/DSC_0003.jpg', 3, true)
     const { agent, connectionId } = await setUp()

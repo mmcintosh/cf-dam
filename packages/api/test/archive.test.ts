@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { AwsClient } from 'aws4fetch'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { abandonStaleArchiveUploads, isThisUpload, keepEarlierCopy, storageScope } from '../src/catalog/archive'
+import { abandonStaleArchiveUploads, isThisUpload, keepEarlierCopy, storageScope, whereItWas } from '../src/catalog/archive'
 import { createHarness, json, setUpAdmin, type Harness } from './harness'
 
 const s3Endpoint = process.env.S3_TEST_ENDPOINT
@@ -220,6 +220,18 @@ describe.skipIf(!s3Endpoint)('archiving to a bucket (against a real S3-compatibl
     const refused = await call<{ error: string; code: string; scope: string }>(agent.key, '/api/agent/archive/start', { assetId: id, size: 1000, quickHash: fingerprint(bytes) })
     expect(refused.status).toBe(502)
     expect(refused.body).toMatchObject({ error: 'storage', code: 'NoSuchBucket', scope: 'bucket' })
+  })
+})
+
+describe('where an archived copy came from', () => {
+  it('is written so S3 takes it, and leaves off what would push it over S3’s 2 KB', () => {
+    const labels = whereItWas('/photos/Mariage Été/IMG 01.CR3', 'Studio Mac', '2019-06-01T10:00:00.000Z')
+    expect(labels['cf-dam-path']).toBe('/photos/Mariage%20%C3%89t%C3%A9/IMG%2001.CR3')
+    expect(decodeURIComponent(labels['cf-dam-path']!)).toBe('/photos/Mariage Été/IMG 01.CR3')
+    expect(Object.values(labels).every((v) => /^[\x21-\x7e]+$/.test(v))).toBe(true)
+    // A path too long for S3: the date and helper still go, and the file is still archived.
+    const long = whereItWas(`/photos/${'Ä'.repeat(400)}/a.jpg`, 'Studio Mac', null)
+    expect(Object.keys(long)).toEqual(['cf-dam-helper'])
   })
 })
 
