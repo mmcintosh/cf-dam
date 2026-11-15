@@ -41,7 +41,7 @@ The restore runs in the background and can be followed on the page. If it stops 
 
 After a restore:
 
-- **Helpers** on your NAS and computers pair again and get their own entries back, so they don't send everything twice. See [Computers and NAS](/help/computers-and-nas).
+- **Helpers** on your NAS and computers pair again and get their own entries back, so they don't send everything twice. Photos a helper sent after the backup was made are sent again by it, as new. See [Computers and NAS](/help/computers-and-nas).
 - **Thumbnails and previews** are made again: from the originals where cf-dam can read them, and by the helpers for originals on a NAS.
 
 ### What a restore can't bring back

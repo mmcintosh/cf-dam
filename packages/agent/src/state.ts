@@ -523,6 +523,9 @@ export class State {
     const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'source_id'").get() as { value: string } | undefined)?.value
     // A new source: its uploads (made for the old one's photos) go with the file list.
     if (was !== c.sourceId) this.db.exec('DELETE FROM files; DELETE FROM archive_uploads')
+    // Paired again as the same one: after a restore from a backup, the catalog may have lost photos sent since.
+    // The file list is checked against it before the next scan (main.ts reconcile).
+    else this.db.prepare("INSERT INTO meta (name, value) VALUES ('reconcile_after', '') ON CONFLICT (name) DO UPDATE SET value = ''").run()
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('source_id', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(c.sourceId)
     writeFileSync(this.credentialsPath, JSON.stringify(c), { mode: 0o600 })
     chmodSync(this.credentialsPath, 0o600)
@@ -532,6 +535,36 @@ export class State {
   resend(assetIds: string[]): number {
     if (assetIds.length === 0) return 0
     return Number(this.db.prepare("UPDATE files SET status = 'resend' WHERE status = 'done' AND asset_id IN (SELECT value FROM json_each(?))").run(JSON.stringify(assetIds)).changes)
+  }
+
+  /** Where checking the file list against the catalog has got to (null: nothing to check). */
+  reconcileAfter(): string | null {
+    return (this.db.prepare("SELECT value FROM meta WHERE name = 'reconcile_after'").get() as { value: string } | undefined)?.value ?? null
+  }
+
+  /** The next page of photo ids this agent holds, after `after`. */
+  assetIdsAfter(after: string, limit: number): string[] {
+    const rows = this.db.prepare('SELECT DISTINCT asset_id FROM files WHERE asset_id IS NOT NULL AND asset_id > ? ORDER BY asset_id LIMIT ?').all(after, limit) as { asset_id: string }[]
+    return rows.map((r) => r.asset_id)
+  }
+
+  /**
+   * Photos cf-dam no longer has: their files are forgotten (and any upload for them), so the next scan sends them as
+   * new. Then the check moves on past `upTo`, or ends when `upTo` is null.
+   */
+  forgetAssets(assetIds: string[], upTo: string | null): void {
+    this.db.exec('BEGIN')
+    try {
+      const ids = JSON.stringify(assetIds)
+      this.db.prepare('DELETE FROM files WHERE asset_id IN (SELECT value FROM json_each(?))').run(ids)
+      this.db.prepare('DELETE FROM archive_uploads WHERE asset_id IN (SELECT value FROM json_each(?))').run(ids)
+      if (upTo === null) this.db.exec("DELETE FROM meta WHERE name = 'reconcile_after'")
+      else this.db.prepare("UPDATE meta SET value = ? WHERE name = 'reconcile_after'").run(upTo)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   /** The entry this agent last had in cf-dam, if any: offered back when it pairs again. */

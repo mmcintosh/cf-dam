@@ -82,6 +82,42 @@ async function pairAndAddRoot(agent: Agent): Promise<void> {
 }
 
 describe('the agent, end to end', () => {
+  it('sends again the photos a restored catalog no longer has, once paired again as the same helper, but not deleted ones', async () => {
+    for (let i = 0; i < 3; i++) await photo(`2023/IMG_${2000 + i}.jpg`, i)
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    const before = (await list()).assets
+    expect(before).toHaveLength(3)
+    const lost = before.find((a) => a.filename === 'IMG_2000.jpg')!
+    const deleted = before.find((a) => a.filename === 'IMG_2001.jpg')!
+    // Restored from a backup taken before IMG_2000 was sent: the catalog has no record of it. IMG_2001 was deleted here.
+    const db = h.env.DB
+    const tables = (await db.prepare("SELECT m.name FROM sqlite_master m WHERE m.type = 'table' AND m.name NOT LIKE '\\_%' ESCAPE '\\' AND m.name NOT LIKE 'sqlite%' AND m.name != 'assets'").all<{ name: string }>()).results
+    for (const { name } of tables) {
+      const cols = (await db.prepare(`SELECT name FROM pragma_table_info('${name}')`).all<{ name: string }>()).results.map((c) => c.name)
+      if (cols.includes('asset_id')) await db.prepare(`DELETE FROM ${name} WHERE asset_id = ?`).bind(lost.id).run()
+    }
+    await db.prepare('DELETE FROM assets WHERE id = ?').bind(lost.id).run()
+    await db.prepare("UPDATE assets SET deleted_at = '2026-01-01T00:00:00.000Z' WHERE id = ?").bind(deleted.id).run()
+    expect((await list()).assets).toHaveLength(1)
+
+    // Unchanged on disk, so a scan alone sends nothing.
+    await agent.scanAll()
+    expect((await list()).assets).toHaveLength(1)
+    // Paired again as the same helper: it asks which photos cf-dam still has, and sends the one it doesn't.
+    const saved = agent.state.credentials(BASE)!
+    agent.state.saveCredentials({ url: BASE, apiKey: saved.apiKey, sourceId: saved.sourceId })
+    calls.length = 0
+    await agent.scanAll()
+    expect(calls.filter((c) => c === 'POST /api/agent/known')).toHaveLength(1)
+    expect((await list()).assets.map((a) => a.filename).sort()).toEqual(['IMG_2000.jpg', 'IMG_2002.jpg'])
+    // Asked once: the next scan doesn't ask again.
+    calls.length = 0
+    await agent.scanAll()
+    expect(calls.filter((c) => c === 'POST /api/agent/known')).toEqual([])
+  })
+
   it('sends a photo again when cf-dam has lost its previews', async () => {
     for (let i = 0; i < 3; i++) await photo(`2023/IMG_${1000 + i}.jpg`, i)
     const agent = newAgent()

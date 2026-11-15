@@ -383,6 +383,24 @@ export async function revokeSource(db: D1Database, id: string): Promise<boolean>
   return true
 }
 
+/**
+ * Of these photo ids the agent holds, the ones cf-dam has no record of at all: after a restore from a backup, photos it
+ * indexed since are gone from the catalog, and it sends those files again. A photo deleted here is still known (it
+ * has a row), so it isn't brought back.
+ */
+export const MAX_KNOWN_IDS = 1000
+export async function unknownAssets(db: D1Database, assetIds: unknown): Promise<string[]> {
+  if (!Array.isArray(assetIds) || assetIds.length > MAX_KNOWN_IDS || assetIds.some((id) => typeof id !== 'string' || id.length > 64)) {
+    throw new AgentError(`assetIds must be up to ${MAX_KNOWN_IDS} photo ids.`)
+  }
+  if (assetIds.length === 0) return []
+  const { results } = await db
+    .prepare('SELECT j.value AS id FROM json_each(?) j LEFT JOIN assets a ON a.id = j.value WHERE a.id IS NULL')
+    .bind(JSON.stringify(assetIds))
+    .all<{ id: string }>()
+  return results.map((r) => r.id)
+}
+
 /** The heartbeat: what the agent is doing. The reply tells it to pause or rescan. */
 export const MAX_STATUS_CHARS = 8000
 
