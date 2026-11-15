@@ -127,6 +127,20 @@ describe('the gallery', () => {
     expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true)
     expect(statuses[10]).toBe(429)
   })
+
+  it('holds a gallery’s password after ten wrong ones from any number of addresses, and the right one resets the count', async () => {
+    const link = await share({ password: 'swordfish' })
+    const from = (i: number) => `198.51.100.${i + 1}`
+    for (let i = 0; i < 10; i++) expect((await gallery(link.token, '/unlock', { ...json({ password: `guess ${i}` }), ip: from(i) })).status).toBe(401)
+    // Held for everyone, even with the right password, saying for how long.
+    const held = await gallery(link.token, '/unlock', { ...json({ password: 'swordfish' }), ip: '192.0.2.50' })
+    expect(held.status).toBe(429)
+    expect(((await held.json()) as { message: string }).message).toMatch(/Try again in 15 minutes/)
+    // The wait over: the right password opens it, and the count starts again.
+    await h.env.DB.prepare("UPDATE shares SET unlock_held_until = '2000-01-01T00:00:00.000Z' WHERE id = ?").bind(link.id).run()
+    expect((await gallery(link.token, '/unlock', { ...json({ password: 'swordfish' }), ip: '192.0.2.51' })).status).toBe(200)
+    expect(await h.env.DB.prepare('SELECT unlock_failures FROM shares WHERE id = ?').bind(link.id).first()).toEqual({ unlock_failures: 0 })
+  })
 })
 
 describe('favourites', () => {

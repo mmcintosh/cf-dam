@@ -1153,6 +1153,8 @@
   "gallery.error.favourite": "That favourite was not saved.",
   "gallery.error.name": "Could not save your name.",
   "gallery.error.password": "That password is not right.",
+  "gallery.error.passwordHeld.one": "Too many wrong passwords for this gallery. Try again in {count} minute.",
+  "gallery.error.passwordHeld.other": "Too many wrong passwords for this gallery. Try again in {count} minutes.",
   "gallery.error.send": "Could not send your selection.",
   "gallery.expired.title": "This gallery has expired",
   "gallery.expired.wasOpen": "It was open until {date}.",

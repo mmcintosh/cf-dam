@@ -58,6 +58,9 @@ galleryRoutes.use('*', async (c, next) => {
 })
 
 const UNLOCK_RULE = { max: 10, windowMs: 60_000 }
+/** Wrong passwords for one gallery, from every address together: every tenth holds its password this long. */
+const UNLOCK_FAILURES = 10
+const UNLOCK_HOLD_MS = 15 * 60_000
 const VISITOR_RULE = { max: 10, windowMs: 60_000, keyPrefix: 'gallery-visitor' }
 /** Loose: the real limits are the waiting counts (catalog/name-suggestions.ts), checked in the database. */
 const SUGGEST_RULE = { max: 60, windowMs: 60_000, keyPrefix: 'gallery-names' }
@@ -206,11 +209,25 @@ galleryRoutes.post('/:token/unlock', async (c) => {
   if (!share.password_hash) return c.json({ ok: true })
   const limited = await consumeRateLimit(c, { ...UNLOCK_RULE, keyPrefix: `gallery-unlock:${share.id}` })
   if (limited) return limited
+  // Guessing from many addresses at once: counted per gallery, in the database, not per address.
+  const held = await c.env.DB.prepare('SELECT unlock_held_until FROM shares WHERE id = ?').bind(share.id).first<{ unlock_held_until: string | null }>()
+  if (held?.unlock_held_until && held.unlock_held_until > new Date().toISOString()) {
+    const minutes = Math.max(1, Math.ceil((Date.parse(held.unlock_held_until) - Date.now()) / 60_000))
+    c.header('Retry-After', String(minutes * 60))
+    return c.json({ error: 'held', message: say('gallery.error.passwordHeld', { count: minutes }) }, 429)
+  }
   try {
     const password = requiredString(await readJsonObject(c), 'password', 200)
     if (!(await verifyPassword(password, share.password_hash)) || !c.env.BETTER_AUTH_SECRET) {
+      await c.env.DB.prepare(
+        `UPDATE shares SET unlock_failures = unlock_failures + 1,
+           unlock_held_until = CASE WHEN (unlock_failures + 1) % ? = 0 THEN ? ELSE unlock_held_until END WHERE id = ?`,
+      )
+        .bind(UNLOCK_FAILURES, new Date(Date.now() + UNLOCK_HOLD_MS).toISOString(), share.id)
+        .run()
       return c.json({ error: 'wrong_password', message: say('gallery.error.password') }, 401)
     }
+    await c.env.DB.prepare('UPDATE shares SET unlock_failures = 0, unlock_held_until = NULL WHERE id = ? AND unlock_failures > 0').bind(share.id).run()
     const cookie = await unlockCookieValue(c.env.BETTER_AUTH_SECRET, share)
     c.header('Set-Cookie', cookieHeader(c.req.raw, unlockCookieName(share.id), cookie.value, cookie.maxAge))
     return c.json({ ok: true })
