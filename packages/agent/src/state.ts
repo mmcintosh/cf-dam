@@ -40,6 +40,8 @@ export interface ArchiveCandidate {
   mtime_ms: number
   quick_hash: string
   asset_id: string
+  /** What was archived: the fingerprint, or "check:" and it when the file's date moved but its fingerprint didn't. */
+  archived_hash: string | null
 }
 
 export interface ArchivePart {
@@ -149,6 +151,8 @@ export class State {
     this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
     // What's left to archive, without reading every file's row (a million, for a big archive).
     this.db.exec('CREATE INDEX IF NOT EXISTS files_to_archive ON files (root_id, path) WHERE archived_hash IS NOT quick_hash')
+    // cf-dam names photos by their id (previews to send again, copies to archive again): found without reading every row.
+    this.db.exec('CREATE INDEX IF NOT EXISTS files_asset ON files (asset_id) WHERE asset_id IS NOT NULL')
     // Files still marked as being read: the agent died reading them. Each counts as a failed try, so
     // a file that kills it every time is left alone after three, instead of the same batch forever.
     const stopped = this.db.prepare('SELECT * FROM reading').all() as unknown as { root_id: string; path: string; size: number; mtime_ms: number; quick_hash: string | null }[]
@@ -176,7 +180,11 @@ export class State {
            archive_restarts = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_restarts ELSE 0 END,
            archive_error = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_error ELSE NULL END,
            archive_retry_at = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_retry_at ELSE NULL END,
-           archive_held = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_held ELSE NULL END`,
+           archive_held = CASE WHEN files.quick_hash IS excluded.quick_hash THEN files.archive_held ELSE NULL END,
+           -- Archived, and its date moved but its size and fingerprint (the first and last MiB) didn't: the middle may
+           -- have changed. Archiving reads it whole and lets cf-dam compare (archived again only if the bytes differ).
+           archived_hash = CASE WHEN files.archived_hash = excluded.quick_hash AND files.quick_hash IS excluded.quick_hash
+             AND files.size = excluded.size AND files.mtime_ms != excluded.mtime_ms THEN 'check:' || files.archived_hash ELSE files.archived_hash END`,
       )
       .run(rootId, path, f.size, Math.floor(f.mtimeMs), f.quickHash, f.assetId, f.previewLater ? 1 : 0, new Date().toISOString())
   }
@@ -296,7 +304,7 @@ export class State {
   archiveCandidates(after: { rootId: string; path: string } | null, stableBefore: number, limit: number): ArchiveCandidate[] {
     return this.db
       .prepare(
-        `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id FROM files
+        `SELECT root_id, path, size, mtime_ms, quick_hash, asset_id, archived_hash FROM files
          WHERE status = 'done' AND asset_id IS NOT NULL AND quick_hash IS NOT NULL AND archived_hash IS NOT quick_hash
            AND (archive_attempts < ? OR archive_retry_at <= ?) AND archive_held IS NULL AND mtime_ms < ? AND (root_id, path) > (?, ?)
          ORDER BY root_id, path LIMIT ?`,
@@ -348,13 +356,31 @@ export class State {
 
   /**
    * A person's choice for the files held: archive them as they are now, or keep the copy already in the bucket.
-   * Returns the photos whose unfinished uploads to give up.
+   * A file with no copy there yet (its first archive was under way) stays held on "keep": there is nothing to keep,
+   * and it mustn't drop out of every count unarchived. Returns the photos whose unfinished uploads to give up.
    */
   archiveHeldChoice(choice: 'archive' | 'keep'): string[] {
-    const held = this.db.prepare("SELECT asset_id FROM files WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%' AND asset_id IS NOT NULL").all() as { asset_id: string }[]
-    if (choice === 'archive') this.db.exec("UPDATE files SET archive_held = NULL WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
-    else this.db.exec("UPDATE files SET archive_held = 'kept: ' || archive_held WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
+    const which = `archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'${choice === 'keep' ? ' AND archived_hash IS NOT NULL' : ''}`
+    const held = this.db.prepare(`SELECT asset_id FROM files WHERE ${which} AND asset_id IS NOT NULL`).all() as { asset_id: string }[]
+    if (choice === 'archive') this.db.exec(`UPDATE files SET archive_held = NULL WHERE ${which}`)
+    else this.db.exec(`UPDATE files SET archive_held = 'kept: ' || archive_held WHERE ${which}`)
     return held.map((h) => h.asset_id)
+  }
+
+  /**
+   * Photos whose archived copy cf-dam found missing or changed: archived again, with fresh tries. Asked at every
+   * heartbeat until the new copy is in, so only files still marked archived are touched (one under way, or given up
+   * on, keeps its state). Returns how many.
+   */
+  archiveAgain(assetIds: string[]): number {
+    return Number(
+      this.db
+        .prepare(
+          `UPDATE files SET archived_hash = NULL, archive_attempts = 0, archive_restarts = 0, archive_retry_at = NULL, archive_error = NULL
+           WHERE asset_id IN (SELECT value FROM json_each(?)) AND archived_hash IS NOT NULL`,
+        )
+        .run(JSON.stringify(assetIds)).changes,
+    )
   }
 
   /** "Try them again": every file given up on gets its tries back. */
@@ -382,7 +408,7 @@ export class State {
            -- Many archived files changing (or turning unreadable) in a day is how ransomware, a bad sync or a failing
            -- disk looks: counted for cf-dam's alert. A scan touches a file's row only when the file changed.
            COUNT(*) FILTER (WHERE archived_hash IS NOT NULL) AS archived,
-           COUNT(*) FILTER (WHERE status = 'done' AND archived_hash IS NOT NULL AND archived_hash IS NOT quick_hash AND updated_at > ?) AS changed_24h,
+           COUNT(*) FILTER (WHERE status = 'done' AND archived_hash IS NOT NULL AND archived_hash IS NOT quick_hash AND archived_hash NOT LIKE 'check:%' AND updated_at > ?) AS changed_24h,
            COUNT(*) FILTER (WHERE status = 'error' AND archived_hash IS NOT NULL AND updated_at > ?) AS cant_read_24h
          FROM files`,
       )
@@ -497,6 +523,9 @@ export class State {
     const was = (this.db.prepare("SELECT value FROM meta WHERE name = 'source_id'").get() as { value: string } | undefined)?.value
     // A new source: its uploads (made for the old one's photos) go with the file list.
     if (was !== c.sourceId) this.db.exec('DELETE FROM files; DELETE FROM archive_uploads')
+    // Paired again as the same one: after a restore from a backup, the catalog may have lost photos sent since.
+    // The file list is checked against it before the next scan (main.ts reconcile).
+    else this.db.prepare("INSERT INTO meta (name, value) VALUES ('reconcile_after', '') ON CONFLICT (name) DO UPDATE SET value = ''").run()
     this.db.prepare("INSERT INTO meta (name, value) VALUES ('source_id', ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value").run(c.sourceId)
     writeFileSync(this.credentialsPath, JSON.stringify(c), { mode: 0o600 })
     chmodSync(this.credentialsPath, 0o600)
@@ -506,6 +535,36 @@ export class State {
   resend(assetIds: string[]): number {
     if (assetIds.length === 0) return 0
     return Number(this.db.prepare("UPDATE files SET status = 'resend' WHERE status = 'done' AND asset_id IN (SELECT value FROM json_each(?))").run(JSON.stringify(assetIds)).changes)
+  }
+
+  /** Where checking the file list against the catalog has got to (null: nothing to check). */
+  reconcileAfter(): string | null {
+    return (this.db.prepare("SELECT value FROM meta WHERE name = 'reconcile_after'").get() as { value: string } | undefined)?.value ?? null
+  }
+
+  /** The next page of photo ids this agent holds, after `after`. */
+  assetIdsAfter(after: string, limit: number): string[] {
+    const rows = this.db.prepare('SELECT DISTINCT asset_id FROM files WHERE asset_id IS NOT NULL AND asset_id > ? ORDER BY asset_id LIMIT ?').all(after, limit) as { asset_id: string }[]
+    return rows.map((r) => r.asset_id)
+  }
+
+  /**
+   * Photos cf-dam no longer has: their files are forgotten (and any upload for them), so the next scan sends them as
+   * new. Then the check moves on past `upTo`, or ends when `upTo` is null.
+   */
+  forgetAssets(assetIds: string[], upTo: string | null): void {
+    this.db.exec('BEGIN')
+    try {
+      const ids = JSON.stringify(assetIds)
+      this.db.prepare('DELETE FROM files WHERE asset_id IN (SELECT value FROM json_each(?))').run(ids)
+      this.db.prepare('DELETE FROM archive_uploads WHERE asset_id IN (SELECT value FROM json_each(?))').run(ids)
+      if (upTo === null) this.db.exec("DELETE FROM meta WHERE name = 'reconcile_after'")
+      else this.db.prepare("UPDATE meta SET value = ? WHERE name = 'reconcile_after'").run(upTo)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   /** The entry this agent last had in cf-dam, if any: offered back when it pairs again. */

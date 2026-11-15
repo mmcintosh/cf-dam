@@ -17,7 +17,7 @@ import { nowIso } from '../lib/time'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
 import { finishAssets, metadataLookups, metadataStatements } from './process'
-import { archiveConfig } from './archive'
+import { archiveConfig, toArchiveAgain } from './archive'
 import { askAgent } from './previews'
 import { mimeTypeFor, safeFilename } from './uploads'
 
@@ -25,7 +25,7 @@ import { mimeTypeFor, safeFilename } from './uploads'
  * What the helper can act on, beyond the status: archiving's refusals each say which one they are
  * (PLAN-HELPER-ARCHIVE-v2 A.1), so a helper can tell "the file changed" from "that upload is gone".
  */
-export type AgentErrorCode = 'not_archiving' | 'changed' | 'twin_mismatch' | 'no_upload' | 'no_photo' | 'bad_request'
+export type AgentErrorCode = 'not_archiving' | 'changed' | 'twin_mismatch' | 'no_upload' | 'other_bucket' | 'no_photo' | 'bad_request'
 
 export class AgentError extends Error {
   constructor(
@@ -383,6 +383,24 @@ export async function revokeSource(db: D1Database, id: string): Promise<boolean>
   return true
 }
 
+/**
+ * Of these photo ids the agent holds, the ones cf-dam has no record of at all: after a restore from a backup, photos it
+ * indexed since are gone from the catalog, and it sends those files again. A photo deleted here is still known (it
+ * has a row), so it isn't brought back.
+ */
+export const MAX_KNOWN_IDS = 1000
+export async function unknownAssets(db: D1Database, assetIds: unknown): Promise<string[]> {
+  if (!Array.isArray(assetIds) || assetIds.length > MAX_KNOWN_IDS || assetIds.some((id) => typeof id !== 'string' || id.length > 64)) {
+    throw new AgentError(`assetIds must be up to ${MAX_KNOWN_IDS} photo ids.`)
+  }
+  if (assetIds.length === 0) return []
+  const { results } = await db
+    .prepare('SELECT j.value AS id FROM json_each(?) j LEFT JOIN assets a ON a.id = j.value WHERE a.id IS NULL')
+    .bind(JSON.stringify(assetIds))
+    .all<{ id: string }>()
+  return results.map((r) => r.id)
+}
+
 /** The heartbeat: what the agent is doing. The reply tells it to pause or rescan. */
 export const MAX_STATUS_CHARS = 8000
 
@@ -396,7 +414,8 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
   }
   const retry = !!source.archive_retry_at
   const held = source.archive_held_choice === 'archive' || source.archive_held_choice === 'keep' ? source.archive_held_choice : null
-  const [, asked] = await db.batch([
+  const again = toArchiveAgain(db, source)
+  const [, asked, bad] = await db.batch([
     db
       .prepare(
         `UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0,
@@ -406,14 +425,17 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
       .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status?.startsWith('{') ? status : '{}', source.archive_retry_at ?? null, source.archive_held_choice ?? null, source.id),
     // Photos whose previews went missing (catalog/previews.ts): the agent sends those files again.
     askAgent(db, source.id),
+    ...(again ? [again] : []),
   ])
   const resend = (asked!.results as { asset_id: string }[]).map((r) => r.asset_id)
+  const archiveAgain = ((bad?.results ?? []) as { asset_id: string }[]).map((r) => r.asset_id)
   return {
     paused: source.paused === 1,
     rescan: source.rescan === 1 || resend.length > 0,
     ...(resend.length > 0 ? { resend } : {}),
     ...(retry ? { archiveRetry: true } : {}),
     ...(held ? { archiveHeld: held } : {}),
+    ...(archiveAgain.length > 0 ? { archiveAgain } : {}),
   }
 }
 

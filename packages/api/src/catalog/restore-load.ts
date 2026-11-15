@@ -22,8 +22,9 @@ export const SEED_TABLES = ['roles', 'permissions', 'role_permissions', 'storage
 
 /** Columns given a value of their own rather than the backed-up one. */
 export const OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  // The search tables aren't backed up: every photo goes back in the sweep's queue to be indexed.
-  assets: { indexed_at: 'NULL' },
+  // The search tables aren't backed up: every photo goes back in the sweep's queue to be indexed. Nor is
+  // search by meaning's index (Vectorize): its record of what was sent goes, so every photo is sent again.
+  assets: { indexed_at: 'NULL', meaning_at: 'NULL', meaning_hash: 'NULL' },
   // Second-factor secrets aren't backed up, so nobody comes back with codes turned on.
   users: { two_factor_enabled: '0' },
 }

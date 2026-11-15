@@ -140,13 +140,35 @@ export async function removeMember(db: D1Database, shareId: string, userId: stri
 /** Who an invite is for, while it still works. */
 export async function readInvite(db: D1Database, token: string): Promise<{ userId: string; name: string; email: string; kind: InviteKind } | null> {
   if (!INVITE_TOKEN.test(token)) return null
-  return db
+  const invite = await db
     .prepare(
-      `SELECT u.id AS userId, u.name, u.email, i.kind FROM client_invites i JOIN users u ON u.id = i.user_id
+      `SELECT u.id AS userId, u.name, u.email, i.kind,
+              (SELECT group_concat(r.name) FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id) AS roles
+       FROM client_invites i JOIN users u ON u.id = i.user_id
        WHERE i.token_hash = ? AND i.expires_at > ? AND u.is_active = 1`,
     )
     .bind(await sha256Hex(token), nowIso())
-    .first<{ userId: string; name: string; email: string; kind: InviteKind }>()
+    .first<{ userId: string; name: string; email: string; kind: InviteKind; roles: string | null }>()
+  if (!invite) return null
+  // A client's link sets a client's password only. Once the account is on the team, whoever was handed the
+  // link (anyone who manages galleries) must not be able to choose that person's password.
+  if (invite.kind === 'client' && !isClientOnly(invite.roles ? invite.roles.split(',') : [])) return null
+  const { roles: _roles, ...rest } = invite
+  return rest
+}
+
+/** Whether this account is only a client (not on the team). */
+export async function isClientUser(db: D1Database, userId: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT group_concat(r.name) AS roles FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?')
+    .bind(userId)
+    .first<{ roles: string | null }>()
+  return isClientOnly(row?.roles ? row.roles.split(',') : [])
+}
+
+/** Invite links that would now set the password of someone no longer client-only: spent. */
+export function dropClientInvites(db: D1Database, userId: string): D1PreparedStatement {
+  return db.prepare("DELETE FROM client_invites WHERE user_id = ? AND kind = 'client'").bind(userId)
 }
 
 /** Use an invite: set the client's password and spend the link. Returns their email, to sign in with. */

@@ -19,6 +19,7 @@ import {
   reportFolders,
   setRootOnline,
   startPairing,
+  unknownAssets,
 } from '../catalog/agents'
 import { abortArchive, completeArchive, linkArchive, signArchivePart, startArchive, storageScope } from '../catalog/archive'
 import { claimFaces, FACE_MODEL, facesInstalled, facesSetting, parseFound, parseModel, storeFound } from '../catalog/faces'
@@ -52,6 +53,8 @@ agentRoutes.use('/assets/complete', limit(256 * KIB))
 agentRoutes.use('/assets/:id/renditions/:name', limit(MAX_CLIENT_RENDITION_BYTES))
 agentRoutes.use('/scans/*', limit(8 * 1024 * KIB))
 agentRoutes.use('/faces', limit(256 * KIB))
+// 1,000 photo ids of 32 characters.
+agentRoutes.use('/known', limit(64 * KIB))
 // A completion lists up to 10,000 parts.
 agentRoutes.use('/archive/*', limit(2 * 1024 * KIB))
 
@@ -104,8 +107,18 @@ agentRoutes.use('/assets/*', requirePermission('agent:sync'), asAgent, notPaused
 agentRoutes.use('/scans/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/archive/*', requirePermission('agent:sync'), asAgent, notPaused)
 agentRoutes.use('/faces', requirePermission('agent:sync'), asAgent, notPaused)
+agentRoutes.use('/known', requirePermission('agent:sync'), asAgent)
 
 agentRoutes.get('/config', async (c) => c.json(await agentConfig(c.env.DB, c.get('source')!)))
+
+/** Which of the agent's photos cf-dam no longer has (after a restore): it sends those files again. */
+agentRoutes.post('/known', async (c) => {
+  try {
+    return c.json({ unknown: await unknownAssets(c.env.DB, (await readJsonObject(c)).assetIds) })
+  } catch (error) {
+    return failure(c, error)
+  }
+})
 
 agentRoutes.post('/heartbeat', async (c) => {
   try {

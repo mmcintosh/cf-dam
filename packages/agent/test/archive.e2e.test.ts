@@ -3,7 +3,7 @@
  * S3-compatible server. Runs when S3_TEST_ENDPOINT is set (as in CI), like the API's S3 tests.
  */
 import { createHash } from 'node:crypto'
-import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeSync } from 'node:fs'
+import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, writeSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -336,6 +336,32 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
   }, 180_000)
 
+  it('blames a file the bucket denies a part of only when a file after it gets through', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const backoff = (agent as unknown as { bucketBackoff: { until: number; waitMs: number } }).bucketBackoff
+    // Every part denied (the bucket's policy changed): the bucket, not the files.
+    faultyBucket(agent, () => s3Error(403, 'AccessDenied', 'Access Denied'))
+    await agent.archiveAll()
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+    expect(progressOf(agent).bucket.refusing).toBe('AccessDenied')
+    // Answers about the bucket itself: the bucket at once, on the first part.
+    backoff.until = 0
+    faultyBucket(agent, () => s3Error(404, 'NoSuchBucket', 'The specified bucket does not exist'))
+    await agent.archiveAll()
+    expect(progressOf(agent).bucket.refusing).toBe('NoSuchBucket')
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+    // Only the first file denied, and the next one goes through: it was that file.
+    backoff.until = 0
+    faultyBucket(agent, (n) => (n === 1 ? s3Error(403, 'AccessDenied', 'Access Denied') : undefined))
+    await agent.archiveAll()
+    expect((await archived(connectionId)).map((c) => c.filename)).toEqual(['DSC_0002.jpg'])
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 1 })
+    expect(progressOf(agent).bucket.refusing).toBeNull()
+  }, 180_000)
+
   it('gives no file up while the bucket refuses everything, and waits longer between tries', async () => {
     await photo('2019/DSC_0001.jpg', 1)
     await photo('2019/DSC_0002.jpg', 2)
@@ -419,6 +445,71 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     await agent.archiveAll()
     expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('starts a file part-way through again in the new bucket when archiving moves to another, counting nothing', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, sourceId, connectionId } = await setUp()
+    await agent.scanAll()
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
+    await agent.archiveAll()
+    clearInterval(stopper)
+    expect(agent.state.upload(asset!.id)).not.toBeNull()
+    // Another bucket (here a folder of the same one) chosen for this helper.
+    const second = await h.fetch('/api/connections', {
+      ...json({ name: 'Second', endpoint: s3Endpoint, region: 'us-east-1', bucket, prefix: 'second', forcePathStyle: true, ...s3Credentials }),
+      cookie: admin,
+    })
+    expect(second.status).toBe(201)
+    const secondId = ((await second.json()) as { connection: { id: string } }).connection.id
+    const moved = await h.fetch(`/api/sources/${sourceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archive: { connectionId: secondId, storageClass: 'STANDARD', fromHour: 0, toHour: 0 } }),
+      cookie: admin,
+    })
+    expect(moved.status).toBe(200)
+    ;(agent as unknown as { stopping: boolean }).stopping = false
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toEqual([])
+    const copies = await archived(secondId)
+    expect(copies).toHaveLength(1)
+    expect(await objectSha(copies[0]!.key)).toBe(fileSha(join(photos, '2020', 'DSC_0003.jpg')))
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM archive_uploads').first<{ n: number }>()).toEqual({ n: 0 })
+    expect(agent.state.archiveError(rootOf(agent), '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+  }, 180_000)
+
+  it('archives a file again when the storage check finds its copy missing, and links no duplicate to the missing one', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+    const [first] = await archived(connectionId)
+    // Deleted from the bucket by hand (or a wrong lifecycle rule), and the check found it so.
+    expect((await client.fetch(`${s3Endpoint}/${bucket}/${first!.key.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE' })).ok).toBe(true)
+    await h.env.DB.prepare("UPDATE asset_locations SET check_result = 'missing' WHERE connection_id = ?").bind(connectionId).run()
+    // The same bytes again elsewhere: not to be linked to the copy that's gone.
+    mkdirSync(join(photos, 'copy'), { recursive: true })
+    writeFileSync(join(photos, 'copy', 'DSC_0001.jpg'), readFileSync(join(photos, '2019', 'DSC_0001.jpg')))
+    settle(join(photos, 'copy', 'DSC_0001.jpg'))
+    await agent.scanAll()
+    await agent.heartbeat()
+    await agent.archiveAll()
+    const now = await archived(connectionId)
+    expect(now).toHaveLength(2)
+    for (const copy of now) {
+      expect(copy.key).not.toBe(first!.key)
+      expect(await objectSha(copy.key)).toBe(fileSha(join(photos, '2019', 'DSC_0001.jpg')))
+    }
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM asset_locations WHERE check_result IS NOT NULL').first<{ n: number }>()).toEqual({ n: 0 })
+    // The missing copy isn't counted as an earlier copy kept in the bucket.
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first<{ n: number }>()).toEqual({ n: 0 })
+    // Asked again (a heartbeat before the check runs again): nothing more to do.
+    calls.length = 0
+    await agent.heartbeat()
+    await agent.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
   }, 180_000)
 
   it('archives as before against a cf-dam that gives no codes', async () => {
@@ -510,6 +601,42 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
     expect(agent.state.upload(asset!.id)).toBeNull()
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+  }, 180_000)
+
+  it('archives again a file edited in the middle, its size and fingerprint unchanged, and not one only touched', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const path = join(photos, '2020', 'DSC_0003.jpg')
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+    const [first] = await archived(connectionId)
+    const before = fileSha(path)
+    expect(await objectSha(first!.key)).toBe(before)
+
+    // Only touched: the date moves, the bytes don't. Read whole, found the same, nothing sent.
+    const later = new Date(Date.now() - 1.5 * 86_400_000)
+    utimesSync(path, later, later)
+    await agent.scanAll()
+    calls.length = 0
+    await agent.archiveAll()
+    expect(calls.filter((c) => c === 'POST /api/agent/archive/part')).toEqual([])
+    expect((await archived(connectionId))[0]!.key).toBe(first!.key)
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+
+    // Edited between the first and last MiB, same size: archived again, the earlier copy kept.
+    const fd = openSync(path, 'r+')
+    writeSync(fd, Buffer.alloc(4096, 0xee), 0, 4096, 2 * 1024 * 1024)
+    closeSync(fd)
+    settle(path)
+    await agent.scanAll()
+    expect(agent.state.archiveCounts().changedArchived24h).toBe(0)
+    await agent.archiveAll()
+    const [now] = await archived(connectionId)
+    expect(now!.key).not.toBe(first!.key)
+    expect(await objectSha(now!.key)).toBe(fileSha(path))
+    const versions = await h.env.DB.prepare('SELECT key, sha256 FROM asset_location_versions').all<{ key: string; sha256: string }>()
+    expect(versions.results).toEqual([{ key: first!.key, sha256: before }])
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
   }, 180_000)
 
   it('keeps the earlier copy when a changed file is archived again, and counts the change', async () => {

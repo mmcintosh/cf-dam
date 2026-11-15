@@ -4,7 +4,7 @@
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { Api, Paused, Unpaired, type FetchLike } from './api.ts'
+import { Api, ApiError, Paused, Unpaired, type FetchLike } from './api.ts'
 import { archivePass, newArchiveProgress, NotArchiving, type ArchiveSettings, type BucketBackoff } from './archive.ts'
 import { loadConfig, VERSION, type AgentConfig } from './config.ts'
 import { Extractor } from './extract.ts'
@@ -118,7 +118,7 @@ export class Agent {
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
     this.canFaces ??= await hasFaceModel()
-    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep' }>('POST', '/api/agent/heartbeat', {
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep'; archiveAgain?: string[] }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
       // Archiving first: cf-dam keeps 8,000 characters of this, and what archiving couldn't do mustn't be what's cut.
@@ -148,6 +148,11 @@ export class Agent {
         if (upload) await this.api.call('POST', '/api/agent/archive/abort', { uploadId: upload.upload_id }).catch(() => {})
         this.state.dropUpload(assetId)
       }
+    }
+    // Photos whose copy in the bucket the storage check found missing or changed: archived again.
+    if (res.body.archiveAgain?.length) {
+      const n = this.state.archiveAgain(res.body.archiveAgain)
+      if (n > 0) log(`cf-dam found ${n} archived copies missing or changed in the bucket; archiving those files again.`)
     }
     // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
     if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
@@ -215,7 +220,40 @@ export class Agent {
   }
 
   /** One pass over every enabled folder. */
+  /**
+   * After pairing again as the same entry (a restore from a backup, most likely): photos sent since that backup are no
+   * longer in the catalog, though this agent holds them as sent. Ask cf-dam about every photo id, a page at a time,
+   * and forget the files of those it doesn't know, so the scan sends them again. Picks up where it was after a restart.
+   */
+  async reconcile(): Promise<void> {
+    let after = this.state.reconcileAfter()
+    let forgotten = 0
+    while (after !== null && !this.stopping) {
+      const ids = this.state.assetIdsAfter(after, 1000)
+      if (ids.length === 0) {
+        this.state.forgetAssets([], null)
+        break
+      }
+      let unknown: string[]
+      try {
+        unknown = (await this.api.call<{ unknown: string[] }>('POST', '/api/agent/known', { assetIds: ids })).body.unknown
+      } catch (error) {
+        // An older cf-dam, without the question: nothing to check against.
+        if (error instanceof ApiError && error.status === 404 && error.code === null) {
+          this.state.forgetAssets([], null)
+          break
+        }
+        throw error
+      }
+      this.state.forgetAssets(unknown, ids.at(-1)!)
+      forgotten += unknown.length
+      after = ids.at(-1)!
+    }
+    if (forgotten > 0) log(`cf-dam doesn't have ${forgotten} photos this helper sent (restored from an earlier backup?): sending them again.`)
+  }
+
   async scanAll(): Promise<void> {
+    await this.reconcile()
     this.volumes = await this.volumeLister().catch(() => this.volumes)
     const { body: config } = await this.api.call<Config>('GET', '/api/agent/config')
     this.lastConfig = config

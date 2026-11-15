@@ -172,6 +172,23 @@ describe('client accounts', () => {
     expect((await h.fetch(`/api/shares/${link.id}/members`, { ...json({ name: 'X', email: 'x@example.com' }), cookie: viewerCookie })).status).toBe(403)
   })
 
+  it('stops a client’s invite link once the account is put on the team or given a password', async () => {
+    const link = await share()
+    const first = await invite(link.id)
+    // Promoted before they joined: the link handed to whoever invited them no longer sets a password.
+    expect((await h.fetch(`/api/users/${first.member.userId}`, { ...json({ roles: ['admin'] }), method: 'PATCH', cookie: admin })).status).toBe(200)
+    expect((await h.fetch(`/api/invites/${first.invite!.token}`)).status).toBe(404)
+    expect((await h.fetch(`/api/invites/${first.invite!.token}`, json({ password: 'a long client password' }))).status).toBe(404)
+    expect((await signIn(h, 'jane@example.com', 'a long client password')).status).not.toBe(200)
+    // And no fresh one can be made for them through the gallery.
+    expect((await h.fetch(`/api/shares/${link.id}/members/${first.member.userId}/invite`, { method: 'POST', cookie: admin })).status).toBe(409)
+
+    // An administrator setting a password ends a link still out.
+    const second = await invite(link.id, 'sam@example.com', 'Sam Jones')
+    expect((await h.fetch(`/api/users/${second.member.userId}/password`, { ...json({ password: 'a temporary password' }), cookie: admin })).status).toBe(200)
+    expect((await h.fetch(`/api/invites/${second.invite!.token}`, json({ password: 'a long client password' }))).status).toBe(404)
+  })
+
   it("isn't asked for two-step sign-in when the team is", async () => {
     const link = await share()
     const client = await join((await invite(link.id)).invite!.token)

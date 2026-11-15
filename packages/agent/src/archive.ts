@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { open, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ApiError, Paused, Unpaired, LinkError, type Api, type FetchLike } from './api.ts'
+import { bucketPut } from './put.ts'
 import type { ArchiveCandidate, ArchiveUpload, State } from './state.ts'
 
 export interface ArchiveSettings {
@@ -93,18 +94,21 @@ class UploadGone extends Error {}
 class SkipFile extends Error {}
 /** The bucket refused one part (not the whole bucket, not this upload). */
 class PartRefused extends Error {}
+/** AccessDenied on a part: this file, or the whole bucket's permissions? Counted only once another file gets through. */
+class PartDenied extends PartRefused {}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const isCode = (error: unknown, status: number, code: string) => error instanceof ApiError && error.status === status && error.code === code
 
 /** What one failed file means for the pass. */
-type Verdict = 'stop' | 'bucket' | 'off' | 'skip' | 'internal' | 'count'
+type Verdict = 'stop' | 'bucket' | 'off' | 'skip' | 'internal' | 'denied' | 'count'
 function verdict(error: unknown): Verdict {
   if (error instanceof Paused || error instanceof Unpaired || error instanceof LinkError) return 'stop'
   if (error instanceof NotArchiving) return 'off'
   if (error instanceof BucketRefusing) return 'bucket'
   if (error instanceof SkipFile) return 'skip'
+  if (error instanceof PartDenied) return 'denied'
   if (error instanceof ApiError) {
     if (error.code === 'storage') return error.detail.scope === 'bucket' ? 'bucket' : 'count'
     if (error.code === 'not_archiving') return 'off'
@@ -133,6 +137,8 @@ async function sha256File(path: string): Promise<string> {
 const PASSING = new Set(['RequestTimeout', 'IncompleteBody', 'SlowDown', 'TooManyRequests', 'OperationAborted', 'InternalError', 'ServiceUnavailable'])
 /** The bytes arrived damaged (the checksum is made from the very buffer sent): read them again and send once more. */
 const DAMAGED = new Set(['BadDigest', 'XAmzContentSHA256Mismatch', 'InvalidDigest'])
+/** Answers about the bucket or the account, never one file: the whole bucket is refusing. */
+const WHOLE_BUCKET = new Set(['InvalidAccessKeyId', 'NoSuchBucket', 'AllAccessDisabled', 'AccountProblem', 'InvalidToken', 'NoCredentials', 'InvalidBucketState'])
 /** The signed URL (or the credentials it was signed with) ran out: sign it again. */
 const expired = (code: string | undefined, text: string) =>
   code === 'ExpiredToken' || code === 'SignatureDoesNotMatch' || (code === 'AccessDenied' && /expired/i.test(text))
@@ -187,6 +193,8 @@ export async function putPart(fetchImpl: FetchLike, sign: () => Promise<PartRequ
       body = await reread()
       continue
     }
+    if (code && (WHOLE_BUCKET.has(code) || code.startsWith('KMS.'))) throw new BucketRefusing(code)
+    if (code === 'AccessDenied') throw new PartDenied(`The bucket refused a part: ${code}`)
     throw new PartRefused(`The bucket refused a part: ${code ?? `HTTP ${res.status}`}`)
   }
 }
@@ -247,6 +255,18 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
     progress.lastError = `${file.path}: ${reason}`
     ctx.log?.('Archiving failed:', progress.lastError)
   }
+  // Files the bucket denied a part of: counted once a later file gets through (it's that file), dropped when the
+  // bucket turns out to refuse everything (its permissions changed). Two in a row is the bucket.
+  let denied: { file: ArchiveCandidate; reason: string }[] = []
+  const bucketRefusing = (code: string) => {
+    denied = []
+    const waitMs = Math.min(Math.max(BUCKET_WAIT_MS, (ctx.backoff?.waitMs ?? 0) * 2), BUCKET_WAIT_MAX_MS)
+    const until = now().getTime() + waitMs
+    if (ctx.backoff) Object.assign(ctx.backoff, { until, waitMs })
+    progress.bucket = { refusing: code, until: new Date(until).toISOString() }
+    progress.lastError = `The bucket is refusing: ${code}`
+    ctx.log?.(`The bucket is refusing (${code}): archiving waits ${Math.round(waitMs / 60_000)} minutes.`)
+  }
   try {
     let after: { rootId: string; path: string } | null = null
     while (keepGoing()) {
@@ -262,8 +282,9 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
           const sent = await archiveFile(ctx, file, join(here, file.path), keepGoing, passStarted)
           if (sent === 'stopped') return
           // Through: cf-dam and the bucket are answering.
-          for (const f of failedOnCfDam) failed(f.file, f.reason)
+          for (const f of [...failedOnCfDam, ...denied]) failed(f.file, f.reason)
           failedOnCfDam = []
+          denied = []
           if (ctx.backoff) Object.assign(ctx.backoff, { until: 0, waitMs: 0 })
           progress.bucket = { refusing: null, until: null }
           if (sent === 'done') {
@@ -277,17 +298,17 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
               throw error
             case 'off':
               throw new NotArchiving(message(error))
-            case 'bucket': {
+            case 'bucket':
               // Not this file's fault: nothing is counted against it. Wait, longer each time it goes on.
-              const code = error instanceof BucketRefusing ? error.code : ((error as ApiError).detail.s3Code ?? 'refused')
-              const waitMs = Math.min(Math.max(BUCKET_WAIT_MS, (ctx.backoff?.waitMs ?? 0) * 2), BUCKET_WAIT_MAX_MS)
-              const until = now().getTime() + waitMs
-              if (ctx.backoff) Object.assign(ctx.backoff, { until, waitMs })
-              progress.bucket = { refusing: code, until: new Date(until).toISOString() }
-              progress.lastError = `The bucket is refusing: ${code}`
-              ctx.log?.(`The bucket is refusing (${code}): archiving waits ${Math.round(waitMs / 60_000)} minutes.`)
+              bucketRefusing(error instanceof BucketRefusing ? error.code : ((error as ApiError).detail.s3Code ?? 'refused'))
               return
-            }
+            case 'denied':
+              denied.push({ file, reason: message(error) })
+              if (denied.length >= 2) {
+                bucketRefusing('AccessDenied')
+                return
+              }
+              break
             case 'skip':
               ctx.log?.('Archiving left for now:', `${file.path}: ${message(error)}`)
               break
@@ -305,6 +326,8 @@ export async function archivePass(ctx: ArchiveCtx): Promise<void> {
         }
       }
     }
+    // Through every file: a denial with nothing after it to tell it from the bucket is the file's.
+    for (const f of denied) failed(f.file, f.reason)
   } finally {
     awake?.kill()
     progress.current = null
@@ -320,6 +343,12 @@ async function archiveFile(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
     try {
       return await archiveOnce(ctx, file, path, keepGoing, passStarted)
     } catch (error) {
+      // Archiving moved to another bucket since this upload began: start there, nothing counted against the file.
+      if (isCode(error, 404, 'other_bucket') && !restarted) {
+        state.dropUpload(file.asset_id)
+        ctx.log?.(`Starting ${file.path} again in the new bucket.`)
+        continue
+      }
       if (!(error instanceof UploadGone || isCode(error, 404, 'no_upload'))) throw error
       state.dropUpload(file.asset_id)
       const restarts = state.archiveRestarted(file.root_id, file.path)
@@ -350,12 +379,14 @@ async function archiveOnce(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
   }
 
   if (!upload) {
+    // Its date moved but not its fingerprint: the whole file's SHA-256 tells cf-dam whether the archived bytes still match.
+    const whole = file.archived_hash?.startsWith('check:') ? await sha256File(path) : undefined
     const start = async (skipTwin: boolean) =>
       (
         await api.call<{ result: 'archived' | 'verify' | 'upload'; sha256?: string; fromAssetId?: string; uploadId?: string; partSize?: number; partCount?: number }>(
           'POST',
           '/api/agent/archive/start',
-          { assetId: file.asset_id, size: file.size, quickHash: file.quick_hash, skipTwin },
+          { assetId: file.asset_id, size: file.size, quickHash: file.quick_hash, skipTwin, ...(whole ? { sha256: whole } : {}) },
         )
       ).body
     let plan = await start(false)
@@ -389,7 +420,7 @@ async function archiveOnce(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
 
 async function sendParts(ctx: ArchiveCtx, file: ArchiveCandidate, path: string, upload: ArchiveUpload, keepGoing: () => boolean, passStarted: number): Promise<'done' | 'stopped'> {
   const { api, state, progress } = ctx
-  const fetchImpl = ctx.fetchImpl ?? fetch
+  const fetchImpl = ctx.fetchImpl ?? bucketPut()
   const sent = new Map(upload.parts.map((p) => [p.partNumber, p]))
   const whole = createHash('sha256')
   const handle = await open(path, 'r')

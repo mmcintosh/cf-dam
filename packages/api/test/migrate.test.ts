@@ -28,6 +28,27 @@ describe('migrate', () => {
     expect(roles.results.map((r) => r.name)).toEqual(['admin', 'client', 'editor', 'viewer'])
   })
 
+  it('runs a migration once when two isolates start together, even one that only changes rows', async () => {
+    h = await createHarness()
+    const db = h.env.DB
+    await db.prepare('CREATE TABLE counter (n INTEGER NOT NULL)').run()
+    await db.prepare('INSERT INTO counter (n) VALUES (0)').run()
+    const bump = [{ name: '9999_bump', sql: 'UPDATE counter SET n = n + 1;' }]
+    // The second isolate read the list of applied migrations before the first one recorded this.
+    const stale = new Proxy(db, {
+      get(target, key) {
+        if (key === 'prepare') {
+          return (sql: string) => (sql === 'SELECT name FROM _migrations' ? target.prepare('SELECT name FROM _migrations WHERE 0') : target.prepare(sql))
+        }
+        const value = Reflect.get(target, key) as unknown
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value
+      },
+    })
+    expect(await migrate(db, bump)).toEqual(['9999_bump'])
+    expect(await migrate(stale, bump)).toEqual([])
+    expect((await db.prepare('SELECT n FROM counter').first<{ n: number }>())!.n).toBe(1)
+  })
+
   it('seeds the admin role with every permission except agent:sync, which no role holds', async () => {
     h = await createHarness()
     const row = await h.env.DB.prepare(

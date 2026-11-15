@@ -183,6 +183,25 @@ describe('files archiving couldn’t do (PLAN-HELPER-ARCHIVE-v2 A.5)', () => {
     expect(state.archiveCounts()).toMatchObject({ cantRead: { new: 1, archived: 1 }, notReadYet: 1 })
   })
 
+  it('keeps a held file counted on "keep" when it has no copy in the bucket yet', () => {
+    const state = new State(dataDir())
+    settled(state, 'archived.jpg')
+    state.archived('r1', 'archived.jpg', 'qh-archived.jpg')
+    // Re-archiving a changed file, and a first archive: both held part-way.
+    settled(state, 'archived.jpg', 'qh-changed')
+    settled(state, 'first.jpg')
+    state.archiveHold('r1', 'archived.jpg', 'changed without its date moving (part 1)')
+    state.archiveHold('r1', 'first.jpg', 'changed without its date moving (part 1)')
+    expect(state.archiveCounts().held.files).toBe(2)
+    // "Keep the copies in the bucket": only the one that has a copy there is settled.
+    expect(state.archiveHeldChoice('keep')).toEqual(['asset-archived.jpg'])
+    expect(state.archiveCounts().held).toMatchObject({ files: 1, first: { path: 'first.jpg' } })
+    expect(candidates(state)).toEqual([])
+    // "Archive them as they are now" then sends it.
+    expect(state.archiveHeldChoice('archive')).toEqual(['asset-first.jpg'])
+    expect(candidates(state)).toEqual(['first.jpg'])
+  })
+
   it('forgets uploads made for another source when paired as a new one', () => {
     const state = new State(dataDir())
     state.saveCredentials({ url: 'http://x', apiKey: 'k', sourceId: 's1' })

@@ -71,17 +71,17 @@ export async function migrate(db: D1Database, migrations: Migration[] = MIGRATIO
       ran.push(migration.name)
       continue
     }
-    const statements = splitStatements(migration.sql ?? '').map((s) => db.prepare(s))
-    statements.push(
-      db
-        .prepare('INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?, ?)')
-        .bind(migration.name, new Date().toISOString()),
-    )
+    // The record goes first, and plainly: if another isolate applied this migration since we read the
+    // list, the insert fails and the whole batch (a transaction) with it, so an UPDATE never runs twice.
+    const statements = [
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').bind(migration.name, new Date().toISOString()),
+      ...splitStatements(migration.sql ?? '').map((s) => db.prepare(s)),
+    ]
     try {
       await db.batch(statements)
     } catch (error) {
-      // Statements like ALTER TABLE ADD COLUMN aren't idempotent: if another isolate applied this
-      // migration first, ours fails as a whole (the batch is a transaction). That's success.
+      // Another isolate applied it first (our record clashed with theirs, or a statement like ALTER
+      // TABLE ADD COLUMN failed on its result): that's success.
       const now = await db.prepare('SELECT 1 AS done FROM _migrations WHERE name = ?').bind(migration.name).first()
       if (!now) throw error
       continue

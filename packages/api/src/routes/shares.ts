@@ -17,7 +17,7 @@ import {
   updateShare,
   type ShareRow,
 } from '../catalog/shares'
-import { inviteClient, newInvite, removeMember, shareMembers } from '../catalog/clients'
+import { inviteClient, isClientUser, newInvite, removeMember, shareMembers } from '../catalog/clients'
 import { parseSharePeople, setSharePeople, sharePeople } from '../catalog/gallery-people'
 import { acceptNames, namesToCheck, parseAccept, parseDecision, rejectNames } from '../catalog/name-suggestions'
 import { markDelivered } from '../catalog/jobs'
@@ -250,6 +250,8 @@ shareRoutes.post('/:id/members/:userId/invite', async (c) => {
   const member = (await shareMembers(c.env.DB, id)).find((m) => m.userId === userId)
   if (!member) return c.json({ error: 'not_found' }, 404)
   if (member.joined) return c.json({ error: 'joined', message: say('err.clientJoined') }, 409)
+  // Someone since moved onto the team is invited as a team member, by an admin, not through a gallery.
+  if (!(await isClientUser(c.env.DB, userId))) return c.json({ error: 'team', message: say('err.clientOnTeam') }, 409)
   const invite = await newInvite(c.env.DB, userId, c.get('principal')!.userId)
   const body = (await c.req.json().catch(() => ({}))) as { sendEmail?: unknown }
   const emailed = body.sendEmail === true ? await emailGalleryInvite(c, id, member, invite) : false
