@@ -12,6 +12,7 @@ You can have several helpers, for example one on the NAS and one on a laptop.
 ## What the helper does
 
 - Reads each photo's details (camera, date, place, keywords, captions) and makes a thumbnail and preview.
+- Reads the photo's XMP sidecar too, if it has one (`IMG_1234.xmp` beside a RAW, as Lightroom saves them, or `IMG_1234.CR2.xmp`). What the sidecar says (caption, keywords, rating, label, place) is taken over what's in the file. Lightroom only writes sidecars when **Automatically write changes into XMP** is on in its catalog settings, or after **Metadata › Save Metadata to Files**.
 - Sends those to cf-dam, so the photos appear in the library and can be searched, keyworded and shared.
 - Scans again every so often, picking up new, changed, renamed and deleted photos. A photo whose file disappears is marked **missing**, never deleted from the catalogue.
 - Optionally copies originals to an archive bucket (see [Archiving and restoring originals](/help/archiving)).

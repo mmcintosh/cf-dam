@@ -3,7 +3,7 @@
  * and previews; previews are uploaded only where cf-dam asks for them), then report what's gone.
  */
 import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { ApiError, isLinkError, type Api } from './api.ts'
 import type { AgentMetadata, Extractor } from './extract.ts'
 import { faceEngine, FACE_MODEL, findFaces, frameOf } from './faces.ts'
@@ -377,12 +377,13 @@ async function sendBatch(ctx: Ctx, root: Root, here: string, batch: Item[], thum
 }
 
 /** Read a file and make its previews (or its thumb only), marked as being read while it is. */
-async function readAndRender(ctx: Ctx, rootId: string, abs: string, file: { path: string; size: number; mtimeMs: number }, quickHash: string, thumbOnly: boolean) {
+async function readAndRender(ctx: Ctx, rootId: string, abs: string, file: { path: string; size: number; mtimeMs: number; sidecar?: string }, quickHash: string, thumbOnly: boolean) {
   const { state, extractor } = ctx
   // Marked while it's being read: if the agent dies here, the next start knows which file it was on.
   state.reading(rootId, file.path, { size: file.size, mtimeMs: file.mtimeMs, quickHash })
   try {
-    const x = await extractor.extract(abs)
+    // The sidecar sits beside the photo: its path from the photo's, as the folder scan found it.
+    const x = await extractor.extract(abs, file.sidecar ? join(dirname(abs), basename(file.sidecar)) : undefined)
     const rendered = x.source ? await render(x.source, x.orientation, x.ownOrientation ?? true, thumbOnly) : null
     if (rendered && x.frames) rendered.sheet = await renderSheet(x.frames)
     return { meta: x.meta, rendered }
