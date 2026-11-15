@@ -3,7 +3,7 @@
  * S3-compatible server. Runs when S3_TEST_ENDPOINT is set (as in CI), like the API's S3 tests.
  */
 import { createHash } from 'node:crypto'
-import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeSync } from 'node:fs'
+import { closeSync, copyFileSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync, writeSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -478,6 +478,38 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM archive_uploads').first<{ n: number }>()).toEqual({ n: 0 })
     expect(agent.state.archiveError(rootOf(agent), '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
     expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+  }, 180_000)
+
+  it('archives a file again when the storage check finds its copy missing, and links no duplicate to the missing one', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    await agent.archiveAll()
+    const [first] = await archived(connectionId)
+    // Deleted from the bucket by hand (or a wrong lifecycle rule), and the check found it so.
+    expect((await client.fetch(`${s3Endpoint}/${bucket}/${first!.key.split('/').map(encodeURIComponent).join('/')}`, { method: 'DELETE' })).ok).toBe(true)
+    await h.env.DB.prepare("UPDATE asset_locations SET check_result = 'missing' WHERE connection_id = ?").bind(connectionId).run()
+    // The same bytes again elsewhere: not to be linked to the copy that's gone.
+    mkdirSync(join(photos, 'copy'), { recursive: true })
+    writeFileSync(join(photos, 'copy', 'DSC_0001.jpg'), readFileSync(join(photos, '2019', 'DSC_0001.jpg')))
+    settle(join(photos, 'copy', 'DSC_0001.jpg'))
+    await agent.scanAll()
+    await agent.heartbeat()
+    await agent.archiveAll()
+    const now = await archived(connectionId)
+    expect(now).toHaveLength(2)
+    for (const copy of now) {
+      expect(copy.key).not.toBe(first!.key)
+      expect(await objectSha(copy.key)).toBe(fileSha(join(photos, '2019', 'DSC_0001.jpg')))
+    }
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM asset_locations WHERE check_result IS NOT NULL').first<{ n: number }>()).toEqual({ n: 0 })
+    // The missing copy isn't counted as an earlier copy kept in the bucket.
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM asset_location_versions').first<{ n: number }>()).toEqual({ n: 0 })
+    // Asked again (a heartbeat before the check runs again): nothing more to do.
+    calls.length = 0
+    await agent.heartbeat()
+    await agent.archiveAll()
+    expect(calls.filter((c) => c.includes('/archive/'))).toEqual([])
   }, 180_000)
 
   it('archives as before against a cf-dam that gives no codes', async () => {

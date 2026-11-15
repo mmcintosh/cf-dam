@@ -17,7 +17,7 @@ import { nowIso } from '../lib/time'
 import { deriveKey, open, seal, storageSecret } from '../storage/secret-box'
 import { normalizeAgentMetadata } from './metadata'
 import { finishAssets, metadataLookups, metadataStatements } from './process'
-import { archiveConfig } from './archive'
+import { archiveConfig, toArchiveAgain } from './archive'
 import { askAgent } from './previews'
 import { mimeTypeFor, safeFilename } from './uploads'
 
@@ -396,7 +396,8 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
   }
   const retry = !!source.archive_retry_at
   const held = source.archive_held_choice === 'archive' || source.archive_held_choice === 'keep' ? source.archive_held_choice : null
-  const [, asked] = await db.batch([
+  const again = toArchiveAgain(db, source)
+  const [, asked, bad] = await db.batch([
     db
       .prepare(
         `UPDATE sources SET last_seen_at = ?, version = COALESCE(?, version), platform = COALESCE(?, platform), status = ?, rescan = 0,
@@ -406,14 +407,17 @@ export async function heartbeat(db: D1Database, source: SourceRow, input: { vers
       .bind(nowIso(), shortText(input.version, 40), shortText(input.platform, 40), status?.startsWith('{') ? status : '{}', source.archive_retry_at ?? null, source.archive_held_choice ?? null, source.id),
     // Photos whose previews went missing (catalog/previews.ts): the agent sends those files again.
     askAgent(db, source.id),
+    ...(again ? [again] : []),
   ])
   const resend = (asked!.results as { asset_id: string }[]).map((r) => r.asset_id)
+  const archiveAgain = ((bad?.results ?? []) as { asset_id: string }[]).map((r) => r.asset_id)
   return {
     paused: source.paused === 1,
     rescan: source.rescan === 1 || resend.length > 0,
     ...(resend.length > 0 ? { resend } : {}),
     ...(retry ? { archiveRetry: true } : {}),
     ...(held ? { archiveHeld: held } : {}),
+    ...(archiveAgain.length > 0 ? { archiveAgain } : {}),
   }
 }
 

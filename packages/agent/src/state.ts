@@ -151,6 +151,8 @@ export class State {
     this.db.exec('CREATE INDEX IF NOT EXISTS files_preview_later ON files (root_id, path) WHERE preview_later = 1')
     // What's left to archive, without reading every file's row (a million, for a big archive).
     this.db.exec('CREATE INDEX IF NOT EXISTS files_to_archive ON files (root_id, path) WHERE archived_hash IS NOT quick_hash')
+    // cf-dam names photos by their id (previews to send again, copies to archive again): found without reading every row.
+    this.db.exec('CREATE INDEX IF NOT EXISTS files_asset ON files (asset_id) WHERE asset_id IS NOT NULL')
     // Files still marked as being read: the agent died reading them. Each counts as a failed try, so
     // a file that kills it every time is left alone after three, instead of the same batch forever.
     const stopped = this.db.prepare('SELECT * FROM reading').all() as unknown as { root_id: string; path: string; size: number; mtime_ms: number; quick_hash: string | null }[]
@@ -363,6 +365,22 @@ export class State {
     if (choice === 'archive') this.db.exec(`UPDATE files SET archive_held = NULL WHERE ${which}`)
     else this.db.exec(`UPDATE files SET archive_held = 'kept: ' || archive_held WHERE ${which}`)
     return held.map((h) => h.asset_id)
+  }
+
+  /**
+   * Photos whose archived copy cf-dam found missing or changed: archived again, with fresh tries. Asked at every
+   * heartbeat until the new copy is in, so only files still marked archived are touched (one under way, or given up
+   * on, keeps its state). Returns how many.
+   */
+  archiveAgain(assetIds: string[]): number {
+    return Number(
+      this.db
+        .prepare(
+          `UPDATE files SET archived_hash = NULL, archive_attempts = 0, archive_restarts = 0, archive_retry_at = NULL, archive_error = NULL
+           WHERE asset_id IN (SELECT value FROM json_each(?)) AND archived_hash IS NOT NULL`,
+        )
+        .run(JSON.stringify(assetIds)).changes,
+    )
   }
 
   /** "Try them again": every file given up on gets its tries back. */

@@ -121,6 +121,25 @@ async function nasLocation(db: D1Database, source: SourceRow, assetId: string): 
   return row
 }
 
+/** A copy the storage check found missing, or not matching what was uploaded, counts as no copy: archived again. */
+const SOUND = "(l.check_result IS NULL OR l.check_result NOT IN ('missing', 'changed'))"
+
+/**
+ * Photos of this helper whose copy in its archive bucket the check found missing or changed: it archives them again.
+ * Asked at every heartbeat until a new copy replaces the bad one (which clears the check's result).
+ */
+export function toArchiveAgain(db: D1Database, source: SourceRow & { archive?: string }): D1PreparedStatement | null {
+  const connectionId = parseArchiveSettings(source.archive).connectionId
+  if (!connectionId) return null
+  return db
+    .prepare(
+      `SELECT l.asset_id FROM asset_locations l
+       JOIN asset_locations n ON n.asset_id = l.asset_id AND n.connection_id = ? AND n.state = 'present'
+       WHERE l.connection_id = ? AND l.check_result IN ('missing', 'changed') AND l.state != 'gone' LIMIT 500`,
+    )
+    .bind(source.connection_id, connectionId)
+}
+
 const hex64 = (v: unknown, name: string) => {
   if (typeof v !== 'string' || !/^[0-9a-f]{64}$/i.test(v)) throw new AgentError(`${name} must be 64 hex characters (a SHA-256).`)
   return v.toLowerCase()
@@ -156,7 +175,8 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
   // Already archived, as this very file. The fingerprint reads only the first and last MiB: when the agent sends the
   // whole file's SHA-256, it's the archived bytes that must match (an edit in the middle keeps size and fingerprint).
   const mine = await db
-    .prepare("SELECT l.size, l.quick_hash, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id WHERE l.asset_id = ? AND l.connection_id = ? AND l.state != 'gone'")
+    .prepare(`SELECT l.size, l.quick_hash, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id
+              WHERE l.asset_id = ? AND l.connection_id = ? AND l.state != 'gone' AND ${SOUND}`)
     .bind(assetId, connection.id)
     .first<{ size: number | null; quick_hash: string | null; sha256: string | null }>()
   const sameBytes = !fileSha || !mine?.sha256 || mine.sha256 === fileSha
@@ -168,7 +188,7 @@ export async function startArchive(env: DamBindings, source: SourceRow & { archi
     .prepare(
       `SELECT l.asset_id, a.sha256 FROM asset_locations l JOIN assets a ON a.id = l.asset_id
        WHERE l.connection_id = ? AND l.quick_hash = ? AND l.size = ? AND l.storage_class != 'NAS' AND l.state != 'gone'
-         AND l.asset_id != ? AND a.sha256 IS NOT NULL LIMIT 1`,
+         AND l.asset_id != ? AND a.sha256 IS NOT NULL AND ${SOUND} LIMIT 1`,
     )
     .bind(connection.id, quickHash, size, assetId)
     .first<{ asset_id: string; sha256: string }>()
@@ -326,7 +346,7 @@ export function keepEarlierCopy(db: D1Database, assetId: string, connectionId: s
       `INSERT INTO asset_location_versions (asset_id, connection_id, source_id, key, size, quick_hash, sha256, storage_class, archived_at, replaced_at)
        SELECT l.asset_id, l.connection_id, ?, l.key, l.size, l.quick_hash, a.sha256, l.storage_class, l.updated_at, ?
        FROM asset_locations l JOIN assets a ON a.id = l.asset_id
-       WHERE l.asset_id = ? AND l.connection_id = ? AND l.key != ? AND l.state != 'gone'`,
+       WHERE l.asset_id = ? AND l.connection_id = ? AND l.key != ? AND l.state != 'gone' AND l.check_result IS NOT 'missing'`,
     )
     .bind(sourceId, now, assetId, connectionId, newKey)
 }
@@ -371,7 +391,7 @@ export async function linkArchive(env: DamBindings, source: SourceRow & { archiv
   const twin = await db
     .prepare(
       `SELECT l.key, l.storage_class, l.size, l.etag, l.quick_hash FROM asset_locations l JOIN assets a ON a.id = l.asset_id
-       WHERE l.asset_id = ? AND l.connection_id = ? AND l.state != 'gone' AND a.sha256 = ?`,
+       WHERE l.asset_id = ? AND l.connection_id = ? AND l.state != 'gone' AND a.sha256 = ? AND ${SOUND}`,
     )
     .bind(String(body.fromAssetId ?? ''), connection.id, sha256)
     .first<{ key: string; storage_class: string; size: number; etag: string | null; quick_hash: string | null }>()

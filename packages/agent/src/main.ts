@@ -118,7 +118,7 @@ export class Agent {
   /** Tell cf-dam we're alive and what we're doing; learn whether to pause or rescan. */
   async heartbeat(): Promise<void> {
     this.canFaces ??= await hasFaceModel()
-    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep' }>('POST', '/api/agent/heartbeat', {
+    const res = await this.api.call<{ paused: boolean; rescan: boolean; resend?: string[]; faces?: { epoch: number } | null; findFaces?: { assetId: string }[]; archiveRetry?: boolean; archiveHeld?: 'archive' | 'keep'; archiveAgain?: string[] }>('POST', '/api/agent/heartbeat', {
       version: VERSION,
       platform: `${process.platform}/${process.arch}`,
       // Archiving first: cf-dam keeps 8,000 characters of this, and what archiving couldn't do mustn't be what's cut.
@@ -148,6 +148,11 @@ export class Agent {
         if (upload) await this.api.call('POST', '/api/agent/archive/abort', { uploadId: upload.upload_id }).catch(() => {})
         this.state.dropUpload(assetId)
       }
+    }
+    // Photos whose copy in the bucket the storage check found missing or changed: archived again.
+    if (res.body.archiveAgain?.length) {
+      const n = this.state.archiveAgain(res.body.archiveAgain)
+      if (n > 0) log(`cf-dam found ${n} archived copies missing or changed in the bucket; archiving those files again.`)
     }
     // Photos whose previews cf-dam lost (after a restore, say): sent again on the next scan.
     if (res.body.resend?.length) log(`cf-dam asked for the previews of ${this.state.resend(res.body.resend)} photos again.`)
