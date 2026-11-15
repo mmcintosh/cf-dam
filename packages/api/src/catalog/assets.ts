@@ -608,8 +608,8 @@ export function buildWhere(filters: ListFilters, omit?: keyof ListFilters): { cl
 }
 
 /**
- * Counts stop here: past it a count reads the whole catalog (1.4 million rows for the first
- * photographer) to say a number nobody pages through. Shown as "10,000+".
+ * Counts stop here: past it a count reads the whole catalog (1.4 million rows for a large
+ * archive) to say a number nobody pages through. Shown as "10,000+".
  */
 export const COUNT_CAP = 10_000
 

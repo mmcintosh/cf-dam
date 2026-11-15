@@ -1,5 +1,5 @@
 /**
- * A made-up catalog shaped like the first photographer's: RAW files indexed on a NAS by an agent and
+ * A made-up catalog shaped like a large photographer's archive: RAW files indexed on a NAS by an agent and
  * archived to S3 Deep Archive (two locations each), keywords from a tree of a few thousand (places,
  * birds, events, clients, subjects), GPS on some, bursts of near-identical frames, albums.
  *
@@ -107,8 +107,8 @@ export async function generate(db: D1Sqlite, options: GenerateOptions): Promise<
       captured_at, captured_offset, camera_make, camera_model, lens, focal_length, aperture, exposure_time, iso, gps_lat, gps_lng, rating,
       metadata, status, created_at, updated_at, flag, phash, label, creator, copyright, city, state, country, country_code, place_checked_at,
       search_id, place_gps)
-    VALUES (?, 'owner', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, '+01:00', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, 'Simon Example',
-      '© Simon Example', ?, ?, ?, ?, ?, ?, ?)`)
+    VALUES (?, 'owner', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, '+01:00', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, 'Sam Example',
+      '© Sam Example', ?, ?, ?, ?, ?, ?, ?)`)
   const location = db.sqlite.prepare(`INSERT INTO asset_locations (asset_id, connection_id, key, storage_class, state, size, etag, updated_at, mtime, quick_hash, seen_at, check_due_at)
     VALUES (?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?, ?)`)
   const rendition = db.sqlite.prepare(`INSERT INTO renditions (asset_id, name, key, mime_type, width, height, size, source, created_at) VALUES (?, ?, ?, 'image/webp', ?, ?, ?, 'agent', ?)`)

@@ -10,15 +10,17 @@ thumbnails, catalogs and AI-reviews every file where it already lives, then move
 cheaper storage tiers (R2, then warm storage, then deep archive) while the catalog stays searchable
 and online.
 
-> **Status: early scaffold.** Nothing here is usable yet. The project is being stood up from the
-> media system of the [Infowall](https://infowall.ai) CMS.
+> **Status: in development.** It runs, but so far only the people building it have used it, and
+> archiving has yet to run a whole night against a real bucket. It grew out of the media system of
+> the [Infowall](https://infowall.ai) CMS.
 
 ## What it will do
 
 - **Catalog in place.** A small agent on your NAS scans files, reads EXIF/IPTC/XMP, pulls RAW
   previews and uploads thumbnails, so the cloud index is complete before any original moves.
-- **Metadata stays in your files.** Keywords and captions are written back to XMP sidecars, never
-  held hostage in a database.
+- **Metadata stays in your files.** Today any photo's keywords and captions can be downloaded as an
+  XMP sidecar for Lightroom and other tools; writing them back beside the originals by itself, and a
+  full export, are being built.
 - **AI review.** Tags, alt text and captions from Workers AI, with an approve/dismiss workflow.
 - **Search everything.** Full text plus camera, lens, aperture, date and tag filters, and (optional)
   search by meaning: "birds by the water" finds the heron nobody keyworded "bird".

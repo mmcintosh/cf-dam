@@ -123,7 +123,7 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
     verification: {
       modelName: 'verification',
       // Single-use values (2FA challenges, reset links) are consumed in a D1 transaction.
-      // Infowall #1328: the KV path is not atomic and broke every single-use consume.
+      // The KV path is not atomic and broke every single-use consume.
       storeInDatabase: true,
       fields: {
         expiresAt: 'expires_at',
@@ -156,7 +156,7 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
       cookiePrefix: 'cfdam',
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
       // Better Auth validates the schema by introspecting sqlite_master, which D1 refuses
-      // (SQLITE_AUTH), failing every sign-in. Infowall #1328.
+      // (SQLITE_AUTH), failing every sign-in.
       database: { validateSchema: false },
       // Better Auth's own work after the answer (the reset email) runs past the response, not before it.
       ...(options.waitUntil ? { backgroundTasks: { handler: options.waitUntil } } : {}),

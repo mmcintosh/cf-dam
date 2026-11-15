@@ -1,6 +1,6 @@
 # cf-dam: inventory of the existing codebase
 
-Surveyed read-only on 2026-10-16 at `main` @ `56b083d`. All paths are relative to `/home/siddhartha/Infowall/dam/cf-dam`. Line numbers are as of that commit.
+Surveyed read-only on 2026-10-16 at `main` @ `56b083d`. All paths are relative to the repository root. Line numbers are as of that commit.
 
 ## 1. Summary
 

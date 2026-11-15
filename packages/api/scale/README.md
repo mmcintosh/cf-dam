@@ -1,6 +1,6 @@
 # Scale test
 
-How cf-dam's own queries behave on a catalog the size of the first photographer's (1.4 million photos),
+How cf-dam's own queries behave on a catalog the size of a large photographer's archive (1.4 million photos),
 locally and at no cost.
 
 ```sh
