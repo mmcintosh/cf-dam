@@ -25,7 +25,7 @@ import { mimeTypeFor, safeFilename } from './uploads'
  * What the helper can act on, beyond the status: archiving's refusals each say which one they are
  * (PLAN-HELPER-ARCHIVE-v2 A.1), so a helper can tell "the file changed" from "that upload is gone".
  */
-export type AgentErrorCode = 'not_archiving' | 'changed' | 'twin_mismatch' | 'no_upload' | 'no_photo' | 'bad_request'
+export type AgentErrorCode = 'not_archiving' | 'changed' | 'twin_mismatch' | 'no_upload' | 'other_bucket' | 'no_photo' | 'bad_request'
 
 export class AgentError extends Error {
   constructor(

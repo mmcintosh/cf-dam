@@ -220,9 +220,13 @@ async function upload(db: D1Database, source: SourceRow, id: unknown): Promise<U
 /** A signed URL for one part, carrying the part's SHA-256 (base64): the bucket refuses other bytes. */
 export async function signArchivePart(env: DamBindings, source: SourceRow & { archive?: string }, body: Record<string, unknown>) {
   const row = await upload(env.DB, source, body.uploadId)
-  // Archiving turned off (or moved to another bucket) since this upload began: no more parts for it.
-  if (parseArchiveSettings(source.archive).connectionId !== row.connection_id) {
-    throw new AgentError('This agent no longer archives to that bucket.', 409, 'not_archiving')
+  // Archiving turned off since this upload began: no more parts for it (kept, should it be turned on again).
+  const now = parseArchiveSettings(source.archive).connectionId
+  if (!now) throw new AgentError('This agent no longer archives.', 409, 'not_archiving')
+  // Moved to another bucket: this upload is over, and the file starts again in the new one.
+  if (now !== row.connection_id) {
+    await abandonUploads(env, env.DB.prepare('SELECT * FROM archive_uploads WHERE id = ?').bind(row.id))
+    throw new AgentError('Archiving moved to another bucket: start the file again there.', 404, 'other_bucket')
   }
   const partNumber = body.partNumber
   if (!Number.isInteger(partNumber) || (partNumber as number) < 1 || (partNumber as number) > row.part_count) {

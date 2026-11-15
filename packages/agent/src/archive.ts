@@ -343,6 +343,12 @@ async function archiveFile(ctx: ArchiveCtx, file: ArchiveCandidate, path: string
     try {
       return await archiveOnce(ctx, file, path, keepGoing, passStarted)
     } catch (error) {
+      // Archiving moved to another bucket since this upload began: start there, nothing counted against the file.
+      if (isCode(error, 404, 'other_bucket') && !restarted) {
+        state.dropUpload(file.asset_id)
+        ctx.log?.(`Starting ${file.path} again in the new bucket.`)
+        continue
+      }
       if (!(error instanceof UploadGone || isCode(error, 404, 'no_upload'))) throw error
       state.dropUpload(file.asset_id)
       const restarts = state.archiveRestarted(file.root_id, file.path)

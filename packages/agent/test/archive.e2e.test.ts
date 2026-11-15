@@ -447,6 +447,39 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
   }, 180_000)
 
+  it('starts a file part-way through again in the new bucket when archiving moves to another, counting nothing', async () => {
+    await photo('2020/DSC_0003.jpg', 3, true)
+    const { agent, sourceId, connectionId } = await setUp()
+    await agent.scanAll()
+    const [asset] = (await h.env.DB.prepare('SELECT id FROM assets').all<{ id: string }>()).results
+    const stopper = setInterval(() => (agent.state.upload(asset!.id)?.parts.length ?? 0) >= 1 && agent.stop(), 5)
+    await agent.archiveAll()
+    clearInterval(stopper)
+    expect(agent.state.upload(asset!.id)).not.toBeNull()
+    // Another bucket (here a folder of the same one) chosen for this helper.
+    const second = await h.fetch('/api/connections', {
+      ...json({ name: 'Second', endpoint: s3Endpoint, region: 'us-east-1', bucket, prefix: 'second', forcePathStyle: true, ...s3Credentials }),
+      cookie: admin,
+    })
+    expect(second.status).toBe(201)
+    const secondId = ((await second.json()) as { connection: { id: string } }).connection.id
+    const moved = await h.fetch(`/api/sources/${sourceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archive: { connectionId: secondId, storageClass: 'STANDARD', fromHour: 0, toHour: 0 } }),
+      cookie: admin,
+    })
+    expect(moved.status).toBe(200)
+    ;(agent as unknown as { stopping: boolean }).stopping = false
+    await agent.archiveAll()
+    expect(await archived(connectionId)).toEqual([])
+    const copies = await archived(secondId)
+    expect(copies).toHaveLength(1)
+    expect(await objectSha(copies[0]!.key)).toBe(fileSha(join(photos, '2020', 'DSC_0003.jpg')))
+    expect(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM archive_uploads').first<{ n: number }>()).toEqual({ n: 0 })
+    expect(agent.state.archiveError(rootOf(agent), '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
+    expect(agent.state.archiveLeft(Date.now()).files).toBe(0)
+  }, 180_000)
+
   it('archives as before against a cf-dam that gives no codes', async () => {
     await photo('2019/DSC_0001.jpg', 1)
     await photo('2019/DSC_0002.jpg', 2)
