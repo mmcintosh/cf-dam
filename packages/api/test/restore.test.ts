@@ -44,6 +44,8 @@ async function backedUpCatalog(): Promise<{ id: string; photos: string[]; editor
     { id: photos[1]!, hash: 'f0e1d2c3b4a59686' },
   ])
   await old.fetch('/api/auth/two-factor/enable', { ...json({ password: ADMIN.password }), cookie: admin })
+  // Already in the old install's search by meaning.
+  await old.env.DB.prepare("UPDATE assets SET meaning_hash = 'abc', meaning_at = '2026-01-01T00:00:00.000Z'").run()
   await startBackup(old.env, 'r2')
   for (let i = 0; i < 50; i++) {
     const step = await backupStep(old.env, () => true)
@@ -106,6 +108,8 @@ describe('restoring a backup into a fresh install', () => {
     expect(await count(h, 'SELECT COUNT(*) AS n FROM account')).toBe(0)
     expect(await count(h, 'SELECT COUNT(*) AS n FROM users WHERE two_factor_enabled = 1')).toBe(0)
     expect(await count(h, 'SELECT COUNT(*) AS n FROM assets WHERE indexed_at IS NOT NULL')).toBe(0)
+    // Search by meaning starts again too: its index isn't in the backup, so every photo is sent to it again.
+    expect(await count(h, 'SELECT COUNT(*) AS n FROM assets WHERE meaning_hash IS NOT NULL OR meaning_at IS NOT NULL')).toBe(0)
     // What this version adds to an older backup comes back too.
     expect(await count(h, "SELECT COUNT(*) AS n FROM role_permissions WHERE permission_id = 'alerts:read'")).toBe(1)
 

@@ -10,7 +10,7 @@ import { randomId } from '../lib/crypto'
 import { BadRequest, optionalString, readJsonObject, requiredEmail, requiredString, stringArray } from '../lib/http'
 import { nowIso } from '../lib/time'
 import { say } from '../lib/language'
-import { newInvite } from '../catalog/clients'
+import { dropClientInvites, isClientOnly, newInvite } from '../catalog/clients'
 import { emailInvite, mailOn } from '../mail/invite-mail'
 
 interface UserRow {
@@ -192,7 +192,9 @@ userRoutes.patch('/:id', async (c) => {
 
     if (roleNames !== undefined) {
       if (roleNames.length === 0) throw new BadRequest(say('err.needRole'))
-      await setUserRoles(c.env.DB, id, await validRoleNames(c.env.DB, roleNames))
+      const names = await validRoleNames(c.env.DB, roleNames)
+      await setUserRoles(c.env.DB, id, names)
+      if (!isClientOnly(names)) await dropClientInvites(c.env.DB, id).run()
     }
     if (name !== undefined) {
       await c.env.DB.prepare('UPDATE users SET name = ?, updated_at = ? WHERE id = ?').bind(name, nowIso(), id).run()
@@ -259,6 +261,8 @@ userRoutes.post('/:id/password', async (c) => {
     await db.batch([
       // Replaced, not updated: someone restored from a backup has no password yet.
       db.prepare("DELETE FROM account WHERE user_id = ? AND provider_id = 'credential'").bind(user.id),
+      // An invite link still out would let whoever holds it replace the password just set.
+      db.prepare('DELETE FROM client_invites WHERE user_id = ?').bind(user.id),
       db
         .prepare("INSERT INTO account (id, user_id, account_id, provider_id, password, created_at, updated_at) VALUES (?, ?, ?, 'credential', ?, ?, ?)")
         .bind(randomId(), user.id, user.id, await hashPassword(password), now, now),

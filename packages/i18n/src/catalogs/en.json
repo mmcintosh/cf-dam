@@ -892,6 +892,7 @@
   "err.clientElsewhere": "That login already belongs to {client}. Unlink it there first.",
   "err.clientEmail": "That email address doesn't look right.",
   "err.clientJoined": "They have already chosen a password. They sign in as usual.",
+  "err.clientOnTeam": "They are on the team now. Invite them from Team instead.",
   "err.clientName": "A client needs a name.",
   "err.codeUnknown": "That code is unknown or has expired.",
   "err.connectionInUse": "Something still uses this connection: its page lists what.",

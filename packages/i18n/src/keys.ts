@@ -863,6 +863,7 @@ export type MessageKey =
   | 'err.clientEmail'
   | 'err.clientJoined'
   | 'err.clientName'
+  | 'err.clientOnTeam'
   | 'err.codeUnknown'
   | 'err.connectionInUse'
   | 'err.connectionInUseFields'
