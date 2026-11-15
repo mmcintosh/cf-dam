@@ -336,6 +336,32 @@ describe.skipIf(!s3Endpoint)('archiving, end to end (against a real S3-compatibl
     expect(fileState(agent, '2020/DSC_0003.jpg')).toMatchObject({ attempts: 0 })
   }, 180_000)
 
+  it('blames a file the bucket denies a part of only when a file after it gets through', async () => {
+    await photo('2019/DSC_0001.jpg', 1)
+    await photo('2019/DSC_0002.jpg', 2)
+    const { agent, connectionId } = await setUp()
+    await agent.scanAll()
+    const backoff = (agent as unknown as { bucketBackoff: { until: number; waitMs: number } }).bucketBackoff
+    // Every part denied (the bucket's policy changed): the bucket, not the files.
+    faultyBucket(agent, () => s3Error(403, 'AccessDenied', 'Access Denied'))
+    await agent.archiveAll()
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+    expect(progressOf(agent).bucket.refusing).toBe('AccessDenied')
+    // Answers about the bucket itself: the bucket at once, on the first part.
+    backoff.until = 0
+    faultyBucket(agent, () => s3Error(404, 'NoSuchBucket', 'The specified bucket does not exist'))
+    await agent.archiveAll()
+    expect(progressOf(agent).bucket.refusing).toBe('NoSuchBucket')
+    for (const rel of ['2019/DSC_0001.jpg', '2019/DSC_0002.jpg']) expect(fileState(agent, rel)).toMatchObject({ attempts: 0 })
+    // Only the first file denied, and the next one goes through: it was that file.
+    backoff.until = 0
+    faultyBucket(agent, (n) => (n === 1 ? s3Error(403, 'AccessDenied', 'Access Denied') : undefined))
+    await agent.archiveAll()
+    expect((await archived(connectionId)).map((c) => c.filename)).toEqual(['DSC_0002.jpg'])
+    expect(fileState(agent, '2019/DSC_0001.jpg')).toMatchObject({ attempts: 1 })
+    expect(progressOf(agent).bucket.refusing).toBeNull()
+  }, 180_000)
+
   it('gives no file up while the bucket refuses everything, and waits longer between tries', async () => {
     await photo('2019/DSC_0001.jpg', 1)
     await photo('2019/DSC_0002.jpg', 2)
