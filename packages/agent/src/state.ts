@@ -348,12 +348,14 @@ export class State {
 
   /**
    * A person's choice for the files held: archive them as they are now, or keep the copy already in the bucket.
-   * Returns the photos whose unfinished uploads to give up.
+   * A file with no copy there yet (its first archive was under way) stays held on "keep": there is nothing to keep,
+   * and it mustn't drop out of every count unarchived. Returns the photos whose unfinished uploads to give up.
    */
   archiveHeldChoice(choice: 'archive' | 'keep'): string[] {
-    const held = this.db.prepare("SELECT asset_id FROM files WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%' AND asset_id IS NOT NULL").all() as { asset_id: string }[]
-    if (choice === 'archive') this.db.exec("UPDATE files SET archive_held = NULL WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
-    else this.db.exec("UPDATE files SET archive_held = 'kept: ' || archive_held WHERE archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'")
+    const which = `archive_held IS NOT NULL AND archive_held NOT LIKE 'kept:%'${choice === 'keep' ? ' AND archived_hash IS NOT NULL' : ''}`
+    const held = this.db.prepare(`SELECT asset_id FROM files WHERE ${which} AND asset_id IS NOT NULL`).all() as { asset_id: string }[]
+    if (choice === 'archive') this.db.exec(`UPDATE files SET archive_held = NULL WHERE ${which}`)
+    else this.db.exec(`UPDATE files SET archive_held = 'kept: ' || archive_held WHERE ${which}`)
     return held.map((h) => h.asset_id)
   }
 
