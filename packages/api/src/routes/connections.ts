@@ -39,7 +39,12 @@ function failure(c: Context<DamEnv>, error: unknown) {
 }
 
 connectionRoutes.get('/', requirePermission('assets:upload'), async (c) => {
-  return c.json({ connections: await listConnections(c.env.DB) })
+  const connections = await listConnections(c.env.DB)
+  if (c.get('principal')!.permissions.has('sources:manage')) return c.json({ connections })
+  // Uploading needs only where to: not the bucket, its address, key id or role (those are for who manages storage).
+  return c.json({
+    connections: connections.map((x) => ({ id: x.id, name: x.name, provider: x.provider, storageClasses: x.storageClasses, defaultClass: x.defaultClass, isDefault: x.isDefault })),
+  })
 })
 
 connectionRoutes.post('/', requirePermission('sources:manage'), async (c) => {
