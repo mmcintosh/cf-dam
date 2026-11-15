@@ -200,14 +200,29 @@ export const tagStatement = (db: D1Database, pairs: (readonly [string, string])[
  * Replace an asset's own tags with exactly `names`. AI suggestions are kept apart (they are accepted
  * or removed on their own), except that naming one here makes it the person's own. A keyword that
  * stays keeps where it came from (the file, Lightroom): saving the editor doesn't make it typed by hand.
+ * With `before` (the keyword paths the page had loaded), only those taken off go: a keyword added meanwhile, by the
+ * helper reading the file or by someone else, stays.
  */
-export async function setTags(db: D1Database, assetId: string, names: string[]): Promise<void> {
-  const ids = JSON.stringify(await resolveAll(db, names))
+export async function setTags(db: D1Database, assetId: string, names: string[], before?: string[]): Promise<void> {
+  const keep = await resolveAll(db, names)
+  const ids = JSON.stringify(keep)
   const now = nowIso()
+  let drop: D1PreparedStatement
+  if (before) {
+    // Taken off: on the page when it loaded (as the page shows paths), and not kept.
+    const had = new Set(before.map((p) => p.toLowerCase()))
+    const kept = new Set(keep)
+    const { results } = await db
+      .prepare("SELECT t.id, t.full_path FROM asset_tags at JOIN tags t ON t.id = at.tag_id WHERE at.asset_id = ? AND at.source != 'ai'")
+      .bind(assetId)
+      .all<{ id: string; full_path: string }>()
+    const removed = results.filter((r) => had.has(displayPath(r.full_path).toLowerCase()) && !kept.has(r.id)).map((r) => r.id)
+    drop = db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai' AND tag_id IN (SELECT value FROM json_each(?))").bind(assetId, JSON.stringify(removed))
+  } else {
+    drop = db.prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai' AND tag_id NOT IN (SELECT value FROM json_each(?))").bind(assetId, ids)
+  }
   await db.batch([
-    db
-      .prepare("DELETE FROM asset_tags WHERE asset_id = ? AND source != 'ai' AND tag_id NOT IN (SELECT value FROM json_each(?))")
-      .bind(assetId, ids),
+    drop,
     db
       .prepare(
         `INSERT INTO asset_tags (asset_id, tag_id, source, created_at) SELECT ?, value, 'user', ? FROM json_each(?) WHERE true
@@ -644,6 +659,8 @@ export async function updateAsset(
     label?: Label | null
     filename?: string
     tags?: string[]
+    /** The keywords the page had loaded: only those taken off are removed. */
+    tagsBefore?: string[]
     iptc?: IptcValues
   },
 ): Promise<void> {
@@ -661,7 +678,7 @@ export async function updateAsset(
   }
   const iptc = patch.iptc ? iptcUpdate(db, id, patch.iptc) : null
   if (iptc) await iptc.run()
-  if (patch.tags !== undefined) await setTags(db, id, patch.tags)
+  if (patch.tags !== undefined) await setTags(db, id, patch.tags, patch.tagsBefore)
   await indexAsset(db, id)
 }
 

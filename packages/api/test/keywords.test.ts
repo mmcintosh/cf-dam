@@ -227,6 +227,20 @@ describe('the keyword tree', () => {
     expect(text).toContain('<lr:hierarchicalSubject><rdf:Bag><rdf:li>Clients|Smith Wedding</rdf:li><rdf:li>Places|Europe|Norway|Bergen</rdf:li></rdf:Bag></lr:hierarchicalSubject>')
   })
 
+  it('takes off only the keywords the page removed, keeping one added meanwhile', async () => {
+    await patch(ids[0]!, { tags: ['Places > Norway > Bergen', 'Rain'] })
+    const loaded = (await tagsOf(ids[0]!)).map((t) => t.path)
+    // Someone else (or the helper reading the file) adds one while the page is open.
+    await patch(ids[0]!, { tags: [...loaded, 'Harbour'] })
+    // The page takes Rain off, from the list it loaded.
+    const kept = loaded.filter((p) => p !== 'Rain')
+    expect((await patch(ids[0]!, { tags: kept, tagsBefore: loaded })).status).toBe(200)
+    expect((await tagsOf(ids[0]!)).map((t) => t.name).sort()).toEqual(['Bergen', 'Harbour'])
+    // Without the list it loaded (an API caller), the keywords are exactly the ones sent, as before.
+    expect((await patch(ids[0]!, { tags: kept })).status).toBe(200)
+    expect((await tagsOf(ids[0]!)).map((t) => t.name)).toEqual(['Bergen'])
+  })
+
   it('marks every photo of a change for the sweep, however many, a list at a time', async () => {
     await h.env.DB.prepare("UPDATE assets SET indexed_at = '2026-01-01T00:00:00.000Z'").run()
     await markUnindexed(h.env.DB, [...ids, 'not-a-photo'], 2)

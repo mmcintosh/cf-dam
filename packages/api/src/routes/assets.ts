@@ -228,6 +228,7 @@ assetRoutes.patch('/:id', requirePermission('assets:edit'), async (c) => {
       alt: text('alt', 1000),
       rating: rating as number | null | undefined,
       tags: stringArray(body, 'tags'),
+      tagsBefore: stringArray(body, 'tagsBefore'),
       iptc: iptcPatch(body.iptc),
     })
     return c.json({ ok: true })
