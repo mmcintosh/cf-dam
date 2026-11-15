@@ -86,6 +86,11 @@ interface Progress {
   /** Bands: the last asset rowid done. */
   after: number
   report: RestoreReport
+  /**
+   * This version's migrations the backup didn't have. They ran on the empty database before the rows came in, so
+   * their changes to rows are made again once the rows are in. Absent from a restore begun by an earlier version.
+   */
+  later?: string[]
 }
 
 interface JobRow {
@@ -278,6 +283,7 @@ export async function startRestore(env: DamBindings, source: RestoreSource, back
     passFrom: 0,
     after: 0,
     report: { read: {}, loaded: {}, emptied: {} },
+    later: MIGRATIONS.map((m) => m.name).filter((name) => !manifest.migrations.includes(name)),
   }
   const id = randomId()
   await db.batch([
@@ -484,7 +490,10 @@ export async function restoreStep(env: DamBindings, more: () => boolean): Promis
         await save(next, 0)
         progress = next
       } else {
-        await save(copy(progress), 0, { status: 'restored', release: true }, () => seedStatements(db))
+        const later = new Set(progress.later ?? [])
+        // Migrations written as code are made to run again safely; any this backup predates go first.
+        for (const m of MIGRATIONS) if (m.run && later.has(m.name)) await m.run(db)
+        await save(copy(progress), 0, { status: 'restored', release: true }, () => [...seedStatements(db), ...laterRowChanges(db, later)])
         status = 'restored'
       }
     }
@@ -539,6 +548,19 @@ async function rebuildBands(db: D1Database, after: number): Promise<number> {
       .run()
   }
   return results.length < BANDS_PER_PAGE ? -1 : results.at(-1)!.r
+}
+
+/**
+ * What the migrations a backup predates did to rows (filling a new column from an old one, say), done again now the
+ * rows are in, with any one-off work they start (a backup that predates the work can't carry its marker).
+ */
+function laterRowChanges(db: D1Database, later: ReadonlySet<string>): D1PreparedStatement[] {
+  const seeded = new RegExp(`^INSERT OR IGNORE INTO (${SEED_TABLES.join('|')})\\b`, 'i')
+  return MIGRATIONS.filter((m) => m.sql && later.has(m.name))
+    .flatMap((m) => splitStatements(m.sql!))
+    .filter((s) => /^(UPDATE|DELETE|INSERT)\b/i.test(s.trim()))
+    .filter((s) => !seeded.test(s.trim()) || ONE_OFF_SETTINGS.some((key) => s.includes(`'${key}'`)))
+    .map((s) => db.prepare(s))
 }
 
 /** Every migration's INSERT OR IGNORE into the seeded tables: what this version adds comes back. */

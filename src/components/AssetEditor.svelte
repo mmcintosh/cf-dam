@@ -203,7 +203,8 @@
   async function saveTags(next: string[]): Promise<boolean> {
     const before = tags
     tags = next
-    if (!(await save({ tags: next }))) {
+    // What this page had: a keyword added since (the helper, someone else) isn't taken off by this save.
+    if (!(await save({ tags: next, tagsBefore: before }))) {
       tags = before
       return false
     }

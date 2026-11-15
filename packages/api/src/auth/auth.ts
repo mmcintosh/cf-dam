@@ -70,6 +70,9 @@ export function createAuth(env: DamBindings, request: Request, options: CreateAu
     baseURL: origin,
     basePath: AUTH_BASE_PATH,
     trustedOrigins: [origin],
+    // Not used by cf-dam's pages, and not for anyone to call: renaming yourself (a client could take a team member's
+    // name), and lists that hand session and account details to page JavaScript (cf-dam has its own, in routes/me.ts).
+    disabledPaths: ['/update-user', '/list-sessions', '/list-accounts'],
     // Better Auth recognises a D1 binding and uses its own D1 dialect. Sessions stay in D1:
     // a KV session cache would let a sign-out take up to a minute to reach other locations.
     database: db,

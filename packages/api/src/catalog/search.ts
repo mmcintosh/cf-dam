@@ -17,10 +17,16 @@ export async function unindexed(db: D1Database, limit: number): Promise<string[]
   return results.map((r) => r.id)
 }
 
-/** Leave these for the sweep to reindex (more than a request should do itself). */
-export async function markUnindexed(db: D1Database, assetIds: string[]): Promise<void> {
-  if (assetIds.length === 0) return
-  await db.prepare('UPDATE assets SET indexed_at = NULL WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(assetIds)).run()
+/**
+ * Leave these for the sweep to reindex (more than a request should do itself). In lists of a few thousand: a keyword
+ * on 100,000 photos would be one value over D1's 2 MB limit, failing after the keyword change itself had been made.
+ */
+export async function markUnindexed(db: D1Database, assetIds: string[], per = 10_000): Promise<void> {
+  const statements: D1PreparedStatement[] = []
+  for (let i = 0; i < assetIds.length; i += per) {
+    statements.push(db.prepare('UPDATE assets SET indexed_at = NULL WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(assetIds.slice(i, i + per))))
+  }
+  if (statements.length > 0) await db.batch(statements)
 }
 
 interface IndexRow {

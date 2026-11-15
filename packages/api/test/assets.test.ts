@@ -264,6 +264,19 @@ describe.skipIf(!s3Endpoint)('an S3 connection (against a real S3-compatible ser
     return body.connection.id
   }
 
+  it('shows an editor where uploads can go, not the bucket, its address or key', async () => {
+    const id = await createConnection()
+    await createUser(h, admin, { name: 'E', email: 'e@example.com', password: 'editor password 1', roles: ['editor'] })
+    const editor = cookiesFrom(await signIn(h, 'e@example.com', 'editor password 1'))
+    const seen = (await (await h.fetch('/api/connections', { cookie: editor })).json()) as { connections: Record<string, unknown>[] }
+    const mine = seen.connections.find((x) => x.id === id)!
+    expect(mine).toMatchObject({ name: 'Studio S3', provider: 's3' })
+    for (const field of ['bucket', 'endpoint', 'prefix', 'accessKeyId', 'roleArn', 'region']) expect(mine).not.toHaveProperty(field)
+    // Who manages storage sees it all.
+    const all = (await (await h.fetch('/api/connections', { cookie: admin })).json()) as { connections: Record<string, unknown>[] }
+    expect(all.connections.find((x) => x.id === id)).toMatchObject({ prefix: 'archive', accessKeyId: s3Credentials.accessKeyId })
+  })
+
   it('passes the connection test, and fails it with wrong credentials', async () => {
     const id = await createConnection()
     expect(await (await h.fetch(`/api/connections/${id}/test`, { method: 'POST', cookie: admin })).json()).toEqual({ ok: true })

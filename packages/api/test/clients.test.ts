@@ -189,6 +189,21 @@ describe('client accounts', () => {
     expect((await h.fetch(`/api/invites/${second.invite!.token}`, json({ password: 'a long client password' }))).status).toBe(404)
   })
 
+  it('can’t rename themselves or read their session token through the sign-in system', async () => {
+    const link = await share()
+    const { invite: inv } = await invite(link.id)
+    const client = await join(inv!.token)
+    expect((await h.fetch('/api/auth/update-user', { ...json({ name: 'Ada Admin' }), cookie: client })).status).toBe(404)
+    expect((await h.env.DB.prepare("SELECT name FROM users WHERE email = 'jane@example.com'").first<{ name: string }>())!.name).toBe('Jane Smith')
+    expect((await h.fetch('/api/auth/list-sessions', { cookie: client })).status).toBe(404)
+    const session = await h.fetch('/api/auth/get-session', { cookie: client })
+    expect(session.status).toBe(200)
+    const body = (await session.json()) as { session: Record<string, unknown>; user: { email: string } }
+    expect(body.user.email).toBe('jane@example.com')
+    expect(body.session).not.toHaveProperty('token')
+    expect(body.session).toHaveProperty('expiresAt')
+  })
+
   it("isn't asked for two-step sign-in when the team is", async () => {
     const link = await share()
     const client = await join((await invite(link.id)).invite!.token)

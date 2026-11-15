@@ -33,7 +33,7 @@ async function upload(filename: string): Promise<string> {
 }
 
 /** People, photos with hashes, an album and keywords; then a finished backup of it all. */
-async function backedUpCatalog(): Promise<{ id: string; photos: string[]; editor: string }> {
+async function backedUpCatalog(before?: (photos: string[]) => Promise<void>): Promise<{ id: string; photos: string[]; editor: string }> {
   const editor = await createUser(old, admin, { name: 'Ed Editor', email: 'ed@example.com', password: 'editor password 1', roles: ['editor'] })
   const photos = [await upload('IMG_1.jpg'), await upload('IMG_2.jpg')]
   const album = (await (await old.fetch('/api/albums', { ...json({ name: 'Herons' }), cookie: admin })).json()) as { album: { id: string } }
@@ -46,6 +46,7 @@ async function backedUpCatalog(): Promise<{ id: string; photos: string[]; editor
   await old.fetch('/api/auth/two-factor/enable', { ...json({ password: ADMIN.password }), cookie: admin })
   // Already in the old install's search by meaning.
   await old.env.DB.prepare("UPDATE assets SET meaning_hash = 'abc', meaning_at = '2026-01-01T00:00:00.000Z'").run()
+  await before?.(photos)
   await startBackup(old.env, 'r2')
   for (let i = 0; i < 50; i++) {
     const step = await backupStep(old.env, () => true)
@@ -204,6 +205,29 @@ describe('restoring a backup into a fresh install', () => {
     const third = (await (await h.fetch('/api/agent/pair/start', json({ name: 'Imposter', previousSourceId: sourceId }))).json()) as { userCode: string }
     expect(((await (await h.fetch(`/api/sources/pair/${third.userCode}`, { cookie })).json()) as { previous: unknown }).previous).toBeNull()
     expect((await h.fetch('/api/sources/pair', { ...json({ code: third.userCode, sourceId }), cookie })).status).toBe(409)
+  }, 180_000)
+
+  it('makes the changes to rows that this version’s migrations made, when the backup predates them', async () => {
+    // As an older version would have left them: Jev's people answer not yet copied (0053), a video not yet
+    // kept out of faces (0065), and the quick-fingerprint fill finished, so no marker (0036).
+    const { id, photos } = await backedUpCatalog(async ([first, second]) => {
+      await old.env.DB.prepare("UPDATE assets SET facet_status = 'done', facet_people = 'one', facet_people_jev = NULL WHERE id = ?").bind(first).run()
+      await old.env.DB.prepare("UPDATE assets SET mime_type = 'video/mp4', faces_state = NULL WHERE id = ?").bind(second).run()
+      await old.env.DB.prepare("DELETE FROM settings WHERE key = 'quick_hash.fill'").run()
+    })
+    const key = `cf-dam-backups/${id}/manifest.json`
+    const manifest = JSON.parse(await (await old.env.MEDIA_BUCKET!.get(key))!.text()) as { migrations: string[] }
+    manifest.migrations = manifest.migrations.filter((m) => !['0036_quick_hash', '0053_people_by_hand', '0065_faces'].includes(m))
+    await old.env.MEDIA_BUCKET!.put(key, JSON.stringify(manifest))
+
+    const h = await freshInstall()
+    expect((await h.fetch('/api/setup/restore', json({ source: R2, backupId: id }))).status).toBe(202)
+    await loadAll(h)
+    const row = async (assetId: string) => (await h.env.DB.prepare('SELECT facet_people_jev, faces_state FROM assets WHERE id = ?').bind(assetId).first<{ facet_people_jev: string | null; faces_state: string | null }>())!
+    expect((await row(photos[0]!)).facet_people_jev).toBe('one')
+    expect((await row(photos[1]!)).faces_state).toBe('skip')
+    // The fill this version's migration started belongs to the catalog that came back too.
+    expect(await count(h, "SELECT COUNT(*) AS n FROM settings WHERE key = 'quick_hash.fill'")).toBe(1)
   }, 180_000)
 
   it('refuses a backup from a newer version, and an install that already has accounts', async () => {
