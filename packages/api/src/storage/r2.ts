@@ -44,6 +44,7 @@ export class R2Provider implements StorageProvider {
     const object = await this.bucket.put(key, body, {
       httpMetadata: options?.contentType ? { contentType: options.contentType } : undefined,
       storageClass: r2Class(options),
+      customMetadata: options?.metadata,
     })
     return { etag: object.etag }
   }
@@ -92,6 +93,7 @@ export class R2Provider implements StorageProvider {
     const upload = await this.bucket.createMultipartUpload(key, {
       httpMetadata: options?.contentType ? { contentType: options.contentType } : undefined,
       storageClass: r2Class(options),
+      customMetadata: options?.metadata,
     })
     return upload.uploadId
   }

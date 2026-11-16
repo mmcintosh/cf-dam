@@ -217,7 +217,7 @@ The repo is already Apache-2.0, which maximizes adoption by studios/brands and a
 
 ### Cited Findings
 - AGPL-3.0 §13: "if you modify the Program, your modified version must prominently offer all users interacting with it remotely through a computer network … an opportunity to receive the Corresponding Source of your version … from a network server at no charge" — [GNU AGPL-3.0 text](https://www.gnu.org/licenses/agpl-3.0.txt)
-- Repo LICENSE is Apache License 2.0 with a NOTICE file — local file `/home/siddhartha/Infowall/dam/cf-dam/LICENSE` (repo inspection)
+- Repo LICENSE is Apache License 2.0 with a NOTICE file — the repository's `LICENSE` file (repo inspection)
 - OpenSSF Scorecard checks and risk: Dangerous-Workflow (Critical), Webhooks (Critical), Binary-Artifacts, Branch-Protection, Code-Review, Dependency-Update-Tool, Maintained, Signed-Releases ("cryptographic signatures or SLSA provenance"), Token-Permissions, Vulnerabilities (OSV) (High); Fuzzing, Packaging, Pinned-Dependencies, SAST, SBOM, Security-Policy (SECURITY.md with reporting contact) (Medium); CI-Tests, CII-Best-Practices, Contributors, License (Low) — [OpenSSF Scorecard checks](https://github.com/ossf/scorecard/blob/main/docs/checks.md)
 - `workers-oauth-provider` itself is MIT-licensed (compatible dependency) — [cloudflare/workers-oauth-provider](https://github.com/cloudflare/workers-oauth-provider)
 

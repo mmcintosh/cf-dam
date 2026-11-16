@@ -70,6 +70,8 @@ export interface PutOptions {
   checksumSha256?: boolean
   /** A single put: the body's SHA-256 (base64), which the store checks on arrival (S3). */
   sha256?: string
+  /** Kept on the object itself (S3 x-amz-meta-*, R2 custom metadata). ASCII values: S3 sends them as headers. */
+  metadata?: Record<string, string>
 }
 
 /** A request the browser or agent sends straight to storage. Signed headers must be sent as given. */
