@@ -47,6 +47,35 @@ describe('walking and planning', () => {
     expect(plan(found, failing).work.map((w) => w.file.path)).toEqual(['2019/a.jpg'])
   })
 
+  it('pairs each photo with its XMP sidecar, the way Lightroom and other tools name them', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'scan-'))
+    mkdirSync(join(root, 'shoot'))
+    const files = [
+      'IMG_1.CR2', 'IMG_1.xmp', // Lightroom: the RAW's name without its extension
+      'IMG_1.JPG', // Lightroom writes into a JPEG: IMG_1.xmp is the RAW's, not this one's
+      'b.NEF', 'b.xmp', 'b.NEF.xmp', // the name with the extension is unambiguous, so it comes first
+      'c.jpg', 'c.jpg.XMP', // any photo can have one named that way, in any case
+      'D.ARW', 'd.XMP',
+      'e.mov', 'e.xmp', // a video's would only be by its whole name
+      'f.dng', 'f.xmp', // Lightroom writes into a DNG too
+    ]
+    for (const name of files) writeFileSync(join(root, 'shoot', name), 'x')
+    writeFileSync(join(root, 'top.cr3'), 'x')
+    writeFileSync(join(root, 'top.xmp'), 'x')
+    const { found } = await walk(root, [])
+    const sidecars = Object.fromEntries([...found.values()].map((f) => [f.path, f.sidecar ?? null]))
+    expect(sidecars).toEqual({
+      'shoot/IMG_1.CR2': 'shoot/IMG_1.xmp',
+      'shoot/IMG_1.JPG': null,
+      'shoot/b.NEF': 'shoot/b.NEF.xmp',
+      'shoot/c.jpg': 'shoot/c.jpg.XMP',
+      'shoot/D.ARW': 'shoot/d.XMP',
+      'shoot/e.mov': null,
+      'shoot/f.dng': null,
+      'top.cr3': 'top.xmp',
+    })
+  })
+
   it('doesn’t take files in a folder it couldn’t read for deleted', async () => {
     if (process.getuid?.() === 0) return // root reads everything
     const root = mkdtempSync(join(tmpdir(), 'scan-'))

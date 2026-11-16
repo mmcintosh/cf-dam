@@ -1,7 +1,7 @@
 /** Walking a folder: which files to index, and what changed since last time. */
 import { createHash } from 'node:crypto'
 import { open, opendir, stat } from 'node:fs/promises'
-import { extname, join, relative, sep } from 'node:path'
+import { basename, extname, join, relative, sep } from 'node:path'
 import { MAX_SCAN_ATTEMPTS, type FileRow } from './state.ts'
 
 export const PHOTO_EXTENSIONS = new Set([
@@ -11,6 +11,22 @@ export const PHOTO_EXTENSIONS = new Set([
 ])
 export const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.mts', '.m2ts', '.avi', '.mkv', '.3gp', '.webm'])
 export const isVideo = (path: string) => VIDEO_EXTENSIONS.has(extname(path).toLowerCase())
+
+/** Formats Lightroom writes metadata into: an IMG_1234.xmp beside one of these belongs to a RAW of the same name. */
+const WRITES_INTO = new Set(['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.heic', '.heif', '.webp', '.avif', '.gif', '.dng'])
+
+/**
+ * A photo's XMP sidecar among the names in its folder (lower-cased → as on disk). Lightroom, Bridge and
+ * Camera Raw name it after the RAW without its extension (IMG_1234.xmp); darktable, Capture One and others
+ * keep the extension (IMG_1234.CR2.xmp), which is unambiguous and so comes first.
+ */
+export function sidecarOf(name: string, xmps: Map<string, string>): string | undefined {
+  const lower = name.toLowerCase()
+  const ext = extname(lower)
+  const whole = xmps.get(`${lower}.xmp`)
+  if (whole || WRITES_INTO.has(ext) || VIDEO_EXTENSIONS.has(ext)) return whole
+  return xmps.get(`${lower.slice(0, lower.length - ext.length)}.xmp`)
+}
 
 /** A glob ('*.lrdata', '@eaDir', 'Exports/**') as a RegExp over a name or a relative path. */
 export function globToRegExp(glob: string): RegExp {
@@ -51,6 +67,8 @@ export interface Found {
   path: string
   size: number
   mtimeMs: number
+  /** Its XMP sidecar (relative, like path), if it has one. */
+  sidecar?: string
 }
 
 export interface Walked {
@@ -69,6 +87,8 @@ export async function walk(root: string, exclude: string[], include: string[] = 
   const denied: string[] = []
   const visit = async (dir: string): Promise<void> => {
     const relDir = relative(root, dir).split(sep).join('/')
+    const photos: Found[] = []
+    const xmps = new Map<string, string>()
     try {
       // A share that drops mid-listing throws here or part-way through; either way, don't stop the scan.
       for await (const entry of await opendir(dir)) {
@@ -76,10 +96,14 @@ export async function walk(root: string, exclude: string[], include: string[] = 
         const rel = relative(root, abs).split(sep).join('/')
         if (entry.isDirectory()) {
           if (!match.skipDir(rel)) await visit(abs)
+        } else if (entry.isFile() && extname(entry.name).toLowerCase() === '.xmp') {
+          xmps.set(entry.name.toLowerCase(), entry.name)
         } else if (entry.isFile() && (PHOTO_EXTENSIONS.has(extname(entry.name).toLowerCase()) || isVideo(entry.name)) && match.keepFile(rel)) {
           try {
             const s = await stat(abs)
-            found.set(rel, { path: rel, size: s.size, mtimeMs: Math.floor(s.mtimeMs) })
+            const photo: Found = { path: rel, size: s.size, mtimeMs: Math.floor(s.mtimeMs) }
+            found.set(rel, photo)
+            photos.push(photo)
           } catch (error) {
             // Vanished between listing and stat is fine; anything else, the file may well still be there.
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') unreadable.push(rel)
@@ -90,6 +114,11 @@ export async function walk(root: string, exclude: string[], include: string[] = 
       unreadable.push(relDir)
       const code = (error as NodeJS.ErrnoException).code
       if (code === 'EPERM' || code === 'EACCES') denied.push(relDir)
+    }
+    // Once the folder is listed: a sidecar can come before or after its photo.
+    for (const photo of photos) {
+      const side = sidecarOf(basename(photo.path), xmps)
+      if (side) photo.sidecar = relDir ? `${relDir}/${side}` : side
     }
   }
   await visit(root)

@@ -181,6 +181,20 @@ describe('the agent, end to end', () => {
     expect(agent.status().previewsLater).toBe(0)
   }, 120_000)
 
+  it('reads what Lightroom wrote in a photo’s sidecar, on top of what was in the file', async () => {
+    mkdirSync(join(photos, '2023'))
+    copyFileSync(new URL('../../api/test/fixtures/iptc.jpg', import.meta.url).pathname, join(photos, '2023', 'boats.jpg'))
+    copyFileSync(new URL('./fixtures/lightroom.xmp', import.meta.url).pathname, join(photos, '2023', 'boats.jpg.xmp'))
+    const agent = newAgent()
+    await pairAndAddRoot(agent)
+    await agent.scanAll()
+    const boats = (await list()).assets.find((a) => a.filename === 'boats.jpg')!
+    const withSidecar = (await (await h.fetch(`/api/assets/${boats.id}`, { cookie: admin })).json()) as { caption: string; rating: number; tags: { path: string }[]; iptc: Record<string, string> }
+    expect(withSidecar).toMatchObject({ caption: 'Fishing boats at dawn', rating: 5 })
+    expect(withSidecar.tags.map((t) => t.path).sort()).toEqual(['Boats', 'Places › Norway › Ålesund'])
+    expect(withSidecar.iptc).toMatchObject({ city: 'Ålesund', creator: 'Mark Photographer' })
+  }, 120_000)
+
   it('indexes a folder in place, resumes after being stopped, and recognises renames and deletions', async () => {
     for (let i = 0; i < 4; i++) await photo(`2023/IMG_${1000 + i}.jpg`, i)
     copyFileSync(new URL('../../api/test/fixtures/iptc.jpg', import.meta.url).pathname, join(photos, '2023', 'bergen.jpg'))

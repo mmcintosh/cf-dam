@@ -172,6 +172,34 @@ export function mapTags(t: T): AgentMetadata {
   }
 }
 
+/**
+ * A photo's metadata with its XMP sidecar's on top. The sidecar is where Lightroom keeps what was written
+ * about a RAW (it never writes into one), so what it says is newer than what the camera put in the file:
+ * the description, keywords, people, rating and label, place, and a capture time set in Lightroom. What the
+ * camera measured (size, orientation, lens, exposure) stays the file's. A field the sidecar leaves empty
+ * keeps the file's value.
+ */
+export function withSidecar(file: AgentMetadata, side: AgentMetadata): AgentMetadata {
+  const gps = side.gpsLat !== null && side.gpsLng !== null
+  const iptc = { ...file.iptc }
+  for (const [key, value] of Object.entries(side.iptc)) if (value !== null) iptc[key] = value
+  return {
+    ...file,
+    capturedAt: side.capturedAt ?? file.capturedAt,
+    // A sidecar repeating the camera's time seldom carries the zone tag the file has: keep the file's.
+    capturedOffset: side.capturedOffset ?? (side.capturedAt && side.capturedAt !== file.capturedAt ? null : file.capturedOffset),
+    gpsLat: gps ? side.gpsLat : file.gpsLat,
+    gpsLng: gps ? side.gpsLng : file.gpsLng,
+    rating: side.rating ?? file.rating,
+    title: side.title ?? file.title,
+    caption: side.caption ?? file.caption,
+    keywords: side.keywords.length > 0 ? side.keywords : file.keywords,
+    people: side.people.length > 0 ? side.people : file.people,
+    iptc,
+    label: side.label ?? file.label,
+  }
+}
+
 /** '0:01:23', '83.4 s', 83.4 → seconds. */
 export function seconds(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -241,10 +269,11 @@ export class Extractor {
     this.exiftool = new ExifTool({ maxProcs: processes, taskTimeoutMillis: 60_000 })
   }
 
-  async extract(path: string): Promise<Extracted> {
+  /** `sidecar`: the photo's XMP sidecar, whose metadata goes on top of the file's (withSidecar). */
+  async extract(path: string, sidecar?: string): Promise<Extracted> {
     const tags = (await this.exiftool.read(path)) as Tags & T
     if (isVideo(path)) return this.video(path, tags)
-    const meta = mapTags(tags)
+    const meta = sidecar ? withSidecar(mapTags(tags), await this.sidecar(sidecar)) : mapTags(tags)
     const ext = extname(path).toLowerCase()
     if (DIRECT.has(ext) || (HEIC.has(ext) && SHARP_READS_HEIC)) return { meta, source: path, orientation: meta.orientation }
     if (HEIC.has(ext)) {
@@ -267,6 +296,12 @@ export class Extractor {
       }
     }
     return { meta, source: embedded, orientation: meta.orientation }
+  }
+
+  /** A sidecar that can't be read (half-written by Lightroom, say) adds nothing: the photo is still read. */
+  private async sidecar(path: string): Promise<AgentMetadata> {
+    const tags = await this.exiftool.read(path).catch(() => null)
+    return mapTags((tags ?? {}) as T)
   }
 
   /**

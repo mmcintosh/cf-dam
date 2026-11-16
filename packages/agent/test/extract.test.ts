@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterAll, describe, expect, it } from 'vitest'
 import { decodePng, hashPixels } from '../../api/src/catalog/phash.ts'
@@ -32,6 +35,32 @@ describe('reading photos with ExifTool', () => {
     })
     // Read from the file by sharp as it renders, not held in memory whole.
     expect(source).toBe(fixture('iptc.jpg'))
+  })
+})
+
+describe('XMP sidecars', () => {
+  const lightroom = new URL('./fixtures/lightroom.xmp', import.meta.url).pathname
+
+  it('put what Lightroom wrote on top of what the camera put in the file', async () => {
+    const file = (await extractor.extract(fixture('iptc.jpg'))).meta
+    const { meta } = await extractor.extract(fixture('iptc.jpg'), lightroom)
+    // The sidecar's: description, keywords, rating, label, place.
+    expect(meta).toMatchObject({ caption: 'Fishing boats at dawn', rating: 5, label: 'Green' })
+    expect(meta.keywords).toEqual(['Places|Norway|Ålesund', 'Boats'])
+    expect(meta.iptc.city).toBe('Ålesund')
+    expect(meta.gpsLat).toBeCloseTo(62.47, 2)
+    expect(meta.gpsLng).toBeCloseTo(6.15, 2)
+    // What the sidecar doesn't say stays the file's, and what the camera measured is never taken from it.
+    expect(meta).toMatchObject({ title: 'Storm over Bergen', capturedAt: file.capturedAt, capturedOffset: file.capturedOffset, cameraModel: 'Canon EOS R5', width: 1200 })
+    expect(meta.iptc).toMatchObject({ creator: 'Mark Photographer', sublocation: 'Bryggen', jobId: 'JOB-2041' })
+  })
+
+  it('that can’t be read add nothing, and the photo is still read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sidecar-'))
+    writeFileSync(join(dir, 'half.xmp'), '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF')
+    const file = (await extractor.extract(fixture('iptc.jpg'))).meta
+    expect((await extractor.extract(fixture('iptc.jpg'), join(dir, 'half.xmp'))).meta).toEqual(file)
+    expect((await extractor.extract(fixture('iptc.jpg'), join(dir, 'missing.xmp'))).meta).toEqual(file)
   })
 })
 
